@@ -1,3 +1,11 @@
+.classpath
+.project
+.settings
+.gradle
+
+bin
+
+*.tmp
 *.class
 *.log
 

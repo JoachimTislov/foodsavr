@@ -4,6 +4,30 @@ There are countless features to include in the application, but these are worthl
 
 Opt for an event based domain driven design, using generic repository in each domain. One table in the database equals one domain
 
+## Thoughts
+
+- Two factor authentication, and open up for passwordless signins?
+    - This might be overkill for a food app ...
+- Setup a internal notification system, or just use email?
+- Let the user manage all the login sessions
+- Should the products contain ingredients?
+    - Per 100g ...
+    - I think this feature can be added easily later ...
+    - This is meant for tracking macros and thats not the main purpose of this application
+- If users are in a group will there only be once instance of the product/recipe/meal in the database?
+    - .. meaning that multiple people have a relation to the entity it can cause state issues.
+    - Use a copy-on-share model
+    - Products/meals/recipes and users have many-to-many relationship
+    - Users should have their own copy of the original entity to prevent conflicts
+        - The copy should take place on "add" for both the group and global list entries
+- The inventory needs to shared amoungst the whole group
+    - should be asked if they want to share inventory or synchronize them
+- Supporting group owned entities is a bad design choice - will cause complex logic when merging and splitting groups
+- Add shared flag for visibility group/global
+- Allow soft-deletion but not hard-deletion if entities are referenced by others.
+    - Deleting a product which is referenced in a meal etc ...
+- Create on add new product (this might be mentioned somewhere else)
+
 ## Questions
 
 - How should users join each other?
@@ -19,12 +43,49 @@ Opt for an event based domain driven design, using generic repository in each do
     - Creating an internal notification system is too much and I think that is the only alternative
         - Can possible migrate to this solution if a notification system is implemented
 
+## TODO research
+
+- DTOs (Data transfer objects)
+- JWT
+- OAuth
+- CORS
+- Testing
+- AI agent protocol - Web API protocol for autonomous agents
+- MCP - model context protocol
+- Robot.txt
+- Logging for debugging and safety
+
+
+## Database
+
+Use Spring JPA (Java Persistence API)
+Type: PostgreSQL
+
+### Entities
+
+[View relations for more details](./relations.md)
+
+- Users
+- Groups
+- Products
+- Location
+- Inventory
+- Recipes
+- Meals
+
 ## API design
 
 I want to use gRPC for type-safety and other reasons
 - [grpc-web](https://github.com/grpc/grpc-web)
     - https://www.youtube.com/watch?v=nBOmalmldx8
 - [Spring-docs-grpc](https://docs.spring.io/spring-grpc/reference/server.html)
+- Client side pkgs
+    - grpc-web
+    - google-protobuf
+    - @types/google-protobuf
+- Should keep it modular and not merge all the backend services to one big one, pointless step.
+- REST API and gRPC can coexist
+    - Debate on implementig both
 
 For server-side clients (Microservices) - https://github.com/grpc-ecosystem/grpc-spring
 
@@ -38,35 +99,16 @@ BUT, I think setting up a REST API is simpler and less complex
 - Domains/Contexts
     - repository
     - service
-- API and business logic
-- UI
+- API (gRPC) and business logic
+- UI/Client
 
 ## Roles
 
-User, Admin, SuperAdmin (Maybe add GroupMember later if theres actions specific to group members and leader)
+User, Admin, SuperAdmin
 
 ## Domains
 
-- admin
-- user and/or group
-    - Have to figure out the best way to relate users with the same meals.
-    without making the logic annoying to deal in many areas
-    - Either a group or a user can have a relation to the meal and/or product
-    - A group share everything
-    - The state is peserved when leaving and joining groups because the users determine the total content of the group
-        - Users can be annoyed if a group member leaves and they loose certain meals so this state should be explicit in the UI
-        - A user should be allowed to add anothers users meal or product to their favs (private)
-    - A user can be in a group and the group ID is used to get the users and IDs in the group to get all the information
-    - The group is only intended to be a brigde for people to share their meals and mealplan
-    - Giving multiple users access to the same data makes the handling of it complex - Can handled by blocking double updates
-        - A simple error informing the user that the current product or meal has already been updated should resolve this
-- product: is global and per user
-    - Global and private
-    - User can decide if they want to contribute to the global repository
-- shoppinglist
-- recipes
-- mealplan
-- budget
+[View relations](./relations.md)
 
 ## Food Tracking
 
@@ -109,7 +151,9 @@ User, Admin, SuperAdmin (Maybe add GroupMember later if theres actions specific 
 
 [View relations for detailed database design](./relations.md)
 
-1. Setup simple authentication (email and password)
+1. Configure gRPC and setup the PostgreSQL database
+2. Add Logging
+3. Setup simple authentication (email and password)
     - Create User table
         - email
         - password
@@ -121,9 +165,9 @@ User, Admin, SuperAdmin (Maybe add GroupMember later if theres actions specific 
     - Configure the API endpoints for login in and GET users
     - Connect the database layer to the API
     - Create login page and admin manage users - should an admin be allowed to delete users?
-2. Setup the basic profile (delete me and update/change password) and create landing page
+4. Setup the basic profile (delete me and update/change password) and create landing page
     - Debate on adding profile picture or anything else
-3. Product domain
+5. Product domain
     - Create global and users product table
         global
         - name
@@ -133,8 +177,8 @@ User, Admin, SuperAdmin (Maybe add GroupMember later if theres actions specific 
         For later
             - ingredients
             - nutrients
-4. Shoppinglist domain
-5. Ensure the correct access control, validation and functionality
+6. Shoppinglist domain
+7. Ensure the correct access control, validation and functionality
     - Resolve bugs, issues, etc
     - Attempt to determine flaws in the architecture to avoid technical debt in the future
     - FIX all issues harming the implementation of future features.
