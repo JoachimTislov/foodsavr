@@ -2,7 +2,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class EnvironmentConfig {
   static const String _flavor = String.fromEnvironment(
-    'FLAVOR',
+    'flavor',
     defaultValue: 'development',
   );
 
