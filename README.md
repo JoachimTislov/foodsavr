@@ -14,4 +14,3 @@ FoodSavr is designed to help people save food, time and money.
 
 - Flutter (Dart)
 - Firebase
-- Tailwind CSS
