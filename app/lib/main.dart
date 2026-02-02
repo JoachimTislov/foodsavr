@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:app/environment_config.dart'; // Import the new file
 
 import 'authentication/application/auth_service.dart';
 import 'authentication/presentation/my_home_page.dart';
@@ -11,6 +12,7 @@ import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await EnvironmentConfig.load(); // Load environment variables
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   final seedingService = SeedingService(DatabaseService());
   await seedingService.seedDatabase();
