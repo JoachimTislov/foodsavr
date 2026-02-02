@@ -1,3 +1,4 @@
+import 'package:app/environment_config.dart';
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
 
@@ -15,8 +16,12 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final logger = Logger();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _emailController = TextEditingController(
+    text: EnvironmentConfig.testUserEmail,
+  );
+  final _passwordController = TextEditingController(
+    text: EnvironmentConfig.testUserPassword,
+  );
   final AuthService _authService = AuthService(FirebaseAuthRepository());
   bool _isLogin = true;
   String? _errorMessage;
