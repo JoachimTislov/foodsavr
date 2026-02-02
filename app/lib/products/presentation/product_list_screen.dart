@@ -1,8 +1,8 @@
-import 'package:app/products/domain/product_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:app/data/models/product_model.dart';
 import 'package:app/products/application/product_service.dart';
+import 'package:provider/provider.dart'; // Import provider
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -13,27 +13,35 @@ class ProductListScreen extends StatefulWidget {
 
 class _ProductListScreenState extends State<ProductListScreen> {
   late Future<List<Product>> _productsFuture;
-  final ProductService _productService = ProductService(ProductRepository());
+  // Removed direct instantiation: final ProductService _productService = ProductService(FirebaseProductRepository());
 
   @override
   void initState() {
     super.initState();
+    // Moved _productsFuture initialization to a place where context is available
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     _productsFuture = _fetchProducts();
   }
 
   Future<List<Product>> _fetchProducts() async {
+    final productService = context.read<ProductService>(); // Get ProductService from provider
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      // Handle case where user is not logged in, perhaps navigate to login
       return Future.error('User not logged in');
     }
-    return _productService.getProductsForCurrentUser(user.uid);
+    return productService.getProductsForCurrentUser(user.uid);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('My Products')),
+      appBar: AppBar(
+        title: const Text('My Products'),
+      ),
       body: FutureBuilder<List<Product>>(
         future: _productsFuture,
         builder: (context, snapshot) {
@@ -50,14 +58,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
               itemBuilder: (context, index) {
                 final product = products[index];
                 return Card(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
+                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   child: ListTile(
                     title: Text(product.name),
                     subtitle: Text(product.description),
-                    // Add more details or actions here if needed
                   ),
                 );
               },
