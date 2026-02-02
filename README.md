@@ -12,5 +12,10 @@ FoodSavr is designed to help people save food, time and money.
 
 ## Tech Stack
 
-- Flutter (Dart)
+- Flutter
+- Naturally Dart
+- Material Design
 - Firebase
+    - Firestore
+    - Authentication
+- Google Cloud
