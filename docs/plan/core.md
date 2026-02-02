@@ -1,8 +1,14 @@
-# Core functionality implementation plan
+# Core plan
 
 There are countless features to include in the application, but these are worthless without the core functionality.
 
 Opt for an event based domain driven design, using generic repository in each domain. One table in the database equals one domain
+
+## Guiding principles
+
+- Outsource when possible
+- Flexible architecture to allow future changes
+- Gradual implementation of features
 
 ## Thoughts
 
@@ -45,16 +51,24 @@ Opt for an event based domain driven design, using generic repository in each do
 
 ## TODO research
 
+- gRPC vs REST API vs GraphQL
+- Authentication methods
+    - OAuth
+    - JWT
+- QR code/barcode scanning libraries
 - DTOs (Data transfer objects)
-- JWT
-- OAuth
 - CORS
 - Testing
 - AI agent protocol - Web API protocol for autonomous agents
 - MCP - model context protocol
-- Robot.txt
+- OpenAPIs for food products/recipes/discounts
+- CI/CD pipelines
+    - Deployment configuration to firsly Google Play Store
+- Web crawler for product database population
+    - agent
+    - microservice (Micronaut with gRPC?, connect with flutter app?)
+    - Robot.txt
 - Logging for debugging and safety
-
 
 ## Database
 
@@ -110,38 +124,42 @@ User, Admin, SuperAdmin
 
 [View relations](./relations.md)
 
-## Food Tracking
+### Features
+
+- Scan QR/Barcodes to Add Products
+
+#### Food Tracking
 
 - Track products in fridge, freezer, and cabinets (or just a unified inventory if you want simplicity).
 - Info: name, price, quantity, expiration date, nutrients (optional).
 - Track what has been used and what is left.
     - Delete or archive consumed products?
 
-## Shopping List
+#### Shopping List
 
 - Automatically generate shopping lists from meal plans or missing items.
 - Option to mark items as bought and update inventory.
 - Reduce duplicate purchases by knowing what’s already in stock.
 
-## Recipes
+#### Recipes
 
 - Store and manage recipes.
 - Automatically check which ingredients are missing and add them to the shopping list.
 - Avoid the user having to select each product manually.
 
-## Meal plans
+#### Meal plans
 
 - Consists of recipes
 - Follows calender or to keep simple weekly plan
 - Should be following the calender to synchronize with the expiration dates
 
-## Products Database
+#### Global Products Database
 
 - Maintain a global and personal product list.
 - Use barcodes or manual input for easy tracking.
 - Optional integration with discounts or store offers.
 
-## Budget and Expense Tracking
+#### Budget and Expense Tracking
 
 - Track shopping costs per trip.
 - Cost per meal and product
