@@ -2,6 +2,7 @@ import 'package:app/repositories/product_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:app/models/product_model.dart';
 import 'package:app/services/product_service.dart';
+import 'package:app/widgets/product/product_list_item.dart';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -43,17 +44,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
               itemCount: products.length,
               itemBuilder: (context, index) {
                 final product = products[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  child: ListTile(
-                    title: Text(product.name),
-                    subtitle: Text(product.description),
-                    // Add more details or actions here if needed
-                  ),
-                );
+                return ProductListItem(product: product);
               },
             );
           }

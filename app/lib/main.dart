@@ -1,7 +1,7 @@
 import 'package:app/repositories/collection_repository.dart';
 import 'package:app/repositories/product_repository.dart';
 import 'package:app/repositories/user_repository.dart';
-import 'package:app/utils/environment_config.dart'; // Import the new file
+import 'package:app/constants/environment_config.dart'; // Import the new file
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -10,8 +10,8 @@ import 'repositories/auth_repository.dart';
 import 'services/auth_service.dart';
 import 'utils/firebase_options.dart';
 import 'utils/seeding.dart';
-import 'views/home.dart';
-import 'views/main.dart';
+import 'views/home_view.dart';
+import 'views/main_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
