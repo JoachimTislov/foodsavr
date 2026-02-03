@@ -1,8 +1,7 @@
-import 'package:app/products/domain/product_repository.dart';
+import 'package:app/repositories/product_repository.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:app/data/models/product_model.dart';
-import 'package:app/products/application/product_service.dart';
+import 'package:app/models/product_model.dart';
+import 'package:app/services/product_service.dart';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -22,12 +21,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   Future<List<Product>> _fetchProducts() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      // Handle case where user is not logged in, perhaps navigate to login
-      return Future.error('User not logged in');
-    }
-    return _productService.getProductsForCurrentUser(user.uid);
+    return _productService.getAllProducts();
   }
 
   @override

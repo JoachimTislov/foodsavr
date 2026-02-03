@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:app/environment_config.dart'; // Import the new file
-import 'package:app/products/presentation/product_list_screen.dart'; // Import ProductListScreen
+import 'package:app/utils/environment_config.dart'; // Import the new file
+import 'package:app/views/product_list.dart'; // Import ProductListScreen
 
 class MainAppScreen extends StatelessWidget {
   const MainAppScreen({super.key});
@@ -38,4 +38,3 @@ class MainAppScreen extends StatelessWidget {
     );
   }
 }
-
