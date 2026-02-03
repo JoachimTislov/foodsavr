@@ -6,15 +6,18 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
+import 'package:easy_localization/easy_localization.dart'; // Import easy_localization
+
 import 'repositories/auth_repository.dart';
 import 'services/auth_service.dart';
 import 'utils/firebase_options.dart';
 import 'utils/seeding.dart';
-import 'views/home_view.dart';
+import 'views/auth_view.dart';
 import 'views/main_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await EasyLocalization.ensureInitialized(); // Initialize easy_localization
 
   // Load environment variables
   await EnvironmentConfig.load();
@@ -29,7 +32,18 @@ void main() async {
     collectionRepository,
   );
   await seedingService.seedDatabase();
-  runApp(MyApp());
+  const enLocale = Locale('en', 'US');
+  runApp(
+    EasyLocalization(
+      supportedLocales: const [
+        enLocale,
+        Locale('no', 'NO'),
+      ], // Supported locales
+      path: 'assets/translations', // Path to your translations
+      fallbackLocale: enLocale, // Fallback locale
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -43,6 +57,9 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'FoodSavr',
+      localizationsDelegates: context.localizationDelegates, // Add delegates
+      supportedLocales: context.supportedLocales, // Add supported locales
+      locale: context.locale, // Set current locale
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueAccent),
       ),
