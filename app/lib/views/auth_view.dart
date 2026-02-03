@@ -2,6 +2,7 @@ import 'package:app/constants/environment_config.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../repositories/auth_repository.dart';
 import '../services/auth_service.dart';
@@ -39,27 +40,21 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  void _login(String email, String password) async {
-    setState(() => _errorMessage = null); // Clear previous error messages
+  void _authenticate() async {
+    setState(() => _errorMessage = null);
     try {
-      await _authService.signInWithEmailAndPassword(email, password);
+      final email = _emailController.text.trim();
+      final password = _passwordController.text.trim();
+      if (_isLogin) {
+        await _authService.signInWithEmailAndPassword(email, password);
+      } else {
+        await _authService.createUserWithEmailAndPassword(email, password);
+      }
     } on Exception catch (e) {
       setState(
         () => _errorMessage = e.toString().replaceFirst('Exception: ', ''),
       );
-      logger.e('Login error: $e');
-    }
-  }
-
-  void _register(String email, String password) async {
-    setState(() => _errorMessage = null); // Clear previous error messages
-    try {
-      await _authService.createUserWithEmailAndPassword(email, password);
-    } on Exception catch (e) {
-      setState(
-        () => _errorMessage = e.toString().replaceFirst('Exception: ', ''),
-      );
-      logger.e('Registration error: $e');
+      logger.e('Auth error: $e');
     }
   }
 
@@ -70,7 +65,7 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Theme.of(context).colorScheme.surface,
         title: Padding(
           padding: const EdgeInsets.only(top: 40.0),
-          child: Center(child: Text(widget.title)),
+          child: Center(child: Text('welcome_message'.tr())),
         ),
       ),
       body: Padding(
@@ -79,7 +74,7 @@ class _HomePageState extends State<HomePage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              _isLogin ? 'Login' : 'Sign up',
+              _isLogin ? 'login'.tr() : 'signup'.tr(),
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             AuthFormFields(
@@ -105,11 +100,7 @@ class _HomePageState extends State<HomePage> {
             ),
             AuthSubmitButton(
               isLogin: _isLogin,
-              onPressed: () {
-                final email = _emailController.text.trim();
-                final password = _passwordController.text.trim();
-                _isLogin ? _login(email, password) : _register(email, password);
-              },
+              onPressed: () => _authenticate(),
             ),
           ],
         ),
