@@ -11,19 +11,33 @@
 
 ## Architecture
 
-- DDD (Domain-Driven Design) principles should be followed.
-- Modular structure: Code should be organized into modules based on features or domains.
-- Strict typing through interface, abstract, generic and concrete classes.
-- Zero hard-coded values: Use constants or configuration files.
-- Separation of concerns: UI, business logic, and data layers should be clearly separated.
-- library folders (source code) structure:
-    - constants/: Application-wide constants
-    - features/: Feature-specific code
-    - `models/`: Data models
-    - repositories/: Data access layer
-    - `services/`: Business logic and data services
-    - `utils/`: Utility functions and helpers
-    - `widgets/`: Reusable UI components
-    - views/`: Composite UI components
-    - state/: State management files
+The project follows a **3-tier layered architecture** with **dependency injection**:
+
+### Core Principles:
+- **Repository Pattern with Interfaces**: All data access through abstract interfaces
+- **Dependency Injection**: GetIt service locator - never instantiate dependencies directly
+- **Separation of Concerns**: UI → Services → Repositories → Models
+- **Zero hard-coded values**: Use constants or configuration files
+
+### Structure:
+- **Presentation Layer**: `views/` and `widgets/` - UI components
+  - Get dependencies via `getIt<Service>()` in `initState()`
+  - No direct instantiation of services or repositories
+- **Application Layer**: `services/` - Business logic, validation, orchestration
+  - Depend on repository interfaces, not concrete implementations
+- **Data Layer**: `repositories/` - Data access with multiple implementations
+  - Abstract interfaces (`i_*_repository.dart`)
+  - Firestore implementations (production persistence)
+  - In-memory implementations (testing/seeding)
+- **Domain Layer**: `models/` - Plain data classes with `toJson()`/`fromJson()`
+
+### Library Folders:
+- `constants/`: Application-wide constants
+- `models/`: Data models with serialization
+- `repositories/`: Data access interfaces and implementations
+- `services/`: Business logic and orchestration
+- `utils/`: Utility functions and helpers
+- `widgets/`: Reusable UI components by feature
+- `views/`: Full-screen UI components
+- `service_locator.dart`: Dependency injection configuration
 

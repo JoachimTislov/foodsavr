@@ -1,14 +1,14 @@
-import '../repositories/user_repository.dart';
-import '../repositories/product_repository.dart';
-import '../repositories/collection_repository.dart';
+import '../interfaces/user_repository.dart';
+import '../interfaces/product_repository.dart';
+import '../interfaces/collection_repository.dart';
 import '../models/user.dart';
 import '../models/product_model.dart';
 import '../models/collection_model.dart';
 
 class SeedingService {
-  final UserRepository _userRepository;
-  final ProductRepository _productRepository;
-  final CollectionRepository _collectionRepository;
+  final IUserRepository _userRepository;
+  final IProductRepository _productRepository;
+  final ICollectionRepository _collectionRepository;
 
   SeedingService(
     this._userRepository,

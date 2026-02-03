@@ -16,4 +16,12 @@ class EnvironmentConfig {
   static String? get testUserPassword {
     return dotenv.env['TEST_USER_PASSWORD'] ?? '';
   }
+
+  static bool get isProduction {
+    return dotenv.env['ENVIRONMENT'] == 'production';
+  }
+
+  static bool get isDevelopment {
+    return dotenv.env['ENVIRONMENT'] != 'production';
+  }
 }

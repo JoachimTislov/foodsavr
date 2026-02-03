@@ -1,10 +1,9 @@
 import 'package:app/constants/environment_config.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
 import 'package:easy_localization/easy_localization.dart';
 
-import '../repositories/auth_repository.dart';
+import '../service_locator.dart';
 import '../services/auth_service.dart';
 import 'package:app/widgets/auth/auth_form_fields.dart';
 import 'package:app/widgets/auth/auth_toggle_button.dart';
@@ -27,11 +26,15 @@ class _HomePageState extends State<HomePage> {
   final _passwordController = TextEditingController(
     text: EnvironmentConfig.testUserPassword,
   );
-  final AuthService _authService = AuthService(
-    AuthRepository(FirebaseAuth.instance),
-  );
+  late final AuthService _authService;
   bool _isLogin = true;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _authService = getIt<AuthService>();
+  }
 
   @override
   void dispose() {

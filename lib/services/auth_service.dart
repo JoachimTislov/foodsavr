@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import '../repositories/auth_repository.dart';
+import '../interfaces/auth_repository.dart';
 
 class AuthService {
-  final AuthRepository _authRepository;
+  final IAuthRepository _authRepository;
 
   AuthService(this._authRepository);
 
