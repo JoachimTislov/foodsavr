@@ -1,20 +1,21 @@
-import 'package:app/environment_config.dart';
+import 'package:app/utils/environment_config.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
 
-import '../application/auth_service.dart';
-import '../../data/repositories/auth_repository.dart';
+import '../repositories/auth_repository.dart';
+import '../services/auth_service.dart';
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+class HomePage extends StatefulWidget {
+  const HomePage({super.key, required this.title});
 
   final String title;
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _HomePageState extends State<HomePage> {
   final logger = Logger();
   final _emailController = TextEditingController(
     text: EnvironmentConfig.testUserEmail,
@@ -22,7 +23,9 @@ class _MyHomePageState extends State<MyHomePage> {
   final _passwordController = TextEditingController(
     text: EnvironmentConfig.testUserPassword,
   );
-  final AuthService _authService = AuthService(FirebaseAuthRepository());
+  final AuthService _authService = AuthService(
+    AuthRepository(FirebaseAuth.instance),
+  );
   bool _isLogin = true;
   String? _errorMessage;
 

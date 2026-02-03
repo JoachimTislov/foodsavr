@@ -1,26 +1,41 @@
+import 'package:app/repositories/collection_repository.dart';
+import 'package:app/repositories/product_repository.dart';
+import 'package:app/repositories/user_repository.dart';
+import 'package:app/utils/environment_config.dart'; // Import the new file
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:app/environment_config.dart'; // Import the new file
 
-import 'authentication/application/auth_service.dart';
-import 'authentication/presentation/my_home_page.dart';
-import 'data/repositories/auth_repository.dart';
-import 'data/database.dart';
-import 'data/seeding.dart';
-import 'main_app_screen.dart';
-import 'firebase_options.dart';
+import 'repositories/auth_repository.dart';
+import 'services/auth_service.dart';
+import 'utils/firebase_options.dart';
+import 'utils/seeding.dart';
+import 'views/home.dart';
+import 'views/main.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await EnvironmentConfig.load(); // Load environment variables
+
+  // Load environment variables
+  await EnvironmentConfig.load();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  final seedingService = SeedingService(DatabaseService());
+
+  final userRepository = UserRepository();
+  final productRepository = ProductRepository();
+  final collectionRepository = CollectionRepository();
+  final seedingService = SeedingService(
+    userRepository,
+    productRepository,
+    collectionRepository,
+  );
   await seedingService.seedDatabase();
   runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final AuthService _authService = AuthService(FirebaseAuthRepository());
+  final AuthService _authService = AuthService(
+    AuthRepository(FirebaseAuth.instance),
+  );
 
   MyApp({super.key});
 
@@ -41,7 +56,7 @@ class MyApp extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.active) {
             if (snapshot.data == null) {
-              return const MyHomePage(title: 'Welcome to FoodSavr');
+              return const HomePage(title: 'Welcome to FoodSavr');
             } else {
               return const MainAppScreen();
             }
