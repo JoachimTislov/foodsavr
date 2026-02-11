@@ -6,11 +6,7 @@ class Product {
   Product({required this.id, required this.name, required this.description});
 
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'description': description,
-    };
+    return {'id': id, 'name': name, 'description': description};
   }
 
   factory Product.fromJson(Map<String, dynamic> json) {

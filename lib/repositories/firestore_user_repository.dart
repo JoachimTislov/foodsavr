@@ -21,8 +21,10 @@ class FirestoreUserRepository implements IUserRepository {
 
   @override
   Future<User?> getUser(int id) async {
-    final doc =
-        await _firestore.collection(_collectionName).doc(id.toString()).get();
+    final doc = await _firestore
+        .collection(_collectionName)
+        .doc(id.toString())
+        .get();
     if (!doc.exists) return null;
     return User.fromJson(doc.data()!);
   }
@@ -43,8 +45,6 @@ class FirestoreUserRepository implements IUserRepository {
   @override
   Future<List<User>> getAllUsers() async {
     final querySnapshot = await _firestore.collection(_collectionName).get();
-    return querySnapshot.docs
-        .map((doc) => User.fromJson(doc.data()))
-        .toList();
+    return querySnapshot.docs.map((doc) => User.fromJson(doc.data())).toList();
   }
 }

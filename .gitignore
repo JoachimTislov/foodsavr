@@ -6,9 +6,15 @@ macos
 android
 linux
 web
+functions
+.firebaserc
 firebase.json
+firestore.indexes.json
+firestore.rules
+storage.rules
 google-services.json
 firebase_options.dart
+
 *.class
 *.log
 *.pyc

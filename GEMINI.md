@@ -275,3 +275,19 @@ Remember to configure Firestore security rules for production deployment.
 ---
 
 This document reflects the current architecture. Update as the project evolves.
+
+## 13. Gemini Integration
+
+The project can be extended to leverage Google's Gemini models to provide advanced features.
+
+### Potential Features
+
+*   **Recipe Suggestions**: Generate recipe ideas based on the user's current inventory.
+*   **Food Identification**: Allow users to identify food items from a picture.
+*   **Waste Optimization**: Provide suggestions on how to use ingredients before they expire.
+
+### Implementation
+
+Implementing these features would likely involve creating a separate backend service (e.g., using Python and the `google-generativeai` library) that the Flutter application would communicate with via a REST API. This service would be responsible for interacting with the Gemini API and returning the results to the app.
+
+The Flutter app would then make HTTP requests to this backend service and display the results to the user.

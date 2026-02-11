@@ -1,36 +1,41 @@
-import 'package:app/constants/environment_config.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:easy_localization/easy_localization.dart';
+import 'package:logger/logger.dart';
 
+// import 'firebase_options.dart';
+import 'firebase_options.dart';
 import 'service_locator.dart';
 import 'services/auth_service.dart';
 import 'services/seeding_service.dart';
-import 'utils/firebase_options.dart';
+import 'utils/environment_config.dart';
 import 'views/auth_view.dart';
 import 'views/main_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
+  final logger = Logger();
 
   // Load environment variables
   await EnvironmentConfig.load();
+  logger.i('Running in ${EnvironmentConfig.environment} mode');
+
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Setup dependency injection
   await setupServiceLocator();
 
-  // Seed database with initial data
-  await getIt<SeedingService>().seedDatabase();
+  if (EnvironmentConfig.isDevelopment) {
+    logger.i('Seeding database with initial data...');
+    // Seed database with initial data
+    await getIt<SeedingService>().seedDatabase();
+  }
 
   const enLocale = Locale('en', 'US');
   runApp(
     EasyLocalization(
-      supportedLocales: const [
-        enLocale,
-        Locale('no', 'NO'),
-      ],
+      supportedLocales: const [enLocale, Locale('no', 'NB')],
       path: 'assets/translations',
       fallbackLocale: enLocale,
       child: MyApp(),

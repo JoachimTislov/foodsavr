@@ -6,11 +6,7 @@ class User {
   User({required this.id, required this.name, required this.email});
 
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'email': email,
-    };
+    return {'id': id, 'name': name, 'email': email};
   }
 
   factory User.fromJson(Map<String, dynamic> json) {

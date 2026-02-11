@@ -2,27 +2,23 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:app/main.dart';
-import 'package:app/service_locator.dart';
+import 'package:foodsavr/main.dart';
+import 'package:foodsavr/service_locator.dart';
 
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
-    
+
     // Mock Firebase initialization for testing
     setupFirebaseAuthMocks();
     await Firebase.initializeApp();
-    
+
     // Setup service locator for tests
     await setupServiceLocator();
   });
 
   testWidgets('Renders login screen', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: MyApp(),
-      ),
-    );
+    await tester.pumpWidget(const MaterialApp(home: MyApp()));
 
     // Verify that the login screen is rendered.
     expect(find.text('Login'), findsOneWidget);

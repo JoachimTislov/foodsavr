@@ -8,7 +8,7 @@ class AuthService {
 
   Stream<User?> get authStateChanges => _authRepository.authStateChanges;
 
-  String? validateEmail(String? email) {
+  String? _validateEmail(String? email) {
     if (email == null || email.isEmpty) {
       return 'Email cannot be empty.';
     }
@@ -19,7 +19,7 @@ class AuthService {
     return null;
   }
 
-  String? validatePassword(String? password) {
+  String? _validatePassword(String? password) {
     if (password == null || password.isEmpty) {
       return 'Password cannot be empty.';
     }
@@ -33,8 +33,8 @@ class AuthService {
     String email,
     String password,
   ) {
-    final emailError = validateEmail(email);
-    final passwordError = validatePassword(password);
+    final emailError = _validateEmail(email);
+    final passwordError = _validatePassword(password);
 
     if (emailError != null) {
       throw Exception(emailError);
@@ -50,8 +50,8 @@ class AuthService {
     String email,
     String password,
   ) {
-    final emailError = validateEmail(email);
-    final passwordError = validatePassword(password);
+    final emailError = _validateEmail(email);
+    final passwordError = _validatePassword(password);
 
     if (emailError != null) {
       throw Exception(emailError);
