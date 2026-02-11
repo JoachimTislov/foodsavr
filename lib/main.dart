@@ -1,12 +1,14 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:foodsavr/interfaces/auth_service.dart';
 import 'package:logger/logger.dart';
 
 // import 'firebase_options.dart';
 import 'firebase_options.dart';
 import 'service_locator.dart';
-import 'services/auth_service.dart';
 import 'services/seeding_service.dart';
 import 'utils/environment_config.dart';
 import 'views/auth_view.dart';
@@ -23,10 +25,16 @@ void main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
+  final firebaseAuth = FirebaseAuth.instance;
+  final firestore = FirebaseFirestore.instance;
+
   // Setup dependency injection
-  await setupServiceLocator();
+  await registerDependencies(firebaseAuth, firestore);
 
   if (EnvironmentConfig.isDevelopment) {
+    await firebaseAuth.useAuthEmulator('localhost', 9099);
+    firestore.useFirestoreEmulator('localhost', 8080);
+
     logger.i('Seeding database with initial data...');
     // Seed database with initial data
     await getIt<SeedingService>().seedDatabase();
@@ -48,8 +56,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authService = getIt<AuthService>();
-
     return MaterialApp(
       title: 'FoodSavr',
       localizationsDelegates: context.localizationDelegates,
@@ -64,7 +70,7 @@ class MyApp extends StatelessWidget {
         ),
       ),
       home: StreamBuilder(
-        stream: authService.authStateChanges,
+        stream: getIt<IAuthService>().authStateChanges,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.active) {
             if (snapshot.data == null) {

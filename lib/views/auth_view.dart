@@ -1,10 +1,11 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:foodsavr/interfaces/auth_service.dart';
 import 'package:logger/logger.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../utils/environment_config.dart';
 import '../service_locator.dart';
-import '../services/auth_service.dart';
 import '../widgets/auth/auth_form_fields.dart';
 import '../widgets/auth/auth_toggle_button.dart';
 import '../widgets/auth/auth_submit_button.dart';
@@ -26,14 +27,14 @@ class _HomePageState extends State<HomePage> {
   final _passwordController = TextEditingController(
     text: EnvironmentConfig.testUserPassword,
   );
-  late final AuthService _authService;
+  late final IAuthService _authService;
   bool _isLogin = true;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _authService = getIt<AuthService>();
+    _authService = getIt<IAuthService>();
   }
 
   @override
@@ -46,17 +47,13 @@ class _HomePageState extends State<HomePage> {
   void _authenticate() async {
     setState(() => _errorMessage = null);
     try {
-      final email = _emailController.text.trim();
-      final password = _passwordController.text.trim();
-      if (_isLogin) {
-        await _authService.signInWithEmailAndPassword(email, password);
-      } else {
-        await _authService.createUserWithEmailAndPassword(email, password);
-      }
-    } on Exception catch (e) {
-      setState(
-        () => _errorMessage = e.toString().replaceFirst('Exception: ', ''),
+      _authService.authenticate(
+        isLogin: _isLogin,
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
       );
+    } on FirebaseException catch (e) {
+      setState(() => _errorMessage = e.toString().split(']')[1]);
       logger.e('Auth error: $e');
     }
   }

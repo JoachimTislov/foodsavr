@@ -1,5 +1,4 @@
-import 'package:foodsavr/interfaces/auth_repository.dart';
-
+import '../interfaces/auth_service.dart';
 import '../interfaces/product_repository.dart';
 import '../interfaces/collection_repository.dart';
 import '../models/product_model.dart';
@@ -7,12 +6,12 @@ import '../models/collection_model.dart';
 import '../utils/environment_config.dart';
 
 class SeedingService {
-  final IAuthRepository _authRepository;
+  final IAuthService _authService;
   final IProductRepository _productRepository;
   final ICollectionRepository _collectionRepository;
 
   SeedingService(
-    this._authRepository,
+    this._authService,
     this._productRepository,
     this._collectionRepository,
   );
@@ -41,9 +40,10 @@ class SeedingService {
 
   Future<void> _seedUsers() async {
     try {
-      await _authRepository.createUserWithEmailAndPassword(
-        EnvironmentConfig.testUserEmail,
-        EnvironmentConfig.testUserPassword,
+      await _authService.authenticate(
+        isLogin: false,
+        email: EnvironmentConfig.testUserEmail,
+        password: EnvironmentConfig.testUserPassword,
       );
     } catch (e) {
       // User might already exist, ignore errors
