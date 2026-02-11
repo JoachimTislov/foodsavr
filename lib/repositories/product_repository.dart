@@ -2,13 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/product_model.dart';
 import '../interfaces/product_repository.dart';
 
-/// Firestore implementation of IProductRepository.
-/// Persists product data in Firestore 'products' collection.
-class FirestoreProductRepository implements IProductRepository {
+class ProductRepository implements IProductRepository {
   final FirebaseFirestore _firestore;
   final String _collectionName = 'products';
 
-  FirestoreProductRepository(this._firestore);
+  ProductRepository(this._firestore);
 
   @override
   Future<Product> addProduct(Product product) async {

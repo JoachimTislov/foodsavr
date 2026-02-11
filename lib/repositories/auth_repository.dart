@@ -1,12 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import '../interfaces/auth_repository.dart';
 
-/// Firebase implementation of IAuthRepository.
-class FirebaseAuthRepository implements IAuthRepository {
+class AuthRepository implements IAuthRepository {
   final FirebaseAuth _firebaseAuth;
 
-  FirebaseAuthRepository(FirebaseAuth firebaseAuth)
-    : _firebaseAuth = firebaseAuth;
+  AuthRepository(FirebaseAuth firebaseAuth) : _firebaseAuth = firebaseAuth;
 
   @override
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();

@@ -8,9 +8,8 @@ import 'interfaces/user_repository.dart';
 import 'interfaces/product_repository.dart';
 import 'interfaces/collection_repository.dart';
 import 'repositories/auth_repository.dart';
-import 'repositories/firestore_user_repository.dart';
-import 'repositories/firestore_product_repository.dart';
-import 'repositories/firestore_collection_repository.dart';
+import 'repositories/product_repository.dart';
+import 'repositories/collection_repository.dart';
 import 'services/auth_service.dart';
 import 'services/product_service.dart';
 import 'services/seeding_service.dart';
@@ -31,16 +30,13 @@ Future<void> setupServiceLocator() async {
 
   // Register repositories
   getIt.registerLazySingleton<IAuthRepository>(
-    () => FirebaseAuthRepository(firebaseAuth),
-  );
-  getIt.registerLazySingleton<IUserRepository>(
-    () => FirestoreUserRepository(firestore),
+    () => AuthRepository(firebaseAuth),
   );
   getIt.registerLazySingleton<IProductRepository>(
-    () => FirestoreProductRepository(firestore),
+    () => ProductRepository(firestore),
   );
   getIt.registerLazySingleton<ICollectionRepository>(
-    () => FirestoreCollectionRepository(firestore),
+    () => CollectionRepository(firestore),
   );
 
   // Register services
