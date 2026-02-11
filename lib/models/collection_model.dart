@@ -6,11 +6,7 @@ class Collection {
   Collection({required this.id, required this.name, required this.productIds});
 
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'productIds': productIds,
-    };
+    return {'id': id, 'name': name, 'productIds': productIds};
   }
 
   factory Collection.fromJson(Map<String, dynamic> json) {

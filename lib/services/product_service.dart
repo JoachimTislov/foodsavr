@@ -1,6 +1,6 @@
-import 'package:app/models/product_model.dart';
-import 'package:app/interfaces/product_repository.dart';
 import 'package:logger/logger.dart';
+import '../models/product_model.dart';
+import '../interfaces/product_repository.dart';
 
 class ProductService {
   final IProductRepository _productRepository;

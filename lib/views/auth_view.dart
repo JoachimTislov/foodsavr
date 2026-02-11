@@ -1,13 +1,13 @@
-import 'package:app/constants/environment_config.dart';
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
 import 'package:easy_localization/easy_localization.dart';
 
+import '../utils/environment_config.dart';
 import '../service_locator.dart';
 import '../services/auth_service.dart';
-import 'package:app/widgets/auth/auth_form_fields.dart';
-import 'package:app/widgets/auth/auth_toggle_button.dart';
-import 'package:app/widgets/auth/auth_submit_button.dart';
+import '../widgets/auth/auth_form_fields.dart';
+import '../widgets/auth/auth_toggle_button.dart';
+import '../widgets/auth/auth_submit_button.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.title});

@@ -1,17 +1,18 @@
-import '../interfaces/user_repository.dart';
+import 'package:foodsavr/interfaces/auth_repository.dart';
+
 import '../interfaces/product_repository.dart';
 import '../interfaces/collection_repository.dart';
-import '../models/user.dart';
 import '../models/product_model.dart';
 import '../models/collection_model.dart';
+import '../utils/environment_config.dart';
 
 class SeedingService {
-  final IUserRepository _userRepository;
+  final IAuthRepository _authRepository;
   final IProductRepository _productRepository;
   final ICollectionRepository _collectionRepository;
 
   SeedingService(
-    this._userRepository,
+    this._authRepository,
     this._productRepository,
     this._collectionRepository,
   );
@@ -39,16 +40,13 @@ class SeedingService {
   }
 
   Future<void> _seedUsers() async {
-    final users = [
-      User(id: 1, name: 'Alice', email: 'alice@example.com'),
-      User(id: 2, name: 'Bob', email: 'bob@example.com'),
-      User(id: 3, name: 'Charlie', email: 'charlie@example.com'),
-      User(id: 4, name: 'Diana', email: 'diana@example.com'),
-      User(id: 5, name: 'Eve', email: 'eve@example.com'),
-    ];
-
-    for (var user in users) {
-      await _userRepository.addUser(user);
+    try {
+      await _authRepository.createUserWithEmailAndPassword(
+        EnvironmentConfig.testUserEmail,
+        EnvironmentConfig.testUserPassword,
+      );
+    } catch (e) {
+      // User might already exist, ignore errors
     }
   }
 

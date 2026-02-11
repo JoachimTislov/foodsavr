@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:app/models/product_model.dart';
-import 'package:app/widgets/product/product_list_item.dart';
 
+import '../models/product_model.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
+import '../widgets/product/product_list_item.dart';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -15,17 +15,6 @@ class ProductListScreen extends StatefulWidget {
 class _ProductListScreenState extends State<ProductListScreen> {
   late Future<List<Product>> _productsFuture;
   late final ProductService _productService;
-
-  @override
-  void initState() {
-    super.initState();
-    _productService = getIt<ProductService>();
-    _productsFuture = _fetchProducts();
-  }
-
-  Future<List<Product>> _fetchProducts() async {
-    return _productService.getAllProducts();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,5 +42,16 @@ class _ProductListScreenState extends State<ProductListScreen> {
         },
       ),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _productService = getIt<ProductService>();
+    _productsFuture = _fetchProducts();
+  }
+
+  Future<List<Product>> _fetchProducts() async {
+    return _productService.getAllProducts();
   }
 }

@@ -21,8 +21,10 @@ class FirestoreProductRepository implements IProductRepository {
 
   @override
   Future<Product?> getProduct(int id) async {
-    final doc =
-        await _firestore.collection(_collectionName).doc(id.toString()).get();
+    final doc = await _firestore
+        .collection(_collectionName)
+        .doc(id.toString())
+        .get();
     if (!doc.exists) return null;
     return Product.fromJson(doc.data()!);
   }
