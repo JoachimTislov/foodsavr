@@ -4,11 +4,11 @@ import '../interfaces/collection_repository.dart';
 
 /// Firestore implementation of ICollectionRepository.
 /// Persists collection data in Firestore 'collections' collection.
-class FirestoreCollectionRepository implements ICollectionRepository {
+class CollectionRepository implements ICollectionRepository {
   final FirebaseFirestore _firestore;
   final String _collectionName = 'collections';
 
-  FirestoreCollectionRepository(this._firestore);
+  CollectionRepository(this._firestore);
 
   @override
   Future<Collection> addCollection(Collection collection) async {
