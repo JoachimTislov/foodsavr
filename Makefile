@@ -7,14 +7,13 @@ dev-android: start-firebase-emulators
 	@flutter run -d android
 
 start-firebase-emulators:
-	@if ! lsof -ti :9099 -sTCP:LISTEN; then \
+	@if ! lsof -ti :9099 -sTCP:LISTEN > /dev/null; then \
 		firebase emulators:start > /dev/null 2>&1 & \
 	fi
 
 kill-firebase-emulators:
-	@if lsof -ti :9099 -sTCP:LISTEN; then \
+	@if lsof -t -i:8080 -i:9199 -i:9099 > /dev/null; then \
 		echo "Killing Firebase Emulators..."; \
-		lsof -ti :9099 -sTCP:LISTEN | xargs kill -9; \
-	else \
+		lsof -t -i:8080 -i:9199 -i:9099 | xargs kill -9; \
 		echo "No Firebase Emulators running"; \
 	fi
