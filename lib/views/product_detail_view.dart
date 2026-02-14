@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../constants/product_categories.dart';
 import '../models/product_model.dart';
-import '../utils/product_helpers.dart';
 import '../widgets/product/product_details_card.dart';
 
 class ProductDetailView extends StatelessWidget {
@@ -13,19 +14,15 @@ class ProductDetailView extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    // Determine status
-    Color? statusColor;
-    String? statusMessage;
-    IconData? statusIcon;
-    if (product.isExpired) {
-      statusColor = colorScheme.error;
-      statusMessage = 'This product has expired';
-      statusIcon = Icons.error_outline;
-    } else if (product.isExpiringSoon) {
-      statusColor = colorScheme.tertiary;
-      statusMessage = 'This product expires soon';
-      statusIcon = Icons.warning_amber_rounded;
-    }
+    // Get status from product model
+    final status = product.status;
+    final statusColor = status?.getColor(colorScheme);
+    final statusMessage = status != null
+        ? (status == ProductStatus.expired 
+            ? 'This product has expired'
+            : 'This product expires soon')
+        : null;
+    final statusIcon = status?.getIcon();
 
     return Scaffold(
       appBar: AppBar(
@@ -62,7 +59,7 @@ class ProductDetailView extends StatelessWidget {
               ),
               child: Center(
                 child: Icon(
-                  ProductHelpers.getCategoryIcon(product.category),
+                  ProductCategory.getIcon(product.category),
                   size: 100,
                   color: colorScheme.onPrimaryContainer,
                 ),
@@ -89,7 +86,7 @@ class ProductDetailView extends StatelessWidget {
                       labelStyle: theme.textTheme.labelLarge,
                       backgroundColor: colorScheme.secondaryContainer,
                       avatar: Icon(
-                        ProductHelpers.getCategoryIcon(product.category),
+                        ProductCategory.getIcon(product.category),
                         size: 20,
                         color: colorScheme.onSecondaryContainer,
                       ),

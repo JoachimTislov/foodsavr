@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../constants/product_categories.dart';
 import '../../models/product_model.dart';
-import '../../utils/product_helpers.dart';
 
 class ProductCardNormal extends StatelessWidget {
   final Product product;
@@ -49,7 +49,7 @@ class ProductCardNormal extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  ProductHelpers.getCategoryIcon(product.category),
+                  ProductCategory.getIcon(product.category),
                   size: 32,
                   color: colorScheme.onPrimaryContainer,
                 ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../constants/collection_config.dart';
 import '../../models/collection_model.dart';
-import '../../utils/collection_helpers.dart';
 
 /// Header widget for collection detail view
 class CollectionHeader extends StatelessWidget {
@@ -20,7 +20,7 @@ class CollectionHeader extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: CollectionHelpers.getColor(collection.type, colorScheme),
+        color: CollectionConfig.getColor(collection.type, colorScheme),
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
@@ -32,7 +32,7 @@ class CollectionHeader extends StatelessWidget {
           Row(
             children: [
               Icon(
-                CollectionHelpers.getIcon(collection.type),
+                CollectionConfig.getIcon(collection.type),
                 size: 48,
                 color: colorScheme.onPrimaryContainer,
               ),

@@ -4,15 +4,14 @@ import '../service_locator.dart';
 import '../interfaces/auth_service_interface.dart';
 import '../views/product_list_view.dart';
 import '../views/collection_list_view.dart';
-import '../constants/material3_config.dart';
+import '../widgets/common/navigation_card.dart';
 
 class MainAppScreen extends StatelessWidget {
   const MainAppScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
     final authService = getIt<IAuthService>();
 
     return Scaffold(
@@ -32,8 +31,7 @@ class MainAppScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            _buildNavigationCard(
-              context,
+            NavigationCard(
               title: 'My Inventory',
               description: 'View and manage your products',
               icon: Icons.inventory_2,
@@ -47,8 +45,7 @@ class MainAppScreen extends StatelessWidget {
               },
             ),
             const SizedBox(height: 16),
-            _buildNavigationCard(
-              context,
+            NavigationCard(
               title: 'Shopping List',
               description: 'Manage your shopping list',
               icon: Icons.shopping_cart,
@@ -62,8 +59,7 @@ class MainAppScreen extends StatelessWidget {
               },
             ),
             const SizedBox(height: 16),
-            _buildNavigationCard(
-              context,
+            NavigationCard(
               title: 'Global Products',
               description: 'Browse all available products',
               icon: Icons.public,
@@ -77,67 +73,6 @@ class MainAppScreen extends StatelessWidget {
               },
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavigationCard(
-    BuildContext context, {
-    required String title,
-    required String description,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    final theme = Theme.of(context);
-
-    return Card(
-      elevation: 2,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  icon,
-                  size: 32,
-                  color: Material3Config.getOnContainerColor(context, color),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      description,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../constants/collection_config.dart';
 import '../../models/collection_model.dart';
-import '../../utils/collection_helpers.dart';
 
 class CollectionCard extends StatelessWidget {
   final Collection collection;
@@ -20,8 +20,8 @@ class CollectionCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     // Get icon and color based on collection type
-    final iconData = CollectionHelpers.getIcon(collection.type);
-    final containerColor = CollectionHelpers.getColor(collection.type, colorScheme);
+    final iconData = CollectionConfig.getIcon(collection.type);
+    final containerColor = CollectionConfig.getColor(collection.type, colorScheme);
 
     return Card(
       elevation: 1,
@@ -83,7 +83,7 @@ class CollectionCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            CollectionHelpers.getLabel(collection.type),
+                            CollectionConfig.getLabel(collection.type),
                             style: theme.textTheme.labelSmall?.copyWith(
                               color: colorScheme.onSecondaryContainer,
                               fontWeight: FontWeight.w600,

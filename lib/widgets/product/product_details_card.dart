@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../models/product_model.dart';
-import '../../utils/product_helpers.dart';
 import 'product_detail_item.dart';
 
 /// Card widget displaying detailed product information
@@ -40,7 +40,7 @@ class ProductDetailsCard extends StatelessWidget {
             ProductDetailItem(
               icon: Icons.calendar_today,
               label: 'Expiration Date',
-              value: ProductHelpers.formatDateFull(product.expirationDate!),
+              value: DateFormat.yMMMMd().format(product.expirationDate!),
             ),
             const SizedBox(height: 20),
             ProductDetailItem(

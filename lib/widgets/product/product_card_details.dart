@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../../constants/product_categories.dart';
 import '../../models/product_model.dart';
-import '../../utils/product_helpers.dart';
 
 class ProductCardDetails extends StatelessWidget {
   final Product product;
@@ -20,20 +21,12 @@ class ProductCardDetails extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-
-    // Determine status
-    Color? statusColor;
-    String? statusMessage;
-    IconData? statusIcon;
-    if (product.isExpired) {
-      statusColor = colorScheme.error;
-      statusMessage = 'Expired';
-      statusIcon = Icons.error_outline;
-    } else if (product.isExpiringSoon) {
-      statusColor = colorScheme.tertiary;
-      statusMessage = 'Expires Soon';
-      statusIcon = Icons.warning_amber_rounded;
-    }
+    
+    // Get status from product model
+    final status = product.status;
+    final statusColor = status?.getColor(colorScheme);
+    final statusMessage = status?.getMessage();
+    final statusIcon = status?.getIcon();
 
     return Card(
       elevation: 2,
@@ -67,7 +60,7 @@ class ProductCardDetails extends StatelessWidget {
                       ],
                     ),
                     child: Icon(
-                      ProductHelpers.getCategoryIcon(product.category),
+                      ProductCategory.getIcon(product.category),
                       size: 40,
                       color: colorScheme.onPrimaryContainer,
                     ),
@@ -224,7 +217,7 @@ class ProductCardDetails extends StatelessWidget {
               context,
               icon: Icons.calendar_today,
               label: 'Expiration Date',
-              value: ProductHelpers.formatDateShort(product.expirationDate!),
+              value: DateFormat.yMMMd().format(product.expirationDate!),
             ),
           if (product.expirationDate != null) const Divider(height: 24),
           if (product.isGlobal)
