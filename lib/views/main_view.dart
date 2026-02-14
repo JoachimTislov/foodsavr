@@ -49,14 +49,29 @@ class MainAppScreen extends StatelessWidget {
             const SizedBox(height: 16),
             _buildNavigationCard(
               context,
-              title: 'Collections',
-              description: 'Browse standard collections',
-              icon: Icons.folder,
+              title: 'Shopping List',
+              description: 'Manage your shopping list',
+              icon: Icons.shopping_cart,
               color: colorScheme.secondaryContainer,
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (context) => const CollectionListView(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildNavigationCard(
+              context,
+              title: 'Global Products',
+              description: 'Browse all available products',
+              icon: Icons.public,
+              color: colorScheme.tertiaryContainer,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const ProductListView(showGlobalProducts: true),
                   ),
                 );
               },

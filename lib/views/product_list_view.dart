@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/product_model.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
+import '../interfaces/auth_service_interface.dart';
 import '../widgets/product/product_card_compact.dart';
 import '../widgets/product/product_card_normal.dart';
 import '../widgets/product/product_card_details.dart';
@@ -15,16 +16,22 @@ enum ProductViewMode {
   details,
 }
 
-class ProductListScreen extends StatefulWidget {
-  const ProductListScreen({super.key});
+class ProductListView extends StatefulWidget {
+  final bool showGlobalProducts;
+  
+  const ProductListView({
+    super.key,
+    this.showGlobalProducts = false,
+  });
 
   @override
-  State<ProductListScreen> createState() => _ProductListScreenState();
+  State<ProductListView> createState() => _ProductListViewState();
 }
 
-class _ProductListScreenState extends State<ProductListScreen> {
+class _ProductListViewState extends State<ProductListView> {
   late Future<List<Product>> _productsFuture;
   late final ProductService _productService;
+  late final IAuthService _authService;
   ProductViewMode _viewMode = ProductViewMode.normal;
 
   @override
@@ -34,7 +41,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Products'),
+        title: Text(widget.showGlobalProducts ? 'Global Products' : 'My Products'),
         backgroundColor: colorScheme.surface,
         elevation: 0,
         actions: [
@@ -306,12 +313,16 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   Future<List<Product>> _fetchProducts() async {
+    if (widget.showGlobalProducts) {
+      return _productService.getAllProducts();
+    }
+    
     final userId = _authService.getUserId();
     if (userId != null) {
       return _productService.getProducts(userId);
     }
-    // Fallback to global products if no user is logged in
-    return _productService.getAllProducts();
+    // Fallback to empty list if no user is logged in
+    return [];
   }
 
   Future<void> _refreshProducts() async {
