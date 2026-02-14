@@ -7,10 +7,7 @@ class Material3Config {
 
   /// Gets the appropriate "on" color for a given container color
   /// This ensures proper contrast for icons and text on container backgrounds
-  static Color getOnContainerColor(
-    BuildContext context,
-    Color containerColor,
-  ) {
+  static Color getOnContainerColor(BuildContext context, Color containerColor) {
     final colorScheme = Theme.of(context).colorScheme;
 
     switch (containerColor) {

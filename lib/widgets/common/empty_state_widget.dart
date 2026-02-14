@@ -22,16 +22,9 @@ class EmptyStateWidget extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            icon,
-            size: 64,
-            color: colorScheme.onSurfaceVariant,
-          ),
+          Icon(icon, size: 64, color: colorScheme.onSurfaceVariant),
           const SizedBox(height: 16),
-          Text(
-            title,
-            style: theme.textTheme.titleLarge,
-          ),
+          Text(title, style: theme.textTheme.titleLarge),
           if (subtitle != null) ...[
             const SizedBox(height: 8),
             Text(

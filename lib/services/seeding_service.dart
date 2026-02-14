@@ -90,7 +90,9 @@ class SeedingService {
   }
 
   Future<void> _seedCollections(
-      String userId, List<Product> addedProducts) async {
+    String userId,
+    List<Product> addedProducts,
+  ) async {
     if (addedProducts.isEmpty) return;
 
     final collectionsData = CollectionsData.getCollections();

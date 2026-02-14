@@ -49,10 +49,7 @@ class NavigationCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleLarge,
-                    ),
+                    Text(title, style: theme.textTheme.titleLarge),
                     const SizedBox(height: 4),
                     Text(
                       description,

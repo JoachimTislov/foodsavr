@@ -59,7 +59,10 @@ class CollectionRepository implements ICollectionRepository {
   }
 
   @override
-  Future<void> addProductToCollection(String collectionId, int productId) async {
+  Future<void> addProductToCollection(
+    String collectionId,
+    int productId,
+  ) async {
     final docRef = _firestore.collection(_collectionName).doc(collectionId);
     await docRef.update({
       'productIds': FieldValue.arrayUnion([productId]),
@@ -67,7 +70,10 @@ class CollectionRepository implements ICollectionRepository {
   }
 
   @override
-  Future<void> removeProductFromCollection(String collectionId, int productId) async {
+  Future<void> removeProductFromCollection(
+    String collectionId,
+    int productId,
+  ) async {
     final docRef = _firestore.collection(_collectionName).doc(collectionId);
     await docRef.update({
       'productIds': FieldValue.arrayRemove([productId]),

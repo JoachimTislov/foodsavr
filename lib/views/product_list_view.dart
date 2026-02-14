@@ -13,11 +13,8 @@ import 'product_detail_view.dart';
 
 class ProductListView extends StatefulWidget {
   final bool showGlobalProducts;
-  
-  const ProductListView({
-    super.key,
-    this.showGlobalProducts = false,
-  });
+
+  const ProductListView({super.key, this.showGlobalProducts = false});
 
   @override
   State<ProductListView> createState() => _ProductListViewState();
@@ -36,7 +33,9 @@ class _ProductListViewState extends State<ProductListView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.showGlobalProducts ? 'Global Products' : 'My Products'),
+        title: Text(
+          widget.showGlobalProducts ? 'Global Products' : 'My Products',
+        ),
         backgroundColor: colorScheme.surface,
         elevation: 0,
         actions: [
@@ -133,11 +132,7 @@ class _ProductListViewState extends State<ProductListView> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: colorScheme.error,
-                  ),
+                  Icon(Icons.error_outline, size: 64, color: colorScheme.error),
                   const SizedBox(height: 16),
                   Text(
                     'Error loading products',
@@ -165,10 +160,7 @@ class _ProductListViewState extends State<ProductListView> {
                     color: colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(height: 16),
-                  Text(
-                    'No products found',
-                    style: theme.textTheme.titleLarge,
-                  ),
+                  Text('No products found', style: theme.textTheme.titleLarge),
                   const SizedBox(height: 8),
                   Text(
                     'Add your first product to get started',
@@ -300,7 +292,7 @@ class _ProductListViewState extends State<ProductListView> {
     if (widget.showGlobalProducts) {
       return _productService.getAllProducts();
     }
-    
+
     final userId = _authService.getUserId();
     return _productService.getProducts(userId);
   }

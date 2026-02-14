@@ -5,11 +5,7 @@ class ProductCardCompact extends StatelessWidget {
   final Product product;
   final VoidCallback? onTap;
 
-  const ProductCardCompact({
-    super.key,
-    required this.product,
-    this.onTap,
-  });
+  const ProductCardCompact({super.key, required this.product, this.onTap});
 
   @override
   Widget build(BuildContext context) {

@@ -21,7 +21,7 @@ class ProductCardDetails extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    
+
     // Get status from product model
     final status = product.status;
     final statusColor = status?.getColor(colorScheme);
@@ -152,11 +152,7 @@ class ProductCardDetails extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        statusIcon,
-                        color: statusColor,
-                        size: 24,
-                      ),
+                      Icon(statusIcon, color: statusColor, size: 24),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -243,11 +239,7 @@ class ProductCardDetails extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 24,
-          color: colorScheme.primary,
-        ),
+        Icon(icon, size: 24, color: colorScheme.primary),
         const SizedBox(width: 12),
         Expanded(
           child: Column(

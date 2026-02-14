@@ -21,7 +21,10 @@ class CollectionCard extends StatelessWidget {
 
     // Get icon and color based on collection type
     final iconData = CollectionConfig.getIcon(collection.type);
-    final containerColor = CollectionConfig.getColor(collection.type, colorScheme);
+    final containerColor = CollectionConfig.getColor(
+      collection.type,
+      colorScheme,
+    );
 
     return Card(
       elevation: 1,

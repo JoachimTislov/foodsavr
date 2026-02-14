@@ -37,10 +37,16 @@ class CollectionService {
   }
 
   /// Add a product to a collection (update productIds list)
-  Future<void> addProductToCollection(String collectionId, int productId) async {
+  Future<void> addProductToCollection(
+    String collectionId,
+    int productId,
+  ) async {
     _logger.i('Adding product $productId to collection $collectionId');
     try {
-      await _collectionRepository.addProductToCollection(collectionId, productId);
+      await _collectionRepository.addProductToCollection(
+        collectionId,
+        productId,
+      );
       _logger.i('Successfully added product to collection');
     } catch (e) {
       _logger.e('Error adding product to collection: $e');
@@ -49,10 +55,16 @@ class CollectionService {
   }
 
   /// Remove a product from a collection (update productIds list)
-  Future<void> removeProductFromCollection(String collectionId, int productId) async {
+  Future<void> removeProductFromCollection(
+    String collectionId,
+    int productId,
+  ) async {
     _logger.i('Removing product $productId from collection $collectionId');
     try {
-      await _collectionRepository.removeProductFromCollection(collectionId, productId);
+      await _collectionRepository.removeProductFromCollection(
+        collectionId,
+        productId,
+      );
       _logger.i('Successfully removed product from collection');
     } catch (e) {
       _logger.e('Error removing product from collection: $e');

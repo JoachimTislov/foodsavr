@@ -58,9 +58,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         children: [
           CollectionHeader(collection: widget.collection),
           const SizedBox(height: 16),
-          Expanded(
-            child: _buildProductsList(theme, colorScheme),
-          ),
+          Expanded(child: _buildProductsList(theme, colorScheme)),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -84,9 +82,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         } else if (snapshot.hasError) {
-          return const ErrorStateWidget(
-            message: 'Error loading products',
-          );
+          return const ErrorStateWidget(message: 'Error loading products');
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const EmptyStateWidget(
             icon: Icons.inventory_2_outlined,

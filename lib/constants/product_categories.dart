@@ -6,10 +6,7 @@ class ProductCategory {
   final String name;
   final IconData icon;
 
-  const ProductCategory({
-    required this.name,
-    required this.icon,
-  });
+  const ProductCategory({required this.name, required this.icon});
 
   static const List<ProductCategory> all = [
     ProductCategory(name: 'Fruits', icon: Icons.apple),

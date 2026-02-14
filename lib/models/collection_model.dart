@@ -6,7 +6,8 @@ class Collection {
   final List<int> productIds;
   final String userId; // Owner of the collection
   final String? description;
-  final CollectionType type; // Type of collection (inventory, shopping list, etc.)
+  final CollectionType
+  type; // Type of collection (inventory, shopping list, etc.)
 
   Collection({
     required this.id,

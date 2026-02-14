@@ -15,7 +15,7 @@ class ProductService {
       _logger.w('No user logged in, returning empty product list.');
       return [];
     }
-    
+
     _logger.i('Fetching products for user: $userId');
     try {
       final products = await _productRepository.getProducts(userId);

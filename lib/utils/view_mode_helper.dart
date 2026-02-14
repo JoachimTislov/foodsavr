@@ -18,8 +18,4 @@ class ViewModeHelper {
 }
 
 /// Product view mode enumeration
-enum ProductViewMode {
-  compact,
-  normal,
-  details,
-}
+enum ProductViewMode { compact, normal, details }

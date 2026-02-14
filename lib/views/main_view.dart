@@ -67,7 +67,8 @@ class MainAppScreen extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (context) => const ProductListView(showGlobalProducts: true),
+                    builder: (context) =>
+                        const ProductListView(showGlobalProducts: true),
                   ),
                 );
               },

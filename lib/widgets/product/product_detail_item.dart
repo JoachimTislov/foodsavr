@@ -29,11 +29,7 @@ class ProductDetailItem extends StatelessWidget {
             color: colorScheme.primaryContainer,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(
-            icon,
-            size: 24,
-            color: colorScheme.onPrimaryContainer,
-          ),
+          child: Icon(icon, size: 24, color: colorScheme.onPrimaryContainer),
         ),
         const SizedBox(width: 16),
         Expanded(

@@ -7,10 +7,7 @@ import 'product_detail_item.dart';
 class ProductDetailsCard extends StatelessWidget {
   final Product product;
 
-  const ProductDetailsCard({
-    super.key,
-    required this.product,
-  });
+  const ProductDetailsCard({super.key, required this.product});
 
   @override
   Widget build(BuildContext context) {
@@ -23,10 +20,7 @@ class ProductDetailsCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: colorScheme.outlineVariant,
-          width: 1,
-        ),
+        border: Border.all(color: colorScheme.outlineVariant, width: 1),
       ),
       child: Column(
         children: [

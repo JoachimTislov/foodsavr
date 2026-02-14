@@ -6,10 +6,7 @@ import '../../models/collection_model.dart';
 class CollectionHeader extends StatelessWidget {
   final Collection collection;
 
-  const CollectionHeader({
-    super.key,
-    required this.collection,
-  });
+  const CollectionHeader({super.key, required this.collection});
 
   @override
   Widget build(BuildContext context) {
@@ -62,10 +59,7 @@ class CollectionHeader extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 6,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: colorScheme.surface.withOpacity(0.9),
               borderRadius: BorderRadius.circular(12),

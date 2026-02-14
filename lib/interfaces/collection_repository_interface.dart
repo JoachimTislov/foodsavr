@@ -7,24 +7,24 @@ import 'repository_interface.dart';
 abstract class ICollectionRepository extends IRepository<Collection, String> {
   @override
   Future<Collection> add(Collection collection);
-  
+
   @override
   Future<Collection?> get(String id);
-  
+
   @override
   Future<void> update(Collection collection);
-  
+
   @override
   Future<void> delete(String id);
-  
+
   @override
   Future<List<Collection>> getAll();
-  
+
   // Collection-specific methods
   Future<List<Collection>> getUserCollections(String userId);
   Future<void> addProductToCollection(String collectionId, int productId);
   Future<void> removeProductFromCollection(String collectionId, int productId);
-  
+
   // Legacy method names for compatibility
   Future<Collection> addCollection(Collection collection) => add(collection);
   Future<Collection?> getCollection(String id) => get(id);

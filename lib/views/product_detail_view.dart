@@ -18,9 +18,9 @@ class ProductDetailView extends StatelessWidget {
     final status = product.status;
     final statusColor = status?.getColor(colorScheme);
     final statusMessage = status != null
-        ? (status == ProductStatus.expired 
-            ? 'This product has expired'
-            : 'This product expires soon')
+        ? (status == ProductStatus.expired
+              ? 'This product has expired'
+              : 'This product expires soon')
         : null;
     final statusIcon = status?.getIcon();
 
@@ -108,11 +108,7 @@ class ProductDetailView extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            statusIcon,
-                            color: statusColor,
-                            size: 32,
-                          ),
+                          Icon(statusIcon, color: statusColor, size: 32),
                           const SizedBox(width: 16),
                           Expanded(
                             child: Column(
