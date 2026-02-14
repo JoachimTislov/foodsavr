@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/collection_model.dart';
+import '../../utils/collection_helpers.dart';
 
 class CollectionCard extends StatelessWidget {
   final Collection collection;
@@ -19,8 +20,8 @@ class CollectionCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     // Get icon and color based on collection type
-    final iconData = _getCollectionIcon(collection.type);
-    final containerColor = _getCollectionColor(collection.type, colorScheme);
+    final iconData = CollectionHelpers.getIcon(collection.type);
+    final containerColor = CollectionHelpers.getColor(collection.type, colorScheme);
 
     return Card(
       elevation: 1,
@@ -82,7 +83,7 @@ class CollectionCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            _getCollectionTypeLabel(collection.type),
+                            CollectionHelpers.getLabel(collection.type),
                             style: theme.textTheme.labelSmall?.copyWith(
                               color: colorScheme.onSecondaryContainer,
                               fontWeight: FontWeight.w600,
@@ -118,44 +119,5 @@ class CollectionCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  IconData _getCollectionIcon(CollectionType type) {
-    switch (type) {
-      case CollectionType.inventory:
-        return Icons.inventory_2;
-      case CollectionType.shoppingList:
-        return Icons.shopping_cart;
-      case CollectionType.favorites:
-        return Icons.favorite;
-      case CollectionType.custom:
-        return Icons.folder;
-    }
-  }
-
-  Color _getCollectionColor(CollectionType type, ColorScheme colorScheme) {
-    switch (type) {
-      case CollectionType.inventory:
-        return colorScheme.primaryContainer;
-      case CollectionType.shoppingList:
-        return colorScheme.tertiaryContainer;
-      case CollectionType.favorites:
-        return colorScheme.errorContainer.withRed(255).withGreen(200);
-      case CollectionType.custom:
-        return colorScheme.secondaryContainer;
-    }
-  }
-
-  String _getCollectionTypeLabel(CollectionType type) {
-    switch (type) {
-      case CollectionType.inventory:
-        return 'Inventory';
-      case CollectionType.shoppingList:
-        return 'Shopping';
-      case CollectionType.favorites:
-        return 'Favorites';
-      case CollectionType.custom:
-        return 'Custom';
-    }
   }
 }
