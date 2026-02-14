@@ -47,4 +47,27 @@ class ProductRepository implements IProductRepository {
         .map((doc) => Product.fromJson(doc.data()))
         .toList();
   }
+
+  @override
+  Future<List<Product>> getUserProducts(String userId) async {
+    final querySnapshot = await _firestore
+        .collection(_collectionName)
+        .where('userId', isEqualTo: userId)
+        .where('isGlobal', isEqualTo: false)
+        .get();
+    return querySnapshot.docs
+        .map((doc) => Product.fromJson(doc.data()))
+        .toList();
+  }
+
+  @override
+  Future<List<Product>> getGlobalProducts() async {
+    final querySnapshot = await _firestore
+        .collection(_collectionName)
+        .where('isGlobal', isEqualTo: true)
+        .get();
+    return querySnapshot.docs
+        .map((doc) => Product.fromJson(doc.data()))
+        .toList();
+  }
 }

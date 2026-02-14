@@ -12,6 +12,7 @@ import 'interfaces/product_repository.dart';
 import 'repositories/collection_repository.dart';
 import 'repositories/product_repository.dart';
 import 'services/product_service.dart';
+import 'services/collection_service.dart';
 import 'services/seeding_service.dart';
 
 final getIt = GetIt.instance;
@@ -47,5 +48,8 @@ Future<void> registerDependencies(Logger logger) async {
   getIt.registerLazySingleton<IAuthService>(() => authService);
   getIt.registerLazySingleton<ProductService>(
     () => ProductService(productRepository, logger),
+  );
+  getIt.registerLazySingleton<CollectionService>(
+    () => CollectionService(collectionRepository, logger),
   );
 }

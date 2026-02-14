@@ -46,4 +46,15 @@ class CollectionRepository implements ICollectionRepository {
         .map((doc) => Collection.fromJson(doc.data()))
         .toList();
   }
+
+  @override
+  Future<List<Collection>> getUserCollections(String userId) async {
+    final querySnapshot = await _firestore
+        .collection(_collectionName)
+        .where('userId', isEqualTo: userId)
+        .get();
+    return querySnapshot.docs
+        .map((doc) => Collection.fromJson(doc.data()))
+        .toList();
+  }
 }
