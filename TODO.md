@@ -1,5 +1,17 @@
 # TODO
 
+## Testing Checklist (after #3)
+- [ ] Test with Firebase emulator running
+- [ ] Verify user-specific filtering (products shown only for logged-in user)
+- [ ] Test all three view modes (compact, normal, details)
+- [ ] Test product detail view navigation
+- [ ] Test collection listing and detail views
+- [ ] Verify expiration status indicators work correctly
+- [ ] Test delete confirmation dialog
+- [ ] Verify Material 3 theme in light and dark modes
+- [ ] Test pull-to-refresh functionality
+- [ ] Verify empty states display correctly
+
 ## Environment & Setup
 - [x] Install Flutter SDK (^3.10.7) and run `make get` to fetch dependencies.
 - [x] Create `assets/.env` with `ENVIRONMENT=development` and test credentials.
