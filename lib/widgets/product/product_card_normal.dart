@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/product_model.dart';
+import '../../utils/product_helpers.dart';
 
 class ProductCardNormal extends StatelessWidget {
   final Product product;
@@ -48,7 +49,7 @@ class ProductCardNormal extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  _getCategoryIcon(product.category),
+                  ProductHelpers.getCategoryIcon(product.category),
                   size: 32,
                   color: colorScheme.onPrimaryContainer,
                 ),
@@ -172,24 +173,5 @@ class ProductCardNormal extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  IconData _getCategoryIcon(String? category) {
-    if (category == null) return Icons.shopping_bag;
-    
-    switch (category.toLowerCase()) {
-      case 'fruits':
-        return Icons.apple;
-      case 'vegetables':
-        return Icons.eco;
-      case 'dairy':
-        return Icons.egg;
-      case 'bakery':
-        return Icons.bakery_dining;
-      case 'pantry':
-        return Icons.kitchen;
-      default:
-        return Icons.shopping_bag;
-    }
   }
 }

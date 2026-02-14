@@ -306,10 +306,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   Future<List<Product>> _fetchProducts() async {
-    // Get current user from auth stream
-    final user = await _authService.authStateChanges.first;
-    if (user != null) {
-      return _productService.getProducts(user.uid);
+    final userId = _authService.getUserId();
+    if (userId != null) {
+      return _productService.getProducts(userId);
     }
     // Fallback to global products if no user is logged in
     return _productService.getAllProducts();

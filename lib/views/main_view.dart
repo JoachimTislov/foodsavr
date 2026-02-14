@@ -29,10 +29,7 @@ class MainAppScreen extends StatelessWidget {
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
+        child: Column(
           children: [
             _buildNavigationCard(
               context,
@@ -43,49 +40,22 @@ class MainAppScreen extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (context) => const ProductListScreen(),
+                    builder: (context) => const ProductListView(),
                   ),
                 );
               },
             ),
+            const SizedBox(height: 16),
             _buildNavigationCard(
               context,
               title: 'Collections',
-              description: 'Organize your items',
+              description: 'Browse standard collections',
               icon: Icons.folder,
               color: colorScheme.secondaryContainer,
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (context) => const CollectionListView(),
-                  ),
-                );
-              },
-            ),
-            _buildNavigationCard(
-              context,
-              title: 'Shopping List',
-              description: 'What you need to buy',
-              icon: Icons.shopping_cart,
-              color: colorScheme.tertiaryContainer,
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Shopping list feature coming soon!'),
-                  ),
-                );
-              },
-            ),
-            _buildNavigationCard(
-              context,
-              title: 'Global Products',
-              description: 'Browse all available products',
-              icon: Icons.public,
-              color: colorScheme.errorContainer,
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Global products feature coming soon!'),
                   ),
                 );
               },
@@ -105,7 +75,6 @@ class MainAppScreen extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
 
     return Card(
       elevation: 2,
@@ -114,8 +83,7 @@ class MainAppScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+          child: Row(
             children: [
               Container(
                 width: 64,
@@ -127,31 +95,47 @@ class MainAppScreen extends StatelessWidget {
                 child: Icon(
                   icon,
                   size: 32,
-                  color: colorScheme.onPrimaryContainer,
+                  color: _getOnContainerColor(context, color),
                 ),
               ),
               const SizedBox(height: 16),
-              Text(
-                title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                description,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Color _getOnContainerColor(BuildContext context, Color containerColor) {
+    final colorScheme = Theme.of(context).colorScheme;
+    if (containerColor == colorScheme.primaryContainer) {
+      return colorScheme.onPrimaryContainer;
+    } else if (containerColor == colorScheme.secondaryContainer) {
+      return colorScheme.onSecondaryContainer;
+    } else if (containerColor == colorScheme.tertiaryContainer) {
+      return colorScheme.onTertiaryContainer;
+    }
+    return colorScheme.onPrimaryContainer;
   }
 }

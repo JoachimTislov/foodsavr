@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/product_model.dart';
+import '../../utils/product_helpers.dart';
 
 class ProductCardDetails extends StatelessWidget {
   final Product product;
@@ -66,7 +67,7 @@ class ProductCardDetails extends StatelessWidget {
                       ],
                     ),
                     child: Icon(
-                      _getCategoryIcon(product.category),
+                      ProductHelpers.getCategoryIcon(product.category),
                       size: 40,
                       color: colorScheme.onPrimaryContainer,
                     ),
@@ -223,7 +224,7 @@ class ProductCardDetails extends StatelessWidget {
               context,
               icon: Icons.calendar_today,
               label: 'Expiration Date',
-              value: _formatDate(product.expirationDate!),
+              value: ProductHelpers.formatDateShort(product.expirationDate!),
             ),
           if (product.expirationDate != null) const Divider(height: 24),
           if (product.isGlobal)
@@ -277,42 +278,5 @@ class ProductCardDetails extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  IconData _getCategoryIcon(String? category) {
-    if (category == null) return Icons.shopping_bag;
-
-    switch (category.toLowerCase()) {
-      case 'fruits':
-        return Icons.apple;
-      case 'vegetables':
-        return Icons.eco;
-      case 'dairy':
-        return Icons.egg;
-      case 'bakery':
-        return Icons.bakery_dining;
-      case 'pantry':
-        return Icons.kitchen;
-      default:
-        return Icons.shopping_bag;
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    final months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
-    ];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 }

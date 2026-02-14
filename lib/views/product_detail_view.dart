@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/product_model.dart';
+import '../utils/product_helpers.dart';
+import '../widgets/product/product_details_card.dart';
 
 class ProductDetailView extends StatelessWidget {
   final Product product;
@@ -60,7 +62,7 @@ class ProductDetailView extends StatelessWidget {
               ),
               child: Center(
                 child: Icon(
-                  _getCategoryIcon(product.category),
+                  ProductHelpers.getCategoryIcon(product.category),
                   size: 100,
                   color: colorScheme.onPrimaryContainer,
                 ),
@@ -87,7 +89,7 @@ class ProductDetailView extends StatelessWidget {
                       labelStyle: theme.textTheme.labelLarge,
                       backgroundColor: colorScheme.secondaryContainer,
                       avatar: Icon(
-                        _getCategoryIcon(product.category),
+                        ProductHelpers.getCategoryIcon(product.category),
                         size: 20,
                         color: colorScheme.onSecondaryContainer,
                       ),
@@ -165,7 +167,7 @@ class ProductDetailView extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _buildDetailsCard(context),
+                  ProductDetailsCard(product: product),
                   const SizedBox(height: 32),
                 ],
               ),
@@ -174,157 +176,5 @@ class ProductDetailView extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Widget _buildDetailsCard(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: colorScheme.outlineVariant,
-          width: 1,
-        ),
-      ),
-      child: Column(
-        children: [
-          _buildDetailItem(
-            context,
-            icon: Icons.inventory_2_outlined,
-            label: 'Quantity',
-            value: '${product.quantity}',
-          ),
-          const SizedBox(height: 20),
-          if (product.expirationDate != null) ...[
-            _buildDetailItem(
-              context,
-              icon: Icons.calendar_today,
-              label: 'Expiration Date',
-              value: _formatDate(product.expirationDate!),
-            ),
-            const SizedBox(height: 20),
-            _buildDetailItem(
-              context,
-              icon: Icons.timelapse,
-              label: 'Days Until Expiration',
-              value: product.daysUntilExpiration != null
-                  ? '${product.daysUntilExpiration} days'
-                  : 'N/A',
-            ),
-            const SizedBox(height: 20),
-          ],
-          _buildDetailItem(
-            context,
-            icon: product.isGlobal ? Icons.public : Icons.person,
-            label: 'Type',
-            value: product.isGlobal ? 'Global Product' : 'Personal Product',
-          ),
-          if (!product.isGlobal) ...[
-            const SizedBox(height: 20),
-            _buildDetailItem(
-              context,
-              icon: Icons.badge_outlined,
-              label: 'Owner ID',
-              value: product.userId,
-              valueMaxLines: 2,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailItem(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required String value,
-    int valueMaxLines = 1,
-  }) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(
-            icon,
-            size: 24,
-            color: colorScheme.onPrimaryContainer,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                value,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-                maxLines: valueMaxLines,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  IconData _getCategoryIcon(String? category) {
-    if (category == null) return Icons.shopping_bag;
-
-    switch (category.toLowerCase()) {
-      case 'fruits':
-        return Icons.apple;
-      case 'vegetables':
-        return Icons.eco;
-      case 'dairy':
-        return Icons.egg;
-      case 'bakery':
-        return Icons.bakery_dining;
-      case 'pantry':
-        return Icons.kitchen;
-      default:
-        return Icons.shopping_bag;
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    final months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December'
-    ];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 }
