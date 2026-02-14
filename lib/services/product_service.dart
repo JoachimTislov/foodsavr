@@ -4,9 +4,9 @@ import '../interfaces/product_repository.dart';
 
 class ProductService {
   final IProductRepository _productRepository;
-  final Logger _logger = Logger();
+  final Logger _logger;
 
-  ProductService(this._productRepository);
+  ProductService(this._productRepository, this._logger);
 
   Future<List<Product>> getAllProducts() async {
     _logger.i('Fetching all products.');

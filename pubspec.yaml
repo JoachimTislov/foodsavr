@@ -36,13 +36,13 @@ dependencies:
   cupertino_icons: ^1.0.8
   firebase_core: ^4.4.0
   firebase_auth: ^6.1.4
-  logger: ^2.6.2
-  flutter_dotenv: ^5.1.0
-  easy_localization: ^3.0.0
+  cloud_firestore: ^6.1.2
   flutter_localizations:
     sdk: flutter
+  flutter_dotenv: ^5.1.0
+  easy_localization: ^3.0.0
+  logger: ^2.6.2
   get_it: ^9.2.0
-  cloud_firestore: ^6.1.2
 
 dev_dependencies:
   flutter_test:
