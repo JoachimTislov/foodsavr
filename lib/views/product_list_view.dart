@@ -301,13 +301,15 @@ class _ProductListScreenState extends State<ProductListScreen> {
   void initState() {
     super.initState();
     _productService = getIt<ProductService>();
+    _authService = getIt<IAuthService>();
     _productsFuture = _fetchProducts();
   }
 
   Future<List<Product>> _fetchProducts() async {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    if (userId != null) {
-      return _productService.getProducts(userId);
+    // Get current user from auth stream
+    final user = await _authService.authStateChanges.first;
+    if (user != null) {
+      return _productService.getProducts(user.uid);
     }
     // Fallback to global products if no user is logged in
     return _productService.getAllProducts();

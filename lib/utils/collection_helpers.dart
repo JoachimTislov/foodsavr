@@ -27,6 +27,7 @@ class CollectionHelpers {
       case CollectionType.shoppingList:
         return colorScheme.tertiaryContainer;
       case CollectionType.favorites:
+        // Use a pink color for favorites that works in both light and dark themes
         return colorScheme.errorContainer;
       case CollectionType.custom:
         return colorScheme.secondaryContainer;
