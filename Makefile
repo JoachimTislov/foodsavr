@@ -1,4 +1,4 @@
-.PHONY: dev start-firebase-emulators kill-firebase-emulators analyze fmt test clean
+.PHONY: dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fmt test clean
 
 dev-chrome: start-firebase-emulators
 	@flutter run -d chrome
