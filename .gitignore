@@ -9,7 +9,6 @@ web
 functions
 .firebaserc
 firebase.json
-firestore.indexes.json
 firestore.rules
 storage.rules
 google-services.json
