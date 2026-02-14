@@ -5,6 +5,8 @@ import '../models/product_model.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
 import '../widgets/collection/collection_header.dart';
+import '../widgets/common/empty_state_widget.dart';
+import '../widgets/common/error_state_widget.dart';
 import '../widgets/product/product_card_normal.dart';
 import 'product_detail_view.dart';
 
@@ -82,53 +84,18 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         } else if (snapshot.hasError) {
-          return _buildErrorState(theme, colorScheme);
+          return const ErrorStateWidget(
+            message: 'Error loading products',
+          );
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return _buildEmptyState(theme, colorScheme);
+          return const EmptyStateWidget(
+            icon: Icons.inventory_2_outlined,
+            message: 'No products in this collection',
+          );
         } else {
           return _buildProductList(snapshot.data!);
         }
       },
-    );
-  }
-
-  Widget _buildErrorState(ThemeData theme, ColorScheme colorScheme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 64,
-            color: colorScheme.error,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Error loading products',
-            style: theme.textTheme.titleLarge,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(ThemeData theme, ColorScheme colorScheme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.inventory_2_outlined,
-            size: 64,
-            color: colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No products in this collection',
-            style: theme.textTheme.titleLarge,
-          ),
-        ],
-      ),
     );
   }
 
