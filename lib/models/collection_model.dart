@@ -1,3 +1,5 @@
+import '../utils/collection_types.dart';
+
 class Collection {
   final String id;
   final String name;
@@ -39,11 +41,4 @@ class Collection {
       ),
     );
   }
-}
-
-enum CollectionType {
-  inventory,
-  shoppingList,
-  favorites,
-  custom,
 }

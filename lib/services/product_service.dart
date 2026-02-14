@@ -9,10 +9,16 @@ class ProductService {
   ProductService(this._productRepository, this._logger);
 
   /// Fetches all products for a specific user
-  Future<List<Product>> getProducts(String userId) async {
+  /// Returns empty list if userId is null (no user logged in)
+  Future<List<Product>> getProducts(String? userId) async {
+    if (userId == null) {
+      _logger.w('No user logged in, returning empty product list.');
+      return [];
+    }
+    
     _logger.i('Fetching products for user: $userId');
     try {
-      final products = await _productRepository.getUserProducts(userId);
+      final products = await _productRepository.getProducts(userId);
       _logger.i('Successfully fetched ${products.length} products for user.');
       return products;
     } catch (e) {
@@ -23,7 +29,7 @@ class ProductService {
 
   /// Fetches all global products (catalog)
   Future<List<Product>> getAllProducts() async {
-    _logger.i('Fetching global products.');
+    _logger.i('Fetching all global products.');
     try {
       final products = await _productRepository.getGlobalProducts();
       _logger.i('Successfully fetched ${products.length} global products.');

@@ -8,13 +8,8 @@ import '../interfaces/auth_service_interface.dart';
 import '../widgets/product/product_card_compact.dart';
 import '../widgets/product/product_card_normal.dart';
 import '../widgets/product/product_card_details.dart';
+import '../utils/view_mode_helper.dart';
 import 'product_detail_view.dart';
-
-enum ProductViewMode {
-  compact,
-  normal,
-  details,
-}
 
 class ProductListView extends StatefulWidget {
   final bool showGlobalProducts;
@@ -48,7 +43,7 @@ class _ProductListViewState extends State<ProductListView> {
           // View mode toggle
           PopupMenuButton<ProductViewMode>(
             icon: Icon(
-              _getViewModeIcon(_viewMode),
+              ViewModeHelper.getViewModeIcon(_viewMode),
               color: colorScheme.primary,
             ),
             tooltip: 'Change view mode',
@@ -293,17 +288,6 @@ class _ProductListViewState extends State<ProductListView> {
     );
   }
 
-  IconData _getViewModeIcon(ProductViewMode mode) {
-    switch (mode) {
-      case ProductViewMode.compact:
-        return Icons.view_headline;
-      case ProductViewMode.normal:
-        return Icons.view_agenda;
-      case ProductViewMode.details:
-        return Icons.view_day;
-    }
-  }
-
   @override
   void initState() {
     super.initState();
@@ -318,11 +302,7 @@ class _ProductListViewState extends State<ProductListView> {
     }
     
     final userId = _authService.getUserId();
-    if (userId != null) {
-      return _productService.getProducts(userId);
-    }
-    // Fallback to empty list if no user is logged in
-    return [];
+    return _productService.getProducts(userId);
   }
 
   Future<void> _refreshProducts() async {

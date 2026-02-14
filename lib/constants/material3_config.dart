@@ -13,18 +13,18 @@ class Material3Config {
   ) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    if (containerColor == colorScheme.primaryContainer) {
-      return colorScheme.onPrimaryContainer;
-    } else if (containerColor == colorScheme.secondaryContainer) {
-      return colorScheme.onSecondaryContainer;
-    } else if (containerColor == colorScheme.tertiaryContainer) {
-      return colorScheme.onTertiaryContainer;
-    } else if (containerColor == colorScheme.errorContainer) {
-      return colorScheme.onErrorContainer;
+    switch (containerColor) {
+      case final color when color == colorScheme.primaryContainer:
+        return colorScheme.onPrimaryContainer;
+      case final color when color == colorScheme.secondaryContainer:
+        return colorScheme.onSecondaryContainer;
+      case final color when color == colorScheme.tertiaryContainer:
+        return colorScheme.onTertiaryContainer;
+      case final color when color == colorScheme.errorContainer:
+        return colorScheme.onErrorContainer;
+      default:
+        return colorScheme.onPrimaryContainer;
     }
-
-    // Default fallback
-    return colorScheme.onPrimaryContainer;
   }
 
   /// Standard elevation values for Material 3

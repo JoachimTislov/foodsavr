@@ -40,24 +40,8 @@ class CollectionService {
   Future<void> addProductToCollection(String collectionId, int productId) async {
     _logger.i('Adding product $productId to collection $collectionId');
     try {
-      final collection = await _collectionRepository.getCollection(collectionId);
-      if (collection == null) {
-        throw Exception('Collection not found');
-      }
-      
-      if (!collection.productIds.contains(productId)) {
-        final updatedProductIds = [...collection.productIds, productId];
-        final updatedCollection = Collection(
-          id: collection.id,
-          name: collection.name,
-          productIds: updatedProductIds,
-          userId: collection.userId,
-          description: collection.description,
-          type: collection.type,
-        );
-        await _collectionRepository.updateCollection(updatedCollection);
-        _logger.i('Successfully added product to collection');
-      }
+      await _collectionRepository.addProductToCollection(collectionId, productId);
+      _logger.i('Successfully added product to collection');
     } catch (e) {
       _logger.e('Error adding product to collection: $e');
       rethrow;
@@ -68,21 +52,7 @@ class CollectionService {
   Future<void> removeProductFromCollection(String collectionId, int productId) async {
     _logger.i('Removing product $productId from collection $collectionId');
     try {
-      final collection = await _collectionRepository.getCollection(collectionId);
-      if (collection == null) {
-        throw Exception('Collection not found');
-      }
-      
-      final updatedProductIds = collection.productIds.where((id) => id != productId).toList();
-      final updatedCollection = Collection(
-        id: collection.id,
-        name: collection.name,
-        productIds: updatedProductIds,
-        userId: collection.userId,
-        description: collection.description,
-        type: collection.type,
-      );
-      await _collectionRepository.updateCollection(updatedCollection);
+      await _collectionRepository.removeProductFromCollection(collectionId, productId);
       _logger.i('Successfully removed product from collection');
     } catch (e) {
       _logger.e('Error removing product from collection: $e');

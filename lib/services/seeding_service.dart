@@ -127,12 +127,8 @@ class SeedingService {
         return CollectionType.inventory;
       case 'shoppingList':
         return CollectionType.shoppingList;
-      case 'favorites':
-        return CollectionType.favorites;
-      case 'custom':
-        return CollectionType.custom;
       default:
-        return CollectionType.custom;
+        return CollectionType.inventory;
     }
   }
 }

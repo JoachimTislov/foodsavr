@@ -17,13 +17,6 @@ class CollectionsData {
         'type': 'shoppingList',
         'productIds': [4, 5],
       },
-      {
-        'id': '3',
-        'name': 'Favorites',
-        'description': 'My favorite items',
-        'type': 'favorites',
-        'productIds': [6, 7],
-      },
     ];
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 /// Helper utilities for product-related operations
 class ProductHelpers {
@@ -24,21 +25,15 @@ class ProductHelpers {
     }
   }
 
-  /// Format date with abbreviated month names
+  /// Format date with abbreviated month names (e.g., "Jan 15, 2024")
+  /// Supports internationalization via intl package
   static String formatDateShort(DateTime date) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+    return DateFormat.yMMMd().format(date);
   }
 
-  /// Format date with full month names
+  /// Format date with full month names (e.g., "January 15, 2024")
+  /// Supports internationalization via intl package
   static String formatDateFull(DateTime date) {
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+    return DateFormat.yMMMMd().format(date);
   }
 }

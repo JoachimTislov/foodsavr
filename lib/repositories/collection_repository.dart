@@ -57,4 +57,20 @@ class CollectionRepository implements ICollectionRepository {
         .map((doc) => Collection.fromJson(doc.data()))
         .toList();
   }
+
+  @override
+  Future<void> addProductToCollection(String collectionId, int productId) async {
+    final docRef = _firestore.collection(_collectionName).doc(collectionId);
+    await docRef.update({
+      'productIds': FieldValue.arrayUnion([productId]),
+    });
+  }
+
+  @override
+  Future<void> removeProductFromCollection(String collectionId, int productId) async {
+    final docRef = _firestore.collection(_collectionName).doc(collectionId);
+    await docRef.update({
+      'productIds': FieldValue.arrayRemove([productId]),
+    });
+  }
 }

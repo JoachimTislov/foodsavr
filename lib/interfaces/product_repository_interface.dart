@@ -7,7 +7,7 @@ abstract class IProductRepository {
   Future<Product?> getProduct(int id);
   Future<void> updateProduct(Product product);
   Future<void> deleteProduct(int id);
-  Future<List<Product>> getAllProducts();
-  Future<List<Product>> getUserProducts(String userId);
-  Future<List<Product>> getGlobalProducts();
+  Future<List<Product>> getAllProducts(); // Get all products (for admin)
+  Future<List<Product>> getProducts(String userId); // Get user-specific products
+  Future<List<Product>> getGlobalProducts(); // Get global catalog products
 }

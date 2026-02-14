@@ -9,4 +9,6 @@ abstract class ICollectionRepository {
   Future<void> deleteCollection(String id);
   Future<List<Collection>> getAllCollections();
   Future<List<Collection>> getUserCollections(String userId);
+  Future<void> addProductToCollection(String collectionId, int productId);
+  Future<void> removeProductFromCollection(String collectionId, int productId);
 }
