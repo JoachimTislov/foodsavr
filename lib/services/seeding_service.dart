@@ -4,6 +4,9 @@ import '../interfaces/collection_repository.dart';
 import '../models/product_model.dart';
 import '../models/collection_model.dart';
 import '../utils/environment_config.dart';
+import '../mock_data/inventory_products.dart';
+import '../mock_data/global_products.dart';
+import '../mock_data/collections.dart';
 
 class SeedingService {
   final IAuthService _authService;
@@ -18,43 +21,8 @@ class SeedingService {
 
   Future<void> seedDatabase() async {
     final userId = await _seedUsers();
-    final addedProducts = await _seedProducts(userId);
-
-    // Seed collections
-    await _collectionRepository.addCollection(
-      Collection(
-        id: '1',
-        name: 'My Inventory',
-        productIds: [addedProducts[0].id, addedProducts[1].id, addedProducts[2].id],
-        userId: userId,
-        description: 'My personal food inventory',
-        type: CollectionType.inventory,
-      ),
-    );
-
-    await _collectionRepository.addCollection(
-      Collection(
-        id: '2',
-        name: 'Shopping List',
-        productIds: [addedProducts[3].id, addedProducts[4].id],
-        userId: userId,
-        description: 'Items to buy',
-        type: CollectionType.shoppingList,
-      ),
-    );
-
-    await _collectionRepository.addCollection(
-      Collection(
-        id: '3',
-        name: 'Favorites',
-        productIds: [addedProducts[5].id, addedProducts[6].id],
-        userId: userId,
-        description: 'My favorite items',
-        type: CollectionType.favorites,
-      ),
-    );
-
-    // Seed global products
+    await _seedProducts(userId);
+    await _seedCollections(userId);
     await _seedGlobalProducts();
   }
 
@@ -81,120 +49,70 @@ class SeedingService {
     }
   }
 
-  Future<List<Product>> _seedProducts(String userId) async {
+  Future<void> _seedProducts(String userId) async {
     final now = DateTime.now();
-    final products = [
-      Product(
-        id: 1,
-        name: 'Apple',
-        description: 'A crisp and juicy apple.',
-        userId: userId,
-        expirationDate: now.add(const Duration(days: 5)),
-        quantity: 6,
-        category: 'Fruits',
-      ),
-      Product(
-        id: 2,
-        name: 'Banana',
-        description: 'A ripe and sweet banana.',
-        userId: userId,
-        expirationDate: now.add(const Duration(days: 2)),
-        quantity: 4,
-        category: 'Fruits',
-      ),
-      Product(
-        id: 3,
-        name: 'Carrot',
-        description: 'An orange carrot.',
-        userId: userId,
-        expirationDate: now.add(const Duration(days: 10)),
-        quantity: 8,
-        category: 'Vegetables',
-      ),
-      Product(
-        id: 4,
-        name: 'Milk',
-        description: 'Organic whole milk',
-        userId: userId,
-        expirationDate: now.add(const Duration(days: 1)),
-        quantity: 1,
-        category: 'Dairy',
-      ),
-      Product(
-        id: 5,
-        name: 'Bread',
-        description: 'Whole wheat bread',
-        userId: userId,
-        expirationDate: now.add(const Duration(days: 3)),
-        quantity: 1,
-        category: 'Bakery',
-      ),
-      Product(
-        id: 6,
-        name: 'Eggs',
-        description: 'Farm fresh eggs',
-        userId: userId,
-        expirationDate: now.add(const Duration(days: 14)),
-        quantity: 12,
-        category: 'Dairy',
-      ),
-      Product(
-        id: 7,
-        name: 'Cheese',
-        description: 'Aged cheddar cheese',
-        userId: userId,
-        expirationDate: now.add(const Duration(days: 20)),
-        quantity: 1,
-        category: 'Dairy',
-      ),
-      Product(
-        id: 8,
-        name: 'Tomato',
-        description: 'Fresh red tomatoes',
-        userId: userId,
-        expirationDate: now.add(const Duration(days: 4)),
-        quantity: 5,
-        category: 'Vegetables',
-      ),
-    ];
+    final productsData = InventoryProductsData.getProducts();
 
-    final addedProducts = <Product>[];
-    for (var product in products) {
-      addedProducts.add(await _productRepository.addProduct(product));
+    for (var data in productsData) {
+      final product = Product(
+        id: data['id'] as int,
+        name: data['name'] as String,
+        description: data['description'] as String,
+        userId: userId,
+        expirationDate: data['expirationDays'] != null
+            ? now.add(Duration(days: data['expirationDays'] as int))
+            : null,
+        quantity: data['quantity'] as int,
+        category: data['category'] as String?,
+      );
+      await _productRepository.addProduct(product);
     }
-    return addedProducts;
   }
 
   Future<void> _seedGlobalProducts() async {
-    final globalProducts = [
-      Product(
-        id: 1001,
-        name: 'Pasta',
-        description: 'Italian spaghetti pasta',
-        userId: 'global',
-        category: 'Pantry',
-        isGlobal: true,
-      ),
-      Product(
-        id: 1002,
-        name: 'Rice',
-        description: 'Long grain white rice',
-        userId: 'global',
-        category: 'Pantry',
-        isGlobal: true,
-      ),
-      Product(
-        id: 1003,
-        name: 'Olive Oil',
-        description: 'Extra virgin olive oil',
-        userId: 'global',
-        category: 'Pantry',
-        isGlobal: true,
-      ),
-    ];
+    final productsData = GlobalProductsData.getProducts();
 
-    for (var product in globalProducts) {
+    for (var data in productsData) {
+      final product = Product(
+        id: data['id'] as int,
+        name: data['name'] as String,
+        description: data['description'] as String,
+        userId: 'global',
+        category: data['category'] as String?,
+        isGlobal: true,
+      );
       await _productRepository.addProduct(product);
+    }
+  }
+
+  Future<void> _seedCollections(String userId) async {
+    final collectionsData = CollectionsData.getCollections();
+
+    for (var data in collectionsData) {
+      final collection = Collection(
+        id: data['id'] as String,
+        name: data['name'] as String,
+        productIds: List<int>.from(data['productIds'] as List),
+        userId: userId,
+        description: data['description'] as String?,
+        type: _parseCollectionType(data['type'] as String),
+      );
+      await _collectionRepository.addCollection(collection);
+    }
+  }
+
+  CollectionType _parseCollectionType(String typeString) {
+    switch (typeString) {
+      case 'inventory':
+        return CollectionType.inventory;
+      case 'shoppingList':
+        return CollectionType.shoppingList;
+      case 'favorites':
+        return CollectionType.favorites;
+      case 'custom':
+        return CollectionType.custom;
+      default:
+        return CollectionType.custom;
     }
   }
 }
