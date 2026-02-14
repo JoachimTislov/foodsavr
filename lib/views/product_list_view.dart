@@ -307,8 +307,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
   Future<List<Product>> _fetchProducts() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId != null) {
-      return _productService.getUserProducts(userId);
+      return _productService.getProducts(userId);
     }
+    // Fallback to global products if no user is logged in
     return _productService.getAllProducts();
   }
 

@@ -1,6 +1,6 @@
 import 'package:logger/logger.dart';
 import '../models/product_model.dart';
-import '../interfaces/product_repository.dart';
+import '../interfaces/product_repository_interface.dart';
 
 class ProductService {
   final IProductRepository _productRepository;
@@ -8,19 +8,8 @@ class ProductService {
 
   ProductService(this._productRepository, this._logger);
 
-  Future<List<Product>> getAllProducts() async {
-    _logger.i('Fetching all products.');
-    try {
-      final products = await _productRepository.getAllProducts();
-      _logger.i('Successfully fetched ${products.length} products.');
-      return products;
-    } catch (e) {
-      _logger.e('Error fetching all products: $e');
-      rethrow;
-    }
-  }
-
-  Future<List<Product>> getUserProducts(String userId) async {
+  /// Fetches all products for a specific user
+  Future<List<Product>> getProducts(String userId) async {
     _logger.i('Fetching products for user: $userId');
     try {
       final products = await _productRepository.getUserProducts(userId);
@@ -32,7 +21,8 @@ class ProductService {
     }
   }
 
-  Future<List<Product>> getGlobalProducts() async {
+  /// Fetches all global products (catalog)
+  Future<List<Product>> getAllProducts() async {
     _logger.i('Fetching global products.');
     try {
       final products = await _productRepository.getGlobalProducts();

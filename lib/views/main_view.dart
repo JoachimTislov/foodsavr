@@ -1,6 +1,7 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../service_locator.dart';
+import '../interfaces/auth_service_interface.dart';
 import '../views/product_list_view.dart';
 import '../views/collection_list_view.dart';
 
@@ -11,6 +12,7 @@ class MainAppScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final authService = getIt<IAuthService>();
 
     return Scaffold(
       appBar: AppBar(
@@ -20,7 +22,7 @@ class MainAppScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => FirebaseAuth.instance.signOut(),
+            onPressed: () => authService.signOut(),
             tooltip: 'Sign Out',
           ),
         ],

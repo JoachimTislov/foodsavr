@@ -1,6 +1,6 @@
-import '../interfaces/auth_service.dart';
-import '../interfaces/product_repository.dart';
-import '../interfaces/collection_repository.dart';
+import '../interfaces/auth_service_interface.dart';
+import '../interfaces/product_repository_interface.dart';
+import '../interfaces/collection_repository_interface.dart';
 import '../models/product_model.dart';
 import '../models/collection_model.dart';
 import '../utils/environment_config.dart';

@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../models/collection_model.dart';
@@ -32,7 +31,7 @@ class _CollectionListViewState extends State<CollectionListView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Collections'),
+        title: const Text('Collections'),
         backgroundColor: colorScheme.surface,
         elevation: 0,
       ),
@@ -79,15 +78,16 @@ class _CollectionListViewState extends State<CollectionListView> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'No collections found',
+                    'No collections available',
                     style: theme.textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Create your first collection to get started',
+                    'Standard collections (Inventory, Shopping List) will appear here',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
@@ -97,7 +97,7 @@ class _CollectionListViewState extends State<CollectionListView> {
             return RefreshIndicator(
               onRefresh: _refreshCollections,
               child: ListView.builder(
-                padding: const EdgeInsets.only(top: 8, bottom: 80),
+                padding: const EdgeInsets.only(top: 8, bottom: 20),
                 itemCount: collections.length,
                 itemBuilder: (context, index) {
                   final collection = collections[index];
@@ -111,26 +111,11 @@ class _CollectionListViewState extends State<CollectionListView> {
           }
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Create collection feature coming soon!'),
-            ),
-          );
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('New Collection'),
-      ),
     );
   }
 
   Future<List<Collection>> _fetchCollections() async {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    if (userId != null) {
-      return _collectionService.getUserCollections(userId);
-    }
-    return _collectionService.getAllCollections();
+    return _collectionService.getCollections();
   }
 
   Future<void> _refreshCollections() async {
