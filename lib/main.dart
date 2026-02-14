@@ -2,45 +2,45 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:foodsavr/interfaces/auth_service.dart';
 import 'package:logger/logger.dart';
 
-// import 'firebase_options.dart';
 import 'firebase_options.dart';
 import 'service_locator.dart';
-import 'services/seeding_service.dart';
 import 'utils/environment_config.dart';
 import 'views/auth_view.dart';
 import 'views/main_view.dart';
 
+const dummyOptions = FirebaseOptions(
+  apiKey: 'AIzaSyDummyKeyForDemoOnly',
+  appId: '1:1234567890:web:dummyid123456',
+  messagingSenderId: '',
+  projectId: 'demo-project',
+);
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await EasyLocalization.ensureInitialized();
-  final logger = Logger();
-
-  // Load environment variables
   await EnvironmentConfig.load();
+
+  final logger = Logger(level: kReleaseMode ? Level.warning : Level.all);
   logger.i('Running in ${EnvironmentConfig.environment} mode');
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  final firebaseAuth = FirebaseAuth.instance;
-  final firestore = FirebaseFirestore.instance;
-
-  // Setup dependency injection
-  await registerDependencies(firebaseAuth, firestore);
-
-  if (EnvironmentConfig.isDevelopment) {
-    await firebaseAuth.useAuthEmulator('localhost', 9099);
-    firestore.useFirestoreEmulator('localhost', 8080);
-
-    logger.i('Seeding database with initial data...');
-    // Seed database with initial data
-    await getIt<SeedingService>().seedDatabase();
+  // init Firebase app if not already initialized
+  // prevent multiple initializations when restarting app in development mode
+  if (Firebase.apps.isEmpty) {
+    logger.i('Firebase app not initialized, initializing now...');
+    await Firebase.initializeApp(
+      options: EnvironmentConfig.isDevelopment
+          ? dummyOptions
+          : DefaultFirebaseOptions.currentPlatform,
+    );
   }
+  await registerDependencies(logger);
 
   const enLocale = Locale('en', 'US');
+  await EasyLocalization.ensureInitialized();
   runApp(
     EasyLocalization(
       supportedLocales: const [enLocale, Locale('nb', 'NO')],

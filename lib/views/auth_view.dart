@@ -20,7 +20,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final logger = Logger();
+  final _logger = getIt<Logger>();
   final _emailController = TextEditingController(
     text: EnvironmentConfig.testUserEmail,
   );
@@ -52,9 +52,10 @@ class _HomePageState extends State<HomePage> {
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
-    } on FirebaseException catch (e) {
+      // on FirebaseException
+    } catch (e) {
       setState(() => _errorMessage = e.toString().split(']')[1]);
-      logger.e('Auth error: $e');
+      _logger.e('Auth error: $e');
     }
   }
 
