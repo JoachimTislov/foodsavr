@@ -2,15 +2,15 @@ name: Flutter Analyze
 
 on:
   push:
-    branches: [ main, master, develop, copilot/** ]
+    branches: [main]
   pull_request:
-    branches: [ main, master, develop ]
+    branches: [main]
 
 jobs:
   analyze:
     name: Analyze Flutter Code
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -18,8 +18,8 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'  # Use stable version compatible with SDK ^3.10.7
-          channel: 'stable'
+          flutter-version: "3.41.0" # Use stable version compatible with SDK ^3.10.7
+          channel: "stable"
           cache: true
 
       - name: Get dependencies
@@ -33,4 +33,4 @@ jobs:
 
       - name: Run tests (if any)
         run: flutter test
-        continue-on-error: true  # Tests might not be fully set up yet
+        continue-on-error: true # Tests might not be fully set up yet
