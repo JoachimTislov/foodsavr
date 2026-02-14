@@ -1,6 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../interfaces/auth_service.dart';
+import '../interfaces/auth_service_interface.dart';
 
 class AuthService implements IAuthService {
   final FirebaseAuth _firebaseAuth;
@@ -32,5 +32,10 @@ class AuthService implements IAuthService {
   @override
   Future<void> signOut() {
     return _firebaseAuth.signOut();
+  }
+
+  @override
+  String? getUserId() {
+    return _firebaseAuth.currentUser?.uid;
   }
 }

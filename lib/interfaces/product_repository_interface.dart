@@ -8,4 +8,6 @@ abstract class IProductRepository {
   Future<void> updateProduct(Product product);
   Future<void> deleteProduct(int id);
   Future<List<Product>> getAllProducts();
+  Future<List<Product>> getUserProducts(String userId);
+  Future<List<Product>> getGlobalProducts();
 }

@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/product_model.dart';
-import '../interfaces/product_repository.dart';
+import '../interfaces/product_repository_interface.dart';
 
 class ProductRepository implements IProductRepository {
   final FirebaseFirestore _firestore;
@@ -43,6 +43,29 @@ class ProductRepository implements IProductRepository {
   @override
   Future<List<Product>> getAllProducts() async {
     final querySnapshot = await _firestore.collection(_collectionName).get();
+    return querySnapshot.docs
+        .map((doc) => Product.fromJson(doc.data()))
+        .toList();
+  }
+
+  @override
+  Future<List<Product>> getUserProducts(String userId) async {
+    final querySnapshot = await _firestore
+        .collection(_collectionName)
+        .where('userId', isEqualTo: userId)
+        .where('isGlobal', isEqualTo: false)
+        .get();
+    return querySnapshot.docs
+        .map((doc) => Product.fromJson(doc.data()))
+        .toList();
+  }
+
+  @override
+  Future<List<Product>> getGlobalProducts() async {
+    final querySnapshot = await _firestore
+        .collection(_collectionName)
+        .where('isGlobal', isEqualTo: true)
+        .get();
     return querySnapshot.docs
         .map((doc) => Product.fromJson(doc.data()))
         .toList();

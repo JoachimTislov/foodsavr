@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/collection_model.dart';
-import '../interfaces/collection_repository.dart';
+import '../interfaces/collection_repository_interface.dart';
 
 /// Firestore implementation of ICollectionRepository.
 /// Persists collection data in Firestore 'collections' collection.
@@ -42,6 +42,17 @@ class CollectionRepository implements ICollectionRepository {
   @override
   Future<List<Collection>> getAllCollections() async {
     final querySnapshot = await _firestore.collection(_collectionName).get();
+    return querySnapshot.docs
+        .map((doc) => Collection.fromJson(doc.data()))
+        .toList();
+  }
+
+  @override
+  Future<List<Collection>> getUserCollections(String userId) async {
+    final querySnapshot = await _firestore
+        .collection(_collectionName)
+        .where('userId', isEqualTo: userId)
+        .get();
     return querySnapshot.docs
         .map((doc) => Collection.fromJson(doc.data()))
         .toList();

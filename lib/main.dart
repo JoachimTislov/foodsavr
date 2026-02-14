@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:foodsavr/interfaces/auth_service.dart';
+import 'package:foodsavr/interfaces/auth_service_interface.dart';
 import 'package:logger/logger.dart';
 
 import 'firebase_options.dart';
@@ -62,11 +62,17 @@ class MyApp extends StatelessWidget {
       supportedLocales: context.supportedLocales,
       locale: context.locale,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueAccent),
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blueAccent,
+          brightness: Brightness.light,
+        ),
       ),
       darkTheme: ThemeData(
+        useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color.fromRGBO(0, 1, 27, .3),
+          brightness: Brightness.dark,
         ),
       ),
       home: StreamBuilder(
