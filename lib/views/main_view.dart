@@ -4,6 +4,7 @@ import '../service_locator.dart';
 import '../interfaces/auth_service_interface.dart';
 import '../views/product_list_view.dart';
 import '../views/collection_list_view.dart';
+import '../constants/material3_config.dart';
 
 class MainAppScreen extends StatelessWidget {
   const MainAppScreen({super.key});
@@ -95,7 +96,7 @@ class MainAppScreen extends StatelessWidget {
                 child: Icon(
                   icon,
                   size: 32,
-                  color: _getOnContainerColor(context, color),
+                  color: Material3Config.getOnContainerColor(context, color),
                 ),
               ),
               const SizedBox(height: 16),
@@ -125,17 +126,5 @@ class MainAppScreen extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Color _getOnContainerColor(BuildContext context, Color containerColor) {
-    final colorScheme = Theme.of(context).colorScheme;
-    if (containerColor == colorScheme.primaryContainer) {
-      return colorScheme.onPrimaryContainer;
-    } else if (containerColor == colorScheme.secondaryContainer) {
-      return colorScheme.onSecondaryContainer;
-    } else if (containerColor == colorScheme.tertiaryContainer) {
-      return colorScheme.onTertiaryContainer;
-    }
-    return colorScheme.onPrimaryContainer;
   }
 }

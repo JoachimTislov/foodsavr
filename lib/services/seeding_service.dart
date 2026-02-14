@@ -21,8 +21,8 @@ class SeedingService {
 
   Future<void> seedDatabase() async {
     final userId = await _seedUsers();
-    await _seedProducts(userId);
-    await _seedCollections(userId);
+    final addedProducts = await _seedProducts(userId);
+    await _seedCollections(userId, addedProducts);
     await _seedGlobalProducts();
   }
 
@@ -49,9 +49,10 @@ class SeedingService {
     }
   }
 
-  Future<void> _seedProducts(String userId) async {
+  Future<List<Product>> _seedProducts(String userId) async {
     final now = DateTime.now();
     final productsData = InventoryProductsData.getProducts();
+    final addedProducts = <Product>[];
 
     for (var data in productsData) {
       final product = Product(
@@ -66,7 +67,10 @@ class SeedingService {
         category: data['category'] as String?,
       );
       await _productRepository.addProduct(product);
+      addedProducts.add(product);
     }
+
+    return addedProducts;
   }
 
   Future<void> _seedGlobalProducts() async {
@@ -85,14 +89,30 @@ class SeedingService {
     }
   }
 
-  Future<void> _seedCollections(String userId) async {
+  Future<void> _seedCollections(
+      String userId, List<Product> addedProducts) async {
+    if (addedProducts.isEmpty) return;
+
     final collectionsData = CollectionsData.getCollections();
+    final totalProducts = addedProducts.length;
 
     for (var data in collectionsData) {
+      // Map productIds from mock data to actual product IDs safely
+      final mockProductIds = List<int>.from(data['productIds'] as List);
+      final actualProductIds = <int>[];
+
+      for (var mockId in mockProductIds) {
+        // Calculate safe index based on mock ID and available products
+        final index = (mockId - 1) % totalProducts;
+        if (index >= 0 && index < totalProducts) {
+          actualProductIds.add(addedProducts[index].id);
+        }
+      }
+
       final collection = Collection(
         id: data['id'] as String,
         name: data['name'] as String,
-        productIds: List<int>.from(data['productIds'] as List),
+        productIds: actualProductIds,
         userId: userId,
         description: data['description'] as String?,
         type: _parseCollectionType(data['type'] as String),
