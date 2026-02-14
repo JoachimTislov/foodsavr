@@ -57,11 +57,16 @@ class Product {
     return expirationDate!.isBefore(DateTime.now());
   }
 
-  // Helper method to check if product is expiring soon (within 3 days)
+  // Helper method to check if product is expiring soon (within 1–3 days)
   bool get isExpiringSoon {
     if (expirationDate == null) return false;
-    final daysUntilExpiration = expirationDate!.difference(DateTime.now()).inDays;
-    return daysUntilExpiration >= 0 && daysUntilExpiration <= 3;
+    final difference = expirationDate!.difference(DateTime.now());
+    final daysUntilExpiration = difference.inDays;
+    // Exclude products expiring today (daysUntilExpiration == 0) from "soon"
+    if (difference.isNegative || daysUntilExpiration == 0) {
+      return false;
+    }
+    return daysUntilExpiration <= 3;
   }
 
   // Days until expiration (negative if expired)
