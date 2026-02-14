@@ -1,4 +1,4 @@
-.PHONY: dev start-firebase-emulators kill-firebase-emulators
+.PHONY: dev start-firebase-emulators kill-firebase-emulators analyze fmt test clean
 
 dev-chrome: start-firebase-emulators
 	@flutter run -d chrome
@@ -20,3 +20,20 @@ kill-firebase-emulators:
 	else \
 		echo "No Firebase Emulators running"; \
 	fi
+
+# Code quality commands
+analyze:
+	@echo "Running Flutter analyze..."
+	@flutter analyze --fatal-infos --fatal-warnings
+
+fmt:
+	@echo "Formatting Dart code..."
+	@dart format .
+
+test:
+	@echo "Running tests..."
+	@flutter test
+
+clean:
+	@echo "Cleaning build artifacts..."
+	@flutter clean
