@@ -6,16 +6,20 @@ This implementation adds comprehensive Material 3 product and collection widgets
 ## What Was Implemented
 
 ### 1. Data Models Enhanced
-- **Product Model** (`lib/models/product_model.dart`)
-  - Added `userId` for ownership tracking
-  - Added `expirationDate`, `quantity`, `category`, `imageUrl`
-  - Added `isGlobal` flag for global vs. personal products
-  - Helper methods: `isExpired`, `isExpiringSoon`, `daysUntilExpiration`
 
-- **Collection Model** (`lib/models/collection_model.dart`)
-  - Added `userId` for ownership tracking
-  - Added `description` and `type` (enum: inventory, shoppingList, favorites, custom)
-  - Proper serialization/deserialization
+**Product Model** (`lib/models/product_model.dart`)
+- Added `userId` for ownership tracking
+- Added `expirationDate`, `quantity`, `category`, `imageUrl`
+- Added `isGlobal` flag for global vs. personal products
+- Helper methods: `isExpired`, `isExpiringSoon`, `daysUntilExpiration`
+
+**Collection Model** (`lib/models/collection_model.dart`) - STATIC COLLECTIONS ONLY
+- **Important**: Collections are static and global, NOT user-specific
+- Only two standard collections: **Inventory** and **Shopping List**
+- Users can only add/remove products to these collections
+- Added `userId`, `description` and `type` (enum: inventory, shoppingList, favorites, custom)
+- NO user creation or deletion of collections allowed
+- Only admins can add new collection types (future feature)
 
 ### 2. Repository & Service Layer
 - **Updated Interfaces**

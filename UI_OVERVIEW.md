@@ -320,14 +320,15 @@
 - **Status Chip**: Colored chip with icon and text (normal mode)
 - **Status Banner**: Full-width colored banner with border (details mode)
 
-## Icons by Category
+## Icons by Category (Material 3)
 
-- **Fruits**: 🍎 (apple icon)
-- **Vegetables**: 🌱 (eco/leaf icon)
-- **Dairy**: 🥚 (egg icon)
-- **Bakery**: 🍞 (bakery_dining icon)
-- **Pantry**: 🏠 (kitchen icon)
-- **Default**: 🛍️ (shopping_bag icon)
+All icons are from the Material Design 3 icon set:
+- **Fruits**: apple icon (`Icons.apple`)
+- **Vegetables**: eco/leaf icon (`Icons.eco`)
+- **Dairy**: egg icon (`Icons.egg`)
+- **Bakery**: bakery_dining icon (`Icons.bakery_dining`)
+- **Pantry**: kitchen icon (`Icons.kitchen`)
+- **Default**: shopping_bag icon (`Icons.shopping_bag`)
 
 ## Spacing and Sizing
 
