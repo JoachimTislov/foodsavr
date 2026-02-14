@@ -1,3 +1,5 @@
+import 'product_status.dart';
+
 class Product {
   final int id;
   final String name;
@@ -73,5 +75,12 @@ class Product {
   int? get daysUntilExpiration {
     if (expirationDate == null) return null;
     return expirationDate!.difference(DateTime.now()).inDays;
+  }
+
+  // Get product status based on expiration
+  ProductStatus get status {
+    if (isExpired) return ProductStatus.expired;
+    if (isExpiringSoon) return ProductStatus.expiringSoon;
+    return ProductStatus.fresh;
   }
 }

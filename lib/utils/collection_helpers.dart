@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/collection_model.dart';
+import '../constants/collection_config.dart';
 
 /// Helper utilities for collection-related operations
 class CollectionHelpers {
@@ -7,44 +8,16 @@ class CollectionHelpers {
 
   /// Get icon for collection type
   static IconData getIcon(CollectionType type) {
-    switch (type) {
-      case CollectionType.inventory:
-        return Icons.inventory_2;
-      case CollectionType.shoppingList:
-        return Icons.shopping_cart;
-      case CollectionType.favorites:
-        return Icons.favorite;
-      case CollectionType.custom:
-        return Icons.folder;
-    }
+    return CollectionConfig.getIcon(type);
   }
 
   /// Get color for collection type
   static Color getColor(CollectionType type, ColorScheme colorScheme) {
-    switch (type) {
-      case CollectionType.inventory:
-        return colorScheme.primaryContainer;
-      case CollectionType.shoppingList:
-        return colorScheme.tertiaryContainer;
-      case CollectionType.favorites:
-        // Use a pink color for favorites that works in both light and dark themes
-        return colorScheme.errorContainer;
-      case CollectionType.custom:
-        return colorScheme.secondaryContainer;
-    }
+    return CollectionConfig.getColor(type, colorScheme);
   }
 
   /// Get label for collection type
   static String getLabel(CollectionType type) {
-    switch (type) {
-      case CollectionType.inventory:
-        return 'Inventory';
-      case CollectionType.shoppingList:
-        return 'Shopping';
-      case CollectionType.favorites:
-        return 'Favorites';
-      case CollectionType.custom:
-        return 'Custom';
-    }
+    return CollectionConfig.getLabel(type);
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../constants/product_categories.dart';
 
 /// Helper utilities for product-related operations
 class ProductHelpers {
@@ -7,22 +8,7 @@ class ProductHelpers {
 
   /// Get icon for product category
   static IconData getCategoryIcon(String? category) {
-    if (category == null) return Icons.shopping_bag;
-
-    switch (category.toLowerCase()) {
-      case 'fruits':
-        return Icons.apple;
-      case 'vegetables':
-        return Icons.eco;
-      case 'dairy':
-        return Icons.egg;
-      case 'bakery':
-        return Icons.bakery_dining;
-      case 'pantry':
-        return Icons.kitchen;
-      default:
-        return Icons.shopping_bag;
-    }
+    return ProductCategory.getIcon(category);
   }
 
   /// Format date with abbreviated month names (e.g., "Jan 15, 2024")
