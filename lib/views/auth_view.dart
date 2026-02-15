@@ -49,9 +49,9 @@ class _HomePageState extends State<HomePage> {
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
       if (_isLogin) {
-        _authService.signIn(email: email, password: password);
+        await _authService.signIn(email: email, password: password);
       } else {
-        _authService.signUp(email: email, password: password);
+        await _authService.signUp(email: email, password: password);
       }
     } catch (e) {
       // TODO: improve error handling by parsing FirebaseAuthException and showing user-friendly messages
