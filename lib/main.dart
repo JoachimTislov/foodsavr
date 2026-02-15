@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:logger/logger.dart';
 
 import 'firebase_options.dart';
@@ -18,7 +19,24 @@ const dummyOptions = FirebaseOptions(
   projectId: 'demo-project',
 );
 
+/// List of supported flavor names.
+///
+/// - `development`: default; typically uses local emulators and
+///   verbose logging.
+/// - `staging`: optional; can be wired to a staging backend.
+/// - `production`: connects to the production backend.
+const List<String> supportedFlavors = <String>[
+  'development',
+  'staging',
+  'production',
+];
+
 void main() async {
+  if (!supportedFlavors.contains(appFlavor)) {
+    throw Exception(
+      'Invalid app flavor: $appFlavor. Supported flavors: ${supportedFlavors.join(', ')}',
+    );
+  }
   WidgetsFlutterBinding.ensureInitialized();
 
   final logger = Logger(level: kReleaseMode ? Level.warning : Level.all);
