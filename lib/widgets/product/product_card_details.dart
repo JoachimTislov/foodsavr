@@ -137,49 +137,48 @@ class ProductCardDetails extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               // Status banner
-              if (statusColor != null && statusMessage != null)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: statusColor.withValues(alpha: 0.5),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(statusIcon, color: statusColor, size: 24),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              statusMessage,
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                color: statusColor,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            if (product.daysUntilExpiration != null)
-                              Text(
-                                product.daysUntilExpiration! < 0
-                                    ? 'Expired ${product.daysUntilExpiration!.abs()} days ago'
-                                    : '${product.daysUntilExpiration} days remaining',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: statusColor,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: statusColor.withValues(alpha: 0.5),
+                    width: 1,
                   ),
                 ),
+                child: Row(
+                  children: [
+                    Icon(statusIcon, color: statusColor, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            statusMessage,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: statusColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (product.daysUntilExpiration != null)
+                            Text(
+                              product.daysUntilExpiration! < 0
+                                  ? 'Expired ${product.daysUntilExpiration!.abs()} days ago'
+                                  : '${product.daysUntilExpiration} days remaining',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: statusColor,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               // Details grid
               _buildDetailsGrid(context),
             ],

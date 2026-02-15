@@ -1,9 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:foodsavr/firebase_options.dart';
 import 'package:foodsavr/interfaces/auth_service_interface.dart';
 import 'package:logger/logger.dart';
 
@@ -11,26 +10,6 @@ import 'service_locator.dart';
 import 'utils/environment_config.dart';
 import 'views/auth_view.dart';
 import 'views/main_view.dart';
-
-// Stub for DefaultFirebaseOptions when firebase_options.dart doesn't exist
-class _DefaultFirebaseOptions {
-  static FirebaseOptions get currentPlatform {
-    if (kIsWeb) {
-      return const FirebaseOptions(
-        apiKey: 'AIzaSyDummyKeyForWeb',
-        appId: '1:1234567890:web:dummyid123456',
-        messagingSenderId: '1234567890',
-        projectId: 'my-foodsavr-store',
-      );
-    }
-    return const FirebaseOptions(
-      apiKey: 'AIzaSyDummyKeyForMobile',
-      appId: '1:1234567890:android:dummyid123456',
-      messagingSenderId: '1234567890',
-      projectId: 'my-foodsavr-store',
-    );
-  }
-}
 
 const dummyOptions = FirebaseOptions(
   apiKey: 'AIzaSyDummyKeyForDemoOnly',
@@ -53,7 +32,7 @@ void main() async {
     await Firebase.initializeApp(
       options: EnvironmentConfig.isDevelopment
           ? dummyOptions
-          : _DefaultFirebaseOptions.currentPlatform,
+          : DefaultFirebaseOptions.currentPlatform,
     );
   }
   await registerDependencies(logger);

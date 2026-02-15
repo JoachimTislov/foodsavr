@@ -48,7 +48,7 @@ class CollectionRepository implements ICollectionRepository {
   }
 
   @override
-  Future<List<Collection>> getUserCollections(String userId) async {
+  Future<List<Collection>> getCollections(String userId) async {
     final querySnapshot = await _firestore
         .collection(_collectionName)
         .where('userId', isEqualTo: userId)
@@ -58,17 +58,8 @@ class CollectionRepository implements ICollectionRepository {
         .toList();
   }
 
-  Future<Collection> addCollection(Collection collection) => add(collection);
-  Future<Collection?> getCollection(String id) => get(id);
-  Future<void> updateCollection(Collection collection) => update(collection);
-  Future<void> deleteCollection(String id) => delete(id);
-  Future<List<Collection>> getAllCollections() => getAll();
-
   @override
-  Future<void> addProductToCollection(
-    String collectionId,
-    int productId,
-  ) async {
+  Future<void> addProduct(String collectionId, int productId) async {
     final docRef = _firestore.collection(_collectionName).doc(collectionId);
     await docRef.update({
       'productIds': FieldValue.arrayUnion([productId]),
@@ -76,10 +67,7 @@ class CollectionRepository implements ICollectionRepository {
   }
 
   @override
-  Future<void> removeProductFromCollection(
-    String collectionId,
-    int productId,
-  ) async {
+  Future<void> removeProduct(String collectionId, int productId) async {
     final docRef = _firestore.collection(_collectionName).doc(collectionId);
     await docRef.update({
       'productIds': FieldValue.arrayRemove([productId]),

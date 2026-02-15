@@ -90,49 +90,48 @@ class ProductDetailView extends StatelessWidget {
                     ),
                   const SizedBox(height: 24),
                   // Status banner
-                  if (statusColor != null && statusMessage != null)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      margin: const EdgeInsets.only(bottom: 24),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: statusColor.withValues(alpha: 0.5),
-                          width: 2,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(statusIcon, color: statusColor, size: 32),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  statusMessage,
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    color: statusColor,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                if (product.daysUntilExpiration != null)
-                                  Text(
-                                    product.daysUntilExpiration! < 0
-                                        ? 'Expired ${product.daysUntilExpiration!.abs()} days ago'
-                                        : '${product.daysUntilExpiration} days remaining',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: statusColor,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    margin: const EdgeInsets.only(bottom: 24),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: statusColor.withValues(alpha: 0.5),
+                        width: 2,
                       ),
                     ),
+                    child: Row(
+                      children: [
+                        Icon(statusIcon, color: statusColor, size: 32),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                statusMessage,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: statusColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (product.daysUntilExpiration != null)
+                                Text(
+                                  product.daysUntilExpiration! < 0
+                                      ? 'Expired ${product.daysUntilExpiration!.abs()} days ago'
+                                      : '${product.daysUntilExpiration} days remaining',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: statusColor,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   // Description section
                   Text(
                     'Description',

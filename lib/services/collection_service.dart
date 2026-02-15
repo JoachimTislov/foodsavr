@@ -12,7 +12,7 @@ class CollectionService {
   Future<List<Collection>> getCollections() async {
     _logger.i('Fetching all collections.');
     try {
-      final collections = await _collectionRepository.getAllCollections();
+      final collections = await _collectionRepository.getAll();
       _logger.i('Successfully fetched ${collections.length} collections.');
       return collections;
     } catch (e) {
@@ -25,7 +25,7 @@ class CollectionService {
   Future<Collection?> getCollection(String id) async {
     _logger.i('Fetching collection: $id');
     try {
-      final collection = await _collectionRepository.getCollection(id);
+      final collection = await _collectionRepository.get(id);
       if (collection != null) {
         _logger.i('Successfully fetched collection: ${collection.name}');
       }
@@ -43,10 +43,7 @@ class CollectionService {
   ) async {
     _logger.i('Adding product $productId to collection $collectionId');
     try {
-      await _collectionRepository.addProductToCollection(
-        collectionId,
-        productId,
-      );
+      await _collectionRepository.addProduct(collectionId, productId);
       _logger.i('Successfully added product to collection');
     } catch (e) {
       _logger.e('Error adding product to collection: $e');
@@ -61,10 +58,7 @@ class CollectionService {
   ) async {
     _logger.i('Removing product $productId from collection $collectionId');
     try {
-      await _collectionRepository.removeProductFromCollection(
-        collectionId,
-        productId,
-      );
+      await _collectionRepository.removeProduct(collectionId, productId);
       _logger.i('Successfully removed product from collection');
     } catch (e) {
       _logger.e('Error removing product from collection: $e');

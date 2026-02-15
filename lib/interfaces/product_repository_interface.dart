@@ -5,7 +5,6 @@ import 'repository_interface.dart';
 /// Implementations can be in-memory, Firestore, or any other data source.
 /// Extends the generic IRepository interface with product-specific methods.
 abstract class IProductRepository extends IRepository<Product, int> {
-  // Product-specific methods
   Future<List<Product>> getProducts(
     String userId,
   ); // Get user-specific products
