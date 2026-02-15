@@ -53,6 +53,7 @@ class CollectionConfig {
   /// Get color for collection type
   static Color getColor(CollectionType type, ColorScheme colorScheme) {
     final config = getConfig(type);
-    return config?.colorGetter(colorScheme) ?? colorScheme.surfaceContainerHighest;
+    return config?.colorGetter(colorScheme) ??
+        colorScheme.surfaceContainerHighest;
   }
 }
