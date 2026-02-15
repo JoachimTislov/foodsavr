@@ -20,7 +20,6 @@ const dummyOptions = FirebaseOptions(
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // await EnvironmentConfig.load();
 
   final logger = Logger(level: kReleaseMode ? Level.warning : Level.all);
   logger.i('Running in ${Config.environment} mode');
