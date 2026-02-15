@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:logger/logger.dart';
 
 import '../mock_data/collections.dart';
@@ -32,11 +33,16 @@ class SeedingService {
   }
 
   Future<String> _seedUser() async {
-    final credential = await _authService.signUp(
-      email: Config.testUserEmail,
-      password: Config.testUserPassword,
-    );
-    final user = credential.user;
+    User? user;
+    try {
+      final credential = await _authService.signUp(
+        email: Config.testUserEmail,
+        password: Config.testUserPassword,
+      );
+      user = credential.user;
+    } catch (_) {
+      // ignore error ...
+    }
     if (user == null) {
       _logger.e(
         'SeedingService: signUp returned a null user for '

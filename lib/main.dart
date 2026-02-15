@@ -25,7 +25,6 @@ void main() async {
 
   final logger = Logger(level: kReleaseMode ? Level.warning : Level.all);
   logger.i('Running in ${Config.environment} mode');
-  logger.i('$appFlavor');
 
   // init Firebase app if not already initialized
   // prevent multiple initializations when restarting app in development mode

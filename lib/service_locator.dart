@@ -52,7 +52,7 @@ class ServiceLocator {
         password: Config.testUserPassword,
       )).user?.uid;
     } catch (_) {
-      // do nothing
+      // ignore error ...
     }
     if (userId == null) {
       _logger.i('Seeding database with initial data...');
