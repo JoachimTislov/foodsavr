@@ -1,3 +1,5 @@
+import 'package:logger/logger.dart';
+
 import '../interfaces/auth_service_interface.dart';
 import '../interfaces/product_repository_interface.dart';
 import '../interfaces/collection_repository_interface.dart';
@@ -21,33 +23,17 @@ class SeedingService {
   );
 
   Future<void> seedDatabase() async {
-    final userId = await _seedUsers();
+    final userId = await _seedUser();
     final addedProducts = await _seedProducts(userId);
     await _seedCollections(userId, addedProducts);
     await _seedGlobalProducts();
   }
 
-  Future<String> _seedUsers() async {
-    try {
-      final userCred = await _authService.authenticate(
-        isLogin: false,
-        email: EnvironmentConfig.testUserEmail,
-        password: EnvironmentConfig.testUserPassword,
-      );
-      return userCred?.user?.uid ?? 'test-user-id';
-    } catch (e) {
-      // User might already exist, try to login
-      try {
-        final userCred = await _authService.authenticate(
-          isLogin: true,
-          email: EnvironmentConfig.testUserEmail,
-          password: EnvironmentConfig.testUserPassword,
-        );
-        return userCred?.user?.uid ?? 'test-user-id';
-      } catch (e) {
-        return 'test-user-id';
-      }
-    }
+  Future<String> _seedUser() async {
+    return (await _authService.signUp(
+      email: EnvironmentConfig.testUserEmail,
+      password: EnvironmentConfig.testUserPassword,
+    )).user!.uid;
   }
 
   Future<List<Product>> _seedProducts(String userId) async {

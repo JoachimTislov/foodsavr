@@ -6,49 +6,62 @@ import 'package:foodsavr/utils/environment_config.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
 
-import 'interfaces/collection_repository_interface.dart';
-import 'interfaces/product_repository_interface.dart';
 import 'repositories/collection_repository.dart';
 import 'repositories/product_repository.dart';
-import 'services/product_service.dart';
 import 'services/collection_service.dart';
+import 'services/product_service.dart';
 import 'services/seeding_service.dart';
 
 final getIt = GetIt.instance;
 
-// Initialize dependency injection container.
-// Uses Firebase emulators in development, production Firebase in production.
-// In development, also seeds the database with initial data for testing.
-Future<void> registerDependencies(Logger logger) async {
-  final auth = FirebaseAuth.instance;
-  final firestore = FirebaseFirestore.instance;
-  final authService = AuthService(auth);
-  final productRepository = ProductRepository(firestore);
-  final collectionRepository = CollectionRepository(firestore);
+class ServiceLocator {
+  final _auth = FirebaseAuth.instance;
+  final _firestore = FirebaseFirestore.instance;
+  late final Logger _logger;
+  late final AuthService _authService;
+  late final ProductRepository _productRepository;
+  late final CollectionRepository _collectionRepository;
 
-  if (EnvironmentConfig.isDevelopment) {
-    await auth.useAuthEmulator('localhost', 9099);
-    firestore.useFirestoreEmulator('localhost', 8080);
-
-    logger.i('Seeding database with initial data...');
-    // Seed database with initial data
-    await SeedingService(
-      authService,
-      productRepository,
-      collectionRepository,
-    ).seedDatabase();
+  ServiceLocator(Logger logger) {
+    _logger = logger;
+    _authService = AuthService(_auth);
+    _productRepository = ProductRepository(_firestore);
+    _collectionRepository = CollectionRepository(_firestore);
   }
 
-  getIt.registerLazySingleton<Logger>(() => logger);
-  getIt.registerLazySingleton<IProductRepository>(() => productRepository);
-  getIt.registerLazySingleton<ICollectionRepository>(
-    () => collectionRepository,
-  );
-  getIt.registerLazySingleton<IAuthService>(() => authService);
-  getIt.registerLazySingleton<ProductService>(
-    () => ProductService(productRepository, logger),
-  );
-  getIt.registerLazySingleton<CollectionService>(
-    () => CollectionService(collectionRepository, logger),
-  );
+  Future<void> registerDependencies() async {
+    getIt.registerLazySingleton<Logger>(() => _logger);
+    getIt.registerLazySingleton<IAuthService>(() => _authService);
+    getIt.registerLazySingleton<ProductService>(
+      () => ProductService(_productRepository, _logger),
+    );
+    getIt.registerLazySingleton<CollectionService>(
+      () => CollectionService(_collectionRepository, _logger),
+    );
+  }
+
+  Future<void> setupDevelopment() async {
+    await _auth.useAuthEmulator('localhost', 9099);
+    _firestore.useFirestoreEmulator('localhost', 8080);
+
+    // Pre-check if user is already signed in to avoid redundant seeding on hot reload or full restart during development.
+    var userId = _authService.getUserId();
+    userId ??= (await _authService.signIn(
+      email: EnvironmentConfig.testUserEmail,
+      password: EnvironmentConfig.testUserPassword,
+    )).user?.uid;
+    if (userId == null) {
+      _logger.i('Seeding database with initial data...');
+      // Only init and seed the database if no user is signed in.
+      // Presumably, if the user is signed in, the emulators are already seeded and ready to go.
+      // TODO: In the future, should the seed data reset on hot reload or full restart? Maybe add a flag to control this behavior?
+      await SeedingService(
+        _authService,
+        _productRepository,
+        _collectionRepository,
+      ).seedDatabase();
+    } else {
+      _logger.i('User already signed in, skipping seeding');
+    }
+  }
 }

@@ -35,7 +35,11 @@ void main() async {
           : DefaultFirebaseOptions.currentPlatform,
     );
   }
-  await registerDependencies(logger);
+  final serviceLocater = ServiceLocator(logger);
+  if (EnvironmentConfig.isDevelopment) {
+    await serviceLocater.setupDevelopment();
+  }
+  await serviceLocater.registerDependencies();
 
   const enLocale = Locale('en', 'US');
   await EasyLocalization.ensureInitialized();
