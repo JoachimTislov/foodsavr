@@ -12,15 +12,20 @@ FoodSavr is a Flutter application designed to help people reduce food waste by t
 lib/
 ├── constants/           # Application-wide constants (e.g., environment_config.dart)
 ├── features/            # Feature modules (reserved for future expansion)
+├── interfaces/          # Repository interfaces (contracts)
+│   ├── i_auth_repository.dart
+│   ├── i_user_repository.dart
+│   ├── i_product_repository.dart
+│   └── i_collection_repository.dart
 ├── models/              # Data models with toJson/fromJson serialization
-├── repositories/        # Data access layer
-│   ├── i_*_repository.dart           # Repository interfaces (contracts)
-│   ├── *_repository.dart             # In-memory implementations (for testing/seeding)
-│   └── firestore_*_repository.dart   # Firestore implementations (production)
+├── repositories/        # Data access layer (Firestore implementations)
+│   ├── auth_repository.dart             # Firebase Auth implementation
+│   └── firestore_*_repository.dart      # Firestore implementations
 ├── services/            # Business logic and orchestration
 ├── utils/               # Utility functions and helpers
 ├── views/               # Full-screen UI components
 ├── widgets/             # Reusable UI components organized by feature
+├── firebase_options.dart # Firebase configuration for all platforms
 └── service_locator.dart # Dependency injection configuration (GetIt)
 ```
 
@@ -28,7 +33,7 @@ lib/
 - **Repository Pattern with Interfaces**: All data access goes through abstract interfaces, allowing easy swapping of implementations
 - **Dependency Injection**: Using GetIt service locator - dependencies are injected, never instantiated directly
 - **Strict separation**: UI (views/widgets) → Business logic (services) → Data access (repositories) → Models
-- **Dual implementations**: In-memory repos for testing/seeding, Firestore repos for production
+- **Emulator-Driven Development**: Uses Firebase emulators (Auth, Firestore) in development for fast iteration
 - **Zero hard-coded values**: Use constants or configuration files
 
 ### Dependency Injection Pattern
@@ -61,52 +66,24 @@ class _MyWidgetState extends State<MyWidget> {
 ```
 
 **To add new dependencies:**
-1. Define interface in `repositories/i_*_repository.dart`
-2. Create implementations (in-memory and/or Firestore)
+1. Define interface in `interfaces/i_*_repository.dart`
+2. Create Firestore implementation in `repositories/firestore_*_repository.dart`
 3. Register in `service_locator.dart`
 4. Inject via `getIt<YourType>()` where needed
 
-## Build, Test, and Lint
+## 8. Testing
 
-### Running the app
+*   Unit and widget tests are located in the `test/` directory
+*   Tests use Firebase emulators for integration testing
+*   Run tests using `flutter test`
+*   For CI, start emulators before running tests
+
+## Linting and testing
+
 ```bash
-# Development mode with flavor
-make run-dev
-# Or: flutter run --flavor development
-
-# Production mode
-make run-prod
-# Or: flutter run --flavor production
-```
-
-### Testing
-```bash
-# All tests
-make test
-# Or: flutter test
-
-# Single test file
-flutter test test/path/to/test_file.dart
-```
-
-### Linting and formatting
-```bash
-# Analyze code (must pass with zero warnings/errors)
-make analyze
-# Or: flutter analyze
-
-# Format code (2-space indentation, idiomatic Dart)
-make fmt
-# Or: dart format lib
-```
-
-### Other commands
-```bash
-make get          # flutter pub get
-make clean        # flutter clean
-make build-apk    # Build Android APK
-make build-ios    # Build iOS app
-make build-web    # Build web app
+make analyze # Check for issues
+make test    # Run tests
+make fmt     # Format code
 ```
 
 ## Code Conventions
@@ -131,35 +108,45 @@ make build-web    # Build web app
 - **Framework**: Flutter (SDK ^3.10.7)
 - **UI**: Material Design
 - **Backend**: Firebase (Firestore for data, Authentication)
+  - Uses Firebase emulators in development (Auth: localhost:9099, Firestore: localhost:8080)
+  - Emulator UI available at http://localhost:8081
 - **Dependency Injection**: GetIt service locator
 - **Localization**: `easy_localization` with translations in `assets/translations/`
 - **Logging**: `logger` package
-- **Environment**: `flutter_dotenv` for environment configuration
+- **Environment**: Environment configuration via `assets/.env` file
 
 ## Data Persistence
 
-The app uses **Firestore** for data persistence by default:
+The app uses **Firebase Firestore** for all data persistence:
 - User data → `users` collection
 - Products → `products` collection  
 - Collections → `collections` collection
 
 All models have `toJson()`/`fromJson()` methods for Firestore serialization.
 
-**In-memory repositories** are also available (see `service_locator.dart`) for:
-- Testing (no external dependencies)
-- Initial seeding
-- Development without Firestore connection
+### Development vs Production
+
+**Development** (`ENVIRONMENT=development` in `assets/.env`):
+- Connects to Firebase emulators (localhost)
+- Data persists in emulator, can be exported/imported
+- Fast iteration without affecting production data
+- Run `firebase emulators:start` before launching app
+
+**Production** (`ENVIRONMENT=production` in `assets/.env`):
+- Connects to production Firebase project
+- Data persists in cloud Firestore
+- Requires proper Firebase project setup and credentials
 
 ## Working with the Codebase
 
 ### Repository Pattern
 All data access goes through repository **interfaces**:
 - `IAuthRepository` - Authentication (impl: FirebaseAuthRepository)
-- `IUserRepository` - User data (impl: FirestoreUserRepository, InMemoryUserRepository)
-- `IProductRepository` - Product management (impl: FirestoreProductRepository, InMemoryProductRepository)
-- `ICollectionRepository` - Collection management (impl: FirestoreCollectionRepository, InMemoryCollectionRepository)
+- `IUserRepository` - User data (impl: FirestoreUserRepository)
+- `IProductRepository` - Product management (impl: FirestoreProductRepository)
+- `ICollectionRepository` - Collection management (impl: FirestoreCollectionRepository)
 
-**Key benefit**: Swap implementations without changing business logic (e.g., Firestore → SQL)
+**Key benefit**: Swap implementations without changing business logic (e.g., add caching layer, switch to different database)
 
 ### Services Layer
 Business logic lives in services (injected via GetIt):
@@ -178,8 +165,9 @@ Services orchestrate repositories and contain validation/business rules.
 
 ### Adding New Features
 1. Define domain models in `models/` with serialization
-2. Create repository interface in `repositories/i_*_repository.dart`
-3. Implement repository (Firestore and/or in-memory)
+2. Create repository interface in `interfaces/i_*_repository.dart`
+3. Implement Firestore repository in `repositories/firestore_*_repository.dart`
 4. Create service in `services/` for business logic
 5. Register in `service_locator.dart`
 6. Build UI in `views/` and `widgets/`, injecting dependencies via GetIt
+7. Test with Firebase emulators before deploying to production

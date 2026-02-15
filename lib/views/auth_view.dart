@@ -1,6 +1,5 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:foodsavr/interfaces/auth_service.dart';
+import 'package:foodsavr/interfaces/auth_service_interface.dart';
 import 'package:logger/logger.dart';
 import 'package:easy_localization/easy_localization.dart';
 

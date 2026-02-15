@@ -1,17 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
-import 'package:foodsavr/interfaces/auth_service.dart';
+import 'package:foodsavr/interfaces/auth_service_interface.dart';
 import 'package:foodsavr/services/auth_service.dart';
 import 'package:foodsavr/utils/environment_config.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
 
-import 'interfaces/collection_repository.dart';
-import 'interfaces/product_repository.dart';
+import 'interfaces/collection_repository_interface.dart';
+import 'interfaces/product_repository_interface.dart';
 import 'repositories/collection_repository.dart';
 import 'repositories/product_repository.dart';
 import 'services/product_service.dart';
+import 'services/collection_service.dart';
 import 'services/seeding_service.dart';
 
 final getIt = GetIt.instance;
@@ -47,5 +47,8 @@ Future<void> registerDependencies(Logger logger) async {
   getIt.registerLazySingleton<IAuthService>(() => authService);
   getIt.registerLazySingleton<ProductService>(
     () => ProductService(productRepository, logger),
+  );
+  getIt.registerLazySingleton<CollectionService>(
+    () => CollectionService(collectionRepository, logger),
   );
 }

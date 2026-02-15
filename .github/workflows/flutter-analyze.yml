@@ -1,0 +1,53 @@
+name: Flutter Analyze
+
+on:
+  push:
+    # including copilot branch results in double runs for the same commit
+    # - "copilot/**"
+    branches: [main]
+    paths:
+      - "**.dart"
+      - "lib/**"
+      - "test/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "**.dart"
+      - "lib/**"
+      - "test/**"
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    name: Analyze Flutter Code
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.0" # Use stable version compatible with SDK ^3.10.7
+          channel: "stable"
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Write firebase_options.dart
+        shell: bash
+        env:
+          FIREBASE_OPTIONS: ${{ secrets.FIREBASE_OPTIONS }}
+        run: |
+          echo $FIREBASE_OPTIONS > lib/firebase_options.dart
+
+      - name: Analyze project source
+        run: flutter analyze --fatal-infos --fatal-warnings --no-pub
+
+      - name: Run tests
+        run: flutter test

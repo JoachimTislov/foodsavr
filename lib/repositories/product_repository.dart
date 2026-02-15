@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/product_model.dart';
-import '../interfaces/product_repository.dart';
+import '../interfaces/product_repository_interface.dart';
 
 class ProductRepository implements IProductRepository {
   final FirebaseFirestore _firestore;
@@ -9,7 +9,7 @@ class ProductRepository implements IProductRepository {
   ProductRepository(this._firestore);
 
   @override
-  Future<Product> addProduct(Product product) async {
+  Future<Product> add(Product product) async {
     await _firestore
         .collection(_collectionName)
         .doc(product.id.toString())
@@ -18,7 +18,7 @@ class ProductRepository implements IProductRepository {
   }
 
   @override
-  Future<Product?> getProduct(int id) async {
+  Future<Product?> get(int id) async {
     final doc = await _firestore
         .collection(_collectionName)
         .doc(id.toString())
@@ -28,7 +28,7 @@ class ProductRepository implements IProductRepository {
   }
 
   @override
-  Future<void> updateProduct(Product product) async {
+  Future<void> update(Product product) async {
     await _firestore
         .collection(_collectionName)
         .doc(product.id.toString())
@@ -36,13 +36,36 @@ class ProductRepository implements IProductRepository {
   }
 
   @override
-  Future<void> deleteProduct(int id) async {
+  Future<void> delete(int id) async {
     await _firestore.collection(_collectionName).doc(id.toString()).delete();
   }
 
   @override
-  Future<List<Product>> getAllProducts() async {
+  Future<List<Product>> getAll() async {
     final querySnapshot = await _firestore.collection(_collectionName).get();
+    return querySnapshot.docs
+        .map((doc) => Product.fromJson(doc.data()))
+        .toList();
+  }
+
+  @override
+  Future<List<Product>> getProducts(String userId) async {
+    final querySnapshot = await _firestore
+        .collection(_collectionName)
+        .where('userId', isEqualTo: userId)
+        .where('isGlobal', isEqualTo: false)
+        .get();
+    return querySnapshot.docs
+        .map((doc) => Product.fromJson(doc.data()))
+        .toList();
+  }
+
+  @override
+  Future<List<Product>> getGlobalProducts() async {
+    final querySnapshot = await _firestore
+        .collection(_collectionName)
+        .where('isGlobal', isEqualTo: true)
+        .get();
     return querySnapshot.docs
         .map((doc) => Product.fromJson(doc.data()))
         .toList();
