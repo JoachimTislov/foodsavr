@@ -22,6 +22,8 @@ kill-firebase-emulators:
 	fi
 
 # Code quality commands
+check: analyze fmt test
+
 analyze:
 	@echo "Running Flutter analyze..."
 	@flutter analyze --fatal-infos --fatal-warnings

@@ -2,7 +2,9 @@ name: Flutter Analyze
 
 on:
   push:
-    branches: [main, copilot/**]
+    # including copilot branch results in double runs for the same commit
+    # - "copilot/**"
+    branches: [main]
     paths:
       - "**.dart"
       - "lib/**"
@@ -13,6 +15,7 @@ on:
       - "**.dart"
       - "lib/**"
       - "test/**"
+  workflow_dispatch:
 
 jobs:
   analyze:
