@@ -33,15 +33,18 @@ jobs:
           channel: "stable"
           cache: true
 
-      - name: Get dependencies
-        run: flutter pub get
-
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed .
+
+      - name: Write firebase_options.dart
+        shell: bash
+        env:
+          FIREBASE_OPTIONS: ${{ secrets.FIREBASE_OPTIONS }}
+        run: |
+          echo $FIREBASE_OPTIONS > lib/firebase_options.dart
 
       - name: Analyze project source
         run: flutter analyze --fatal-infos --fatal-warnings
 
       - name: Run tests (if any)
         run: flutter test
-        continue-on-error: true # Tests might not be fully set up yet
