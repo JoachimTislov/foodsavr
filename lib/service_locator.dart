@@ -1,16 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:foodsavr/interfaces/auth_service_interface.dart';
-import 'package:foodsavr/services/auth_service.dart';
-import 'package:foodsavr/utils/environment_config.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
 
+import 'interfaces/auth_service_interface.dart';
 import 'repositories/collection_repository.dart';
 import 'repositories/product_repository.dart';
+import 'services/auth_service.dart';
 import 'services/collection_service.dart';
 import 'services/product_service.dart';
 import 'services/seeding_service.dart';
+import 'utils/config.dart';
 
 final getIt = GetIt.instance;
 
@@ -48,17 +48,17 @@ class ServiceLocator {
     var userId = _authService.getUserId();
     try {
       userId ??= (await _authService.signIn(
-        email: EnvironmentConfig.testUserEmail,
-        password: EnvironmentConfig.testUserPassword,
+        email: Config.testUserEmail,
+        password: Config.testUserPassword,
       )).user?.uid;
     } catch (_) {
-      // do nothing
+      // ignore error ...
     }
     if (userId == null) {
       _logger.i('Seeding database with initial data...');
       // Only init and seed the database if no user is signed in.
       // Presumably, if the user is signed in, the emulators are already seeded and ready to go.
-      // TODO: In the future, should the seed data reset on hot reload or full restart? Maybe add a flag to control this behavior?
+      // TODO: should the seed data reset on hot reload or full restart? Maybe add a flag to control this behavior?
       await SeedingService(
         _authService,
         _productRepository,

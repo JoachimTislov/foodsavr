@@ -1,15 +1,16 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:logger/logger.dart';
 
+import '../mock_data/collections.dart';
+import '../utils/config.dart';
 import '../interfaces/auth_service_interface.dart';
 import '../interfaces/collection_repository_interface.dart';
 import '../interfaces/product_repository_interface.dart';
-import '../mock_data/collections.dart';
 import '../mock_data/global_products.dart';
 import '../mock_data/inventory_products.dart';
 import '../models/collection_model.dart';
 import '../models/product_model.dart';
 import '../utils/collection_types.dart';
-import '../utils/environment_config.dart';
 
 class SeedingService {
   final IAuthService _authService;
@@ -32,15 +33,20 @@ class SeedingService {
   }
 
   Future<String> _seedUser() async {
-    final credential = await _authService.signUp(
-      email: EnvironmentConfig.testUserEmail,
-      password: EnvironmentConfig.testUserPassword,
-    );
-    final user = credential.user;
+    User? user;
+    try {
+      final credential = await _authService.signUp(
+        email: Config.testUserEmail,
+        password: Config.testUserPassword,
+      );
+      user = credential.user;
+    } catch (_) {
+      // ignore error ...
+    }
     if (user == null) {
       _logger.e(
         'SeedingService: signUp returned a null user for '
-        '${EnvironmentConfig.testUserEmail}',
+        '${Config.testUserEmail}',
       );
       throw StateError('Failed to seed database: test user was not created.');
     }
