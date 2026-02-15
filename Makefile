@@ -8,6 +8,7 @@ dev-android: start-firebase-emulators
 
 start-firebase-emulators:
 	@if ! lsof -ti :9099 -sTCP:LISTEN > /dev/null; then \
+		echo "Starting Firebase Emulators..."; \
 		firebase emulators:start --project demo-project > /dev/null 2>&1 & \
 	else \
 		echo "Firebase Emulators already running"; \
