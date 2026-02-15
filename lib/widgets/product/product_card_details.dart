@@ -24,9 +24,9 @@ class ProductCardDetails extends StatelessWidget {
 
     // Get status from product model
     final status = product.status;
-    final statusColor = status?.getColor(colorScheme);
-    final statusMessage = status?.getMessage();
-    final statusIcon = status?.getIcon();
+    final statusColor = status.getColor(colorScheme);
+    final statusMessage = status.getMessage();
+    final statusIcon = status.getIcon();
 
     return Card(
       elevation: 2,
@@ -53,7 +53,7 @@ class ProductCardDetails extends StatelessWidget {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: colorScheme.shadow.withOpacity(0.1),
+                          color: colorScheme.shadow.withValues(alpha: 0.1),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -143,10 +143,10 @@ class ProductCardDetails extends StatelessWidget {
                   padding: const EdgeInsets.all(12),
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.15),
+                    color: statusColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: statusColor.withOpacity(0.5),
+                      color: statusColor.withValues(alpha: 0.5),
                       width: 1,
                     ),
                   ),
@@ -196,7 +196,7 @@ class ProductCardDetails extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(

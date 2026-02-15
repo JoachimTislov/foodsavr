@@ -4,6 +4,7 @@ import '../interfaces/collection_repository_interface.dart';
 import '../models/product_model.dart';
 import '../models/collection_model.dart';
 import '../utils/environment_config.dart';
+import '../utils/collection_types.dart';
 import '../mock_data/inventory_products.dart';
 import '../mock_data/global_products.dart';
 import '../mock_data/collections.dart';
@@ -66,7 +67,7 @@ class SeedingService {
         quantity: data['quantity'] as int,
         category: data['category'] as String?,
       );
-      await _productRepository.addProduct(product);
+      await _productRepository.add(product);
       addedProducts.add(product);
     }
 
@@ -85,7 +86,7 @@ class SeedingService {
         category: data['category'] as String?,
         isGlobal: true,
       );
-      await _productRepository.addProduct(product);
+      await _productRepository.add(product);
     }
   }
 
@@ -119,7 +120,7 @@ class SeedingService {
         description: data['description'] as String?,
         type: _parseCollectionType(data['type'] as String),
       );
-      await _collectionRepository.addCollection(collection);
+      await _collectionRepository.add(collection);
     }
   }
 

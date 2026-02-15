@@ -7,13 +7,13 @@ class CollectionConfig {
   final CollectionType type;
   final String label;
   final IconData icon;
-  final Color Function(ColorScheme) getColor;
+  final Color Function(ColorScheme) colorGetter;
 
   const CollectionConfig({
     required this.type,
     required this.label,
     required this.icon,
-    required this.getColor,
+    required this.colorGetter,
   });
 
   static final List<CollectionConfig> all = [
@@ -21,13 +21,13 @@ class CollectionConfig {
       type: CollectionType.inventory,
       label: 'Inventory',
       icon: Icons.inventory_2,
-      getColor: (cs) => cs.primaryContainer,
+      colorGetter: (cs) => cs.primaryContainer,
     ),
     CollectionConfig(
       type: CollectionType.shoppingList,
       label: 'Shopping',
       icon: Icons.shopping_cart,
-      getColor: (cs) => cs.tertiaryContainer,
+      colorGetter: (cs) => cs.tertiaryContainer,
     ),
   ];
 
@@ -53,6 +53,6 @@ class CollectionConfig {
   /// Get color for collection type
   static Color getColor(CollectionType type, ColorScheme colorScheme) {
     final config = getConfig(type);
-    return config?.getColor(colorScheme) ?? colorScheme.surfaceVariant;
+    return config?.colorGetter(colorScheme) ?? colorScheme.surfaceContainerHighest;
   }
 }

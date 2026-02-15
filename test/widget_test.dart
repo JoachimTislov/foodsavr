@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logger/logger.dart';
 
 import 'package:foodsavr/main.dart';
 import 'package:foodsavr/service_locator.dart';
@@ -15,11 +16,9 @@ void main() {
     setupFirebaseAuthMocks();
     await Firebase.initializeApp();
 
-    // Setup service locator for tests
-    await registerDependencies(
-      FirebaseAuth.instance,
-      FirebaseFirestore.instance,
-    );
+    // Setup service locator for tests with a logger
+    final logger = Logger(level: Level.warning);
+    await registerDependencies(logger);
   });
 
   testWidgets('Renders login screen', (WidgetTester tester) async {

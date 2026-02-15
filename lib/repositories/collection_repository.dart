@@ -11,7 +11,7 @@ class CollectionRepository implements ICollectionRepository {
   CollectionRepository(this._firestore);
 
   @override
-  Future<Collection> addCollection(Collection collection) async {
+  Future<Collection> add(Collection collection) async {
     await _firestore
         .collection(_collectionName)
         .doc(collection.id)
@@ -20,14 +20,14 @@ class CollectionRepository implements ICollectionRepository {
   }
 
   @override
-  Future<Collection?> getCollection(String id) async {
+  Future<Collection?> get(String id) async {
     final doc = await _firestore.collection(_collectionName).doc(id).get();
     if (!doc.exists) return null;
     return Collection.fromJson(doc.data()!);
   }
 
   @override
-  Future<void> updateCollection(Collection collection) async {
+  Future<void> update(Collection collection) async {
     await _firestore
         .collection(_collectionName)
         .doc(collection.id)
@@ -35,12 +35,12 @@ class CollectionRepository implements ICollectionRepository {
   }
 
   @override
-  Future<void> deleteCollection(String id) async {
+  Future<void> delete(String id) async {
     await _firestore.collection(_collectionName).doc(id).delete();
   }
 
   @override
-  Future<List<Collection>> getAllCollections() async {
+  Future<List<Collection>> getAll() async {
     final querySnapshot = await _firestore.collection(_collectionName).get();
     return querySnapshot.docs
         .map((doc) => Collection.fromJson(doc.data()))
@@ -57,6 +57,12 @@ class CollectionRepository implements ICollectionRepository {
         .map((doc) => Collection.fromJson(doc.data()))
         .toList();
   }
+
+  Future<Collection> addCollection(Collection collection) => add(collection);
+  Future<Collection?> getCollection(String id) => get(id);
+  Future<void> updateCollection(Collection collection) => update(collection);
+  Future<void> deleteCollection(String id) => delete(id);
+  Future<List<Collection>> getAllCollections() => getAll();
 
   @override
   Future<void> addProductToCollection(

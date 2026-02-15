@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../constants/product_categories.dart';
 import '../models/product_model.dart';
 import '../widgets/product/product_details_card.dart';
@@ -16,13 +15,11 @@ class ProductDetailView extends StatelessWidget {
 
     // Get status from product model
     final status = product.status;
-    final statusColor = status?.getColor(colorScheme);
-    final statusMessage = status != null
-        ? (status == ProductStatus.expired
-              ? 'This product has expired'
-              : 'This product expires soon')
-        : null;
-    final statusIcon = status?.getIcon();
+    final statusColor = status.getColor(colorScheme);
+    final statusMessage = status == ProductStatus.expired
+        ? 'This product has expired'
+        : 'This product expires soon';
+    final statusIcon = status.getIcon();
 
     return Scaffold(
       appBar: AppBar(
@@ -99,10 +96,10 @@ class ProductDetailView extends StatelessWidget {
                       padding: const EdgeInsets.all(16),
                       margin: const EdgeInsets.only(bottom: 24),
                       decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.15),
+                        color: statusColor.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: statusColor.withOpacity(0.5),
+                          color: statusColor.withValues(alpha: 0.5),
                           width: 2,
                         ),
                       ),

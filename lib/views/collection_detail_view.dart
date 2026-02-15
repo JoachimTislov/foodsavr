@@ -86,7 +86,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const EmptyStateWidget(
             icon: Icons.inventory_2_outlined,
-            message: 'No products in this collection',
+            title: 'No products in this collection',
           );
         } else {
           return _buildProductList(snapshot.data!);

@@ -43,7 +43,7 @@ class ProductService {
   Future<Product> addProduct(Product product) async {
     _logger.i('Adding product: ${product.name}');
     try {
-      final addedProduct = await _productRepository.addProduct(product);
+      final addedProduct = await _productRepository.add(product);
       _logger.i('Successfully added product: ${product.name}');
       return addedProduct;
     } catch (e) {
@@ -55,7 +55,7 @@ class ProductService {
   Future<void> updateProduct(Product product) async {
     _logger.i('Updating product: ${product.name}');
     try {
-      await _productRepository.updateProduct(product);
+      await _productRepository.update(product);
       _logger.i('Successfully updated product: ${product.name}');
     } catch (e) {
       _logger.e('Error updating product: $e');
@@ -66,7 +66,7 @@ class ProductService {
   Future<void> deleteProduct(int id) async {
     _logger.i('Deleting product: $id');
     try {
-      await _productRepository.deleteProduct(id);
+      await _productRepository.delete(id);
       _logger.i('Successfully deleted product: $id');
     } catch (e) {
       _logger.e('Error deleting product: $e');
