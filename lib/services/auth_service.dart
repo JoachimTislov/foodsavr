@@ -11,22 +11,33 @@ class AuthService implements IAuthService {
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
 
   @override
-  Future<UserCredential?> authenticate({
-    required bool isLogin,
+  /// Signs in a user with email and password.
+  ///
+  /// Throws:
+  /// - [FirebaseAuthException] if sign-in fails.
+  Future<UserCredential> signIn({
     required String email,
     required String password,
   }) {
-    if (isLogin) {
-      return _firebaseAuth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-    } else {
-      return _firebaseAuth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-    }
+    return _firebaseAuth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+  }
+
+  @override
+  /// Signs up a user with email and password.
+  ///
+  /// Throws:
+  /// - [FirebaseAuthException] if sign-up fails.
+  Future<UserCredential> signUp({
+    required String email,
+    required String password,
+  }) {
+    return _firebaseAuth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
   }
 
   @override
