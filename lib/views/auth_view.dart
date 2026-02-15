@@ -46,13 +46,15 @@ class _HomePageState extends State<HomePage> {
   void _authenticate() async {
     setState(() => _errorMessage = null);
     try {
-      _authService.authenticate(
-        isLogin: _isLogin,
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-      // on FirebaseException
+      final email = _emailController.text.trim();
+      final password = _passwordController.text.trim();
+      if (_isLogin) {
+        await _authService.signIn(email: email, password: password);
+      } else {
+        await _authService.signUp(email: email, password: password);
+      }
     } catch (e) {
+      // TODO: improve error handling by parsing FirebaseAuthException and showing user-friendly messages
       setState(() => _errorMessage = e.toString().split(']')[1]);
       _logger.e('Auth error: $e');
     }
