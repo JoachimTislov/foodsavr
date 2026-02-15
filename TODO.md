@@ -48,6 +48,10 @@
 - [ ] Support sharing meal plans and shopping lists with other users (e.g., family members).
     - [ ] Create shared (family/group) collections
 
+### LLM-dependent features
+- [ ] Generate recipe ideas based on the user's current inventory.
+- [ ] Provide suggestions on how to use ingredients before they expire.
+
 ## Admin users
 - [ ] Approve or reject product additions to global registry
     - [ ] role-based access

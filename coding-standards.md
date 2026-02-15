@@ -11,12 +11,13 @@
 
 ## Architecture
 
-The project follows a **3-tier layered architecture** with **dependency injection**:
+The project follows a **3-tier layered architecture** with **dependency injection** and **Firebase emulators**:
 
 ### Core Principles:
 - **Repository Pattern with Interfaces**: All data access through abstract interfaces
 - **Dependency Injection**: GetIt service locator - never instantiate dependencies directly
 - **Separation of Concerns**: UI → Services → Repositories → Models
+- **Emulator-Driven Development**: Uses Firebase emulators (Auth, Firestore) in development
 - **Zero hard-coded values**: Use constants or configuration files
 - **One widget per file**: All widgets must be in their own file in the `widgets/` folder
 - **No private widget methods in views**: Extract to separate widget files in `widgets/` folder
@@ -33,10 +34,9 @@ The project follows a **3-tier layered architecture** with **dependency injectio
   - No private widget builder methods (e.g., `_buildSomething()`) - extract to separate widget files
 - **Application Layer**: `services/` - Business logic, validation, orchestration
   - Depend on repository interfaces, not concrete implementations
-- **Data Layer**: `repositories/` - Data access with multiple implementations
+- **Data Layer**: `repositories/` - Data access with Firestore implementations
   - Abstract interfaces (`i_*_repository.dart`)
-  - Firestore implementations (production persistence)
-  - In-memory implementations (testing/seeding)
+  - Firestore implementations (connects to emulators in dev, production in prod)
 - **Domain Layer**: `models/` - Plain data classes with `toJson()`/`fromJson()`
   - Include computed properties for business logic (e.g., `product.status`)
 
