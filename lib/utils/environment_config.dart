@@ -2,7 +2,12 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class EnvironmentConfig {
   static Future<void> load() async {
-    await dotenv.load(fileName: '.env');
+    try {
+      await dotenv.load(fileName: '.env');
+    } catch (e) {
+      // .env file not found - use defaults
+      // This is expected in CI/CD environments
+    }
   }
 
   static String get environment {
