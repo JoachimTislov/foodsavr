@@ -5,10 +5,10 @@ FoodSavr is designed to help people save food, time and money.
 ## Motivation
 
 - Reduce food waste – Track product expiration dates, get reminders and prevent bad purchases
-- Save time by elimating repetive tasks of checking inventory and cross-referencing recipes.
+- Save time by eliminating repetitive tasks of checking inventory and cross-referencing recipes.
 - Increase control and overview of food
 
-[Core plan](./docs/core-plan.md)
+[Core plan](./docs/plan/core.md)
 
 ## Development Setup
 
@@ -23,7 +23,6 @@ FoodSavr is designed to help people save food, time and money.
    ```bash
    firebase login
    firebase init emulators
-
    ```
     - Authentication Emulator (port 9099)
     - Firestore Emulator (port 8080)
@@ -31,17 +30,29 @@ FoodSavr is designed to help people save food, time and money.
 
 2. **Start emulators**:
    ```bash
-   firebase emulators:start
+   make start-firebase-emulators
+   # or firebase emulators:start
    ```
    Emulator UI available at: `http://localhost:8081`
 
 3. **Run the app** (in another terminal):
    ```bash
-   make run-dev
-   # or: flutter run --flavor development
+   make dev-chrome
+   # or: flutter run -d chrome
    ```
 
 The app automatically connects to emulators when `ENVIRONMENT=development` in `assets/.env`.
+
+### Useful commands
+
+```bash
+make dev-android   # Start emulators and run on Android
+make test          # Run tests
+make analyze       # Run static analysis
+make fmt           # Format Dart code
+make clean         # Clean build artifacts
+make check         # Run tests, analysis and formatting checks
+```
 
 ## Tech Stack
 
