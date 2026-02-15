@@ -15,7 +15,6 @@ FoodSavr is a Flutter application designed to help people reduce food waste by t
 *   **Dependency Injection**: GetIt (service locator pattern)
 *   **Logging**: `logger` package
 *   **Localization**: `easy_localization`
-*   **Environment Config**: `flutter_dotenv`
 
 ## 3. Architecture
 

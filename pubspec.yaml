@@ -39,7 +39,6 @@ dependencies:
   cloud_firestore: ^6.1.2
   flutter_localizations:
     sdk: flutter
-  flutter_dotenv: 6.0.0
   easy_localization: ^3.0.0
   logger: ^2.6.2
   get_it: ^9.2.0
@@ -67,7 +66,6 @@ flutter:
   uses-material-design: true
 
   assets:
-    # - .env TODO: Remove with issue of removing dotenv package
     - assets/translations/
 
   # To add assets to your application, add an assets section, like this:
