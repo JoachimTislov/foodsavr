@@ -1,13 +1,12 @@
-import 'package:flutter/material.dart';
-import 'package:foodsavr/interfaces/auth_service_interface.dart';
-import 'package:logger/logger.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import 'package:logger/logger.dart';
 
-import '../utils/environment_config.dart';
+import '../interfaces/auth_service_interface.dart';
 import '../service_locator.dart';
 import '../widgets/auth/auth_form_fields.dart';
-import '../widgets/auth/auth_toggle_button.dart';
 import '../widgets/auth/auth_submit_button.dart';
+import '../widgets/auth/auth_toggle_button.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.title});
@@ -20,12 +19,9 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final _logger = getIt<Logger>();
-  final _emailController = TextEditingController(
-    text: EnvironmentConfig.testUserEmail,
-  );
-  final _passwordController = TextEditingController(
-    text: EnvironmentConfig.testUserPassword,
-  );
+  // TODO: consider adding test user credentials for easier testing during development
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   late final IAuthService _authService;
   bool _isLogin = true;
   String? _errorMessage;
