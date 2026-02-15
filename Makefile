@@ -1,10 +1,10 @@
 .PHONY: dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fmt test clean
 
 dev-chrome: start-firebase-emulators
-	@flutter run -d chrome
+	@flutter run -d chrome --no-pub
 
 dev-android: start-firebase-emulators
-	@flutter run -d android
+	@flutter run -d android --no-pub
 
 start-firebase-emulators:
 	@if ! lsof -ti :9099 -sTCP:LISTEN > /dev/null; then \
