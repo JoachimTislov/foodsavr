@@ -44,7 +44,7 @@ jobs:
           echo $FIREBASE_OPTIONS > lib/firebase_options.dart
 
       - name: Analyze project source
-        run: flutter analyze --fatal-infos --fatal-warnings
+        run: flutter analyze --fatal-infos --fatal-warnings --no-pub
 
-      - name: Run tests (if any)
+      - name: Run tests
         run: flutter test
