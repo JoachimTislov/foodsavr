@@ -67,7 +67,7 @@ flutter:
   uses-material-design: true
 
   assets:
-    # - .env  # Optional: Create from .env-template if needed
+    - .env
     - assets/translations/
 
   # To add assets to your application, add an assets section, like this:
