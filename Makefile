@@ -27,7 +27,7 @@ check: analyze fmt test
 
 analyze:
 	@echo "Running Flutter analyze..."
-	@flutter analyze --fatal-infos --fatal-warnings
+	@flutter analyze --fatal-infos --fatal-warnings --no-pub
 
 fmt:
 	@echo "Formatting Dart code..."
