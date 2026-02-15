@@ -1,6 +1,6 @@
 # FoodSavr - Project Guidelines
 
-This document outlines the code structure, architectural principles, and general rules for the `foodsavr` Flutter project. Adhering to these guidelines ensures consistency, maintainability, and scalability of the codebase.
+This document reflects the current architecture and outlines the code structure, architectural principles, and general rules for the `foodsavr` Flutter project. Adhering to these guidelines ensures consistency, maintainability, and scalability of the codebase.
 
 ## 1. Project Overview
 
@@ -19,14 +19,14 @@ FoodSavr is a Flutter application designed to help people reduce food waste by t
 
 ## 3. Architecture
 
-The codebase follows a **3-tier layered architecture** with **dependency injection** and **environment-based configuration**.
+The codebase follows a **3-tier layered architecture** with **dependency injection** and **Firebase emulators for development**.
 
 ### Core Principles
 
 1. **Repository Pattern with Interfaces**: All data access through abstract interfaces (`lib/interfaces/`)
 2. **Dependency Injection**: GetIt service locator - never instantiate dependencies directly
 3. **Separation of Concerns**: UI → Services → Repositories → Models
-4. **Environment-Aware**: Automatically switches between development (in-memory) and production (Firestore) implementations
+4. **Emulator-Driven Development**: Uses Firebase emulators in development, production Firebase in production
 5. **Zero hard-coded values**: Use constants or configuration files
 
 ### Layers
@@ -36,24 +36,6 @@ The codebase follows a **3-tier layered architecture** with **dependency injecti
 - **Widgets**: Reusable UI components organized by feature (e.g., `widgets/auth/`, `widgets/product/`)
 - **Responsibilities**: Display data, handle user input, delegate to services
 - **Dependency Access**: Inject via `getIt<Service>()` in `initState()`
-
-**Example:**
-```dart
-class MyWidget extends StatefulWidget {
-  @override
-  State<MyWidget> createState() => _MyWidgetState();
-}
-
-class _MyWidgetState extends State<MyWidget> {
-  late final ProductService _productService;
-
-  @override
-  void initState() {
-    super.initState();
-    _productService = getIt<ProductService>();  // ✅ Inject via GetIt
-  }
-}
-```
 
 #### Application Layer (`services/`)
 - Orchestrates use cases
@@ -75,16 +57,15 @@ class _MyWidgetState extends State<MyWidget> {
 - `i_collection_repository.dart` - Collection data contract
 
 **Implementations** (`lib/repositories/`):
-- **In-Memory** (Development):
-  - `user_repository.dart` (InMemoryUserRepository)
-  - `product_repository.dart` (InMemoryProductRepository)
-  - `collection_repository.dart` (InMemoryCollectionRepository)
-- **Firestore** (Production):
+- **Firestore** (all environments):
   - `firestore_user_repository.dart` (FirestoreUserRepository)
   - `firestore_product_repository.dart` (FirestoreProductRepository)
   - `firestore_collection_repository.dart` (FirestoreCollectionRepository)
+  - Connects to emulators in development (`ENVIRONMENT=development`)
+  - Connects to production Firebase in production (`ENVIRONMENT=production`)
 - **Firebase Auth**:
   - `auth_repository.dart` (FirebaseAuthRepository)
+  - Connects to Auth emulator (port 9099) in development
 
 #### Domain Models (`models/`)
 - Plain data classes with serialization
@@ -101,7 +82,7 @@ class _MyWidgetState extends State<MyWidget> {
 ```
 lib/
 ├── main.dart                       # App entry point, DI initialization
-├── service_locator.dart            # GetIt configuration with auto-switching
+├── service_locator.dart            # GetIt configuration with emulator support
 ├── constants/                      # Application-wide constants
 │   └── environment_config.dart     # Environment variables + isProduction flag
 ├── interfaces/                     # Repository contracts
@@ -115,8 +96,7 @@ lib/
 │   └── collection_model.dart
 ├── repositories/                   # Data access implementations
 │   ├── auth_repository.dart        # Firebase Auth
-│   ├── *_repository.dart           # In-memory (dev)
-│   └── firestore_*_repository.dart # Firestore (prod)
+│   └── firestore_*_repository.dart # Firestore (all environments)
 ├── services/                       # Business logic
 │   ├── auth_service.dart
 │   ├── product_service.dart
@@ -129,83 +109,8 @@ lib/
 │   ├── auth/
 │   └── product/
 ├── utils/                          # Helper utilities
-│   └── firebase_options.dart
+│   └── environment_config.dart
 └── features/                       # Reserved for future feature modules
-```
-
-## 5. Dependency Injection with GetIt
-
-### Configuration (`service_locator.dart`)
-
-The service locator automatically switches implementations based on environment:
-
-```dart
-// Auto-detects from .env file
-final useFirestore = EnvironmentConfig.isProduction;
-
-if (useFirestore) {
-  // Production: Firestore repositories
-} else {
-  // Development: In-memory repositories
-}
-```
-
-### Usage Pattern
-
-**❌ NEVER do this:**
-```dart
-final service = ProductService(ProductRepository());  // Tight coupling!
-```
-
-**✅ ALWAYS do this:**
-```dart
-final service = getIt<ProductService>();  // Loose coupling via DI
-```
-
-### Registering New Dependencies
-
-1. Define interface in `lib/interfaces/i_your_repository.dart`
-2. Create implementations (in-memory and/or Firestore)
-3. Register in `service_locator.dart`:
-```dart
-getIt.registerLazySingleton<IYourRepository>(
-  () => YourRepository(firestore),  // or InMemoryYourRepository()
-);
-```
-4. Inject where needed via `getIt<IYourRepository>()`
-
-## 6. Environment Configuration
-
-### Setup
-
-Create a `.env` file in the project root:
-
-```env
-ENVIRONMENT=development  # or 'production'
-TEST_USER_EMAIL=test@example.com
-TEST_USER_PASSWORD=password123
-```
-
-### Behavior
-
-- **`ENVIRONMENT=development`** (default):
-  - Uses in-memory repositories
-  - Data resets on app restart
-  - Faster development, no network calls
-  - Seeding service populates initial data
-
-- **`ENVIRONMENT=production`**:
-  - Uses Firestore repositories
-  - Data persists in cloud
-  - Requires Firebase setup
-
-### Accessing Config
-
-```dart
-// In code
-EnvironmentConfig.isProduction  // true if ENVIRONMENT=production
-EnvironmentConfig.isDevelopment // true otherwise
-EnvironmentConfig.testUserEmail // Access .env variables
 ```
 
 ## 7. Coding Standards
@@ -216,29 +121,21 @@ EnvironmentConfig.testUserEmail // Access .env variables
 - Indentation: 2 spaces
 - Linting: `flutter_lints` (configured in `analysis_options.yaml`)
 - Follow [Effective Dart](https://dart.dev/effective-dart/design) guidelines
+- [coding-standards](./coding-standards.md) for detailed rules
 
 ## 8. Testing
 
 *   Unit and widget tests are located in the `test/` directory
-*   For testing, use in-memory repositories (already configured when not in production)
+*   Tests use Firebase emulators for integration testing
 *   Run tests using `flutter test`
+*   For CI, start emulators before running tests
 
-## 9. Build Commands
+## Linting and testing
 
-### Running the app
 ```bash
-# Development mode (in-memory repositories)
-flutter run --flavor development
-
-# Production mode (Firestore repositories)
-flutter run --flavor production
-```
-
-### Linting and testing
-```bash
-flutter analyze      # Check for issues
-flutter test         # Run tests
-dart format lib      # Format code
+make analyze # Check for issues
+make test    # Run tests
+make fmt     # Format code
 ```
 
 ## 10. Adding New Features
@@ -247,24 +144,17 @@ Follow this pattern when adding features:
 
 1. **Define the domain model** in `models/` with `toJson()`/`fromJson()`
 2. **Create repository interface** in `interfaces/i_your_repository.dart`
-3. **Implement repositories**:
-   - In-memory version in `repositories/your_repository.dart`
-   - Firestore version in `repositories/firestore_your_repository.dart`
+3. **Implement Firestore repository** in `repositories/firestore_your_repository.dart`
 4. **Create service** in `services/your_service.dart` for business logic
 5. **Register in DI** container (`service_locator.dart`)
 6. **Build UI** in `views/` and `widgets/`, injecting dependencies via GetIt
+7. **Test with emulators** before deploying to production
 
-## 11. Firebase Setup
-
-### Firestore Collections
+## Firestore Collections
 
 - `users` - User profiles
 - `products` - Food products
 - `collections` - Product collections/baskets
-
-### Security Rules
-
-Remember to configure Firestore security rules for production deployment.
 
 ## 12. Git Workflow
 
@@ -273,21 +163,3 @@ Remember to configure Firestore security rules for production deployment.
 *   Run `flutter analyze` before committing
 
 ---
-
-This document reflects the current architecture. Update as the project evolves.
-
-## 13. Gemini Integration
-
-The project can be extended to leverage Google's Gemini models to provide advanced features.
-
-### Potential Features
-
-*   **Recipe Suggestions**: Generate recipe ideas based on the user's current inventory.
-*   **Food Identification**: Allow users to identify food items from a picture.
-*   **Waste Optimization**: Provide suggestions on how to use ingredients before they expire.
-
-### Implementation
-
-Implementing these features would likely involve creating a separate backend service (e.g., using Python and the `google-generativeai` library) that the Flutter application would communicate with via a REST API. This service would be responsible for interacting with the Gemini API and returning the results to the app.
-
-The Flutter app would then make HTTP requests to this backend service and display the results to the user.

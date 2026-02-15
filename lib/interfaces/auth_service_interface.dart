@@ -8,4 +8,5 @@ abstract class IAuthService {
   });
   Future<void> signOut();
   Stream<User?> get authStateChanges;
+  String? getUserId();
 }

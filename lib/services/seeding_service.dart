@@ -1,9 +1,13 @@
-import '../interfaces/auth_service.dart';
-import '../interfaces/product_repository.dart';
-import '../interfaces/collection_repository.dart';
+import '../interfaces/auth_service_interface.dart';
+import '../interfaces/product_repository_interface.dart';
+import '../interfaces/collection_repository_interface.dart';
 import '../models/product_model.dart';
 import '../models/collection_model.dart';
 import '../utils/environment_config.dart';
+import '../utils/collection_types.dart';
+import '../mock_data/inventory_products.dart';
+import '../mock_data/global_products.dart';
+import '../mock_data/collections.dart';
 
 class SeedingService {
   final IAuthService _authService;
@@ -17,55 +21,117 @@ class SeedingService {
   );
 
   Future<void> seedDatabase() async {
-    await _seedUsers();
-    final addedProducts = await _seedProducts();
-
-    // Seed collections
-    await _collectionRepository.addCollection(
-      Collection(
-        id: '1',
-        name: 'Fruit Basket',
-        productIds: [addedProducts[0].id, addedProducts[1].id],
-      ),
-    );
-
-    await _collectionRepository.addCollection(
-      Collection(
-        id: '2',
-        name: 'Vegetable Garden',
-        productIds: [addedProducts[2].id],
-      ),
-    );
+    final userId = await _seedUsers();
+    final addedProducts = await _seedProducts(userId);
+    await _seedCollections(userId, addedProducts);
+    await _seedGlobalProducts();
   }
 
-  Future<void> _seedUsers() async {
+  Future<String> _seedUsers() async {
     try {
-      await _authService.authenticate(
+      final userCred = await _authService.authenticate(
         isLogin: false,
         email: EnvironmentConfig.testUserEmail,
         password: EnvironmentConfig.testUserPassword,
       );
+      return userCred?.user?.uid ?? 'test-user-id';
     } catch (e) {
-      // User might already exist, ignore errors
+      // User might already exist, try to login
+      try {
+        final userCred = await _authService.authenticate(
+          isLogin: true,
+          email: EnvironmentConfig.testUserEmail,
+          password: EnvironmentConfig.testUserPassword,
+        );
+        return userCred?.user?.uid ?? 'test-user-id';
+      } catch (e) {
+        return 'test-user-id';
+      }
     }
   }
 
-  Future<List<Product>> _seedProducts() async {
-    final products = [
-      Product(id: 1, name: 'Apple', description: 'A crisp and juicy apple.'),
-      Product(id: 2, name: 'Banana', description: 'A ripe and sweet banana.'),
-      Product(id: 3, name: 'Carrot', description: 'An orange carrot.'),
-      Product(id: 4, name: 'Date', description: 'A sweet and chewy date.'),
-      Product(id: 5, name: 'Eggplant', description: 'A fresh eggplant.'),
-      Product(id: 6, name: 'Milk', description: 'Organic whole milk'),
-      Product(id: 7, name: 'Bread', description: 'Whole wheat bread'),
-      Product(id: 8, name: 'Eggs', description: 'Farm fresh eggs'),
-    ];
-
+  Future<List<Product>> _seedProducts(String userId) async {
+    final now = DateTime.now();
+    final productsData = InventoryProductsData.getProducts();
     final addedProducts = <Product>[];
-    for (var product in products) {
-      addedProducts.add(await _productRepository.addProduct(product));
+
+    for (var data in productsData) {
+      final product = Product(
+        id: data['id'] as int,
+        name: data['name'] as String,
+        description: data['description'] as String,
+        userId: userId,
+        expirationDate: data['expirationDays'] != null
+            ? now.add(Duration(days: data['expirationDays'] as int))
+            : null,
+        quantity: data['quantity'] as int,
+        category: data['category'] as String?,
+      );
+      await _productRepository.add(product);
+      addedProducts.add(product);
     }
+
     return addedProducts;
+  }
+
+  Future<void> _seedGlobalProducts() async {
+    final productsData = GlobalProductsData.getProducts();
+
+    for (var data in productsData) {
+      final product = Product(
+        id: data['id'] as int,
+        name: data['name'] as String,
+        description: data['description'] as String,
+        userId: 'global',
+        category: data['category'] as String?,
+        isGlobal: true,
+      );
+      await _productRepository.add(product);
+    }
+  }
+
+  Future<void> _seedCollections(
+    String userId,
+    List<Product> addedProducts,
+  ) async {
+    if (addedProducts.isEmpty) return;
+
+    final collectionsData = CollectionsData.getCollections();
+    final totalProducts = addedProducts.length;
+
+    for (var data in collectionsData) {
+      // Map productIds from mock data to actual product IDs safely
+      final mockProductIds = List<int>.from(data['productIds'] as List);
+      final actualProductIds = <int>[];
+
+      for (var mockId in mockProductIds) {
+        // Calculate safe index based on mock ID and available products
+        final index = (mockId - 1) % totalProducts;
+        if (index >= 0 && index < totalProducts) {
+          actualProductIds.add(addedProducts[index].id);
+        }
+      }
+
+      final collection = Collection(
+        id: data['id'] as String,
+        name: data['name'] as String,
+        productIds: actualProductIds,
+        userId: userId,
+        description: data['description'] as String?,
+        type: _parseCollectionType(data['type'] as String),
+      );
+      await _collectionRepository.add(collection);
+    }
+  }
+
+  CollectionType _parseCollectionType(String typeString) {
+    switch (typeString) {
+      case 'inventory':
+        return CollectionType.inventory;
+      case 'shoppingList':
+        return CollectionType.shoppingList;
+      default:
+        return CollectionType.inventory;
+    }
   }
 }
