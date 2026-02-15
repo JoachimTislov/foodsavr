@@ -1,15 +1,13 @@
-import 'package:logger/logger.dart';
-
 import '../interfaces/auth_service_interface.dart';
-import '../interfaces/product_repository_interface.dart';
 import '../interfaces/collection_repository_interface.dart';
-import '../models/product_model.dart';
-import '../models/collection_model.dart';
-import '../utils/environment_config.dart';
-import '../utils/collection_types.dart';
-import '../mock_data/inventory_products.dart';
-import '../mock_data/global_products.dart';
+import '../interfaces/product_repository_interface.dart';
 import '../mock_data/collections.dart';
+import '../mock_data/global_products.dart';
+import '../mock_data/inventory_products.dart';
+import '../models/collection_model.dart';
+import '../models/product_model.dart';
+import '../utils/collection_types.dart';
+import '../utils/environment_config.dart';
 
 class SeedingService {
   final IAuthService _authService;
