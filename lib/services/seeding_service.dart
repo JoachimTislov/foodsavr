@@ -1,3 +1,5 @@
+import 'package:logger/logger.dart';
+
 import '../interfaces/auth_service_interface.dart';
 import '../interfaces/collection_repository_interface.dart';
 import '../interfaces/product_repository_interface.dart';
@@ -13,11 +15,13 @@ class SeedingService {
   final IAuthService _authService;
   final IProductRepository _productRepository;
   final ICollectionRepository _collectionRepository;
+  final Logger _logger;
 
   SeedingService(
     this._authService,
     this._productRepository,
     this._collectionRepository,
+    this._logger,
   );
 
   Future<void> seedDatabase() async {
@@ -28,10 +32,19 @@ class SeedingService {
   }
 
   Future<String> _seedUser() async {
-    return (await _authService.signUp(
+    final credential = await _authService.signUp(
       email: EnvironmentConfig.testUserEmail,
       password: EnvironmentConfig.testUserPassword,
-    )).user!.uid;
+    );
+    final user = credential.user;
+    if (user == null) {
+      _logger.e(
+        'SeedingService: signUp returned a null user for '
+        '${EnvironmentConfig.testUserEmail}',
+      );
+      throw StateError('Failed to seed database: test user was not created.');
+    }
+    return user.uid;
   }
 
   Future<List<Product>> _seedProducts(String userId) async {

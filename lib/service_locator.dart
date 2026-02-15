@@ -46,10 +46,14 @@ class ServiceLocator {
 
     // Pre-check if user is already signed in to avoid redundant seeding on hot reload or full restart during development.
     var userId = _authService.getUserId();
-    userId ??= (await _authService.signIn(
-      email: EnvironmentConfig.testUserEmail,
-      password: EnvironmentConfig.testUserPassword,
-    )).user?.uid;
+    try {
+      userId ??= (await _authService.signIn(
+        email: EnvironmentConfig.testUserEmail,
+        password: EnvironmentConfig.testUserPassword,
+      )).user?.uid;
+    } catch (_) {
+      // do nothing
+    }
     if (userId == null) {
       _logger.i('Seeding database with initial data...');
       // Only init and seed the database if no user is signed in.
@@ -59,6 +63,7 @@ class ServiceLocator {
         _authService,
         _productRepository,
         _collectionRepository,
+        _logger,
       ).seedDatabase();
     } else {
       _logger.i('User already signed in, skipping seeding');
