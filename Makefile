@@ -22,6 +22,10 @@ kill-firebase-emulators:
 		echo "No Firebase Emulators running"; \
 	fi
 
+deps:
+	@echo "Getting dependencies..."
+	@flutter pub get
+
 # Code quality commands
 check: analyze fmt test
 
@@ -35,7 +39,7 @@ fmt:
 
 test:
 	@echo "Running tests..."
-	@flutter test
+	@flutter test --no-pub
 
 clean:
 	@echo "Cleaning build artifacts..."
