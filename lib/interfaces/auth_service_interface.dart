@@ -8,7 +8,11 @@ abstract class IAuthService {
   Future<UserCredential> signIn({
     required String email,
     required String password,
+    bool rememberMe = false,
   });
+  Future<UserCredential> signInWithGoogle();
+  Future<UserCredential> signInWithFacebook();
+  Future<void> sendPasswordResetEmail(String email);
   Future<void> signOut();
   Stream<User?> get authStateChanges;
   String? getUserId();

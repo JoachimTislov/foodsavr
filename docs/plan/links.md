@@ -7,6 +7,8 @@
 - [Flutter](https://flutter.dev/docs)
 - [Dart](https://dart.dev/guides)
 
+- [Flutter build modes](https://docs.flutter.dev/testing/build-modes)
+
 ## Svelte + Spring
 
 - [Svelte](https://svelte.dev/docs)
