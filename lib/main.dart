@@ -32,7 +32,7 @@ const List<String> supportedFlavors = <String>[
 ];
 
 void main() async {
-  if (!supportedFlavors.contains(appFlavor)) {
+  if (appFlavor != null && !supportedFlavors.contains(appFlavor)) {
     throw Exception(
       'Invalid app flavor: $appFlavor. Supported flavors: ${supportedFlavors.join(', ')}',
     );
@@ -99,7 +99,7 @@ class MyApp extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.active) {
             if (snapshot.data == null) {
-              return const HomePage(title: 'Welcome to FoodSavr');
+              return const AuthView(title: 'Welcome to FoodSavr');
             } else {
               return const MainAppScreen();
             }

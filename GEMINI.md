@@ -129,12 +129,10 @@ lib/
 *   Run tests using `flutter test`
 *   For CI, start emulators before running tests
 
-## Linting and testing
+## 9. Code Quality
 
 ```bash
-make analyze # Check for issues
-make test    # Run tests
-make fmt     # Format code
+make check
 ```
 
 ## 10. Adding New Features

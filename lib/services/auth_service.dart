@@ -1,22 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:logger/logger.dart';
 
 import '../interfaces/auth_service_interface.dart';
 
 class AuthService implements IAuthService {
   final FirebaseAuth _firebaseAuth;
-  final GoogleSignIn _googleSignIn;
-  final FacebookAuth _facebookAuth;
-  final Logger _logger;
 
-  AuthService(
-    this._firebaseAuth,
-    this._googleSignIn,
-    this._facebookAuth,
-    this._logger,
-  );
+  AuthService(this._firebaseAuth);
 
   @override
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
@@ -59,45 +50,42 @@ class AuthService implements IAuthService {
 
   @override
   Future<UserCredential> signInWithGoogle() async {
-    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-    if (googleUser == null) {
-      throw FirebaseAuthException(
-        code: 'google-sign-in-aborted',
-        message: 'Google sign-in process was aborted.',
-      );
-    }
+    final GoogleSignInAccount googleUser = await GoogleSignIn.instance
+        .authenticate();
 
+    // Obtain the auth details from the request
     final GoogleSignInAuthentication googleAuth = googleUser.authentication;
-    final AuthCredential credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
+
+    // Create a new credential
+    final credential = GoogleAuthProvider.credential(
       idToken: googleAuth.idToken,
     );
+
     return _firebaseAuth.signInWithCredential(credential);
   }
 
   @override
+  /// Signs in a user with Facebook.
+  ///
+  /// Throws:
+  /// - [FirebaseAuthException] if sign-in fails or is aborted by the user.
   Future<UserCredential> signInWithFacebook() async {
-    final LoginResult result = await _facebookAuth.login();
-    if (result.status == LoginStatus.success) {
-      final AccessToken accessToken = result.accessToken!;
-      final AuthCredential credential = FacebookAuthProvider.credential(
-        accessToken.token,
-      );
-      return _firebaseAuth.signInWithCredential(credential);
-    } else if (result.status == LoginStatus.cancelled) {
+    // Trigger the sign-in flow
+    final LoginResult loginResult = await FacebookAuth.instance.login();
+    final AccessToken? accessToken = loginResult.accessToken;
+    if (accessToken == null) {
       throw FirebaseAuthException(
-        code: 'facebook-sign-in-cancelled',
-        message: 'Facebook sign-in process was cancelled.',
-      );
-    } else {
-      _logger.e(
-        'Facebook sign-in failed with status: ${result.status} and message: ${result.message}',
-      );
-      throw FirebaseAuthException(
-        code: 'facebook-sign-in-failed',
-        message: result.message ?? 'Unknown Facebook sign-in error.',
+        code: 'ERROR_ABORTED_BY_USER',
+        message: 'Sign in aborted by user',
       );
     }
+
+    // Create a credential from the access token
+    final OAuthCredential facebookAuthCredential =
+        FacebookAuthProvider.credential(accessToken.tokenString);
+
+    // Once signed in, return the UserCredential
+    return _firebaseAuth.signInWithCredential(facebookAuthCredential);
   }
 
   @override

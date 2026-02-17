@@ -66,7 +66,7 @@ actions:
     - [ ] QR code
     - [ ] Picture ? (need to explore ML options for this)
 - [ ] Add support for push/app/internal notifications (e.g., expiring products, meal plan reminders).
-- Transfer products between inventories
+-  [ ] Transfer products between inventories
 - [ ] Support export/import (CSV/JSON) for user inventory.
 - [ ] Support sharing meal plans and shopping lists with other users (e.g., family members).
     - [ ] Create shared (family/group) collections

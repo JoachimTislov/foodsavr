@@ -1,21 +1,25 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:logger/logger.dart';
 
 import '../constants/privacy_notice.dart';
+import '../constants/terms_of_service.dart';
 import '../interfaces/auth_service_interface.dart';
 import '../service_locator.dart';
+import '../widgets/auth/facebook_sign_in_button.dart';
+import '../widgets/auth/google_sign_in_button.dart';
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key, required this.title});
+class AuthView extends StatefulWidget {
+  const AuthView({super.key, required this.title});
 
   final String title;
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<AuthView> createState() => _AuthViewState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _AuthViewState extends State<AuthView> {
   final _logger = getIt<Logger>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -137,8 +141,23 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _showTermsOfService() {
-    // TODO: Implement showing terms of service (e.g., in a dialog or new screen)
-    _logger.i('Show Terms of Service');
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Terms of Service'.tr()),
+          content: SingleChildScrollView(child: Text(TermsOfService.content)),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('Close'.tr()),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -317,6 +336,19 @@ class _HomePageState extends State<HomePage> {
                                         ).colorScheme.primary,
                                         fontWeight: FontWeight.bold,
                                       ),
+                                      recognizer: TapGestureRecognizer()
+                                        ..onTap = _showTermsOfService,
+                                    ),
+                                    TextSpan(
+                                      text: 'Privacy Notice'.tr(),
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      recognizer: TapGestureRecognizer()
+                                        ..onTap = _showPrivacyNotice,
                                     ),
                                   ],
                                 ),
@@ -375,53 +407,11 @@ class _HomePageState extends State<HomePage> {
                 Column(
                   children: [
                     // Google Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _signInWithGoogle,
-                        icon: Image.network(
-                          'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/2048px-Google_%22G%22_logo.svg.png',
-                          height: 24.0,
-                          width: 24.0,
-                        ),
-                        label: Text('Continue with Google'.tr()),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                          ),
-                          side: BorderSide(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
-                          foregroundColor: Theme.of(
-                            context,
-                          ).colorScheme.onSurface,
-                        ),
-                      ),
-                    ),
+                    GoogleSignInButton(onPressed: _signInWithGoogle),
                     const SizedBox(height: 16.0),
 
                     // Facebook Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _signInWithFacebook,
-                        icon: const Icon(Icons.facebook, color: Colors.blue),
-                        label: Text('Continue with Facebook'.tr()),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                          ),
-                          side: BorderSide(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
-                          foregroundColor: Theme.of(
-                            context,
-                          ).colorScheme.onSurface,
-                        ),
-                      ),
-                    ),
+                    FacebookSignInButton(onPressed: _signInWithFacebook),
                   ],
                 ),
                 const SizedBox(height: 24.0),

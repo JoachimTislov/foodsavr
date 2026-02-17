@@ -1,9 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get_it/get_it.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:logger/logger.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 
 import 'interfaces/auth_service_interface.dart';
 import 'repositories/collection_repository.dart';
@@ -19,8 +17,6 @@ final getIt = GetIt.instance;
 class ServiceLocator {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
-  final _googleSignIn = GoogleSignIn();
-  final _facebookAuth = FacebookAuth.instance;
   late final Logger _logger;
   late final AuthService _authService;
   late final ProductRepository _productRepository;
@@ -28,7 +24,7 @@ class ServiceLocator {
 
   ServiceLocator(Logger logger) {
     _logger = logger;
-    _authService = AuthService(_auth, _googleSignIn, _facebookAuth, _logger);
+    _authService = AuthService(_auth);
     _productRepository = ProductRepository(_firestore);
     _collectionRepository = CollectionRepository(_firestore);
   }
