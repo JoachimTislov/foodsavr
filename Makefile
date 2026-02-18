@@ -1,4 +1,7 @@
-.PHONY: dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fmt test clean
+.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fmt test clean locales
+
+dev-chrome-prod:
+	@flutter run -d chrome --no-pub --flavor production 
 
 dev-chrome: start-firebase-emulators
 	@flutter run -d chrome --no-pub
@@ -44,3 +47,7 @@ test:
 clean:
 	@echo "Cleaning build artifacts..."
 	@flutter clean
+
+locales:
+	@echo "Extracting locales..."
+	@grep -r -o -E "'.*?'\.tr\(\)" lib/
