@@ -30,7 +30,7 @@ deps:
 	@flutter pub get
 
 # Code quality commands
-check: analyze fmt test
+check: analyze fix fmt test
 
 analyze:
 	@echo "Running Flutter analyze..."
@@ -39,6 +39,10 @@ analyze:
 fmt:
 	@echo "Formatting Dart code..."
 	@dart format .
+
+fix:
+	@echo "Fixing Dart code issues..."
+	@dart fix --apply
 
 test:
 	@echo "Running tests..."
