@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/auth/social_login_button.dart';
 import 'auth_view.dart';
 
 class LandingPageView extends StatelessWidget {
@@ -57,21 +58,19 @@ class LandingPageView extends StatelessWidget {
                   const SizedBox(height: 48),
 
                   // Social Login Stack
-                  // Placeholder for Google Button
-                  _SocialButton(
+                  SocialLoginButton(
                     text: 'Continue with Google',
-                    icon: Icons.g_mobiledata, // Placeholder icon
-                    color: colorScheme.surface, // Use surface color
+                    iconPath: 'assets/images/google_logo.svg',
+                    color: colorScheme.surface,
                     textColor: colorScheme.onSurface,
                     onPressed: () {
                       // Ignored as per instructions
                     },
                   ),
                   const SizedBox(height: 16),
-                  // Placeholder for Facebook Button
-                  _SocialButton(
+                  SocialLoginButton(
                     text: 'Continue with Facebook',
-                    icon: Icons.facebook,
+                    iconPath: 'assets/images/facebook_logo.svg',
                     color: colorScheme.surface,
                     textColor: colorScheme.onSurface,
                     onPressed: () {
@@ -171,53 +170,6 @@ class LandingPageView extends StatelessWidget {
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SocialButton extends StatelessWidget {
-  final String text;
-  final IconData icon;
-  final Color color;
-  final Color textColor;
-  final VoidCallback onPressed;
-
-  const _SocialButton({
-    required this.text,
-    required this.icon,
-    required this.color,
-    required this.textColor,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56, // h-14
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: textColor,
-          elevation: 0,
-          side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16), // rounded-2xl
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 24),
-            const SizedBox(width: 12),
-            Text(
-              text,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ],
         ),
       ),
     );

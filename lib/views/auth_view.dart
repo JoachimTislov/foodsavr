@@ -11,8 +11,7 @@ import '../utils/auth_error_handler.dart';
 import '../widgets/auth/auth_form_fields.dart';
 import '../widgets/auth/auth_submit_button.dart';
 import '../widgets/auth/auth_toggle_button.dart';
-import '../widgets/auth/facebook_sign_in_button.dart';
-import '../widgets/auth/google_sign_in_button.dart';
+import '../widgets/auth/social_login_button.dart';
 
 class AuthView extends StatefulWidget {
   const AuthView({super.key, required this.title});
@@ -164,6 +163,9 @@ class _AuthViewState extends State<AuthView> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -332,11 +334,23 @@ class _AuthViewState extends State<AuthView> {
                 Column(
                   children: [
                     // Google Button
-                    GoogleSignInButton(onPressed: _signInWithGoogle),
+                    SocialLoginButton(
+                      text: 'Continue with Google'.tr(),
+                      iconPath: 'assets/images/google_logo.svg',
+                      color: colorScheme.surface,
+                      textColor: colorScheme.onSurface,
+                      onPressed: _signInWithGoogle,
+                    ),
                     const SizedBox(height: 16.0),
 
                     // Facebook Button
-                    FacebookSignInButton(onPressed: _signInWithFacebook),
+                    SocialLoginButton(
+                      text: 'Continue with Facebook'.tr(),
+                      iconPath: 'assets/images/facebook_logo.svg',
+                      color: colorScheme.surface,
+                      textColor: colorScheme.onSurface,
+                      onPressed: _signInWithFacebook,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 24.0),
