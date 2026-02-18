@@ -37,6 +37,15 @@ actions:
 - [x] Install Flutter SDK (^3.10.7) and run `make get` to fetch dependencies.
 - [x] Create `assets/.env` with `ENVIRONMENT=development` and test credentials.
 - [x] Ensure `lib/firebase_options.dart` is generated via `flutterfire configure` for project `my-foodsavr-store`.
+- [x] Create .gemini/commands folder with .toml files for custom commands and templates
+    - [x] Iteration command for fixing issues in flutter analyze until no issues remain
+        - [x] Also one for Test, should be template
+    - [ ] Screenshot of page for reference to give better context to the LLM when adjusting UI
+        - [ ] UI healing, grading in terms of user feeling, accessibility, material 3 compliance, etc.
+- [ ] Reference files inside of commands for better context and more specific adjustments
+    - [ ] decide what should always be loaded into memory
+- [ ] Add skills, rules and MCPs
+- [ ] Consider TDD approach
 
 ## Firebase & Emulator
 - [x] Install Firebase CLI (`npm i -g firebase-tools`) and log in.
