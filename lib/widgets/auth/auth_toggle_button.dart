@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 class AuthToggleButton extends StatelessWidget {
@@ -15,10 +16,14 @@ class AuthToggleButton extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text(isLogin ? 'Don\'t have an account?' : 'Already have an account?'),
+        Text(
+          isLogin
+              ? 'Don\'t have an account?'.tr()
+              : 'Already have an account?'.tr(),
+        ),
         TextButton(
           onPressed: onPressed,
-          child: Text(isLogin ? 'Sign up' : 'Login'),
+          child: Text(isLogin ? 'Sign up'.tr() : 'Login'.tr()),
         ),
       ],
     );

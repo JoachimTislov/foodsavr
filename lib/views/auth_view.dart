@@ -7,6 +7,10 @@ import '../constants/privacy_notice.dart';
 import '../constants/terms_of_service.dart';
 import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
+import '../utils/auth_error_handler.dart';
+import '../widgets/auth/auth_form_fields.dart';
+import '../widgets/auth/auth_submit_button.dart';
+import '../widgets/auth/auth_toggle_button.dart';
 import '../widgets/auth/facebook_sign_in_button.dart';
 import '../widgets/auth/google_sign_in_button.dart';
 
@@ -23,12 +27,12 @@ class _AuthViewState extends State<AuthView> {
   final _logger = getIt<Logger>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
   late final IAuthService _authService;
   bool _isLogin = true;
   String? _errorMessage;
   bool _rememberMe = false;
-  bool _isPasswordVisible = false;
-  bool _agreedToTerms = false; // New state for terms and privacy
+  bool _agreedToTerms = false;
 
   @override
   void initState() {
@@ -45,24 +49,22 @@ class _AuthViewState extends State<AuthView> {
 
   void _authenticate() async {
     setState(() => _errorMessage = null);
+
+    if (_formKey.currentState?.validate() != true) {
+      return;
+    }
+
+    if (!_isLogin && !_agreedToTerms) {
+      setState(
+        () => _errorMessage =
+            'You must agree to the Terms of Service and Privacy Notice.'.tr(),
+      );
+      return;
+    }
+
     try {
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
-
-      if (email.isEmpty || password.isEmpty) {
-        setState(
-          () => _errorMessage = 'Email and password cannot be empty.'.tr(),
-        );
-        return;
-      }
-
-      if (!_isLogin && !_agreedToTerms) {
-        setState(
-          () => _errorMessage =
-              'You must agree to the Terms of Service and Privacy Notice.'.tr(),
-        );
-        return;
-      }
 
       if (_isLogin) {
         await _authService.signIn(
@@ -75,7 +77,7 @@ class _AuthViewState extends State<AuthView> {
       }
     } catch (e) {
       _logger.e('Auth error: $e');
-      setState(() => _errorMessage = e.toString().split(']')[1]);
+      setState(() => _errorMessage = AuthErrorHandler.getErrorMessage(e));
     }
   }
 
@@ -85,7 +87,7 @@ class _AuthViewState extends State<AuthView> {
       await _authService.signInWithGoogle();
     } catch (e) {
       _logger.e('Google Sign-in error: $e');
-      setState(() => _errorMessage = e.toString().split(']')[1]);
+      setState(() => _errorMessage = AuthErrorHandler.getErrorMessage(e));
     }
   }
 
@@ -95,7 +97,7 @@ class _AuthViewState extends State<AuthView> {
       await _authService.signInWithFacebook();
     } catch (e) {
       _logger.e('Facebook Sign-in error: $e');
-      setState(() => _errorMessage = e.toString().split(']')[1]);
+      setState(() => _errorMessage = AuthErrorHandler.getErrorMessage(e));
     }
   }
 
@@ -116,7 +118,7 @@ class _AuthViewState extends State<AuthView> {
       );
     } catch (e) {
       _logger.e('Forgot password error: $e');
-      setState(() => _errorMessage = e.toString().split(']')[1]);
+      setState(() => _errorMessage = AuthErrorHandler.getErrorMessage(e));
     }
   }
 
@@ -214,61 +216,12 @@ class _AuthViewState extends State<AuthView> {
 
                 // Form Section
                 Form(
+                  key: _formKey,
                   child: Column(
                     children: [
-                      // Email Input
-                      TextFormField(
-                        controller: _emailController,
-                        decoration: InputDecoration(
-                          labelText: 'Email Address'.tr(),
-                          hintText: 'name@example.com'.tr(),
-                          prefixIcon: const Icon(Icons.mail_outline),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                            borderSide: BorderSide(
-                              color: Theme.of(context).colorScheme.primary,
-                              width: 2.0,
-                            ),
-                          ),
-                        ),
-                        keyboardType: TextInputType.emailAddress,
-                      ),
-                      const SizedBox(height: 16.0),
-
-                      // Password Input
-                      TextFormField(
-                        controller: _passwordController,
-                        obscureText: !_isPasswordVisible,
-                        decoration: InputDecoration(
-                          labelText: 'Password'.tr(),
-                          hintText: 'Enter your password'.tr(),
-                          prefixIcon: const Icon(Icons.lock_outline),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                            borderSide: BorderSide(
-                              color: Theme.of(context).colorScheme.primary,
-                              width: 2.0,
-                            ),
-                          ),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _isPasswordVisible
-                                  ? Icons.visibility
-                                  : Icons.visibility_off,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _isPasswordVisible = !_isPasswordVisible;
-                              });
-                            },
-                          ),
-                        ),
+                      AuthFormFields(
+                        emailController: _emailController,
+                        passwordController: _passwordController,
                       ),
                       const SizedBox(height: 16.0),
 
@@ -350,28 +303,9 @@ class _AuthViewState extends State<AuthView> {
                       const SizedBox(height: 24.0),
 
                       // Submit Button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _authenticate,
-                          icon: Icon(_isLogin ? Icons.login : Icons.person_add),
-                          label: Text(
-                            _isLogin ? 'login'.tr() : 'register'.tr(),
-                            style: const TextStyle(fontSize: 18),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12.0),
-                            ),
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.primary,
-                            foregroundColor: Theme.of(
-                              context,
-                            ).colorScheme.onPrimary,
-                          ),
-                        ),
+                      AuthSubmitButton(
+                        isLogin: _isLogin,
+                        onPressed: _authenticate,
                       ),
                     ],
                   ),
@@ -408,26 +342,16 @@ class _AuthViewState extends State<AuthView> {
                 const SizedBox(height: 24.0),
 
                 // Footer Link
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      _isLogin
-                          ? 'Don\'t have an account?'.tr()
-                          : 'Already have an account?'.tr(),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _isLogin = !_isLogin;
-                          _errorMessage = null;
-                          _emailController.clear();
-                          _passwordController.clear();
-                        });
-                      },
-                      child: Text(_isLogin ? 'Sign up'.tr() : 'Login'.tr()),
-                    ),
-                  ],
+                AuthToggleButton(
+                  isLogin: _isLogin,
+                  onPressed: () {
+                    setState(() {
+                      _isLogin = !_isLogin;
+                      _errorMessage = null;
+                      _emailController.clear();
+                      _passwordController.clear();
+                    });
+                  },
                 ),
               ],
             ),
