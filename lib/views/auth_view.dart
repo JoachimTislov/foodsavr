@@ -5,7 +5,7 @@ import 'package:logger/logger.dart';
 
 import '../constants/privacy_notice.dart';
 import '../constants/terms_of_service.dart';
-import '../interfaces/auth_service_interface.dart';
+import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
 import '../widgets/auth/facebook_sign_in_button.dart';
 import '../widgets/auth/google_sign_in_button.dart';
@@ -125,14 +125,14 @@ class _AuthViewState extends State<AuthView> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Privacy Notice'.tr()),
+          title: Text('privacy-notice'.tr()),
           content: SingleChildScrollView(child: Text(PrivacyNotice.content)),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: Text('Close'.tr()),
+              child: Text('close'.tr()),
             ),
           ],
         );
@@ -321,6 +321,8 @@ class _AuthViewState extends State<AuthView> {
                                         ).colorScheme.primary,
                                         fontWeight: FontWeight.bold,
                                       ),
+                                      recognizer: TapGestureRecognizer()
+                                        ..onTap = _showPrivacyNotice,
                                     ),
                                     TextSpan(
                                       text: ' and '.tr(),
@@ -339,17 +341,6 @@ class _AuthViewState extends State<AuthView> {
                                       recognizer: TapGestureRecognizer()
                                         ..onTap = _showTermsOfService,
                                     ),
-                                    TextSpan(
-                                      text: 'Privacy Notice'.tr(),
-                                      style: TextStyle(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      recognizer: TapGestureRecognizer()
-                                        ..onTap = _showPrivacyNotice,
-                                    ),
                                   ],
                                 ),
                               ),
@@ -365,7 +356,7 @@ class _AuthViewState extends State<AuthView> {
                           onPressed: _authenticate,
                           icon: Icon(_isLogin ? Icons.login : Icons.person_add),
                           label: Text(
-                            _isLogin ? 'Login'.tr() : 'Register'.tr(),
+                            _isLogin ? 'login'.tr() : 'register'.tr(),
                             style: const TextStyle(fontSize: 18),
                           ),
                           style: ElevatedButton.styleFrom(

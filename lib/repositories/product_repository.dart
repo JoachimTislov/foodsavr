@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/product_model.dart';
-import '../interfaces/product_repository_interface.dart';
+import '../interfaces/i_product_repository.dart';
 
 class ProductRepository implements IProductRepository {
   final FirebaseFirestore _firestore;

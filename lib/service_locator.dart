@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
 
-import 'interfaces/auth_service_interface.dart';
+import 'interfaces/i_auth_service.dart';
 import 'repositories/collection_repository.dart';
 import 'repositories/product_repository.dart';
 import 'services/auth_service.dart';

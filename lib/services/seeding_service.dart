@@ -3,9 +3,9 @@ import 'package:logger/logger.dart';
 
 import '../mock_data/collections.dart';
 import '../utils/config.dart';
-import '../interfaces/auth_service_interface.dart';
-import '../interfaces/collection_repository_interface.dart';
-import '../interfaces/product_repository_interface.dart';
+import '../interfaces/i_auth_service.dart';
+import '../interfaces/i_collection_repository.dart';
+import '../interfaces/i_product_repository.dart';
 import '../mock_data/global_products.dart';
 import '../mock_data/inventory_products.dart';
 import '../models/collection_model.dart';

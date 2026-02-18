@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../service_locator.dart';
-import '../interfaces/auth_service_interface.dart';
+import '../interfaces/i_auth_service.dart';
 import '../views/product_list_view.dart';
 import '../views/collection_list_view.dart';
 import '../widgets/common/navigation_card.dart';

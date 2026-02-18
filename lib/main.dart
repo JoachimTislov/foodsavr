@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:logger/logger.dart';
 
 import 'firebase_options.dart';
-import 'interfaces/auth_service_interface.dart';
+import 'interfaces/i_auth_service.dart';
 import 'service_locator.dart';
 import 'utils/config.dart';
 import 'views/auth_view.dart';

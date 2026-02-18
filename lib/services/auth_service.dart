@@ -2,7 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-import '../interfaces/auth_service_interface.dart';
+import '../interfaces/i_auth_service.dart';
 
 class AuthService implements IAuthService {
   final FirebaseAuth _firebaseAuth;
