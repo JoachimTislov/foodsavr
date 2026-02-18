@@ -8,8 +8,9 @@ import 'package:logger/logger.dart';
 import 'firebase_options.dart';
 import 'interfaces/i_auth_service.dart';
 import 'service_locator.dart';
+import 'utils/app_theme.dart';
 import 'utils/config.dart';
-import 'views/auth_view.dart';
+import 'views/landing_page_view.dart';
 import 'views/main_view.dart';
 
 const dummyOptions = FirebaseOptions(
@@ -80,26 +81,15 @@ class MyApp extends StatelessWidget {
       localizationsDelegates: context.localizationDelegates,
       supportedLocales: context.supportedLocales,
       locale: context.locale,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blueAccent,
-          brightness: Brightness.light,
-        ),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color.fromRGBO(0, 1, 27, .3),
-          brightness: Brightness.dark,
-        ),
-      ),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system,
       home: StreamBuilder(
         stream: getIt<IAuthService>().authStateChanges,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.active) {
             if (snapshot.data == null) {
-              return const AuthView(title: 'Welcome to FoodSavr');
+              return const LandingPageView();
             } else {
               return const MainAppScreen();
             }
