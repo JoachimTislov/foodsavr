@@ -14,6 +14,7 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK ^3.10.7)
 - **Domain (`models/`)**: Plain data classes with `toJson`/`fromJson` and computed properties.
 
 ## 2. Core Entities & Structure
+
 | Feature | Model | Interface | Implementation |
 | :--- | :--- | :--- | :--- |
 | Auth | N/A | `i_auth_service` | `auth_service` |
