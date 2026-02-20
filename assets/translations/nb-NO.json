@@ -28,7 +28,6 @@
     "auth_password_hint": "Skriv inn passordet ditt",
     "auth_password_required": "Vennligst skriv inn passordet ditt",
     "auth_already_have_account": "Har du allerede en konto?",
-    "auth_login_title": "Logg inn",
     "auth_login": "Logg inn",
     "auth_register": "Registrer",
     "auth_error_user_not_found": "Ingen bruker funnet for denne e-posten.",

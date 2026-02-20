@@ -21,7 +21,7 @@ class AuthToggleButton extends StatelessWidget {
         ),
         TextButton(
           onPressed: onPressed,
-          child: Text(isLogin ? 'auth_sign_up'.tr() : 'auth_login_title'.tr()),
+          child: Text(isLogin ? 'auth_sign_up'.tr() : 'auth_login'.tr()),
         ),
       ],
     );

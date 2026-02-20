@@ -28,7 +28,6 @@
     "auth_password_hint": "Enter your password",
     "auth_password_required": "Please enter your password",
     "auth_already_have_account": "Already have an account?",
-    "auth_login_title": "Login",
     "auth_login": "Login",
     "auth_register": "Register",
     "auth_error_user_not_found": "No user found for that email.",
