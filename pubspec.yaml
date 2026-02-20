@@ -73,8 +73,8 @@ flutter:
 
   assets:
     - assets/translations/
+    - assets/images/
     # TODO: determine if this is needed
-    # - assets/images/
     # - path: assets/images/
     #   transformers:
     #     - package: vector_graphics_compiler

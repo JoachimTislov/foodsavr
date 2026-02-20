@@ -6,6 +6,7 @@ import 'package:logger/logger.dart';
 import 'interfaces/i_auth_service.dart';
 import 'repositories/collection_repository.dart';
 import 'repositories/product_repository.dart';
+import 'services/auth_controller.dart';
 import 'services/auth_service.dart';
 import 'services/collection_service.dart';
 import 'services/product_service.dart';
@@ -32,6 +33,9 @@ class ServiceLocator {
   Future<void> registerDependencies() async {
     getIt.registerLazySingleton<Logger>(() => _logger);
     getIt.registerLazySingleton<IAuthService>(() => _authService);
+    getIt.registerFactory<AuthController>(
+      () => AuthController(getIt<IAuthService>(), getIt<Logger>()),
+    );
     getIt.registerLazySingleton<ProductService>(
       () => ProductService(_productRepository, _logger),
     );

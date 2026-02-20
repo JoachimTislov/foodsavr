@@ -43,3 +43,6 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK ^3.10.7)
 5. **DI**: Register in `@service_locator.dart`.
 6. **UI**: `@views/` & `@widgets/` (inject service via `getIt`).
 7. **Test**: Use Firebase emulators (`@test/`).
+
+## 4. Donts
+- run "rg --g". It is not supported
