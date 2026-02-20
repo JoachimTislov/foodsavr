@@ -1,41 +1,67 @@
 {
-    "auth_terms_required": "You must agree to the Terms of Service and Privacy Notice.",
-    "auth_reset_email_prompt": "Please enter your email to reset password.",
-    "auth_reset_email_sent": "Password reset email sent. Check your inbox.",
-    "common_privacy_notice": "Privacy Notice",
-    "common_close": "Close",
-    "common_terms_of_service": "Terms of Service",
-    "auth_welcome_back": "Welcome Back",
-    "auth_create_account": "Create Account",
-    "auth_sign_in_subtitle": "Sign in to manage your inventory.",
-    "auth_sign_up_subtitle": "Sign up to start saving time and money.",
-    "auth_remember_me": "Remember me",
-    "auth_forgot_password": "Forgot Password?",
-    "auth_agree_prefix": "I agree to the ",
-    "common_and": " and ",
-    "common_or": "OR",
-    "auth_continue_google": "Continue with Google",
-    "auth_continue_facebook": "Continue with Facebook",
-    "landing_title": "Inventory Login",
-    "landing_subtitle": "Track, manage, and scale your stock with efficiency.",
-    "auth_continue_email": "Continue with Email",
-    "auth_no_account": "Don't have an account?",
-    "auth_sign_up": "Sign up",
-    "auth_email_label": "Email Address",
-    "auth_email_hint": "name@example.com",
-    "auth_email_required": "Please enter your email",
-    "auth_password_label": "Password",
-    "auth_password_hint": "Enter your password",
-    "auth_password_required": "Please enter your password",
-    "auth_already_have_account": "Already have an account?",
-    "auth_login": "Login",
-    "auth_register": "Register",
-    "auth_error_user_not_found": "No user found for that email.",
-    "auth_error_wrong_password": "Wrong password provided for that user.",
-    "auth_error_email_already_in_use": "The account already exists for that email.",
-    "auth_error_invalid_email": "The email address is not valid.",
-    "auth_error_weak_password": "The password provided is too weak.",
-    "auth_error_operation_not_allowed": "Operation not allowed.",
-    "auth_error_user_disabled": "The user account has been disabled.",
-    "auth_error_unknown": "An undefined Error happened."
+    "auth": {
+        "terms": {
+            "required": "You must agree to the Terms of Service and Privacy Notice.",
+            "prefix": "I agree to the "
+        },
+        "reset": {
+            "email_prompt": "Please enter your email to reset password.",
+            "email_sent": "Password reset email sent. Check your inbox."
+        },
+        "header": {
+            "welcome_back": "Welcome Back",
+            "create_account": "Create Account",
+            "sign_in_subtitle": "Sign in to manage your inventory.",
+            "sign_up_subtitle": "Sign up to start saving time and money."
+        },
+        "form": {
+            "remember_me": "Remember me",
+            "forgot_password": "Forgot Password?",
+            "email": {
+                "label": "Email Address",
+                "hint": "name@example.com",
+                "required": "Please enter your email"
+            },
+            "password": {
+                "label": "Password",
+                "hint": "Enter your password",
+                "required": "Please enter your password"
+            }
+        },
+        "social": {
+            "continue_google": "Continue with Google",
+            "continue_facebook": "Continue with Facebook",
+            "continue_email": "Continue with Email"
+        },
+        "landing": {
+            "title": "Inventory Login",
+            "subtitle": "Track, manage, and scale your stock with efficiency."
+        },
+        "toggle": {
+            "no_account": "Don't have an account?",
+            "sign_up": "Sign up",
+            "already_have_account": "Already have an account?",
+            "login": "Login"
+        },
+        "submit": {
+            "register": "Register"
+        },
+        "error": {
+            "user_not_found": "No user found for that email.",
+            "wrong_password": "Wrong password provided for that user.",
+            "email_already_in_use": "The account already exists for that email.",
+            "invalid_email": "The email address is not valid.",
+            "weak_password": "The password provided is too weak.",
+            "operation_not_allowed": "Operation not allowed.",
+            "user_disabled": "The user account has been disabled.",
+            "unknown": "An undefined Error happened."
+        }
+    },
+    "common": {
+        "privacy_notice": "Privacy Notice",
+        "close": "Close",
+        "terms_of_service": "Terms of Service",
+        "and": " and ",
+        "or": "OR"
+    }
 }

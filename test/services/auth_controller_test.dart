@@ -80,25 +80,25 @@ void main() {
       },
     );
 
-    // test(
-    //   'authenticate sets error message when signUp called without agreedToTerms',
-    //   () async {
-    //     authController.isLogin = false;
-    //     authController.agreedToTerms = false;
-    //
-    //     await authController.authenticate(
-    //       email: 'test@test.com',
-    //       password: 'password',
-    //     );
-    //
-    //     expect(authController.errorMessage, 'auth_terms_required'.tr());
-    //     verifyNever(
-    //       () => mockAuthService.signUp(
-    //         email: any(named: 'email'),
-    //         password: any(named: 'password'),
-    //       ),
-    //     );
-    //   },
-    // );
+    test(
+      'authenticate sets error message when signUp called without agreedToTerms',
+      () async {
+        authController.isLogin = false;
+        authController.agreedToTerms = false;
+
+        await authController.authenticate(
+          email: 'test@test.com',
+          password: 'password',
+        );
+
+        expect(authController.errorMessage, 'auth.terms.required');
+        verifyNever(
+          () => mockAuthService.signUp(
+            email: any(named: 'email'),
+            password: any(named: 'password'),
+          ),
+        );
+      },
+    );
   });
 }

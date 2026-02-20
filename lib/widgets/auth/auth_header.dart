@@ -14,7 +14,9 @@ class AuthHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            isLogin ? 'auth_welcome_back'.tr() : 'auth_create_account'.tr(),
+            isLogin
+                ? 'auth.header.welcome_back'.tr()
+                : 'auth.header.create_account'.tr(),
             style: Theme.of(
               context,
             ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -22,8 +24,8 @@ class AuthHeader extends StatelessWidget {
           const SizedBox(height: 8.0),
           Text(
             isLogin
-                ? 'auth_sign_in_subtitle'.tr()
-                : 'auth_sign_up_subtitle'.tr(),
+                ? 'auth.header.sign_in_subtitle'.tr()
+                : 'auth.header.sign_up_subtitle'.tr(),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),

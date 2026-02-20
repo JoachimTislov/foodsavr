@@ -62,12 +62,12 @@ class _AuthViewState extends State<AuthView> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('common_privacy_notice'.tr()),
+          title: Text('common.privacy_notice'.tr()),
           content: SingleChildScrollView(child: Text(PrivacyNotice.content)),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text('common_close'.tr()),
+              child: Text('common.close'.tr()),
             ),
           ],
         );
@@ -80,12 +80,12 @@ class _AuthViewState extends State<AuthView> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('common_terms_of_service'.tr()),
+          title: Text('common.terms_of_service'.tr()),
           content: SingleChildScrollView(child: Text(TermsOfService.content)),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text('common_close'.tr()),
+              child: Text('common.close'.tr()),
             ),
           ],
         );
@@ -183,12 +183,12 @@ class _AuthViewState extends State<AuthView> {
               value: _controller.rememberMe,
               onChanged: (val) => _controller.rememberMe = val ?? false,
             ),
-            Text('auth_remember_me'.tr()),
+            Text('auth.form.remember_me'.tr()),
           ],
         ),
         TextButton(
           onPressed: () => _controller.forgotPassword(_emailController.text),
-          child: Text('auth_forgot_password'.tr()),
+          child: Text('auth.form.forgot_password'.tr()),
         ),
       ],
     );

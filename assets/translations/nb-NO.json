@@ -1,41 +1,67 @@
 {
-    "auth_terms_required": "Du må godta vilkårene for bruk og personvernerklæringen.",
-    "auth_reset_email_prompt": "Vennligst skriv inn e-postadressen din for å tilbakestille passordet.",
-    "auth_reset_email_sent": "E-post for tilbakestilling av passord sendt. Sjekk innboksen din.",
-    "common_privacy_notice": "Personvernerklæring",
-    "common_close": "Lukk",
-    "common_terms_of_service": "Vilkår for bruk",
-    "auth_welcome_back": "Velkommen tilbake",
-    "auth_create_account": "Opprett konto",
-    "auth_sign_in_subtitle": "Logg inn for å administrere lageret ditt.",
-    "auth_sign_up_subtitle": "Registrer deg for å begynne å spare tid og penger.",
-    "auth_remember_me": "Husk meg",
-    "auth_forgot_password": "Glemt passord?",
-    "auth_agree_prefix": "Jeg godtar ",
-    "common_and": " og ",
-    "common_or": "ELLER",
-    "auth_continue_google": "Fortsett med Google",
-    "auth_continue_facebook": "Fortsett med Facebook",
-    "landing_title": "Lagerinnlogging",
-    "landing_subtitle": "Spor, administrer og skaler lageret ditt effektivt.",
-    "auth_continue_email": "Fortsett med e-post",
-    "auth_no_account": "Har du ikke en konto?",
-    "auth_sign_up": "Registrer deg",
-    "auth_email_label": "E-postadresse",
-    "auth_email_hint": "navn@eksempel.no",
-    "auth_email_required": "Vennligst skriv inn e-postadressen din",
-    "auth_password_label": "Passord",
-    "auth_password_hint": "Skriv inn passordet ditt",
-    "auth_password_required": "Vennligst skriv inn passordet ditt",
-    "auth_already_have_account": "Har du allerede en konto?",
-    "auth_login": "Logg inn",
-    "auth_register": "Registrer",
-    "auth_error_user_not_found": "Ingen bruker funnet for denne e-posten.",
-    "auth_error_wrong_password": "Feil passord oppgitt for denne brukeren.",
-    "auth_error_email_already_in_use": "Kontoen finnes allerede for denne e-posten.",
-    "auth_error_invalid_email": "E-postadressen er ikke gyldig.",
-    "auth_error_weak_password": "Passordet er for svakt.",
-    "auth_error_operation_not_allowed": "Operasjonen er ikke tillatt.",
-    "auth_error_user_disabled": "Brukerkontoen er deaktivert.",
-    "auth_error_unknown": "En udefinert feil oppstod."
+    "auth": {
+        "terms": {
+            "required": "Du må godta vilkårene for bruk og personvernerklæringen.",
+            "prefix": "Jeg godtar "
+        },
+        "reset": {
+            "email_prompt": "Vennligst skriv inn e-postadressen din for å tilbakestille passordet.",
+            "email_sent": "E-post for tilbakestilling av passord sendt. Sjekk innboksen din."
+        },
+        "header": {
+            "welcome_back": "Velkommen tilbake",
+            "create_account": "Opprett konto",
+            "sign_in_subtitle": "Logg inn for å administrere lageret ditt.",
+            "sign_up_subtitle": "Registrer deg for å begynne å spare tid og penger."
+        },
+        "form": {
+            "remember_me": "Husk meg",
+            "forgot_password": "Glemt passord?",
+            "email": {
+                "label": "E-postadresse",
+                "hint": "navn@eksempel.no",
+                "required": "Vennligst skriv inn e-postadressen din"
+            },
+            "password": {
+                "label": "Passord",
+                "hint": "Skriv inn passordet ditt",
+                "required": "Vennligst skriv inn passordet ditt"
+            }
+        },
+        "social": {
+            "continue_google": "Fortsett med Google",
+            "continue_facebook": "Fortsett med Facebook",
+            "continue_email": "Fortsett med e-post"
+        },
+        "landing": {
+            "title": "Lagerinnlogging",
+            "subtitle": "Spor, administrer og skaler lageret ditt effektivt."
+        },
+        "toggle": {
+            "no_account": "Har du ikke en konto?",
+            "sign_up": "Registrer deg",
+            "already_have_account": "Har du allerede en konto?",
+            "login": "Logg inn"
+        },
+        "submit": {
+            "register": "Registrer"
+        },
+        "error": {
+            "user_not_found": "Ingen bruker funnet for denne e-posten.",
+            "wrong_password": "Feil passord oppgitt for denne brukeren.",
+            "email_already_in_use": "Kontoen finnes allerede for denne e-posten.",
+            "invalid_email": "E-postadressen er ikke gyldig.",
+            "weak_password": "Passordet er for svakt.",
+            "operation_not_allowed": "Operasjonen er ikke tillatt.",
+            "user_disabled": "Brukerkontoen er deaktivert.",
+            "unknown": "En udefinert feil oppstod."
+        }
+    },
+    "common": {
+        "privacy_notice": "Personvernerklæring",
+        "close": "Lukk",
+        "terms_of_service": "Vilkår for bruk",
+        "and": " og ",
+        "or": "ELLER"
+    }
 }

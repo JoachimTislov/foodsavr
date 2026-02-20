@@ -24,11 +24,11 @@ class TermsAndPrivacyCheckbox extends StatelessWidget {
         Expanded(
           child: RichText(
             text: TextSpan(
-              text: 'auth_agree_prefix'.tr(),
+              text: 'auth.terms.prefix'.tr(),
               style: Theme.of(context).textTheme.bodySmall,
               children: [
                 TextSpan(
-                  text: 'common_privacy_notice'.tr(),
+                  text: 'common.privacy_notice'.tr(),
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.bold,
@@ -36,11 +36,11 @@ class TermsAndPrivacyCheckbox extends StatelessWidget {
                   recognizer: privacyRecognizer,
                 ),
                 TextSpan(
-                  text: 'common_and'.tr(),
+                  text: 'common.and'.tr(),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 TextSpan(
-                  text: 'common_terms_of_service'.tr(),
+                  text: 'common.terms_of_service'.tr(),
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.bold,

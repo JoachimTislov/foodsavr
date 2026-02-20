@@ -26,8 +26,8 @@ class _AuthFormFieldsState extends State<AuthFormFields> {
         TextFormField(
           controller: widget.emailController,
           decoration: InputDecoration(
-            labelText: 'auth_email_label'.tr(),
-            hintText: 'auth_email_hint'.tr(),
+            labelText: 'auth.form.email.label'.tr(),
+            hintText: 'auth.form.email.hint'.tr(),
             prefixIcon: const Icon(Icons.mail_outline),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12.0),
@@ -43,7 +43,7 @@ class _AuthFormFieldsState extends State<AuthFormFields> {
           keyboardType: TextInputType.emailAddress,
           validator: (value) {
             if (value == null || value.isEmpty) {
-              return 'auth_email_required'.tr();
+              return 'auth.form.email.required'.tr();
             }
             return null;
           },
@@ -55,8 +55,8 @@ class _AuthFormFieldsState extends State<AuthFormFields> {
           controller: widget.passwordController,
           obscureText: !_isPasswordVisible,
           decoration: InputDecoration(
-            labelText: 'auth_password_label'.tr(),
-            hintText: 'auth_password_hint'.tr(),
+            labelText: 'auth.form.password.label'.tr(),
+            hintText: 'auth.form.password.hint'.tr(),
             prefixIcon: const Icon(Icons.lock_outline),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12.0),
@@ -81,7 +81,7 @@ class _AuthFormFieldsState extends State<AuthFormFields> {
           ),
           validator: (value) {
             if (value == null || value.isEmpty) {
-              return 'auth_password_required'.tr();
+              return 'auth.form.password.required'.tr();
             }
             return null;
           },

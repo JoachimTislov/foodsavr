@@ -57,7 +57,7 @@ class _LandingPageViewState extends State<LandingPageView> {
                       ),
                       const SizedBox(height: 24),
                       Text(
-                        'landing_title'.tr(),
+                        'auth.landing.title'.tr(),
                         style: textTheme.headlineMedium?.copyWith(
                           fontWeight: FontWeight.w800,
                           color: colorScheme.onSurface,
@@ -66,7 +66,7 @@ class _LandingPageViewState extends State<LandingPageView> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'landing_subtitle'.tr(),
+                        'auth.landing.subtitle'.tr(),
                         style: textTheme.titleMedium?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                           fontWeight: FontWeight.w500,
@@ -100,8 +100,9 @@ class _LandingPageViewState extends State<LandingPageView> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) =>
-                                        AuthView(title: 'landing_title'.tr()),
+                                    builder: (context) => AuthView(
+                                      title: 'auth.landing.title'.tr(),
+                                    ),
                                   ),
                                 );
                               },
@@ -111,7 +112,7 @@ class _LandingPageViewState extends State<LandingPageView> {
                             const Icon(Icons.mail_outline),
                             const SizedBox(width: 8),
                             Text(
-                              'auth_continue_email'.tr(),
+                              'auth.social.continue_email'.tr(),
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -128,7 +129,7 @@ class _LandingPageViewState extends State<LandingPageView> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            'auth_no_account'.tr(),
+                            'auth.toggle.no_account'.tr(),
                             style: TextStyle(
                               color: colorScheme.onSurfaceVariant,
                               fontWeight: FontWeight.w500,
@@ -142,13 +143,13 @@ class _LandingPageViewState extends State<LandingPageView> {
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) => AuthView(
-                                          title: 'auth_sign_up'.tr(),
+                                          title: 'auth.toggle.sign_up'.tr(),
                                         ),
                                       ),
                                     );
                                   },
                             child: Text(
-                              'auth_sign_up'.tr(),
+                              'auth.toggle.sign_up'.tr(),
                               style: TextStyle(
                                 color: colorScheme.primary,
                                 fontWeight: FontWeight.bold,

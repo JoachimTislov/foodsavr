@@ -27,7 +27,7 @@ class SocialAuthSection extends StatelessWidget {
           const SizedBox(height: 24.0),
         ],
         SocialLoginButton(
-          text: 'auth_continue_google'.tr(),
+          text: 'auth.social.continue_google'.tr(),
           iconPath: 'assets/images/google_logo.svg',
           color: colorScheme.surface,
           textColor: colorScheme.onSurface,
@@ -35,7 +35,7 @@ class SocialAuthSection extends StatelessWidget {
         ),
         const SizedBox(height: 16.0),
         SocialLoginButton(
-          text: 'auth_continue_facebook'.tr(),
+          text: 'auth.social.continue_facebook'.tr(),
           iconPath: 'assets/images/facebook_logo.svg',
           color: colorScheme.surface,
           textColor: colorScheme.onSurface,
@@ -56,7 +56,7 @@ class SocialAuthSection extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Text(
-            'common_or'.tr(),
+            'common.or'.tr(),
             style: Theme.of(context).textTheme.labelLarge,
           ),
         ),

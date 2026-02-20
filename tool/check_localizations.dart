@@ -3,6 +3,19 @@ import 'dart:io';
 
 final _keyRegex = RegExp(r'''['"]([^'"]+)['"]\.tr\(\)''');
 
+Set<String> _flattenKeys(Map<String, dynamic> map, [String prefix = '']) {
+  final keys = <String>{};
+  map.forEach((key, value) {
+    final fullKey = prefix.isEmpty ? key : '$prefix.$key';
+    if (value is Map<String, dynamic>) {
+      keys.addAll(_flattenKeys(value, fullKey));
+    } else {
+      keys.add(fullKey);
+    }
+  });
+  return keys;
+}
+
 void main() {
   final repoRoot = Directory.current.path;
   final sourceDirs = ['lib', 'integration_test', 'test'];
@@ -44,7 +57,7 @@ void main() {
   for (final file in localeFiles) {
     final fileName = file.uri.pathSegments.last;
     final map = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-    final keys = map.keys.toSet();
+    final keys = _flattenKeys(map);
 
     final missing = usedKeys.difference(keys).toList()..sort();
     final unused = keys.difference(usedKeys).toList()..sort();

@@ -55,7 +55,7 @@ class AuthController extends ChangeNotifier {
     if (_isLoading) return;
 
     if (!_isLogin && !_agreedToTerms) {
-      _errorMessage = 'auth_terms_required'.tr();
+      _errorMessage = 'auth.terms.required'.tr();
       notifyListeners();
       return;
     }
@@ -112,7 +112,7 @@ class AuthController extends ChangeNotifier {
     if (_isLoading) return;
 
     if (email.trim().isEmpty) {
-      _errorMessage = 'auth_reset_email_prompt'.tr();
+      _errorMessage = 'auth.reset.email_prompt'.tr();
       notifyListeners();
       return;
     }
@@ -120,7 +120,7 @@ class AuthController extends ChangeNotifier {
     _setLoading(true);
     try {
       await _authService.sendPasswordResetEmail(email.trim());
-      _successMessage = 'auth_reset_email_sent'.tr();
+      _successMessage = 'auth.reset.email_sent'.tr();
     } catch (e) {
       _logger.e('Forgot password error: $e');
       _errorMessage = AuthErrorHandler.getErrorMessage(e);
