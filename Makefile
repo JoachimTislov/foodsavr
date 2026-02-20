@@ -1,4 +1,4 @@
-.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fmt test clean locales
+.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps
 
 dev-chrome-prod:
 	@flutter run -d chrome --no-pub --flavor production 
