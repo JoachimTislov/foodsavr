@@ -16,7 +16,7 @@ project standards.
 
 ## Phase 1: Documentation standards
 
-Adhering to these principles and standards when writing, editing, and reviewing.
+Adhere to these principles and standards when writing, editing, and reviewing.
 
 ### Voice and tone
 Adopt a tone that balances professionalism with a helpful, conversational
