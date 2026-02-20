@@ -1,30 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foodsavr/services/auth_service.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
-
-import 'package:foodsavr/services/auth_service.dart';
-
-class MockFirebaseAuth extends Mock implements FirebaseAuth {}
-
-class MockUserCredential extends Mock implements UserCredential {}
-
-class MockGoogleSignIn extends Mock implements GoogleSignIn {}
-
-class MockGoogleSignInAccount extends Mock implements GoogleSignInAccount {}
-
-class MockGoogleSignInAuthentication extends Mock
-    implements GoogleSignInAuthentication {}
-
-class MockFacebookAuth extends Mock implements FacebookAuth {}
-
-class MockLoginResult extends Mock implements LoginResult {}
-
-class MockAccessToken extends Mock implements AccessToken {}
-
-class FakeAuthCredential extends Fake implements AuthCredential {}
 
 void main() {
   late MockFirebaseAuth mockFirebaseAuth;
@@ -189,3 +168,22 @@ void main() {
     });
   });
 }
+
+class FakeAuthCredential extends Fake implements AuthCredential {}
+
+class MockAccessToken extends Mock implements AccessToken {}
+
+class MockFacebookAuth extends Mock implements FacebookAuth {}
+
+class MockFirebaseAuth extends Mock implements FirebaseAuth {}
+
+class MockGoogleSignIn extends Mock implements GoogleSignIn {}
+
+class MockGoogleSignInAccount extends Mock implements GoogleSignInAccount {}
+
+class MockGoogleSignInAuthentication extends Mock
+    implements GoogleSignInAuthentication {}
+
+class MockLoginResult extends Mock implements LoginResult {}
+
+class MockUserCredential extends Mock implements UserCredential {}

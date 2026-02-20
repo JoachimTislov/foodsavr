@@ -3,13 +3,9 @@ import 'package:flutter/material.dart';
 
 class AuthToggleButton extends StatelessWidget {
   final bool isLogin;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
-  const AuthToggleButton({
-    super.key,
-    required this.isLogin,
-    required this.onPressed,
-  });
+  const AuthToggleButton({super.key, required this.isLogin, this.onPressed});
 
   @override
   Widget build(BuildContext context) {

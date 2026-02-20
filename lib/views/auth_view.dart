@@ -32,8 +32,10 @@ class _AuthViewState extends State<AuthView> {
   late final IAuthService _authService;
   bool _isLogin = true;
   String? _errorMessage;
+  String? _successMessage;
   bool _rememberMe = false;
   bool _agreedToTerms = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -53,14 +55,23 @@ class _AuthViewState extends State<AuthView> {
   }
 
   void _authenticate() async {
-    setState(() => _errorMessage = null);
+    if (_isLoading) return;
+    setState(() {
+      _errorMessage = null;
+      _successMessage = null;
+      _isLoading = true;
+    });
 
     if (_formKey.currentState?.validate() != true) {
+      setState(() => _isLoading = false);
       return;
     }
 
     if (!_isLogin && !_agreedToTerms) {
-      setState(() => _errorMessage = 'auth_terms_required'.tr());
+      setState(() {
+        _errorMessage = 'auth_terms_required'.tr();
+        _isLoading = false;
+      });
       return;
     }
 
@@ -80,42 +91,76 @@ class _AuthViewState extends State<AuthView> {
     } catch (e) {
       _logger.e('Auth error: $e');
       setState(() => _errorMessage = AuthErrorHandler.getErrorMessage(e));
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   void _signInWithGoogle() async {
-    setState(() => _errorMessage = null);
+    if (_isLoading) return;
+    setState(() {
+      _errorMessage = null;
+      _successMessage = null;
+      _isLoading = true;
+    });
     try {
       await _authService.signInWithGoogle();
     } catch (e) {
       _logger.e('Google Sign-in error: $e');
       setState(() => _errorMessage = AuthErrorHandler.getErrorMessage(e));
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   void _signInWithFacebook() async {
-    setState(() => _errorMessage = null);
+    if (_isLoading) return;
+    setState(() {
+      _errorMessage = null;
+      _successMessage = null;
+      _isLoading = true;
+    });
     try {
       await _authService.signInWithFacebook();
     } catch (e) {
       _logger.e('Facebook Sign-in error: $e');
       setState(() => _errorMessage = AuthErrorHandler.getErrorMessage(e));
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   void _forgotPassword() async {
-    setState(() => _errorMessage = null);
+    if (_isLoading) return;
+    setState(() {
+      _errorMessage = null;
+      _successMessage = null;
+      _isLoading = true;
+    });
     final email = _emailController.text.trim();
     if (email.isEmpty) {
-      setState(() => _errorMessage = 'auth_reset_email_prompt'.tr());
+      setState(() {
+        _errorMessage = 'auth_reset_email_prompt'.tr();
+        _isLoading = false;
+      });
       return;
     }
     try {
       await _authService.sendPasswordResetEmail(email);
-      setState(() => _errorMessage = 'auth_reset_email_sent'.tr());
+      setState(() => _successMessage = 'auth_reset_email_sent'.tr());
     } catch (e) {
       _logger.e('Forgot password error: $e');
       setState(() => _errorMessage = AuthErrorHandler.getErrorMessage(e));
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -215,99 +260,116 @@ class _AuthViewState extends State<AuthView> {
                       textAlign: TextAlign.center,
                     ),
                   ),
+                if (_successMessage != null && _successMessage!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: Text(
+                      _successMessage!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
 
                 // Form Section
-                Form(
-                  key: _formKey,
-                  child: Column(
-                    children: [
-                      AuthFormFields(
-                        emailController: _emailController,
-                        passwordController: _passwordController,
-                      ),
-                      const SizedBox(height: 16.0),
+                AbsorbPointer(
+                  absorbing: _isLoading,
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        AuthFormFields(
+                          emailController: _emailController,
+                          passwordController: _passwordController,
+                        ),
+                        const SizedBox(height: 16.0),
 
-                      // Remember Me and Forgot Password (Login only)
-                      if (_isLogin)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                Checkbox(
-                                  value: _rememberMe,
-                                  onChanged: (bool? value) {
-                                    setState(() {
-                                      _rememberMe = value ?? false;
-                                    });
-                                  },
-                                ),
-                                Text('auth_remember_me'.tr()),
-                              ],
-                            ),
-                            TextButton(
-                              onPressed: _forgotPassword,
-                              child: Text('auth_forgot_password'.tr()),
-                            ),
-                          ],
-                        )
-                      else // Terms and Privacy (Register only)
-                        Row(
-                          children: [
-                            Checkbox(
-                              value: _agreedToTerms,
-                              onChanged: (bool? value) {
-                                setState(() {
-                                  _agreedToTerms = value ?? false;
-                                });
-                              },
-                            ),
-                            Expanded(
-                              child: RichText(
-                                text: TextSpan(
-                                  text: 'auth_agree_prefix'.tr(),
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                  children: [
-                                    TextSpan(
-                                      text: 'common_privacy_notice'.tr(),
-                                      style: TextStyle(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
-                                        fontWeight: FontWeight.bold,
+                        // Remember Me and Forgot Password (Login only)
+                        if (_isLogin)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    value: _rememberMe,
+                                    onChanged: (bool? value) {
+                                      setState(() {
+                                        _rememberMe = value ?? false;
+                                      });
+                                    },
+                                  ),
+                                  Text('auth_remember_me'.tr()),
+                                ],
+                              ),
+                              TextButton(
+                                onPressed: _forgotPassword,
+                                child: Text('auth_forgot_password'.tr()),
+                              ),
+                            ],
+                          )
+                        else // Terms and Privacy (Register only)
+                          Row(
+                            children: [
+                              Checkbox(
+                                value: _agreedToTerms,
+                                onChanged: (bool? value) {
+                                  setState(() {
+                                    _agreedToTerms = value ?? false;
+                                  });
+                                },
+                              ),
+                              Expanded(
+                                child: RichText(
+                                  text: TextSpan(
+                                    text: 'auth_agree_prefix'.tr(),
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                    children: [
+                                      TextSpan(
+                                        text: 'common_privacy_notice'.tr(),
+                                        style: TextStyle(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        recognizer: _privacyRecognizer,
                                       ),
-                                      recognizer: _privacyRecognizer,
-                                    ),
-                                    TextSpan(
-                                      text: 'common_and'.tr(),
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall,
-                                    ),
-                                    TextSpan(
-                                      text: 'common_terms_of_service'.tr(),
-                                      style: TextStyle(
-                                        color: Theme.of(
+                                      TextSpan(
+                                        text: 'common_and'.tr(),
+                                        style: Theme.of(
                                           context,
-                                        ).colorScheme.primary,
-                                        fontWeight: FontWeight.bold,
+                                        ).textTheme.bodySmall,
                                       ),
-                                      recognizer: _termsRecognizer,
-                                    ),
-                                  ],
+                                      TextSpan(
+                                        text: 'common_terms_of_service'.tr(),
+                                        style: TextStyle(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        recognizer: _termsRecognizer,
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      const SizedBox(height: 24.0),
+                            ],
+                          ),
+                        const SizedBox(height: 24.0),
 
-                      // Submit Button
-                      AuthSubmitButton(
-                        isLogin: _isLogin,
-                        onPressed: _authenticate,
-                      ),
-                    ],
+                        // Submit Button
+                        AuthSubmitButton(
+                          isLogin: _isLogin,
+                          isLoading: _isLoading,
+                          onPressed: _isLoading ? null : _authenticate,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24.0),
@@ -337,7 +399,7 @@ class _AuthViewState extends State<AuthView> {
                       iconPath: 'assets/images/google_logo.svg',
                       color: colorScheme.surface,
                       textColor: colorScheme.onSurface,
-                      onPressed: _signInWithGoogle,
+                      onPressed: _isLoading ? null : _signInWithGoogle,
                     ),
                     const SizedBox(height: 16.0),
 
@@ -347,7 +409,7 @@ class _AuthViewState extends State<AuthView> {
                       iconPath: 'assets/images/facebook_logo.svg',
                       color: colorScheme.surface,
                       textColor: colorScheme.onSurface,
-                      onPressed: _signInWithFacebook,
+                      onPressed: _isLoading ? null : _signInWithFacebook,
                     ),
                   ],
                 ),
@@ -356,14 +418,17 @@ class _AuthViewState extends State<AuthView> {
                 // Footer Link
                 AuthToggleButton(
                   isLogin: _isLogin,
-                  onPressed: () {
-                    setState(() {
-                      _isLogin = !_isLogin;
-                      _errorMessage = null;
-                      _emailController.clear();
-                      _passwordController.clear();
-                    });
-                  },
+                  onPressed: _isLoading
+                      ? null
+                      : () {
+                          setState(() {
+                            _isLogin = !_isLogin;
+                            _errorMessage = null;
+                            _successMessage = null;
+                            _emailController.clear();
+                            _passwordController.clear();
+                          });
+                        },
                 ),
               ],
             ),

@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 
 class AuthSubmitButton extends StatelessWidget {
   final bool isLogin;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
+  final bool isLoading;
 
   const AuthSubmitButton({
     super.key,
     required this.isLogin,
-    required this.onPressed,
+    this.onPressed,
+    this.isLoading = false,
   });
 
   @override
@@ -17,7 +19,13 @@ class AuthSubmitButton extends StatelessWidget {
       width: double.infinity,
       child: ElevatedButton.icon(
         onPressed: onPressed,
-        icon: Icon(isLogin ? Icons.login : Icons.person_add),
+        icon: isLoading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(isLogin ? Icons.login : Icons.person_add),
         label: Text(
           isLogin ? 'auth_login'.tr() : 'auth_register'.tr(),
           style: const TextStyle(fontSize: 18),
