@@ -43,7 +43,7 @@ dependencies:
   logger: ^2.6.2
   get_it: ^9.2.0
   intl: ^0.20.2
-  google_sign_in: 7.2.0
+  google_sign_in: ^7.2.0
   flutter_facebook_auth: ^7.1.5
   flutter_svg: ^2.2.3
 
@@ -74,6 +74,9 @@ flutter:
   assets:
     - assets/translations/
     - assets/images/
+    - path: assets/images/
+      transformers:
+        - package: vector_graphics_compiler
 
   # To add assets to your application, add an assets section, like this:
   # assets:

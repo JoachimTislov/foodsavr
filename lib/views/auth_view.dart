@@ -126,14 +126,14 @@ class _AuthViewState extends State<AuthView> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('privacy-notice'.tr()),
+          title: Text('Privacy Notice'.tr()),
           content: SingleChildScrollView(child: Text(PrivacyNotice.content)),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: Text('close'.tr()),
+              child: Text('Close'.tr()),
             ),
           ],
         );
@@ -183,15 +183,15 @@ class _AuthViewState extends State<AuthView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _isLogin ? 'Welcome Back' : 'Create Account',
+                        _isLogin ? 'Welcome Back'.tr() : 'Create Account'.tr(),
                         style: Theme.of(context).textTheme.headlineMedium
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8.0),
                       Text(
                         _isLogin
-                            ? 'Sign in to manage your inventory.'
-                            : 'Sign up to start saving time and money.',
+                            ? 'Sign in to manage your inventory.'.tr()
+                            : 'Sign up to start saving time and money.'.tr(),
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               color: Theme.of(

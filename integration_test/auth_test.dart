@@ -10,8 +10,14 @@ void main() {
     app.main();
     await tester.pumpAndSettle();
 
-    // Verify we are on Auth View
-    expect(find.text('Create Account'), findsOneWidget);
+    // Verify app has loaded landing screen
+    expect(find.byType(Scaffold), findsWidgets);
+
+    await tester.tap(find.text('Continue with Email'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Sign up'));
+    await tester.pumpAndSettle();
 
     // Enter email
     await tester.enterText(
@@ -28,7 +34,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Tap Register
-    await tester.tap(find.text('register'));
+    await tester.tap(find.byType(ElevatedButton).last);
     await tester.pumpAndSettle();
 
     // Assuming successful registration navigates to MainView

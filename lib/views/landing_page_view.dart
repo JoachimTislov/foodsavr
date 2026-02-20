@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import '../widgets/auth/social_login_button.dart';
 import 'auth_view.dart';
@@ -39,7 +40,7 @@ class LandingPageView extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Inventory Login',
+                    'Inventory Login'.tr(),
                     style: textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                       color: colorScheme.onSurface,
@@ -48,7 +49,7 @@ class LandingPageView extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Track, manage, and scale your stock with efficiency.',
+                    'Track, manage, and scale your stock with efficiency.'.tr(),
                     style: textTheme.titleMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w500,
@@ -59,7 +60,7 @@ class LandingPageView extends StatelessWidget {
 
                   // Social Login Stack
                   SocialLoginButton(
-                    text: 'Continue with Google',
+                    text: 'Continue with Google'.tr(),
                     iconPath: 'assets/images/google_logo.svg',
                     color: colorScheme.surface,
                     textColor: colorScheme.onSurface,
@@ -69,7 +70,7 @@ class LandingPageView extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   SocialLoginButton(
-                    text: 'Continue with Facebook',
+                    text: 'Continue with Facebook'.tr(),
                     iconPath: 'assets/images/facebook_logo.svg',
                     color: colorScheme.surface,
                     textColor: colorScheme.onSurface,
@@ -89,7 +90,7 @@ class LandingPageView extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
-                          'OR',
+                          'OR'.tr(),
                           style: TextStyle(
                             color: colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.bold,
@@ -113,17 +114,17 @@ class LandingPageView extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (context) =>
-                              const AuthView(title: 'Inventory Login'),
+                              AuthView(title: 'Inventory Login'.tr()),
                         ),
                       );
                     },
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
+                      children: [
                         Icon(Icons.mail_outline),
                         SizedBox(width: 8),
                         Text(
-                          'Continue with Email',
+                          'Continue with Email'.tr(),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -140,7 +141,7 @@ class LandingPageView extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        "Don't have an account?",
+                        "Don't have an account?".tr(),
                         style: TextStyle(
                           color: colorScheme.onSurfaceVariant,
                           fontWeight: FontWeight.w500,
@@ -157,7 +158,7 @@ class LandingPageView extends StatelessWidget {
                           );
                         },
                         child: Text(
-                          'Sign up',
+                          'Sign up'.tr(),
                           style: TextStyle(
                             color: colorScheme.primary,
                             fontWeight: FontWeight.bold,

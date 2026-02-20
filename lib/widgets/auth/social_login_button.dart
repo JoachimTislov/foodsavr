@@ -36,7 +36,17 @@ class SocialLoginButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SvgPicture.asset(iconPath, height: 24, width: 24),
+            SvgPicture.asset(
+              iconPath,
+              height: 24,
+              width: 24,
+              semanticsLabel: text,
+              placeholderBuilder: (context) => const SizedBox(
+                height: 24,
+                width: 24,
+                child: Icon(Icons.image_not_supported_outlined, size: 20),
+              ),
+            ),
             const SizedBox(width: 12),
             Text(
               text,
