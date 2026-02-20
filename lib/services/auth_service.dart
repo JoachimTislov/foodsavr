@@ -29,11 +29,7 @@ class AuthService implements IAuthService {
     required String password,
     bool rememberMe = false,
   }) async {
-    if (rememberMe) {
-      await _firebaseAuth.setPersistence(Persistence.LOCAL);
-    } else {
-      await _firebaseAuth.setPersistence(Persistence.SESSION);
-    }
+import 'package:flutter/foundation.dart' show kIsWeb;
     return _firebaseAuth.signInWithEmailAndPassword(
       email: email,
       password: password,
