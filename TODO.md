@@ -42,6 +42,9 @@ actions:
         - [x] Also one for Test, should be template
     - [ ] Screenshot of page for reference to give better context to the LLM when adjusting UI
         - [ ] UI healing, grading in terms of user feeling, accessibility, material 3 compliance, etc.
+    - [ ] Locales command
+    - [ ] Code cleanup command for refactoring and improving code quality
+    - [ ] Grep command for searching through codebase for specific patterns or issues
 - [ ] Reference files inside of commands for better context and more specific adjustments
     - [ ] decide what should always be loaded into memory
 - [ ] Add skills, rules and MCPs

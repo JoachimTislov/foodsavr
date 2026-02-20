@@ -190,7 +190,7 @@ class _AuthViewState extends State<AuthView> {
                       const SizedBox(height: 8.0),
                       Text(
                         _isLogin
-                            ? 'Sign in to manage your kitchen.'
+                            ? 'Sign in to manage your inventory.'
                             : 'Sign up to start saving time and money.',
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
