@@ -55,6 +55,6 @@ These Terms shall be governed and construed in accordance with the laws of Norwa
 
 ### 11. Contact Us
 
-If you have any questions about these Terms, please contact us at support@foodsavr.app.
+If you have any questions about these Terms, please contact us at todo@gmail.com.
 """;
 }
