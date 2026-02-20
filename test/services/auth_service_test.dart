@@ -159,6 +159,27 @@ void main() {
       verify(() => mockFirebaseAuth.signInWithCredential(any())).called(1);
     });
 
+    test('signInWithFacebook throws when access token is null', () async {
+      final mockResult = MockLoginResult();
+
+      when(() => mockFacebookAuth.login()).thenAnswer((_) async => mockResult);
+      when(() => mockResult.accessToken).thenReturn(null);
+
+      await expectLater(
+        authService.signInWithFacebook(),
+        throwsA(
+          isA<FirebaseAuthException>().having(
+            (e) => e.code,
+            'code',
+            'ERROR_ABORTED_BY_USER',
+          ),
+        ),
+      );
+
+      verify(() => mockFacebookAuth.login()).called(1);
+      verifyNever(() => mockFirebaseAuth.signInWithCredential(any()));
+    });
+
     test('signOut calls signOut', () async {
       when(() => mockFirebaseAuth.signOut()).thenAnswer((_) async {});
 
