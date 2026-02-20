@@ -6,8 +6,15 @@ import '../interfaces/i_auth_service.dart';
 
 class AuthService implements IAuthService {
   final FirebaseAuth _firebaseAuth;
+  final GoogleSignIn _googleSignIn;
+  final FacebookAuth _facebookAuth;
 
-  AuthService(this._firebaseAuth);
+  AuthService(
+    this._firebaseAuth, {
+    GoogleSignIn? googleSignIn,
+    FacebookAuth? facebookAuth,
+  }) : _googleSignIn = googleSignIn ?? GoogleSignIn.instance,
+       _facebookAuth = facebookAuth ?? FacebookAuth.instance;
 
   @override
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
@@ -50,8 +57,7 @@ class AuthService implements IAuthService {
 
   @override
   Future<UserCredential> signInWithGoogle() async {
-    final GoogleSignInAccount googleUser = await GoogleSignIn.instance
-        .authenticate();
+    final GoogleSignInAccount googleUser = await _googleSignIn.authenticate();
 
     // Obtain the auth details from the request
     final GoogleSignInAuthentication googleAuth = googleUser.authentication;
@@ -71,7 +77,7 @@ class AuthService implements IAuthService {
   /// - [FirebaseAuthException] if sign-in fails or is aborted by the user.
   Future<UserCredential> signInWithFacebook() async {
     // Trigger the sign-in flow
-    final LoginResult loginResult = await FacebookAuth.instance.login();
+    final LoginResult loginResult = await _facebookAuth.login();
     final AccessToken? accessToken = loginResult.accessToken;
     if (accessToken == null) {
       throw FirebaseAuthException(
