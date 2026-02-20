@@ -17,13 +17,11 @@ class AuthToggleButton extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
-          isLogin
-              ? 'Don\'t have an account?'.tr()
-              : 'Already have an account?'.tr(),
+          isLogin ? 'auth_no_account'.tr() : 'auth_already_have_account'.tr(),
         ),
         TextButton(
           onPressed: onPressed,
-          child: Text(isLogin ? 'Sign up'.tr() : 'Login'.tr()),
+          child: Text(isLogin ? 'auth_sign_up'.tr() : 'auth_login_title'.tr()),
         ),
       ],
     );

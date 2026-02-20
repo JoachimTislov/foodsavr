@@ -6,21 +6,21 @@ class AuthErrorHandler {
     if (error is FirebaseAuthException) {
       switch (error.code) {
         case 'user-not-found':
-          return 'No user found for that email.'.tr();
+          return 'auth_error_user_not_found'.tr();
         case 'wrong-password':
-          return 'Wrong password provided for that user.'.tr();
+          return 'auth_error_wrong_password'.tr();
         case 'email-already-in-use':
-          return 'The account already exists for that email.'.tr();
+          return 'auth_error_email_already_in_use'.tr();
         case 'invalid-email':
-          return 'The email address is not valid.'.tr();
+          return 'auth_error_invalid_email'.tr();
         case 'weak-password':
-          return 'The password provided is too weak.'.tr();
+          return 'auth_error_weak_password'.tr();
         case 'operation-not-allowed':
-          return 'Operation not allowed.'.tr();
+          return 'auth_error_operation_not_allowed'.tr();
         case 'user-disabled':
-          return 'The user account has been disabled.'.tr();
+          return 'auth_error_user_disabled'.tr();
         default:
-          return 'An undefined Error happened.'.tr();
+          return 'auth_error_unknown'.tr();
       }
     }
     return error.toString();

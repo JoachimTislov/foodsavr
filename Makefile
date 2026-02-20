@@ -1,7 +1,7 @@
-.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps
+.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps locale-check
 
 dev-chrome-prod:
-	@flutter run -d chrome --no-pub --flavor production 
+	@flutter run -d chrome --no-pub --flavor production
 
 dev-chrome: start-firebase-emulators
 	@flutter run -d chrome --no-pub
@@ -55,3 +55,7 @@ clean:
 locales:
 	@echo "Extracting locales..."
 	@grep -r -o -E "'.*?'\.tr\(\)" lib/
+
+locale-check:
+	@echo "Checking localization keys..."
+	@dart run tool/check_localizations.dart

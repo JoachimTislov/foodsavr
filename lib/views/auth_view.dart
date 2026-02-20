@@ -27,6 +27,8 @@ class _AuthViewState extends State<AuthView> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final _privacyRecognizer = TapGestureRecognizer();
+  final _termsRecognizer = TapGestureRecognizer();
   late final IAuthService _authService;
   bool _isLogin = true;
   String? _errorMessage;
@@ -37,12 +39,16 @@ class _AuthViewState extends State<AuthView> {
   void initState() {
     super.initState();
     _authService = getIt<IAuthService>();
+    _privacyRecognizer.onTap = _showPrivacyNotice;
+    _termsRecognizer.onTap = _showTermsOfService;
   }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _privacyRecognizer.dispose();
+    _termsRecognizer.dispose();
     super.dispose();
   }
 
@@ -54,10 +60,7 @@ class _AuthViewState extends State<AuthView> {
     }
 
     if (!_isLogin && !_agreedToTerms) {
-      setState(
-        () => _errorMessage =
-            'You must agree to the Terms of Service and Privacy Notice.'.tr(),
-      );
+      setState(() => _errorMessage = 'auth_terms_required'.tr());
       return;
     }
 
@@ -104,17 +107,12 @@ class _AuthViewState extends State<AuthView> {
     setState(() => _errorMessage = null);
     final email = _emailController.text.trim();
     if (email.isEmpty) {
-      setState(
-        () => _errorMessage = 'Please enter your email to reset password.'.tr(),
-      );
+      setState(() => _errorMessage = 'auth_reset_email_prompt'.tr());
       return;
     }
     try {
       await _authService.sendPasswordResetEmail(email);
-      setState(
-        () =>
-            _errorMessage = 'Password reset email sent. Check your inbox.'.tr(),
-      );
+      setState(() => _errorMessage = 'auth_reset_email_sent'.tr());
     } catch (e) {
       _logger.e('Forgot password error: $e');
       setState(() => _errorMessage = AuthErrorHandler.getErrorMessage(e));
@@ -126,14 +124,14 @@ class _AuthViewState extends State<AuthView> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Privacy Notice'.tr()),
+          title: Text('common_privacy_notice'.tr()),
           content: SingleChildScrollView(child: Text(PrivacyNotice.content)),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: Text('Close'.tr()),
+              child: Text('common_close'.tr()),
             ),
           ],
         );
@@ -146,14 +144,14 @@ class _AuthViewState extends State<AuthView> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Terms of Service'.tr()),
+          title: Text('common_terms_of_service'.tr()),
           content: SingleChildScrollView(child: Text(TermsOfService.content)),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: Text('Close'.tr()),
+              child: Text('common_close'.tr()),
             ),
           ],
         );
@@ -183,15 +181,17 @@ class _AuthViewState extends State<AuthView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _isLogin ? 'Welcome Back'.tr() : 'Create Account'.tr(),
+                        _isLogin
+                            ? 'auth_welcome_back'.tr()
+                            : 'auth_create_account'.tr(),
                         style: Theme.of(context).textTheme.headlineMedium
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8.0),
                       Text(
                         _isLogin
-                            ? 'Sign in to manage your inventory.'.tr()
-                            : 'Sign up to start saving time and money.'.tr(),
+                            ? 'auth_sign_in_subtitle'.tr()
+                            : 'auth_sign_up_subtitle'.tr(),
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               color: Theme.of(
@@ -242,12 +242,12 @@ class _AuthViewState extends State<AuthView> {
                                     });
                                   },
                                 ),
-                                Text('Remember me'.tr()),
+                                Text('auth_remember_me'.tr()),
                               ],
                             ),
                             TextButton(
                               onPressed: _forgotPassword,
-                              child: Text('Forgot Password?'.tr()),
+                              child: Text('auth_forgot_password'.tr()),
                             ),
                           ],
                         )
@@ -265,36 +265,34 @@ class _AuthViewState extends State<AuthView> {
                             Expanded(
                               child: RichText(
                                 text: TextSpan(
-                                  text: 'I agree to the '.tr(),
+                                  text: 'auth_agree_prefix'.tr(),
                                   style: Theme.of(context).textTheme.bodySmall,
                                   children: [
                                     TextSpan(
-                                      text: 'Privacy Notice'.tr(),
+                                      text: 'common_privacy_notice'.tr(),
                                       style: TextStyle(
                                         color: Theme.of(
                                           context,
                                         ).colorScheme.primary,
                                         fontWeight: FontWeight.bold,
                                       ),
-                                      recognizer: TapGestureRecognizer()
-                                        ..onTap = _showPrivacyNotice,
+                                      recognizer: _privacyRecognizer,
                                     ),
                                     TextSpan(
-                                      text: ' and '.tr(),
+                                      text: 'common_and'.tr(),
                                       style: Theme.of(
                                         context,
                                       ).textTheme.bodySmall,
                                     ),
                                     TextSpan(
-                                      text: 'Terms of Service'.tr(),
+                                      text: 'common_terms_of_service'.tr(),
                                       style: TextStyle(
                                         color: Theme.of(
                                           context,
                                         ).colorScheme.primary,
                                         fontWeight: FontWeight.bold,
                                       ),
-                                      recognizer: TapGestureRecognizer()
-                                        ..onTap = _showTermsOfService,
+                                      recognizer: _termsRecognizer,
                                     ),
                                   ],
                                 ),
@@ -321,7 +319,7 @@ class _AuthViewState extends State<AuthView> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       child: Text(
-                        'OR'.tr(),
+                        'common_or'.tr(),
                         style: Theme.of(context).textTheme.labelLarge,
                       ),
                     ),
@@ -335,7 +333,7 @@ class _AuthViewState extends State<AuthView> {
                   children: [
                     // Google Button
                     SocialLoginButton(
-                      text: 'Continue with Google'.tr(),
+                      text: 'auth_continue_google'.tr(),
                       iconPath: 'assets/images/google_logo.svg',
                       color: colorScheme.surface,
                       textColor: colorScheme.onSurface,
@@ -345,7 +343,7 @@ class _AuthViewState extends State<AuthView> {
 
                     // Facebook Button
                     SocialLoginButton(
-                      text: 'Continue with Facebook'.tr(),
+                      text: 'auth_continue_facebook'.tr(),
                       iconPath: 'assets/images/facebook_logo.svg',
                       color: colorScheme.surface,
                       textColor: colorScheme.onSurface,

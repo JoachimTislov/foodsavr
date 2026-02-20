@@ -45,6 +45,7 @@ void main() {
       mockFirebaseAuth,
       googleSignIn: mockGoogleSignIn,
       facebookAuth: mockFacebookAuth,
+      supportsPersistence: true,
     );
   });
 

@@ -34,7 +34,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Tap Register
-    await tester.tap(find.byType(ElevatedButton).last);
+    await tester.tap(find.text('Register'));
     await tester.pumpAndSettle();
 
     // Assuming successful registration navigates to MainView

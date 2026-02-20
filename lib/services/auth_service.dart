@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -8,13 +9,16 @@ class AuthService implements IAuthService {
   final FirebaseAuth _firebaseAuth;
   final GoogleSignIn _googleSignIn;
   final FacebookAuth _facebookAuth;
+  final bool _supportsPersistence;
 
   AuthService(
     this._firebaseAuth, {
     GoogleSignIn? googleSignIn,
     FacebookAuth? facebookAuth,
+    bool? supportsPersistence,
   }) : _googleSignIn = googleSignIn ?? GoogleSignIn.instance,
-       _facebookAuth = facebookAuth ?? FacebookAuth.instance;
+       _facebookAuth = facebookAuth ?? FacebookAuth.instance,
+       _supportsPersistence = supportsPersistence ?? kIsWeb;
 
   @override
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
@@ -29,7 +33,13 @@ class AuthService implements IAuthService {
     required String password,
     bool rememberMe = false,
   }) async {
-import 'package:flutter/foundation.dart' show kIsWeb;
+    if (_supportsPersistence) {
+      if (rememberMe) {
+        await _firebaseAuth.setPersistence(Persistence.LOCAL);
+      } else {
+        await _firebaseAuth.setPersistence(Persistence.SESSION);
+      }
+    }
     return _firebaseAuth.signInWithEmailAndPassword(
       email: email,
       password: password,

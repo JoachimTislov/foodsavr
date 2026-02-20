@@ -19,7 +19,7 @@ class AuthSubmitButton extends StatelessWidget {
         onPressed: onPressed,
         icon: Icon(isLogin ? Icons.login : Icons.person_add),
         label: Text(
-          isLogin ? 'login'.tr() : 'register'.tr(),
+          isLogin ? 'auth_login'.tr() : 'auth_register'.tr(),
           style: const TextStyle(fontSize: 18),
         ),
         style: ElevatedButton.styleFrom(

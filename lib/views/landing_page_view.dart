@@ -40,7 +40,7 @@ class LandingPageView extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Inventory Login'.tr(),
+                    'landing_title'.tr(),
                     style: textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                       color: colorScheme.onSurface,
@@ -49,7 +49,7 @@ class LandingPageView extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Track, manage, and scale your stock with efficiency.'.tr(),
+                    'landing_subtitle'.tr(),
                     style: textTheme.titleMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w500,
@@ -60,23 +60,19 @@ class LandingPageView extends StatelessWidget {
 
                   // Social Login Stack
                   SocialLoginButton(
-                    text: 'Continue with Google'.tr(),
+                    text: 'auth_continue_google'.tr(),
                     iconPath: 'assets/images/google_logo.svg',
                     color: colorScheme.surface,
                     textColor: colorScheme.onSurface,
-                    onPressed: () {
-                      // Ignored as per instructions
-                    },
+                    onPressed: null,
                   ),
                   const SizedBox(height: 16),
                   SocialLoginButton(
-                    text: 'Continue with Facebook'.tr(),
+                    text: 'auth_continue_facebook'.tr(),
                     iconPath: 'assets/images/facebook_logo.svg',
                     color: colorScheme.surface,
                     textColor: colorScheme.onSurface,
-                    onPressed: () {
-                      // Ignored as per instructions
-                    },
+                    onPressed: null,
                   ),
 
                   const SizedBox(height: 24),
@@ -90,7 +86,7 @@ class LandingPageView extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
-                          'OR'.tr(),
+                          'common_or'.tr(),
                           style: TextStyle(
                             color: colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.bold,
@@ -114,7 +110,7 @@ class LandingPageView extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (context) =>
-                              AuthView(title: 'Inventory Login'.tr()),
+                              AuthView(title: 'landing_title'.tr()),
                         ),
                       );
                     },
@@ -124,7 +120,7 @@ class LandingPageView extends StatelessWidget {
                         Icon(Icons.mail_outline),
                         SizedBox(width: 8),
                         Text(
-                          'Continue with Email'.tr(),
+                          'auth_continue_email'.tr(),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -141,7 +137,7 @@ class LandingPageView extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        "Don't have an account?".tr(),
+                        'auth_no_account'.tr(),
                         style: TextStyle(
                           color: colorScheme.onSurfaceVariant,
                           fontWeight: FontWeight.w500,
@@ -153,12 +149,12 @@ class LandingPageView extends StatelessWidget {
                             context,
                             MaterialPageRoute(
                               builder: (context) =>
-                                  const AuthView(title: 'Sign Up'),
+                                  AuthView(title: 'auth_sign_up'.tr()),
                             ),
                           );
                         },
                         child: Text(
-                          'Sign up'.tr(),
+                          'auth_sign_up'.tr(),
                           style: TextStyle(
                             color: colorScheme.primary,
                             fontWeight: FontWeight.bold,
