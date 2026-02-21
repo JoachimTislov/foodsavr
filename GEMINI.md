@@ -24,17 +24,16 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK ^3.10.7)
 **Firestore Collections**: `products`, `collections`.
 **Future Specs**: See `@docs/implementation/` for users, shopping lists, recipes, meals, and groups.
 
-## 3. Standards & Workflow
+## 3. Standards & Commands
 - **Widget Rules**: **One widget per file**; no private builders (e.g., `_buildX()`) in views; keep view files < 200 lines.
 - **Strict Separation**: Business logic **MUST** reside in models or services. **ZERO** business logic in widget build methods or private view helpers.
-- **Development Workflow**:
+- **Commands**
   - run "rg -g" instead of "rg --g". It is not supported (ripgrep --help gives you --glob/-g, not --g).
   - make dev-chrome: Run in Chrome.
   - `make deps`: Fetch dependencies.
   - `make check`: Run full suite (analyze, format, test). **Required before commit**.
-  - `make start-firebase-emulators`: Start local backend (Auth/Firestore).
-  - `make kill-firebase-emulators`: Stop backend.
-<<<<<<< HEAD
+
+## 4. **Workflow**:
   - **Task Completion Rule**: After each completed task (or tight related batch), commit and push immediately.
   - **Commit Message Rule**: Use clear descriptive messages; prefer Conventional Commits (e.g., `fix(router): handle auth redirect`).
   - **Execution Loop Rule**: Gather context (code/tests/PR comments/docs/rules/skills), check for missing context, implement minimal fix, run `make check`, add/update tests, run `make check` until green, run `make push`; if `make push` fails, fix and repeat from `make check`.
@@ -46,7 +45,7 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK ^3.10.7)
   - **Resolved Comment Cleanup Rule**: Remove stale comment references once high-quality, Effective Dart-aligned, non-fragile solutions are fully implemented.
 - **Style**: `snake_case` (files), `camelCase` (members), `_private`. Follow [Effective Dart](https://dart.dev/effective-dart/design).
 
-### Implementation Pattern (New Features)
+## Implementation Pattern (New Features)
 1. **Model**: `@models/` (JSON logic + computed properties).
 2. **Interface**: `@interfaces/i_your_repository.dart`.
 3. **Repository**: `@repositories/your_repository.dart` (Firestore impl).
