@@ -1,5 +1,23 @@
 # TODO
 
+Look into
+
+- [ ] "Cloud Firestore emulator" Flutter integration test
+- [ ] "flutter test" "firebase emulator" CI GitHub Actions
+- [ ] "firestore.rules" best practices Flutter app
+- [ ] "firestore.indexes.json" composite indexes guide
+
+## packages to consider
+
+- url_launcher
+- lints
+- dart_code_metrics: Advanced linter
+- injectable
+	- injectable_generator
+- font_awesome
+- timezone
+- analyzer
+
 ## Testing Checklist (after #3)
 - [x] Test with Firebase emulator running
 - [x] Verify user-specific filtering (products shown only for logged-in user)

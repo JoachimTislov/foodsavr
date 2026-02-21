@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -37,8 +39,6 @@ dependencies:
   firebase_core: ^4.4.0
   firebase_auth: ^6.1.4
   cloud_firestore: ^6.1.2
-  flutter_localizations:
-    sdk: flutter
   easy_localization: ^3.0.0
   logger: ^2.6.2
   get_it: ^9.2.0
@@ -74,16 +74,8 @@ flutter:
 
   assets:
     - assets/translations/
-    - assets/images/
-    # TODO: determine if this is needed
-    # - path: assets/images/
-    #   transformers:
-    #     - package: vector_graphics_compiler
+    - assets/images/ # SVG compilation is handled by flutter_svg, so we can include the SVG files directly as assets
 
-  # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
