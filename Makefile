@@ -1,4 +1,4 @@
-.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps locale-check push
+.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test test-auth-flow clean locales check check-fast check-full deps locale-check preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated
 
 dev-chrome-prod:
 	@flutter run -d chrome --no-pub --flavor production
@@ -30,7 +30,11 @@ deps:
 	@flutter pub get
 
 # Code quality commands
-check: analyze fix fmt test locale-check
+check: check-fast
+
+check-fast: deps analyze fix fmt test locale-check
+
+check-full: check-fast clean
 
 analyze:
 	@echo "Running Flutter analyze..."
@@ -48,6 +52,10 @@ test:
 	@echo "Running tests..."
 	@flutter test --no-pub
 
+test-auth-flow:
+	@echo "Running auth flow regression test..."
+	@flutter test --no-pub test/router_auth_flow_test.dart
+
 clean:
 	@echo "Cleaning build artifacts..."
 	@flutter clean
@@ -60,7 +68,7 @@ locale-check:
 	@echo "Checking localization keys..."
 	@dart run tool/check_localizations.dart
 
-push:
+preflight:
 	@echo "Running preflight sync checks..."
 	@git fetch --quiet
 	@if [ -n "$$(git status --porcelain)" ]; then \
@@ -71,6 +79,29 @@ push:
 		echo "Preflight failed: branch is behind upstream. Pull/rebase first."; \
 		exit 1; \
 	fi
-	@$(MAKE) check
+
+push: preflight
+	@$(MAKE) check-full
 	@echo "Pushing to remote..."
 	@git push
+
+pr-comments-active:
+	@if [ -z "$(PR)" ]; then \
+		echo "Usage: make pr-comments-active PR=<number>"; \
+		exit 1; \
+	fi
+	@tool/list_active_review_threads.sh $(PR)
+
+pr-comments-resolve-active:
+	@if [ -z "$(PR)" ]; then \
+		echo "Usage: make pr-comments-resolve-active PR=<number>"; \
+		exit 1; \
+	fi
+	@tool/resolve_active_review_threads.sh $(PR)
+
+pr-comments-resolve-outdated:
+	@if [ -z "$(PR)" ]; then \
+		echo "Usage: make pr-comments-resolve-outdated PR=<number>"; \
+		exit 1; \
+	fi
+	@tool/resolve_outdated_review_threads.sh $(PR)
