@@ -24,6 +24,7 @@ class _ProductListViewState extends State<ProductListView> {
   late final ProductService _productService;
   late final IAuthService _authService;
   ProductViewMode _viewMode = ProductViewMode.normal;
+  bool _isSigningOut = false;
 
   @override
   Widget build(BuildContext context) {
@@ -130,7 +131,7 @@ class _ProductListViewState extends State<ProductListView> {
           ),
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => _authService.signOut(),
+            onPressed: _isSigningOut ? null : _handleSignOut,
             tooltip: 'Sign Out',
           ),
         ],
@@ -312,5 +313,25 @@ class _ProductListViewState extends State<ProductListView> {
     setState(() {
       _productsFuture = _fetchProducts();
     });
+  }
+
+  Future<void> _handleSignOut() async {
+    setState(() {
+      _isSigningOut = true;
+    });
+    try {
+      await _authService.signOut();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Sign out failed: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSigningOut = false;
+        });
+      }
+    }
   }
 }
