@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:logger/logger.dart';
 
 import 'firebase_options.dart';
+import 'interfaces/i_auth_service.dart';
 import 'router.dart';
 import 'service_locator.dart';
 import 'utils/app_theme.dart';
@@ -59,18 +60,21 @@ void main() async {
 
   const enLocale = Locale('en', 'US');
   await EasyLocalization.ensureInitialized();
+  final router = createAppRouter(getIt<IAuthService>());
   runApp(
     EasyLocalization(
       supportedLocales: const [enLocale, Locale('nb', 'NO')],
       path: 'assets/translations',
       fallbackLocale: enLocale,
-      child: MyApp(),
+      child: MyApp(router: router),
     ),
   );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final RouterConfig<Object> router;
+
+  const MyApp({super.key, required this.router});
 
   @override
   Widget build(BuildContext context) {
@@ -82,7 +86,7 @@ class MyApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
-      routerConfig: appRouter,
+      routerConfig: router,
     );
   }
 }
