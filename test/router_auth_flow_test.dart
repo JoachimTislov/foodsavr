@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/router.dart';
@@ -99,6 +100,9 @@ class _TestApp extends StatelessWidget {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  final messenger = TestDefaultBinaryMessengerBinding
+      .instance.defaultBinaryMessenger;
+  messenger.setMockMessageHandler('flutter/lifecycle', (_) async => null);
 
   group('Auth routing regression', () {
     late _FakeAuthService authService;
@@ -165,5 +169,9 @@ void main() {
         expect(find.byType(LandingPageView), findsNothing);
       },
     );
+  });
+
+  tearDownAll(() {
+    messenger.setMockMessageHandler('flutter/lifecycle', null);
   });
 }
