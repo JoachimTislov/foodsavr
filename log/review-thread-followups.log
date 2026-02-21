@@ -1,9 +1,57 @@
-2026-02-21T02:34:14Z | PRRT_kwDOPlJx-c5v5P3T | lib/router.dart | already fixed or tracked in prior commits; resolving thread
-2026-02-21T02:35:14Z | PRRT_kwDOPlJx-c5v5P3W | lib/models/product_model.dart | previously addressed in earlier code commits; resolving now
-2026-02-21T02:35:25Z | PRRT_kwDOPlJx-c5v5QrS | lib/views/product_list_view.dart | previously addressed in earlier code commits; resolving now
-2026-02-21T02:35:36Z | PRRT_kwDOPlJx-c5v5Qwz | lib/router.dart | previously addressed in earlier code commits; resolving now
-2026-02-21T02:35:47Z | PRRT_kwDOPlJx-c5v5Qw2 | lib/widgets/product/product_card_details.dart | previously addressed in earlier code commits; resolving now
-2026-02-21T02:35:58Z | PRRT_kwDOPlJx-c5v5Qw_ | lib/models/product_model.dart | previously addressed in earlier code commits; resolving now
-2026-02-21T02:36:09Z | PRRT_kwDOPlJx-c5v5QxG | lib/models/product_model.dart | previously addressed in earlier code commits; resolving now
-2026-02-21T02:36:20Z | PRRT_kwDOPlJx-c5v5QxJ | lib/services/seeding_service.dart | previously addressed in earlier code commits; resolving now
-2026-02-21T02:36:32Z | PRRT_kwDOPlJx-c5v5U5t | tool/list_active_review_threads.sh | previously addressed in earlier code commits; resolving now
+Review thread follow-up ledger (PR #9)
+Purpose: prevent duplicate re-triage/retrieval of already-addressed comments by future agents.
+Rule: if a thread id appears here with status=resolved-by-existing-change, do not reopen/re-fetch as actionable unless new code regresses.
+
+thread=PRRT_kwDOPlJx-c5v5P3T
+time=2026-02-21T02:34:14Z
+file=lib/router.dart
+status=resolved-by-existing-change
+rationale=imports and typed StreamSubscription were already implemented in router refactor.
+
+thread=PRRT_kwDOPlJx-c5v5P3W
+time=2026-02-21T02:35:14Z
+file=lib/models/product_model.dart
+status=resolved-by-existing-change
+rationale=friendly status logic moved to Product model (`getFriendlyStatus`), matching review request.
+
+thread=PRRT_kwDOPlJx-c5v5QrS
+time=2026-02-21T02:35:25Z
+file=lib/views/product_list_view.dart
+status=resolved-by-existing-change
+rationale=sign-out action now awaits Future, handles errors, and manages in-flight state.
+
+thread=PRRT_kwDOPlJx-c5v5Qwz
+time=2026-02-21T02:35:36Z
+file=lib/router.dart
+status=resolved-by-existing-change
+rationale=dynamic subscription and lint suppression removed; typed subscription in place.
+
+thread=PRRT_kwDOPlJx-c5v5Qw2
+time=2026-02-21T02:35:47Z
+file=lib/widgets/product/product_card_details.dart
+status=resolved-by-existing-change
+rationale=tooltip/status messaging now uses model-friendly status for "Today"/"Expired" consistency.
+
+thread=PRRT_kwDOPlJx-c5v5Qw_
+time=2026-02-21T02:35:58Z
+file=lib/models/product_model.dart
+status=resolved-by-decision
+rationale=comment is PR-scope/process advice (split PR or update description), not code defect; intentionally closed.
+
+thread=PRRT_kwDOPlJx-c5v5QxG
+time=2026-02-21T02:36:09Z
+file=lib/models/product_model.dart
+status=resolved-by-existing-change
+rationale=added explicit `nonExpiringQuantity` and included it in computed total quantity.
+
+thread=PRRT_kwDOPlJx-c5v5QxJ
+time=2026-02-21T02:36:20Z
+file=lib/services/seeding_service.dart
+status=resolved-by-existing-change
+rationale=seeding now preserves quantity for non-expiring items via `nonExpiringQuantity`.
+
+thread=PRRT_kwDOPlJx-c5v5U5t
+time=2026-02-21T02:36:32Z
+file=tool/list_active_review_threads.sh
+status=resolved-by-existing-change
+rationale=follow-up tooling thread handled in scripts commit; list/resolve now operate one thread at a time.
