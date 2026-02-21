@@ -8,8 +8,13 @@ import '../utils/auth_error_handler.dart';
 class AuthController extends ChangeNotifier {
   final IAuthService _authService;
   final Logger _logger;
+  final String Function(String) _translate;
 
-  AuthController(this._authService, this._logger);
+  AuthController(
+    this._authService,
+    this._logger, {
+    String Function(String)? translate,
+  }) : _translate = translate ?? ((key) => key.tr());
 
   bool _isLogin = true;
   bool _isLoading = false;
@@ -55,7 +60,7 @@ class AuthController extends ChangeNotifier {
     if (_isLoading) return;
 
     if (!_isLogin && !_agreedToTerms) {
-      _errorMessage = 'auth.terms.required'.tr();
+      _errorMessage = _translate('auth.terms.required');
       notifyListeners();
       return;
     }
@@ -112,7 +117,7 @@ class AuthController extends ChangeNotifier {
     if (_isLoading) return;
 
     if (email.trim().isEmpty) {
-      _errorMessage = 'auth.reset.email_prompt'.tr();
+      _errorMessage = _translate('auth.reset.email_prompt');
       notifyListeners();
       return;
     }
@@ -120,7 +125,7 @@ class AuthController extends ChangeNotifier {
     _setLoading(true);
     try {
       await _authService.sendPasswordResetEmail(email.trim());
-      _successMessage = 'auth.reset.email_sent'.tr();
+      _successMessage = _translate('auth.reset.email_sent');
     } catch (e) {
       _logger.e('Forgot password error: $e');
       _errorMessage = AuthErrorHandler.getErrorMessage(e);
