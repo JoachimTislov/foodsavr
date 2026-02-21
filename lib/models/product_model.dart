@@ -104,6 +104,7 @@ class Product {
   final String description;
   final String userId; // Owner of the product
   final List<ExpiryEntry> expiries; // Quantities and their expiration dates
+  final int nonExpiringQuantity; // Quantity without expiration date
   final String? category; // Category (e.g., 'Dairy', 'Fruits', 'Vegetables')
   final String? imageUrl; // Optional image URL
   final bool isGlobal; // True if product is in global catalog
@@ -114,6 +115,7 @@ class Product {
     required this.description,
     required this.userId,
     this.expiries = const [],
+    this.nonExpiringQuantity = 0,
     this.category,
     this.imageUrl,
     this.isGlobal = false,
@@ -126,6 +128,7 @@ class Product {
       'description': description,
       'userId': userId,
       'expiries': expiries.map((e) => e.toJson()).toList(),
+      'nonExpiringQuantity': nonExpiringQuantity,
       'category': category,
       'imageUrl': imageUrl,
       'isGlobal': isGlobal,
@@ -133,16 +136,34 @@ class Product {
   }
 
   factory Product.fromJson(Map<String, dynamic> json) {
+    final parsedExpiries =
+        (json['expiries'] as List<dynamic>?)
+            ?.map((e) => ExpiryEntry.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        <ExpiryEntry>[];
+    final legacyQuantity = json['quantity'] as int?;
+    final legacyExpirationDate = json['expirationDate'];
+    final hasLegacyExpiry = legacyExpirationDate is String;
+    final fallbackExpiries = hasLegacyExpiry && legacyQuantity != null
+        ? [
+            ExpiryEntry(
+              quantity: legacyQuantity,
+              expirationDate: DateTime.parse(legacyExpirationDate),
+            ),
+          ]
+        : <ExpiryEntry>[];
+
     return Product(
       id: json['id'] as int,
       name: json['name'] as String,
       description: json['description'] as String,
       userId: json['userId'] as String,
-      expiries:
-          (json['expiries'] as List<dynamic>?)
-              ?.map((e) => ExpiryEntry.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
+      expiries: parsedExpiries.isNotEmpty ? parsedExpiries : fallbackExpiries,
+      nonExpiringQuantity:
+          (json['nonExpiringQuantity'] as int?) ??
+          (parsedExpiries.isEmpty && fallbackExpiries.isEmpty
+              ? (legacyQuantity ?? 0)
+              : 0),
       category: json['category'] as String?,
       imageUrl: json['imageUrl'] as String?,
       isGlobal: json['isGlobal'] as bool? ?? false,
@@ -150,7 +171,9 @@ class Product {
   }
 
   // Helper method to get total quantity
-  int get quantity => expiries.fold(0, (sum, entry) => sum + entry.quantity);
+  int get quantity =>
+      nonExpiringQuantity +
+      expiries.fold(0, (sum, entry) => sum + entry.quantity);
 
   // Helper method to get the soonest expiration date
   DateTime? get soonestExpirationDate {
@@ -191,5 +214,14 @@ class Product {
     if (isExpired) return ProductStatus.expired;
     if (isExpiringToday || isExpiringSoon) return ProductStatus.expiringSoon;
     return ProductStatus.fresh;
+  }
+
+  /// Get a friendly status message for display
+  String getFriendlyStatus({bool compact = false}) {
+    final days = daysUntilExpiration;
+    if (isExpired) return compact ? 'Exp' : 'Expired';
+    if (isExpiringToday) return 'Today';
+    if (days != null && days > 0) return '${days}d';
+    return status.getMessage();
   }
 }

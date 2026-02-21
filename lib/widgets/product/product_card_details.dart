@@ -25,20 +25,11 @@ class ProductCardDetails extends StatelessWidget {
     // Get status from product model
     final status = product.status;
     final statusColor = status.getColor(colorScheme);
-    final statusMessage = status.getMessage();
+    final statusMessage = product.getFriendlyStatus();
     final statusIcon = status.getIcon();
 
     final daysLeft = product.daysUntilExpiration;
-    String friendlyStatus;
-    if (product.isExpired) {
-      friendlyStatus = 'Expired';
-    } else if (product.isExpiringToday) {
-      friendlyStatus = 'Today';
-    } else if (daysLeft != null) {
-      friendlyStatus = '${daysLeft}d';
-    } else {
-      friendlyStatus = statusMessage;
-    }
+    final friendlyStatus = product.getFriendlyStatus();
 
     return Card(
       elevation: 2,
