@@ -100,6 +100,8 @@ class _TestApp extends StatelessWidget {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  EasyLocalization.logger.enableBuildModes = [];
+  EasyLocalization.logger.enableLevels = [];
   final messenger = TestDefaultBinaryMessengerBinding
       .instance.defaultBinaryMessenger;
   messenger.setMockMessageHandler('flutter/lifecycle', (_) async => null);
@@ -117,7 +119,7 @@ void main() {
       getIt.registerLazySingleton<IAuthService>(() => authService);
       getIt.registerFactory<AuthController>(
         () => AuthController(
-          authService,
+          getIt<IAuthService>(),
           Logger(level: Level.off),
           translate: (key) => key,
         ),
