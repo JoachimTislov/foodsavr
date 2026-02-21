@@ -22,16 +22,16 @@ notes:
     - Shopping list routes to Collections with my inventory and shopping list
 
 actions:
-- move edit and delete icons (allow sigout and setting to always be present)
-- omit icons for product category and consider omiting maping of product to catories
-- 0d -> Today
-- <0d -> Expired
-- move expiration warning text to tooltip and only show icon, warning 6>3 days before expiration, expired products should be clearly marked as expired
- - replace checked with info and align the warning with title
- - consider omitting or replacing the banner with icon
-- omit owner ID in product details view
-- figure out dates and expiration date relationship, a product can have quantity and expiration date, but they are not necessarily linked (e.g., I can have 2 cans of beans that expire on different dates)
-    - map expiration date to quantity, e.g., 2 cans of beans expiring on 2024-01-01 and 3 cans expiring on 2024-02-01
+- [x] move edit and delete icons (allow sign out and setting to always be present)
+- [x] omit icons for product category and consider omitting mapping of product to categories
+- [x] 0d -> Today
+- [x] <0d -> Expired
+- [x] move expiration warning text to tooltip and only show icon, warning 6>3 days before expiration, expired products should be clearly marked as expired
+- [x] replace checked with info and align the warning with title
+- [x] consider omitting or replacing the banner with icon
+- [x] omit owner ID in product details view
+- [x] figure out dates and expiration date relationship, a product can have quantity and expiration date, but they are not necessarily linked (e.g., I can have 2 cans of beans that expire on different dates)
+    - [x] map expiration date to quantity, e.g., 2 cans of beans expiring on 2024-01-01 and 3 cans expiring on 2024-02-01
 
 ## Environment & Setup
 - [x] Install Flutter SDK (^3.10.7) and run `make get` to fetch dependencies.

@@ -1,9 +1,9 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../service_locator.dart';
 import '../services/auth_controller.dart';
 import '../widgets/auth/social_auth_section.dart';
-import 'auth_view.dart';
 
 class LandingPageView extends StatefulWidget {
   const LandingPageView({super.key});
@@ -97,13 +97,13 @@ class _LandingPageViewState extends State<LandingPageView> {
                         onPressed: _controller.isLoading
                             ? null
                             : () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => AuthView(
-                                      title: 'auth.landing.title'.tr(),
-                                    ),
-                                  ),
+                                context.go(
+                                  Uri(
+                                    path: '/auth',
+                                    queryParameters: {
+                                      'title': 'auth.landing.title'.tr(),
+                                    },
+                                  ).toString(),
                                 );
                               },
                         child: Row(
@@ -139,13 +139,13 @@ class _LandingPageViewState extends State<LandingPageView> {
                             onPressed: _controller.isLoading
                                 ? null
                                 : () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => AuthView(
-                                          title: 'auth.toggle.sign_up'.tr(),
-                                        ),
-                                      ),
+                                    context.go(
+                                      Uri(
+                                        path: '/auth',
+                                        queryParameters: {
+                                          'title': 'auth.toggle.sign_up'.tr(),
+                                        },
+                                      ).toString(),
                                     );
                                   },
                             child: Text(

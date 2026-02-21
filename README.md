@@ -48,10 +48,17 @@ The app automatically connects to emulators when `ENVIRONMENT=development` in `a
 ```bash
 make dev-android   # Start emulators and run on Android
 make test          # Run tests
+make test-auth-flow # Run auth redirect regression test only
 make analyze       # Run static analysis
 make fmt           # Format Dart code
 make clean         # Clean build artifacts
-make check         # Run tests, analysis and formatting checks
+make check         # Fast validation (analyze/fix/fmt/test/locale-check)
+make check-full    # Full validation + clean
+make preflight     # Verify clean working tree and upstream sync
+make push          # preflight + check-full + git push
+make pr-comments-active PR=9            # List one active PR thread
+make pr-comments-resolve-active PR=9    # Resolve one active PR thread
+make pr-comments-resolve-outdated PR=9  # Resolve one outdated PR thread
 ```
 
 ## Tech Stack

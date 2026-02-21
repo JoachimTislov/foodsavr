@@ -12,13 +12,11 @@ class ProductCardCompact extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    // Determine status color
-    Color? statusColor;
-    if (product.isExpired) {
-      statusColor = colorScheme.error;
-    } else if (product.isExpiringSoon) {
-      statusColor = colorScheme.tertiary;
-    }
+    final status = product.status;
+    final statusColor = status == ProductStatus.fresh
+        ? null
+        : status.getColor(colorScheme);
+    final statusMessage = product.getFriendlyStatus(compact: true);
 
     return Card(
       elevation: 0,
@@ -85,7 +83,7 @@ class ProductCardCompact extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(left: 12),
                   child: Text(
-                    '${product.daysUntilExpiration}d',
+                    statusMessage,
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: statusColor ?? colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w600,

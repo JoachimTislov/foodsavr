@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../service_locator.dart';
 import '../interfaces/i_auth_service.dart';
-import '../views/product_list_view.dart';
-import '../views/collection_list_view.dart';
 import '../widgets/common/navigation_card.dart';
 
 class MainAppScreen extends StatelessWidget {
@@ -37,11 +36,7 @@ class MainAppScreen extends StatelessWidget {
               icon: Icons.inventory_2,
               color: colorScheme.primaryContainer,
               onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const ProductListView(),
-                  ),
-                );
+                context.push('/product-list');
               },
             ),
             const SizedBox(height: 16),
@@ -51,11 +46,7 @@ class MainAppScreen extends StatelessWidget {
               icon: Icons.shopping_cart,
               color: colorScheme.secondaryContainer,
               onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const CollectionListView(),
-                  ),
-                );
+                context.push('/collection-list');
               },
             ),
             const SizedBox(height: 16),
@@ -65,12 +56,7 @@ class MainAppScreen extends StatelessWidget {
               icon: Icons.public,
               color: colorScheme.tertiaryContainer,
               onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        const ProductListView(showGlobalProducts: true),
-                  ),
-                );
+                context.push('/global-products');
               },
             ),
           ],

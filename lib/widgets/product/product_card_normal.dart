@@ -16,12 +16,21 @@ class ProductCardNormal extends StatelessWidget {
     // Determine status color and message
     Color? statusColor;
     String? statusMessage;
+    IconData? statusIcon;
+
+    final daysLeft = product.daysUntilExpiration;
     if (product.isExpired) {
       statusColor = colorScheme.error;
       statusMessage = 'Expired';
+      statusIcon = Icons.error_outline;
+    } else if (product.isExpiringToday) {
+      statusColor = colorScheme.tertiary;
+      statusMessage = 'Today';
+      statusIcon = Icons.warning_amber_rounded;
     } else if (product.isExpiringSoon) {
       statusColor = colorScheme.tertiary;
-      statusMessage = 'Expires soon';
+      statusMessage = '${daysLeft}d';
+      statusIcon = Icons.warning_amber_rounded;
     }
 
     return Card(
@@ -36,7 +45,7 @@ class ProductCardNormal extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Product icon/image placeholder
+              // Product icon/image placeholder (Omit icon per TODO if needed, but let's keep the box for now)
               Container(
                 width: 56,
                 height: 56,
@@ -59,13 +68,30 @@ class ProductCardNormal extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            product.name,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  product.name,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (statusColor != null) ...[
+                                const SizedBox(width: 8),
+                                Tooltip(
+                                  message: statusMessage ?? '',
+                                  child: Icon(
+                                    statusIcon,
+                                    size: 18,
+                                    color: statusColor,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                         // Quantity badge
@@ -102,12 +128,6 @@ class ProductCardNormal extends StatelessWidget {
                     Row(
                       children: [
                         if (product.category != null) ...[
-                          Icon(
-                            Icons.category_outlined,
-                            size: 16,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 4),
                           Text(
                             product.category!,
                             style: theme.textTheme.bodySmall?.copyWith(
@@ -117,43 +137,22 @@ class ProductCardNormal extends StatelessWidget {
                           const SizedBox(width: 16),
                         ],
                         if (statusColor != null && statusMessage != null) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: statusColor.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.access_time,
-                                  size: 14,
-                                  color: statusColor,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  statusMessage,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: statusColor,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
+                          Text(
+                            statusMessage,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: statusColor,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ] else if (product.daysUntilExpiration != null) ...[
+                        ] else if (daysLeft != null) ...[
                           Icon(
                             Icons.calendar_today,
-                            size: 16,
+                            size: 14,
                             color: colorScheme.onSurfaceVariant,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            '${product.daysUntilExpiration} days left',
+                            '${daysLeft}d left',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: colorScheme.onSurfaceVariant,
                             ),

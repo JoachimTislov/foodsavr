@@ -59,15 +59,23 @@ class SeedingService {
     final addedProducts = <Product>[];
 
     for (var data in productsData) {
+      final expirationDays = data['expirationDays'] as int?;
+      final quantity = data['quantity'] as int? ?? 1;
+
       final product = Product(
         id: data['id'] as int,
         name: data['name'] as String,
         description: data['description'] as String,
         userId: userId,
-        expirationDate: data['expirationDays'] != null
-            ? now.add(Duration(days: data['expirationDays'] as int))
-            : null,
-        quantity: data['quantity'] as int,
+        expiries: expirationDays != null
+            ? [
+                ExpiryEntry(
+                  quantity: quantity,
+                  expirationDate: now.add(Duration(days: expirationDays)),
+                ),
+              ]
+            : [],
+        nonExpiringQuantity: expirationDays == null ? quantity : 0,
         category: data['category'] as String?,
       );
       await _productRepository.add(product);
@@ -86,6 +94,7 @@ class SeedingService {
         name: data['name'] as String,
         description: data['description'] as String,
         userId: 'global',
+        expiries: [],
         category: data['category'] as String?,
         isGlobal: true,
       );
