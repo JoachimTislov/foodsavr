@@ -1,19 +1,23 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 
 import '../interfaces/i_auth_service.dart';
 import '../utils/auth_error_handler.dart';
 
+typedef Translator = String Function(String);
+
+@injectable
 class AuthController extends ChangeNotifier {
   final IAuthService _authService;
   final Logger _logger;
-  final String Function(String) _tr;
+  final Translator _tr;
 
   AuthController(
     this._authService,
     this._logger, {
-    String Function(String)? translate,
+    Translator? translate,
   }) : _tr = translate ?? ((key) => key.tr());
 
   bool _isLogin = true;
@@ -32,9 +36,7 @@ class AuthController extends ChangeNotifier {
 
   set isLogin(bool value) {
     _isLogin = value;
-    _errorMessage = null;
-    _successMessage = null;
-    notifyListeners();
+    _clearMessages();
   }
 
   set rememberMe(bool value) {
@@ -47,7 +49,7 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void clearMessages() {
+  void _clearMessages() {
     _errorMessage = null;
     _successMessage = null;
     notifyListeners();

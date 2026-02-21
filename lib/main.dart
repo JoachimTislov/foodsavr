@@ -53,10 +53,10 @@ void main() async {
     );
   }
   final serviceLocator = ServiceLocator(logger);
+  await serviceLocator.registerDependencies();
   if (Config.isDevelopment) {
     await serviceLocator.setupDevelopment();
   }
-  await serviceLocator.registerDependencies();
 
   const enLocale = Locale('en', 'US');
   await EasyLocalization.ensureInitialized();

@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:injectable/injectable.dart';
 import '../models/product_model.dart';
 import '../interfaces/i_product_repository.dart';
 
+@LazySingleton(as: IProductRepository)
 class ProductRepository implements IProductRepository {
   final FirebaseFirestore _firestore;
   final String _collectionName = 'products';

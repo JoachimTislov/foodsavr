@@ -1,7 +1,9 @@
+import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import '../models/collection_model.dart';
 import '../interfaces/i_collection_repository.dart';
 
+@lazySingleton
 class CollectionService {
   final ICollectionRepository _collectionRepository;
   final Logger _logger;

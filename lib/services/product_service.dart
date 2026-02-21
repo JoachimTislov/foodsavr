@@ -1,7 +1,9 @@
+import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import '../models/product_model.dart';
 import '../interfaces/i_product_repository.dart';
 
+@lazySingleton
 class ProductService {
   final IProductRepository _productRepository;
   final Logger _logger;

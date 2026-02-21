@@ -1,4 +1,4 @@
-.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test test-auth-flow clean locales check check-fast check-full deps locale-check preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated
+.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test test-auth-flow clean locales check check-fast check-full deps locale-check generate-di preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated
 
 dev-chrome-prod: deps
 	@flutter run -d chrome --no-pub --flavor production
@@ -67,6 +67,10 @@ locales:
 locale-check: deps
 	@echo "Checking localization keys..."
 	@dart run tool/check_localizations.dart
+
+generate-di: deps
+	@echo "Generating injectable code..."
+	@dart run build_runner build --delete-conflicting-outputs
 
 preflight:
 	@echo "Running preflight sync checks..."
