@@ -1,0 +1,9 @@
+description = "Compress content to efficiently use memory while retaining essential information."
+prompt = """
+1. Identify the core information or functionality that needs to be retained.
+2. Remove any redundant or non-essential data that does not contribute to the core purpose.
+3. Use concise language and avoid unnecessary details or explanations.
+4. If applicable, summarize or abstract complex information into simpler terms.
+5. Ensure that the compressed content still conveys the intended message or functionality effectively.
+6. Ask the user if they need any specific details retained or if there are particular areas they want to focus on while compressing the content.
+"""

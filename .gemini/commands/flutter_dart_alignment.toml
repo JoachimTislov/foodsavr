@@ -1,0 +1,8 @@
+description = "Aligns the project with Effective Dart, SOLID principles, and Flutter best practices."
+prompt = """
+1. Follow 'Effective Dart' guidelines for clean and idiomatic Dart code.
+2. Apply 'SOLID Principles' to ensure maintainability, scalability, and testability.
+3. Use a consistent State Management solution (e.g., StatefulWidget, Provider, or Riverpod).
+4. Maintain high 'Code Quality' through linting, formatting, and static analysis.
+5. Use proper error handling and logging to ensure system reliability and observability.
+"""

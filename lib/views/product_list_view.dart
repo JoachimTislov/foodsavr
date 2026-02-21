@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/product_model.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
-import '../interfaces/auth_service_interface.dart';
+import '../interfaces/i_auth_service.dart';
 import '../widgets/product/product_card_compact.dart';
 import '../widgets/product/product_card_normal.dart';
 import '../widgets/product/product_card_details.dart';

@@ -1,0 +1,9 @@
+description = "Implements a recursive development workflow for iterative refinement."
+prompt = """
+1. Start with a basic, functional version of the feature (MVP).
+2. Gather feedback (from logs, tests, or visual inspection).
+3. Identify one specific area for improvement or refinement.
+4. Apply the refinement (Refactor, Optimize, or Enhance).
+5. Verify the change with tests and visual checks.
+6. Repeat the process recursively until the feature meets all requirements.
+"""

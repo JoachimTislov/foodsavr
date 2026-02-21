@@ -1,164 +1,48 @@
-# FoodSavr - Project Guidelines
+# FoodSavr - Guidelines
 
-This document reflects the current architecture and outlines the code structure, architectural principles, and general rules for the `foodsavr` Flutter project. Adhering to these guidelines ensures consistency, maintainability, and scalability of the codebase.
+Project architecture, principles, and rules for `foodsavr` (Flutter SDK ^3.10.7).
 
-## 1. Project Overview
+## 1. Tech & Architecture
+- **Tech Stack**: Dart, Firebase (Auth/Firestore), GetIt (DI), logger, easy_localization.
+- **Pattern**: 3-tier Layered Architecture (UI → Services → Repositories → Models).
+- **Core Principles**: Interface-based data access, DI for all dependencies, Emulator-driven dev.
 
-FoodSavr is a Flutter application designed to help people reduce food waste by tracking product expiration dates, managing inventory, and cross-referencing recipes.
+### Layers Summary
+- **UI (`views/`, `widgets/`)**: Screens and reusable components; inject services via `getIt<Service>()`.
+- **Service (`services/`)**: Business logic, validation, orchestration; depends on repository **interfaces**.
+- **Data (`interfaces/`, `repositories/`)**: Base contracts (`i_repository`, `i_service`) and feature contracts.
+- **Domain (`models/`)**: Plain data classes with `toJson`/`fromJson` and computed properties.
 
-## 2. Tech Stack
+## 2. Core Entities & Structure
 
-*   **Framework**: Flutter (SDK ^3.10.7)
-*   **Language**: Dart
-*   **State Management**: Basic StatefulWidget (planned: Provider/Riverpod for complex features)
-*   **Backend**: Firebase Auth, Firestore
-*   **Dependency Injection**: GetIt (service locator pattern)
-*   **Logging**: `logger` package
-*   **Localization**: `easy_localization`
+| Feature | Model | Interface | Implementation |
+| :--- | :--- | :--- | :--- |
+| Auth | N/A | `i_auth_service` | `auth_service` |
+| Product | `product_model` | `i_product_repository` | `product_repository` |
+| Collection | `collection_model` | `i_collection_repository` | `collection_repository` |
 
-## 3. Architecture
+**Firestore Collections**: `products`, `collections`.
+**Future Specs**: See `@docs/implementation/` for users, shopping lists, recipes, meals, and groups.
 
-The codebase follows a **3-tier layered architecture** with **dependency injection** and **Firebase emulators for development**.
+## 3. Standards & Workflow
+- **Widget Rules**: **One widget per file**; no private builders (e.g., `_buildX()`) in views; keep view files < 200 lines.
+- **Strict Separation**: Business logic **MUST** reside in models or services. **ZERO** business logic in widget build methods or private view helpers.
+- **Development Workflow**:
+  - make dev-chrome: Run in Chrome.
+  - `make deps`: Fetch dependencies.
+  - `make check`: Run full suite (analyze, format, test). **Required before commit**.
+  - `make start-firebase-emulators`: Start local backend (Auth/Firestore).
+  - `make kill-firebase-emulators`: Stop backend.
+- **Style**: `snake_case` (files), `camelCase` (members), `_private`. Follow [Effective Dart](https://dart.dev/effective-dart/design).
 
-### Core Principles
+### Implementation Pattern (New Features)
+1. **Model**: `@models/` (JSON logic + computed properties).
+2. **Interface**: `@interfaces/i_your_repository.dart`.
+3. **Repository**: `@repositories/your_repository.dart` (Firestore impl).
+4. **Service**: `@services/your_service.dart` (DI via constructor).
+5. **DI**: Register in `@service_locator.dart`.
+6. **UI**: `@views/` & `@widgets/` (inject service via `getIt`).
+7. **Test**: Use Firebase emulators (`@test/`).
 
-1. **Repository Pattern with Interfaces**: All data access through abstract interfaces (`lib/interfaces/`)
-2. **Dependency Injection**: GetIt service locator - never instantiate dependencies directly
-3. **Separation of Concerns**: UI → Services → Repositories → Models
-4. **Emulator-Driven Development**: Uses Firebase emulators in development, production Firebase in production
-5. **Zero hard-coded values**: Use constants or configuration files
-
-### Layers
-
-#### Presentation Layer (`views/` and `widgets/`)
-- **Views**: Full-screen components (e.g., `auth_view.dart`, `product_list_view.dart`)
-- **Widgets**: Reusable UI components organized by feature (e.g., `widgets/auth/`, `widgets/product/`)
-- **Responsibilities**: Display data, handle user input, delegate to services
-- **Dependency Access**: Inject via `getIt<Service>()` in `initState()`
-
-#### Application Layer (`services/`)
-- Orchestrates use cases
-- Contains validation and business rules
-- Logging and error handling
-- Depends on repository **interfaces**, not implementations
-
-**Services:**
-- `AuthService` - Authentication orchestration + validation
-- `ProductService` - Product operations + logging
-- `SeedingService` - Initial data seeding
-
-#### Data Access Layer (`repositories/` and `interfaces/`)
-
-**Interfaces** (`lib/interfaces/`):
-- `i_auth_repository.dart` - Authentication contract
-- `i_user_repository.dart` - User data contract
-- `i_product_repository.dart` - Product data contract
-- `i_collection_repository.dart` - Collection data contract
-
-**Implementations** (`lib/repositories/`):
-- **Firestore** (all environments):
-  - `firestore_user_repository.dart` (FirestoreUserRepository)
-  - `firestore_product_repository.dart` (FirestoreProductRepository)
-  - `firestore_collection_repository.dart` (FirestoreCollectionRepository)
-  - Connects to emulators in development (`ENVIRONMENT=development`)
-  - Connects to production Firebase in production (`ENVIRONMENT=production`)
-- **Firebase Auth**:
-  - `auth_repository.dart` (FirebaseAuthRepository)
-  - Connects to Auth emulator (port 9099) in development
-
-#### Domain Models (`models/`)
-- Plain data classes with serialization
-- `toJson()` / `fromJson()` methods for Firestore
-- No dependencies on other layers
-
-**Models:**
-- `user.dart` - User entity
-- `product_model.dart` - Product entity
-- `collection_model.dart` - Collection entity
-
-## 4. Directory Structure
-
-```
-lib/
-├── main.dart                       # App entry point, DI initialization
-├── service_locator.dart            # GetIt configuration with emulator support
-├── constants/                      # Application-wide constants
-│   └── environment_config.dart     # Environment variables + isProduction flag
-├── interfaces/                     # Repository contracts
-│   ├── i_auth_repository.dart
-│   ├── i_user_repository.dart
-│   ├── i_product_repository.dart
-│   └── i_collection_repository.dart
-├── models/                         # Domain models with serialization
-│   ├── user.dart
-│   ├── product_model.dart
-│   └── collection_model.dart
-├── repositories/                   # Data access implementations
-│   ├── auth_repository.dart        # Firebase Auth
-│   └── firestore_*_repository.dart # Firestore (all environments)
-├── services/                       # Business logic
-│   ├── auth_service.dart
-│   ├── product_service.dart
-│   └── seeding_service.dart
-├── views/                          # Full-screen UI
-│   ├── auth_view.dart
-│   ├── product_list_view.dart
-│   └── main_view.dart
-├── widgets/                        # Reusable components
-│   ├── auth/
-│   └── product/
-├── utils/                          # Helper utilities
-│   └── environment_config.dart
-└── features/                       # Reserved for future feature modules
-```
-
-## 7. Coding Standards
-
-- File names: `lowercase_with_underscores.dart`
-- Classes, variables, functions: `camelCase`
-- Private members: Prefix with underscore `_privateMember`
-- Indentation: 2 spaces
-- Linting: `flutter_lints` (configured in `analysis_options.yaml`)
-- Follow [Effective Dart](https://dart.dev/effective-dart/design) guidelines
-- [coding-standards](./coding-standards.md) for detailed rules
-
-## 8. Testing
-
-*   Unit and widget tests are located in the `test/` directory
-*   Tests use Firebase emulators for integration testing
-*   Run tests using `flutter test`
-*   For CI, start emulators before running tests
-
-## Linting and testing
-
-```bash
-make analyze # Check for issues
-make test    # Run tests
-make fmt     # Format code
-```
-
-## 10. Adding New Features
-
-Follow this pattern when adding features:
-
-1. **Define the domain model** in `models/` with `toJson()`/`fromJson()`
-2. **Create repository interface** in `interfaces/i_your_repository.dart`
-3. **Implement Firestore repository** in `repositories/firestore_your_repository.dart`
-4. **Create service** in `services/your_service.dart` for business logic
-5. **Register in DI** container (`service_locator.dart`)
-6. **Build UI** in `views/` and `widgets/`, injecting dependencies via GetIt
-7. **Test with emulators** before deploying to production
-
-## Firestore Collections
-
-- `users` - User profiles
-- `products` - Food products
-- `collections` - Product collections/baskets
-
-## 12. Git Workflow
-
-*   Commit messages should be clear, concise, and descriptive
-*   Avoid committing generated files (handled by `.gitignore`)
-*   Run `flutter analyze` before committing
-
----
+## 4. Donts
+- run "rg --g". It is not supported

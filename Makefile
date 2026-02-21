@@ -1,4 +1,7 @@
-.PHONY: dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fmt test clean
+.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps locale-check
+
+dev-chrome-prod:
+	@flutter run -d chrome --no-pub --flavor production
 
 dev-chrome: start-firebase-emulators
 	@flutter run -d chrome --no-pub
@@ -27,7 +30,7 @@ deps:
 	@flutter pub get
 
 # Code quality commands
-check: analyze fmt test
+check: analyze fix fmt test
 
 analyze:
 	@echo "Running Flutter analyze..."
@@ -37,6 +40,10 @@ fmt:
 	@echo "Formatting Dart code..."
 	@dart format .
 
+fix:
+	@echo "Fixing Dart code issues..."
+	@dart fix --apply
+
 test:
 	@echo "Running tests..."
 	@flutter test --no-pub
@@ -44,3 +51,11 @@ test:
 clean:
 	@echo "Cleaning build artifacts..."
 	@flutter clean
+
+locales:
+	@echo "Extracting locales..."
+	@grep -r -o -E "'.*?'\.tr\(\)" lib/
+
+locale-check:
+	@echo "Checking localization keys..."
+	@dart run tool/check_localizations.dart

@@ -1,0 +1,42 @@
+name: Localization Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "lib/**"
+      - "test/**"
+      - "integration_test/**"
+      - "assets/translations/**"
+      - "tool/check_localizations.dart"
+      - ".github/workflows/localization-check.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "lib/**"
+      - "test/**"
+      - "integration_test/**"
+      - "assets/translations/**"
+      - "tool/check_localizations.dart"
+      - ".github/workflows/localization-check.yml"
+  workflow_dispatch:
+
+jobs:
+  check-localizations:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.0"
+          channel: "stable"
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Validate localization keys
+        run: dart run tool/check_localizations.dart

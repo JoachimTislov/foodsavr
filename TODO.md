@@ -37,6 +37,18 @@ actions:
 - [x] Install Flutter SDK (^3.10.7) and run `make get` to fetch dependencies.
 - [x] Create `assets/.env` with `ENVIRONMENT=development` and test credentials.
 - [x] Ensure `lib/firebase_options.dart` is generated via `flutterfire configure` for project `my-foodsavr-store`.
+- [x] Create .gemini/commands folder with .toml files for custom commands and templates
+    - [x] Iteration command for fixing issues in flutter analyze until no issues remain
+        - [x] Also one for Test, should be template
+    - [ ] Screenshot of page for reference to give better context to the LLM when adjusting UI
+        - [ ] UI healing, grading in terms of user feeling, accessibility, material 3 compliance, etc.
+    - [ ] Locales command
+    - [ ] Code cleanup command for refactoring and improving code quality
+    - [ ] Grep command for searching through codebase for specific patterns or issues
+- [ ] Reference files inside of commands for better context and more specific adjustments
+    - [ ] decide what should always be loaded into memory
+- [ ] Add skills, rules and MCPs
+- [ ] Consider TDD approach
 
 ## Firebase & Emulator
 - [x] Install Firebase CLI (`npm i -g firebase-tools`) and log in.
@@ -66,6 +78,7 @@ actions:
     - [ ] QR code
     - [ ] Picture ? (need to explore ML options for this)
 - [ ] Add support for push/app/internal notifications (e.g., expiring products, meal plan reminders).
+-  [ ] Transfer products between inventories
 - [ ] Support export/import (CSV/JSON) for user inventory.
 - [ ] Support sharing meal plans and shopping lists with other users (e.g., family members).
     - [ ] Create shared (family/group) collections
