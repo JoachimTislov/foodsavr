@@ -60,7 +60,7 @@ locale-check:
 	@echo "Checking localization keys..."
 	@dart run tool/check_localizations.dart
 
-push: check
+push:
 	@echo "Running preflight sync checks..."
 	@git fetch --quiet
 	@if [ -n "$$(git status --porcelain)" ]; then \
@@ -71,5 +71,6 @@ push: check
 		echo "Preflight failed: branch is behind upstream. Pull/rebase first."; \
 		exit 1; \
 	fi
+	@$(MAKE) check
 	@echo "Pushing to remote..."
 	@git push
