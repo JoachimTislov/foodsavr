@@ -28,6 +28,7 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK ^3.10.7)
 - **Widget Rules**: **One widget per file**; no private builders (e.g., `_buildX()`) in views; keep view files < 200 lines.
 - **Strict Separation**: Business logic **MUST** reside in models or services. **ZERO** business logic in widget build methods or private view helpers.
 - **Development Workflow**:
+  - run "rg -g" instead of "rg --g". It is not supported (ripgrep --help gives you --glob/-g, not --g).
   - make dev-chrome: Run in Chrome.
   - `make deps`: Fetch dependencies.
   - `make check`: Run full suite (analyze, format, test). **Required before commit**.
@@ -47,6 +48,3 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK ^3.10.7)
 5. **DI**: Register in `@service_locator.dart`.
 6. **UI**: `@views/` & `@widgets/` (inject service via `getIt`).
 7. **Test**: Use Firebase emulators (`@test/`).
-
-## 4. Donts
-- run "rg --g". It is not supported
