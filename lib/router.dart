@@ -80,7 +80,7 @@ final GoRouter appRouter = GoRouter(
 class _AuthStreamListenable extends ChangeNotifier {
   final IAuthService _authService;
   // ignore: cancel_subscriptions
-  late final dynamic _subscription;
+  late final StreamSubscription<User?> _subscription;
   bool _isDisposed = false;
 
   _AuthStreamListenable(this._authService) {
