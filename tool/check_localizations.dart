@@ -2,6 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 
 final _keyRegex = RegExp(r'''['"]([^'"]+)['"]\.tr\(\)''');
+<<<<<<< Updated upstream
+=======
+final _wrappedKeyRegex = RegExp(r'''_tr\(\s*['"]([^'"]+)['"]\s*\)''');
+>>>>>>> Stashed changes
 
 Set<String> _flattenKeys(Map<String, dynamic> map, [String prefix = '']) {
   final keys = <String>{};
@@ -37,6 +41,12 @@ void main() {
       for (final match in _keyRegex.allMatches(content)) {
         usedKeys.add(match.group(1)!);
       }
+<<<<<<< Updated upstream
+=======
+      for (final match in _wrappedKeyRegex.allMatches(content)) {
+        usedKeys.add(match.group(1)!);
+      }
+>>>>>>> Stashed changes
     }
   }
 
