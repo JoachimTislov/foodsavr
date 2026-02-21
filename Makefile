@@ -1,12 +1,12 @@
 .PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test test-auth-flow clean locales check check-fast check-full deps locale-check preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated
 
-dev-chrome-prod:
+dev-chrome-prod: deps
 	@flutter run -d chrome --no-pub --flavor production
 
-dev-chrome: start-firebase-emulators
+dev-chrome: deps start-firebase-emulators
 	@flutter run -d chrome --no-pub
 
-dev-android: start-firebase-emulators
+dev-android: deps start-firebase-emulators
 	@flutter run -d android --no-pub
 
 start-firebase-emulators:
@@ -36,7 +36,7 @@ check-fast: deps analyze fix fmt test locale-check
 
 check-full: check-fast clean
 
-analyze:
+analyze: deps
 	@echo "Running Flutter analyze..."
 	@flutter analyze --fatal-infos --fatal-warnings --no-pub
 
@@ -44,15 +44,15 @@ fmt:
 	@echo "Formatting Dart code..."
 	@dart format .
 
-fix:
+fix: deps
 	@echo "Fixing Dart code issues..."
 	@dart fix --apply
 
-test:
+test: deps
 	@echo "Running tests..."
 	@flutter test --no-pub
 
-test-auth-flow:
+test-auth-flow: deps
 	@echo "Running auth flow regression test..."
 	@flutter test --no-pub test/router_auth_flow_test.dart
 
@@ -64,7 +64,7 @@ locales:
 	@echo "Extracting locales..."
 	@grep -r -o -E "'.*?'\.tr\(\)" lib/
 
-locale-check:
+locale-check: deps
 	@echo "Checking localization keys..."
 	@dart run tool/check_localizations.dart
 
