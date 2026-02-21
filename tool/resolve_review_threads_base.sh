@@ -51,10 +51,15 @@ MUTATION='mutation($id:ID!){
   }
 }'
 
-gh api graphql -f query="$QUERY" -F owner="$OWNER" -F repo="$NAME" -F num="$PR_NUMBER" \
-  -q "$JQ_FILTER" \
-  | while IFS= read -r thread_id; do
-    [[ -z "$thread_id" ]] && continue
-    gh api graphql -f query="$MUTATION" -F id="$thread_id" >/dev/null
-    echo "Resolved ${LABEL} thread: $thread_id"
-  done
+thread_id="$(
+  gh api graphql -f query="$QUERY" -F owner="$OWNER" -F repo="$NAME" -F num="$PR_NUMBER" \
+    -q "$JQ_FILTER" | head -n 1
+)"
+
+if [[ -z "${thread_id:-}" ]]; then
+  echo "No unresolved ${LABEL} thread found."
+  exit 0
+fi
+
+gh api graphql -f query="$MUTATION" -F id="$thread_id" >/dev/null
+echo "Resolved ${LABEL} thread: $thread_id"

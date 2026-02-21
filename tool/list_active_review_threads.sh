@@ -32,4 +32,5 @@ QUERY='query($owner:String!,$repo:String!,$num:Int!){
 }'
 
 gh api graphql -f query="$QUERY" -F owner="$OWNER" -F repo="$NAME" -F num="$PR_NUMBER" \
-  -q '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false and .isOutdated == false) | "\(.id) \(.comments.nodes[0].path) \(.comments.nodes[0].url)"'
+  -q '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false and .isOutdated == false) | "\(.id) \(.comments.nodes[0].path) \(.comments.nodes[0].url)"' \
+  | head -n 1
