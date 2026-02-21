@@ -1,4 +1,4 @@
-.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps locale-check
+.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps locale-check push
 
 dev-chrome-prod:
 	@flutter run -d chrome --no-pub --flavor production
@@ -59,3 +59,7 @@ locales:
 locale-check:
 	@echo "Checking localization keys..."
 	@dart run tool/check_localizations.dart
+
+push: check
+	@echo "Pushing to remote..."
+	@git push
