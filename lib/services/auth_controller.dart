@@ -14,11 +14,8 @@ class AuthController extends ChangeNotifier {
   final Logger _logger;
   final Translator _tr;
 
-  AuthController(
-    this._authService,
-    this._logger, {
-    Translator? translate,
-  }) : _tr = translate ?? ((key) => key.tr());
+  AuthController(this._authService, this._logger, {Translator? translate})
+    : _tr = translate ?? ((key) => key.tr());
 
   bool _isLogin = true;
   bool _isLoading = false;
