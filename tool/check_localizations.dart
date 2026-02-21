@@ -1,11 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-final _keyRegex = RegExp(r'''['"]([^'"]+)['"]\.tr\(\)''');
-<<<<<<< Updated upstream
-=======
-final _wrappedKeyRegex = RegExp(r'''_tr\(\s*['"]([^'"]+)['"]\s*\)''');
->>>>>>> Stashed changes
+final _trMethodRegex = RegExp(r'''['"]([^'"]+)['"]\.tr\(\)''');
+final _trFunctionRegex = RegExp(r'''_tr\(\s*['"]([^'"]+)['"]\s*\)''');
 
 Set<String> _flattenKeys(Map<String, dynamic> map, [String prefix = '']) {
   final keys = <String>{};
@@ -38,15 +35,12 @@ void main() {
     for (final entity in dir.listSync(recursive: true)) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
       final content = entity.readAsStringSync();
-      for (final match in _keyRegex.allMatches(content)) {
+      for (final match in _trMethodRegex.allMatches(content)) {
         usedKeys.add(match.group(1)!);
       }
-<<<<<<< Updated upstream
-=======
-      for (final match in _wrappedKeyRegex.allMatches(content)) {
+      for (final match in _trFunctionRegex.allMatches(content)) {
         usedKeys.add(match.group(1)!);
       }
->>>>>>> Stashed changes
     }
   }
 

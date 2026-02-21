@@ -8,21 +8,13 @@ import '../utils/auth_error_handler.dart';
 class AuthController extends ChangeNotifier {
   final IAuthService _authService;
   final Logger _logger;
-<<<<<<< Updated upstream
-  final String Function(String) _translate;
-=======
   final String Function(String) _tr;
->>>>>>> Stashed changes
 
   AuthController(
     this._authService,
     this._logger, {
     String Function(String)? translate,
-<<<<<<< Updated upstream
-  }) : _translate = translate ?? ((key) => key.tr());
-=======
   }) : _tr = translate ?? ((key) => key.tr());
->>>>>>> Stashed changes
 
   bool _isLogin = true;
   bool _isLoading = false;
@@ -68,11 +60,7 @@ class AuthController extends ChangeNotifier {
     if (_isLoading) return;
 
     if (!_isLogin && !_agreedToTerms) {
-<<<<<<< Updated upstream
-      _errorMessage = _translate('auth.terms.required');
-=======
       _errorMessage = _tr('auth.terms.required');
->>>>>>> Stashed changes
       notifyListeners();
       return;
     }
@@ -129,11 +117,7 @@ class AuthController extends ChangeNotifier {
     if (_isLoading) return;
 
     if (email.trim().isEmpty) {
-<<<<<<< Updated upstream
-      _errorMessage = _translate('auth.reset.email_prompt');
-=======
       _errorMessage = _tr('auth.reset.email_prompt');
->>>>>>> Stashed changes
       notifyListeners();
       return;
     }
@@ -141,11 +125,7 @@ class AuthController extends ChangeNotifier {
     _setLoading(true);
     try {
       await _authService.sendPasswordResetEmail(email.trim());
-<<<<<<< Updated upstream
-      _successMessage = _translate('auth.reset.email_sent');
-=======
       _successMessage = _tr('auth.reset.email_sent');
->>>>>>> Stashed changes
     } catch (e) {
       _logger.e('Forgot password error: $e');
       _errorMessage = AuthErrorHandler.getErrorMessage(e);
