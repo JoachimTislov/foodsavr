@@ -34,10 +34,16 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK ^3.10.7)
   - `make check`: Run full suite (analyze, format, test). **Required before commit**.
   - `make start-firebase-emulators`: Start local backend (Auth/Firestore).
   - `make kill-firebase-emulators`: Stop backend.
-  - **Task Completion Rule**: After each completed task (or small batch of closely related tasks), commit and push immediately.
-  - **Commit Message Rule**: Use clear, descriptive commit messages; prefer Conventional Commits style (e.g., `fix(router): handle auth redirect after login`).
-  - **Iteration Rule**: Work one task/thread at a time: retrieve one item, implement, validate, commit, then continue.
-  - **PR Script Rule**: Prefer GitHub PR helper scripts that list/resolve exactly one thread per run to keep context narrow and avoid accidental bulk actions.
+<<<<<<< HEAD
+  - **Task Completion Rule**: After each completed task (or tight related batch), commit and push immediately.
+  - **Commit Message Rule**: Use clear descriptive messages; prefer Conventional Commits (e.g., `fix(router): handle auth redirect`).
+  - **Execution Loop Rule**: Gather context (code/tests/PR comments/docs/rules/skills), check for missing context, implement minimal fix, run `make check`, add/update tests, run `make check` until green, run `make push`; if `make push` fails, fix and repeat from `make check`.
+  - **Introspection Rule**: Re-evaluate context after each major step and keep only task-relevant information.
+  - **PR Script Rule**: Use one-thread-per-run PR scripts to keep context narrow and avoid bulk actions.
+  - **Future Improvement Logging Rule**: Log follow-ups in `log/review-thread-followups.log` only when improvement is still needed (id, remaining gap, next action).
+  - **Implementation Rationale Rule**: Record a concise reason (1-2 lines) for why the chosen approach was used.
+  - **Quality Risk Logging Rule**: If quality may be weak at current stage, log task/risk/impact/follow-up in `log/implementation-risks.log`.
+  - **Resolved Comment Cleanup Rule**: Remove stale comment references once high-quality, Effective Dart-aligned, non-fragile solutions are fully implemented.
 - **Style**: `snake_case` (files), `camelCase` (members), `_private`. Follow [Effective Dart](https://dart.dev/effective-dart/design).
 
 ### Implementation Pattern (New Features)
