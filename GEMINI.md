@@ -28,11 +28,16 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK ^3.10.7)
 - **Widget Rules**: **One widget per file**; no private builders (e.g., `_buildX()`) in views; keep view files < 200 lines.
 - **Strict Separation**: Business logic **MUST** reside in models or services. **ZERO** business logic in widget build methods or private view helpers.
 - **Development Workflow**:
+  - run "rg -g" instead of "rg --g". It is not supported (ripgrep --help gives you --glob/-g, not --g).
   - make dev-chrome: Run in Chrome.
   - `make deps`: Fetch dependencies.
   - `make check`: Run full suite (analyze, format, test). **Required before commit**.
   - `make start-firebase-emulators`: Start local backend (Auth/Firestore).
   - `make kill-firebase-emulators`: Stop backend.
+  - **Task Completion Rule**: After each completed task (or small batch of closely related tasks), commit and push immediately.
+  - **Commit Message Rule**: Use clear, descriptive commit messages; prefer Conventional Commits style (e.g., `fix(router): handle auth redirect after login`).
+  - **Iteration Rule**: Work one task/thread at a time: retrieve one item, implement, validate, commit, then continue.
+  - **PR Script Rule**: Prefer GitHub PR helper scripts that list/resolve exactly one thread per run to keep context narrow and avoid accidental bulk actions.
 - **Style**: `snake_case` (files), `camelCase` (members), `_private`. Follow [Effective Dart](https://dart.dev/effective-dart/design).
 
 ### Implementation Pattern (New Features)
@@ -43,6 +48,3 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK ^3.10.7)
 5. **DI**: Register in `@service_locator.dart`.
 6. **UI**: `@views/` & `@widgets/` (inject service via `getIt`).
 7. **Test**: Use Firebase emulators (`@test/`).
-
-## 4. Donts
-- run "rg --g". It is not supported

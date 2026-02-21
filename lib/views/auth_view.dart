@@ -48,13 +48,21 @@ class _AuthViewState extends State<AuthView> {
     super.dispose();
   }
 
-  void _authenticate() {
+  void _authenticate() async {
     if (_formKey.currentState?.validate() == true) {
-      _controller.authenticate(
+      await _controller.authenticate(
         email: _emailController.text,
         password: _passwordController.text,
       );
     }
+  }
+
+  void _signInWithGoogle() async {
+    await _controller.signInWithGoogle();
+  }
+
+  void _signInWithFacebook() async {
+    await _controller.signInWithFacebook();
   }
 
   void _showPrivacyNotice() {
@@ -149,8 +157,8 @@ class _AuthViewState extends State<AuthView> {
                     const SizedBox(height: 24.0),
                     SocialAuthSection(
                       isLoading: _controller.isLoading,
-                      onGooglePressed: _controller.signInWithGoogle,
-                      onFacebookPressed: _controller.signInWithFacebook,
+                      onGooglePressed: _signInWithGoogle,
+                      onFacebookPressed: _signInWithFacebook,
                     ),
                     const SizedBox(height: 24.0),
                     AuthToggleButton(

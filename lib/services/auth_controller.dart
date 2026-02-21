@@ -136,8 +136,10 @@ class AuthController extends ChangeNotifier {
 
   void _setLoading(bool value) {
     _isLoading = value;
-    _errorMessage = null;
-    _successMessage = null;
+    if (value) {
+      _errorMessage = null;
+      _successMessage = null;
+    }
     notifyListeners();
   }
 }

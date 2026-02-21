@@ -7,11 +7,10 @@ import 'package:logger/logger.dart';
 
 import 'firebase_options.dart';
 import 'interfaces/i_auth_service.dart';
+import 'router.dart';
 import 'service_locator.dart';
 import 'utils/app_theme.dart';
 import 'utils/config.dart';
-import 'views/landing_page_view.dart';
-import 'views/main_view.dart';
 
 const dummyOptions = FirebaseOptions(
   apiKey: 'AIzaSyDummyKeyForDemoOnly',
@@ -61,22 +60,25 @@ void main() async {
 
   const enLocale = Locale('en', 'US');
   await EasyLocalization.ensureInitialized();
+  final router = createAppRouter(getIt<IAuthService>());
   runApp(
     EasyLocalization(
       supportedLocales: const [enLocale, Locale('nb', 'NO')],
       path: 'assets/translations',
       fallbackLocale: enLocale,
-      child: MyApp(),
+      child: MyApp(router: router),
     ),
   );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final RouterConfig<Object> router;
+
+  const MyApp({super.key, required this.router});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'FoodSavr',
       localizationsDelegates: context.localizationDelegates,
       supportedLocales: context.supportedLocales,
@@ -84,19 +86,7 @@ class MyApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
-      home: StreamBuilder(
-        stream: getIt<IAuthService>().authStateChanges,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.active) {
-            if (snapshot.data == null) {
-              return const LandingPageView();
-            } else {
-              return const MainAppScreen();
-            }
-          }
-          return const Center(child: CircularProgressIndicator());
-        },
-      ),
+      routerConfig: router,
     );
   }
 }
