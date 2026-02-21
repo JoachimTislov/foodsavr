@@ -33,6 +33,9 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK ^3.10.7)
   - `make check`: Run full suite (analyze, format, test). **Required before commit**.
   - `make start-firebase-emulators`: Start local backend (Auth/Firestore).
   - `make kill-firebase-emulators`: Stop backend.
+  - **Task Completion Rule**: After each completed task (or small batch of closely related tasks), commit and push immediately.
+  - **Iteration Rule**: Work one task/thread at a time: retrieve one item, implement, validate, commit, then continue.
+  - **PR Script Rule**: Prefer GitHub PR helper scripts that list/resolve exactly one thread per run to keep context narrow and avoid accidental bulk actions.
 - **Style**: `snake_case` (files), `camelCase` (members), `_private`. Follow [Effective Dart](https://dart.dev/effective-dart/design).
 
 ### Implementation Pattern (New Features)
