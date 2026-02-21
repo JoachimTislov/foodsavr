@@ -30,7 +30,7 @@ deps:
 	@flutter pub get
 
 # Code quality commands
-check: analyze fix fmt test
+check: analyze fix fmt test locale-check
 
 analyze:
 	@echo "Running Flutter analyze..."
@@ -61,5 +61,15 @@ locale-check:
 	@dart run tool/check_localizations.dart
 
 push: check
+	@echo "Running preflight sync checks..."
+	@git fetch --quiet
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo "Preflight failed: working tree is not clean."; \
+		exit 1; \
+	fi
+	@if [ "$$(git rev-list --left-right --count @{upstream}...HEAD | awk '{print $$1}')" -ne 0 ]; then \
+		echo "Preflight failed: branch is behind upstream. Pull/rebase first."; \
+		exit 1; \
+	fi
 	@echo "Pushing to remote..."
 	@git push
