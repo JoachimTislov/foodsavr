@@ -75,6 +75,7 @@ class SeedingService {
                 ),
               ]
             : [],
+        nonExpiringQuantity: expirationDays == null ? quantity : 0,
         category: data['category'] as String?,
       );
       await _productRepository.add(product);
