@@ -1,13 +1,9 @@
-import 'dart:async';
-
 import 'package:easy_localization/easy_localization.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../constants/privacy_notice.dart';
 import '../constants/terms_of_service.dart';
-import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
 import '../services/auth_controller.dart';
 import '../widgets/auth/auth_form_fields.dart';
@@ -34,17 +30,11 @@ class _AuthViewState extends State<AuthView> {
   final _privacyRecognizer = TapGestureRecognizer();
   final _termsRecognizer = TapGestureRecognizer();
   late final AuthController _controller;
-  late final StreamSubscription<User?> _authSubscription;
 
   @override
   void initState() {
     super.initState();
     _controller = getIt<AuthController>();
-    _authSubscription = getIt<IAuthService>().authStateChanges.listen((user) {
-      if (user != null && mounted) {
-        Navigator.of(context).maybePop();
-      }
-    });
     _privacyRecognizer.onTap = _showPrivacyNotice;
     _termsRecognizer.onTap = _showTermsOfService;
   }
@@ -55,7 +45,6 @@ class _AuthViewState extends State<AuthView> {
     _passwordController.dispose();
     _privacyRecognizer.dispose();
     _termsRecognizer.dispose();
-    _authSubscription.cancel();
     super.dispose();
   }
 

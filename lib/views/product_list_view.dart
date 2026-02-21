@@ -119,6 +119,20 @@ class _ProductListViewState extends State<ProductListView> {
               ),
             ],
           ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Settings feature coming soon!')),
+              );
+            },
+            tooltip: 'Settings',
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => _authService.signOut(),
+            tooltip: 'Sign Out',
+          ),
         ],
       ),
       body: FutureBuilder<List<Product>>(

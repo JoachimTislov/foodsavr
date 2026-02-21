@@ -26,40 +26,73 @@ class ProductDetailsCard extends StatelessWidget {
         children: [
           ProductDetailItem(
             icon: Icons.inventory_2_outlined,
-            label: 'Quantity',
+            label: 'Total Quantity',
             value: '${product.quantity}',
           ),
           const SizedBox(height: 20),
-          if (product.expirationDate != null) ...[
+          if (product.soonestExpirationDate != null) ...[
             ProductDetailItem(
               icon: Icons.calendar_today,
-              label: 'Expiration Date',
-              value: DateFormat.yMMMMd().format(product.expirationDate!),
+              label: 'Soonest Expiration',
+              value: DateFormat.yMMMMd().format(product.soonestExpirationDate!),
             ),
             const SizedBox(height: 20),
             ProductDetailItem(
               icon: Icons.timelapse,
-              label: 'Days Until Expiration',
+              label: 'Days Until Soonest Expiry',
               value: product.daysUntilExpiration != null
-                  ? '${product.daysUntilExpiration} days'
+                  ? product.daysUntilExpiration! < 0
+                        ? 'Expired ${product.daysUntilExpiration!.abs()} days ago'
+                        : product.daysUntilExpiration! == 0
+                        ? 'Today'
+                        : '${product.daysUntilExpiration} days'
                   : 'N/A',
             ),
             const SizedBox(height: 20),
+          ],
+          if (product.expiries.isNotEmpty) ...[
+            const Divider(),
+            const SizedBox(height: 8),
+            Text(
+              'Expiration Breakdown',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...product.expiries.map((entry) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('${entry.quantity} units'),
+                    Text(
+                      DateFormat.yMMMd().format(entry.expirationDate),
+                      style: TextStyle(
+                        color: entry.isExpired
+                            ? colorScheme.error
+                            : entry.daysUntilExpiration <= 6
+                            ? colorScheme.tertiary
+                            : null,
+                        fontWeight: entry.daysUntilExpiration <= 6
+                            ? FontWeight.bold
+                            : null,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 12),
+            const Divider(),
+            const SizedBox(height: 12),
           ],
           ProductDetailItem(
             icon: product.isGlobal ? Icons.public : Icons.person,
             label: 'Type',
             value: product.isGlobal ? 'Global Product' : 'Personal Product',
           ),
-          if (!product.isGlobal) ...[
-            const SizedBox(height: 20),
-            ProductDetailItem(
-              icon: Icons.badge_outlined,
-              label: 'Owner ID',
-              value: product.userId,
-              valueMaxLines: 2,
-            ),
-          ],
         ],
       ),
     );

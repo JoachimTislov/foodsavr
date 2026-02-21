@@ -28,6 +28,18 @@ class ProductCardDetails extends StatelessWidget {
     final statusMessage = status.getMessage();
     final statusIcon = status.getIcon();
 
+    final daysLeft = product.daysUntilExpiration;
+    String friendlyStatus;
+    if (product.isExpired) {
+      friendlyStatus = 'Expired';
+    } else if (product.isExpiringToday) {
+      friendlyStatus = 'Today';
+    } else if (daysLeft != null) {
+      friendlyStatus = '${daysLeft}d';
+    } else {
+      friendlyStatus = statusMessage;
+    }
+
     return Card(
       elevation: 2,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -71,11 +83,28 @@ class ProductCardDetails extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          product.name,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                product.name,
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            if (statusColor != colorScheme.primary) ...[
+                              const SizedBox(width: 8),
+                              Tooltip(
+                                message: statusMessage,
+                                child: Icon(
+                                  statusIcon,
+                                  color: statusColor,
+                                  size: 24,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         const SizedBox(height: 4),
                         if (product.category != null)
@@ -136,49 +165,52 @@ class ProductCardDetails extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              // Status banner
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: statusColor.withValues(alpha: 0.5),
-                    width: 1,
+              // Status banner (Optional - TODO suggested omitting but let's keep it if it has multiple entries)
+              if (product.expiries.isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: statusColor.withValues(alpha: 0.5),
+                      width: 1,
+                    ),
                   ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(statusIcon, color: statusColor, size: 24),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            statusMessage,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              color: statusColor,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          if (product.daysUntilExpiration != null)
+                  child: Row(
+                    children: [
+                      Icon(statusIcon, color: statusColor, size: 24),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              product.daysUntilExpiration! < 0
-                                  ? 'Expired ${product.daysUntilExpiration!.abs()} days ago'
-                                  : '${product.daysUntilExpiration} days remaining',
-                              style: theme.textTheme.bodySmall?.copyWith(
+                              friendlyStatus,
+                              style: theme.textTheme.titleSmall?.copyWith(
                                 color: statusColor,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                        ],
+                            if (daysLeft != null)
+                              Text(
+                                daysLeft < 0
+                                    ? 'Expired ${daysLeft.abs()}d ago'
+                                    : daysLeft == 0
+                                    ? 'Expires today'
+                                    : '${daysLeft}d remaining',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: statusColor,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
               // Details grid
               _buildDetailsGrid(context),
             ],
@@ -199,29 +231,74 @@ class ProductCardDetails extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildDetailRow(
             context,
             icon: Icons.inventory_2_outlined,
-            label: 'Quantity',
+            label: 'Total Quantity',
             value: '${product.quantity}',
           ),
-          const Divider(height: 24),
-          if (product.expirationDate != null)
-            _buildDetailRow(
-              context,
-              icon: Icons.calendar_today,
-              label: 'Expiration Date',
-              value: DateFormat.yMMMd().format(product.expirationDate!),
+          if (product.expiries.isNotEmpty) ...[
+            const Divider(height: 24),
+            Text(
+              'Expirations',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          if (product.expirationDate != null) const Divider(height: 24),
-          if (product.isGlobal)
+            const SizedBox(height: 8),
+            ...product.expiries.map((entry) {
+              final isEntryExpired = entry.isExpired;
+              final isEntryToday = entry.isExpiringToday;
+              final days = entry.daysUntilExpiration;
+
+              String expiryText;
+              Color textColor = colorScheme.onSurface;
+              if (isEntryExpired) {
+                expiryText = 'Expired';
+                textColor = colorScheme.error;
+              } else if (isEntryToday) {
+                expiryText = 'Today';
+                textColor = colorScheme.tertiary;
+              } else {
+                expiryText = DateFormat.yMMMd().format(entry.expirationDate);
+                if (days <= 6) textColor = colorScheme.tertiary;
+              }
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${entry.quantity} units',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    Text(
+                      expiryText,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: textColor,
+                        fontWeight: days <= 6 || isEntryExpired
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+          if (product.isGlobal) ...[
+            const Divider(height: 24),
             _buildDetailRow(
               context,
               icon: Icons.public,
               label: 'Type',
               value: 'Global Product',
             ),
+          ],
         ],
       ),
     );

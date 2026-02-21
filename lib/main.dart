@@ -6,12 +6,10 @@ import 'package:flutter/services.dart';
 import 'package:logger/logger.dart';
 
 import 'firebase_options.dart';
-import 'interfaces/i_auth_service.dart';
+import 'router.dart';
 import 'service_locator.dart';
 import 'utils/app_theme.dart';
 import 'utils/config.dart';
-import 'views/landing_page_view.dart';
-import 'views/main_view.dart';
 
 const dummyOptions = FirebaseOptions(
   apiKey: 'AIzaSyDummyKeyForDemoOnly',
@@ -76,7 +74,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'FoodSavr',
       localizationsDelegates: context.localizationDelegates,
       supportedLocales: context.supportedLocales,
@@ -84,19 +82,7 @@ class MyApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
-      home: StreamBuilder(
-        stream: getIt<IAuthService>().authStateChanges,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.active) {
-            if (snapshot.data == null) {
-              return const LandingPageView();
-            } else {
-              return const MainAppScreen();
-            }
-          }
-          return const Center(child: CircularProgressIndicator());
-        },
-      ),
+      routerConfig: appRouter,
     );
   }
 }

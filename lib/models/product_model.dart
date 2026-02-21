@@ -43,13 +43,67 @@ enum ProductStatus {
   }
 }
 
+/// Entry for a specific quantity expiring on a specific date
+class ExpiryEntry {
+  final int quantity;
+  final DateTime expirationDate;
+
+  ExpiryEntry({required this.quantity, required this.expirationDate});
+
+  Map<String, dynamic> toJson() {
+    return {
+      'quantity': quantity,
+      'expirationDate': expirationDate.toIso8601String(),
+    };
+  }
+
+  factory ExpiryEntry.fromJson(Map<String, dynamic> json) {
+    return ExpiryEntry(
+      quantity: json['quantity'] as int,
+      expirationDate: DateTime.parse(json['expirationDate'] as String),
+    );
+  }
+
+  bool get isExpired {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final expiry = DateTime(
+      expirationDate.year,
+      expirationDate.month,
+      expirationDate.day,
+    );
+    return expiry.isBefore(today);
+  }
+
+  bool get isExpiringToday {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final expiry = DateTime(
+      expirationDate.year,
+      expirationDate.month,
+      expirationDate.day,
+    );
+    return expiry.isAtSameMomentAs(today);
+  }
+
+  int get daysUntilExpiration {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final expiry = DateTime(
+      expirationDate.year,
+      expirationDate.month,
+      expirationDate.day,
+    );
+    return expiry.difference(today).inDays;
+  }
+}
+
 class Product {
   final int id;
   final String name;
   final String description;
   final String userId; // Owner of the product
-  final DateTime? expirationDate; // When the product expires
-  final int quantity; // Quantity available
+  final List<ExpiryEntry> expiries; // Quantities and their expiration dates
   final String? category; // Category (e.g., 'Dairy', 'Fruits', 'Vegetables')
   final String? imageUrl; // Optional image URL
   final bool isGlobal; // True if product is in global catalog
@@ -59,8 +113,7 @@ class Product {
     required this.name,
     required this.description,
     required this.userId,
-    this.expirationDate,
-    this.quantity = 1,
+    this.expiries = const [],
     this.category,
     this.imageUrl,
     this.isGlobal = false,
@@ -72,8 +125,7 @@ class Product {
       'name': name,
       'description': description,
       'userId': userId,
-      'expirationDate': expirationDate?.toIso8601String(),
-      'quantity': quantity,
+      'expiries': expiries.map((e) => e.toJson()).toList(),
       'category': category,
       'imageUrl': imageUrl,
       'isGlobal': isGlobal,
@@ -86,44 +138,58 @@ class Product {
       name: json['name'] as String,
       description: json['description'] as String,
       userId: json['userId'] as String,
-      expirationDate: json['expirationDate'] != null
-          ? DateTime.parse(json['expirationDate'] as String)
-          : null,
-      quantity: json['quantity'] as int? ?? 1,
+      expiries:
+          (json['expiries'] as List<dynamic>?)
+              ?.map((e) => ExpiryEntry.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
       category: json['category'] as String?,
       imageUrl: json['imageUrl'] as String?,
       isGlobal: json['isGlobal'] as bool? ?? false,
     );
   }
 
-  // Helper method to check if product is expired
+  // Helper method to get total quantity
+  int get quantity => expiries.fold(0, (sum, entry) => sum + entry.quantity);
+
+  // Helper method to get the soonest expiration date
+  DateTime? get soonestExpirationDate {
+    if (expiries.isEmpty) return null;
+    return expiries
+        .map((e) => e.expirationDate)
+        .reduce((a, b) => a.isBefore(b) ? a : b);
+  }
+
+  // Helper method to check if any quantity is expired
   bool get isExpired {
-    if (expirationDate == null) return false;
-    return expirationDate!.isBefore(DateTime.now());
+    return expiries.any((e) => e.isExpired);
   }
 
-  // Helper method to check if product is expiring soon (within 1–3 days)
+  // Helper method to check if any quantity is expiring today
+  bool get isExpiringToday {
+    return expiries.any((e) => e.isExpiringToday);
+  }
+
+  // Helper method to check if any quantity is expiring soon (within 1–6 days)
   bool get isExpiringSoon {
-    if (expirationDate == null) return false;
-    final difference = expirationDate!.difference(DateTime.now());
-    final daysUntilExpiration = difference.inDays;
-    // Exclude products expiring today (daysUntilExpiration == 0) from "soon"
-    if (difference.isNegative || daysUntilExpiration == 0) {
-      return false;
-    }
-    return daysUntilExpiration <= 3;
+    return expiries.any((e) {
+      final days = e.daysUntilExpiration;
+      return days > 0 && days <= 6;
+    });
   }
 
-  // Days until expiration (negative if expired)
+  // Soonest days until expiration (negative if expired)
   int? get daysUntilExpiration {
-    if (expirationDate == null) return null;
-    return expirationDate!.difference(DateTime.now()).inDays;
+    if (expiries.isEmpty) return null;
+    return expiries
+        .map((e) => e.daysUntilExpiration)
+        .reduce((a, b) => a < b ? a : b);
   }
 
   // Get product status based on expiration
   ProductStatus get status {
     if (isExpired) return ProductStatus.expired;
-    if (isExpiringSoon) return ProductStatus.expiringSoon;
+    if (isExpiringToday || isExpiringSoon) return ProductStatus.expiringSoon;
     return ProductStatus.fresh;
   }
 }
