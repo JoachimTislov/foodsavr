@@ -1,5 +1,5 @@
 import '../models/collection_model.dart';
-import 'repository_interface.dart';
+import 'i_repository.dart';
 
 /// Abstract interface for collection data access operations.
 /// Implementations can be in-memory, Firestore, or any other data source.

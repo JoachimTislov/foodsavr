@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/collection_model.dart';
-import '../interfaces/collection_repository_interface.dart';
+import '../interfaces/i_collection_repository.dart';
 
 /// Firestore implementation of ICollectionRepository.
 /// Persists collection data in Firestore 'collections' collection.

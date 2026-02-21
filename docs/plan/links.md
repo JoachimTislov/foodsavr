@@ -7,6 +7,13 @@
 - [Flutter](https://flutter.dev/docs)
 - [Dart](https://dart.dev/guides)
 
+- [Flutter build modes](https://docs.flutter.dev/testing/build-modes)
+
+## Gemini CLI
+
+- [Their repo .gemini folder](https://github.com/google-gemini/gemini-cli/blob/main/.gemini/)
+- [11 Tips](https://www.youtube.com/watch?v=KrnyAJyjVG4)
+
 ## Svelte + Spring
 
 - [Svelte](https://svelte.dev/docs)

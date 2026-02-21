@@ -1,0 +1,7 @@
+description = "Repeatedly runs Flutter analysis and applies fixes until no issues remain."
+prompt = """
+1. Run 'make check'
+2. Act on output if errors or warnings
+3. Fix them
+4. Go back to step one
+"""

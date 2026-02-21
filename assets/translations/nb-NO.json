@@ -1,6 +1,67 @@
 {
-    "hello": "Hallo",
-    "welcome_message": "Velkommen til Foodsavr!",
-    "login": "Logg inn",
-    "signup": "Registrer deg"
+    "auth": {
+        "terms": {
+            "required": "Du må godta vilkårene for bruk og personvernerklæringen.",
+            "prefix": "Jeg godtar "
+        },
+        "reset": {
+            "email_prompt": "Vennligst skriv inn e-postadressen din for å tilbakestille passordet.",
+            "email_sent": "E-post for tilbakestilling av passord sendt. Sjekk innboksen din."
+        },
+        "header": {
+            "welcome_back": "Velkommen tilbake",
+            "create_account": "Opprett konto",
+            "sign_in_subtitle": "Logg inn for å administrere lageret ditt.",
+            "sign_up_subtitle": "Registrer deg for å begynne å spare tid og penger."
+        },
+        "form": {
+            "remember_me": "Husk meg",
+            "forgot_password": "Glemt passord?",
+            "email": {
+                "label": "E-postadresse",
+                "hint": "navn@eksempel.no",
+                "required": "Vennligst skriv inn e-postadressen din"
+            },
+            "password": {
+                "label": "Passord",
+                "hint": "Skriv inn passordet ditt",
+                "required": "Vennligst skriv inn passordet ditt"
+            }
+        },
+        "social": {
+            "continue_google": "Fortsett med Google",
+            "continue_facebook": "Fortsett med Facebook",
+            "continue_email": "Fortsett med e-post"
+        },
+        "landing": {
+            "title": "Lagerinnlogging",
+            "subtitle": "Spor, administrer og skaler lageret ditt effektivt."
+        },
+        "toggle": {
+            "no_account": "Har du ikke en konto?",
+            "sign_up": "Registrer deg",
+            "already_have_account": "Har du allerede en konto?",
+            "login": "Logg inn"
+        },
+        "submit": {
+            "register": "Registrer"
+        },
+        "error": {
+            "user_not_found": "Ingen bruker funnet for denne e-posten.",
+            "wrong_password": "Feil passord oppgitt for denne brukeren.",
+            "email_already_in_use": "Kontoen finnes allerede for denne e-posten.",
+            "invalid_email": "E-postadressen er ikke gyldig.",
+            "weak_password": "Passordet er for svakt.",
+            "operation_not_allowed": "Operasjonen er ikke tillatt.",
+            "user_disabled": "Brukerkontoen er deaktivert.",
+            "unknown": "En udefinert feil oppstod."
+        }
+    },
+    "common": {
+        "privacy_notice": "Personvernerklæring",
+        "close": "Lukk",
+        "terms_of_service": "Vilkår for bruk",
+        "and": " og ",
+        "or": "ELLER"
+    }
 }

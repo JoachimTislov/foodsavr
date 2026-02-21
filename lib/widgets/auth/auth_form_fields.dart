@@ -1,6 +1,7 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
-class AuthFormFields extends StatelessWidget {
+class AuthFormFields extends StatefulWidget {
   final TextEditingController emailController;
   final TextEditingController passwordController;
 
@@ -11,20 +12,79 @@ class AuthFormFields extends StatelessWidget {
   });
 
   @override
+  State<AuthFormFields> createState() => _AuthFormFieldsState();
+}
+
+class _AuthFormFieldsState extends State<AuthFormFields> {
+  bool _isPasswordVisible = false;
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        TextField(
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-          controller: emailController,
-          decoration: InputDecoration(labelText: 'Email'),
+        // Email Input
+        TextFormField(
+          controller: widget.emailController,
+          decoration: InputDecoration(
+            labelText: 'auth.form.email.label'.tr(),
+            hintText: 'auth.form.email.hint'.tr(),
+            prefixIcon: const Icon(Icons.mail_outline),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12.0),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12.0),
+              borderSide: BorderSide(
+                color: Theme.of(context).colorScheme.primary,
+                width: 2.0,
+              ),
+            ),
+          ),
           keyboardType: TextInputType.emailAddress,
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'auth.form.email.required'.tr();
+            }
+            return null;
+          },
         ),
-        SizedBox(height: 16),
-        TextField(
-          controller: passwordController,
-          decoration: InputDecoration(labelText: 'Password'),
-          obscureText: true,
+        const SizedBox(height: 16.0),
+
+        // Password Input
+        TextFormField(
+          controller: widget.passwordController,
+          obscureText: !_isPasswordVisible,
+          decoration: InputDecoration(
+            labelText: 'auth.form.password.label'.tr(),
+            hintText: 'auth.form.password.hint'.tr(),
+            prefixIcon: const Icon(Icons.lock_outline),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12.0),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12.0),
+              borderSide: BorderSide(
+                color: Theme.of(context).colorScheme.primary,
+                width: 2.0,
+              ),
+            ),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+              ),
+              onPressed: () {
+                setState(() {
+                  _isPasswordVisible = !_isPasswordVisible;
+                });
+              },
+            ),
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'auth.form.password.required'.tr();
+            }
+            return null;
+          },
         ),
       ],
     );

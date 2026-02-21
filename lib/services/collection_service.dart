@@ -1,6 +1,6 @@
 import 'package:logger/logger.dart';
 import '../models/collection_model.dart';
-import '../interfaces/collection_repository_interface.dart';
+import '../interfaces/i_collection_repository.dart';
 
 class CollectionService {
   final ICollectionRepository _collectionRepository;

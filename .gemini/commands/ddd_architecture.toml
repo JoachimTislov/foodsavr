@@ -1,0 +1,8 @@
+description = "Implements Domain-Driven Design (DDD) architectural principles."
+prompt = """
+1. Identify and define the Core Domain Logic and business rules.
+2. Define Bounded Contexts to separate different parts of the system.
+3. Design Aggregate Roots to maintain consistency boundaries within contexts.
+4. Implement Domain Events to communicate changes across aggregates or contexts.
+5. Ensure the domain layer remains independent of infrastructure and UI concerns.
+"""

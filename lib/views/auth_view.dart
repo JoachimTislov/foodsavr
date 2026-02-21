@@ -1,108 +1,196 @@
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:logger/logger.dart';
 
-import '../interfaces/auth_service_interface.dart';
+import '../constants/privacy_notice.dart';
+import '../constants/terms_of_service.dart';
 import '../service_locator.dart';
+import '../services/auth_controller.dart';
 import '../widgets/auth/auth_form_fields.dart';
+import '../widgets/auth/auth_header.dart';
+import '../widgets/auth/auth_status_messages.dart';
 import '../widgets/auth/auth_submit_button.dart';
 import '../widgets/auth/auth_toggle_button.dart';
+import '../widgets/auth/social_auth_section.dart';
+import '../widgets/auth/terms_and_privacy_checkbox.dart';
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key, required this.title});
+class AuthView extends StatefulWidget {
+  const AuthView({super.key, required this.title});
 
   final String title;
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<AuthView> createState() => _AuthViewState();
 }
 
-class _HomePageState extends State<HomePage> {
-  final _logger = getIt<Logger>();
-  // TODO: consider adding test user credentials for easier testing during development
+class _AuthViewState extends State<AuthView> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  late final IAuthService _authService;
-  bool _isLogin = true;
-  String? _errorMessage;
+  final _formKey = GlobalKey<FormState>();
+  final _privacyRecognizer = TapGestureRecognizer();
+  final _termsRecognizer = TapGestureRecognizer();
+  late final AuthController _controller;
 
   @override
   void initState() {
     super.initState();
-    _authService = getIt<IAuthService>();
+    _controller = getIt<AuthController>();
+    _privacyRecognizer.onTap = _showPrivacyNotice;
+    _termsRecognizer.onTap = _showTermsOfService;
   }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _privacyRecognizer.dispose();
+    _termsRecognizer.dispose();
     super.dispose();
   }
 
-  void _authenticate() async {
-    setState(() => _errorMessage = null);
-    try {
-      final email = _emailController.text.trim();
-      final password = _passwordController.text.trim();
-      if (_isLogin) {
-        await _authService.signIn(email: email, password: password);
-      } else {
-        await _authService.signUp(email: email, password: password);
-      }
-    } catch (e) {
-      // TODO: improve error handling by parsing FirebaseAuthException and showing user-friendly messages
-      setState(() => _errorMessage = e.toString().split(']')[1]);
-      _logger.e('Auth error: $e');
+  void _authenticate() {
+    if (_formKey.currentState?.validate() == true) {
+      _controller.authenticate(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
     }
+  }
+
+  void _showPrivacyNotice() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('common.privacy_notice'.tr()),
+          content: SingleChildScrollView(child: Text(PrivacyNotice.content)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('common.close'.tr()),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showTermsOfService() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('common.terms_of_service'.tr()),
+          content: SingleChildScrollView(child: Text(TermsOfService.content)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('common.close'.tr()),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        title: Padding(
-          padding: const EdgeInsets.only(top: 40.0),
-          child: Center(child: Text('welcome_message'.tr())),
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 40.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              _isLogin ? 'login'.tr() : 'signup'.tr(),
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            AuthFormFields(
-              emailController: _emailController,
-              passwordController: _passwordController,
-            ),
-            AuthToggleButton(
-              isLogin: _isLogin,
-              onPressed: () {
-                setState(() {
-                  _isLogin = !_isLogin;
-                  _errorMessage = null;
-                });
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: ListenableBuilder(
+              listenable: _controller,
+              builder: (context, _) {
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AuthHeader(isLogin: _controller.isLogin),
+                    AuthStatusMessages(
+                      errorMessage: _controller.errorMessage,
+                      successMessage: _controller.successMessage,
+                    ),
+                    AbsorbPointer(
+                      absorbing: _controller.isLoading,
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            AuthFormFields(
+                              emailController: _emailController,
+                              passwordController: _passwordController,
+                            ),
+                            const SizedBox(height: 16.0),
+                            if (_controller.isLogin)
+                              _buildLoginOptions()
+                            else
+                              TermsAndPrivacyCheckbox(
+                                value: _controller.agreedToTerms,
+                                onChanged: (val) =>
+                                    _controller.agreedToTerms = val ?? false,
+                                privacyRecognizer: _privacyRecognizer,
+                                termsRecognizer: _termsRecognizer,
+                              ),
+                            const SizedBox(height: 24.0),
+                            AuthSubmitButton(
+                              isLogin: _controller.isLogin,
+                              isLoading: _controller.isLoading,
+                              onPressed: _controller.isLoading
+                                  ? null
+                                  : _authenticate,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24.0),
+                    SocialAuthSection(
+                      isLoading: _controller.isLoading,
+                      onGooglePressed: _controller.signInWithGoogle,
+                      onFacebookPressed: _controller.signInWithFacebook,
+                    ),
+                    const SizedBox(height: 24.0),
+                    AuthToggleButton(
+                      isLogin: _controller.isLogin,
+                      onPressed: _controller.isLoading
+                          ? null
+                          : () {
+                              _controller.isLogin = !_controller.isLogin;
+                              _emailController.clear();
+                              _passwordController.clear();
+                            },
+                    ),
+                  ],
+                );
               },
             ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 20.0),
-              child: Text(
-                _errorMessage ?? '',
-                style: TextStyle(color: Colors.red),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            AuthSubmitButton(
-              isLogin: _isLogin,
-              onPressed: () => _authenticate(),
-            ),
-          ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLoginOptions() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Checkbox(
+              value: _controller.rememberMe,
+              onChanged: (val) => _controller.rememberMe = val ?? false,
+            ),
+            Text('auth.form.remember_me'.tr()),
+          ],
+        ),
+        TextButton(
+          onPressed: () => _controller.forgotPassword(_emailController.text),
+          child: Text('auth.form.forgot_password'.tr()),
+        ),
+      ],
     );
   }
 }

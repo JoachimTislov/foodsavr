@@ -1,0 +1,9 @@
+description = "Ensures measurable outcomes through performance metrics and code coverage."
+prompt = """
+1. Run tests with coverage reporting.
+2. Analyze the coverage report and identify untested paths.
+3. Add tests to increase coverage to the target threshold (e.g., 80%+).
+4. Run performance profiling using Flutter DevTools.
+5. Identify and fix performance bottlenecks (e.g., jank, excessive rebuilds).
+6. Document the final metrics and coverage.
+"""

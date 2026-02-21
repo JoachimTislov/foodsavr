@@ -1,0 +1,9 @@
+description = "Ensures clean separation between frontend and backend concerns."
+prompt = """
+1. Define the data model in 'lib/models/'.
+2. Create an abstract interface for the repository in 'lib/interfaces/'.
+3. Implement the repository in 'lib/repositories/' (e.g., Firestore).
+4. Create a service in 'lib/services/' to handle business logic.
+5. Register the service and repository in the service locator.
+6. Implement the UI in 'lib/views/' or 'lib/widgets/', consuming only the service layer.
+"""

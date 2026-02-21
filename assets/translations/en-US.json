@@ -1,6 +1,67 @@
 {
-    "hello": "Hello",
-    "welcome_message": "Welcome to Foodsavr!",
-    "login": "Login",
-    "signup": "Sign up"
+    "auth": {
+        "terms": {
+            "required": "You must agree to the Terms of Service and Privacy Notice.",
+            "prefix": "I agree to the "
+        },
+        "reset": {
+            "email_prompt": "Please enter your email to reset password.",
+            "email_sent": "Password reset email sent. Check your inbox."
+        },
+        "header": {
+            "welcome_back": "Welcome Back",
+            "create_account": "Create Account",
+            "sign_in_subtitle": "Sign in to manage your inventory.",
+            "sign_up_subtitle": "Sign up to start saving time and money."
+        },
+        "form": {
+            "remember_me": "Remember me",
+            "forgot_password": "Forgot Password?",
+            "email": {
+                "label": "Email Address",
+                "hint": "name@example.com",
+                "required": "Please enter your email"
+            },
+            "password": {
+                "label": "Password",
+                "hint": "Enter your password",
+                "required": "Please enter your password"
+            }
+        },
+        "social": {
+            "continue_google": "Continue with Google",
+            "continue_facebook": "Continue with Facebook",
+            "continue_email": "Continue with Email"
+        },
+        "landing": {
+            "title": "Inventory Login",
+            "subtitle": "Track, manage, and scale your stock with efficiency."
+        },
+        "toggle": {
+            "no_account": "Don't have an account?",
+            "sign_up": "Sign up",
+            "already_have_account": "Already have an account?",
+            "login": "Login"
+        },
+        "submit": {
+            "register": "Register"
+        },
+        "error": {
+            "user_not_found": "No user found for that email.",
+            "wrong_password": "Wrong password provided for that user.",
+            "email_already_in_use": "The account already exists for that email.",
+            "invalid_email": "The email address is not valid.",
+            "weak_password": "The password provided is too weak.",
+            "operation_not_allowed": "Operation not allowed.",
+            "user_disabled": "The user account has been disabled.",
+            "unknown": "An undefined Error happened."
+        }
+    },
+    "common": {
+        "privacy_notice": "Privacy Notice",
+        "close": "Close",
+        "terms_of_service": "Terms of Service",
+        "and": " and ",
+        "or": "OR"
+    }
 }
