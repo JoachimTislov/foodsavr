@@ -4,7 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:injectable/injectable.dart';
+import 'package:logger/logger.dart';
 
+import '../interfaces/i_auth_service.dart';
 import '../services/auth_controller.dart';
 
 @module
@@ -21,7 +23,8 @@ abstract class RegisterModule {
   @lazySingleton
   FacebookAuth get facebookAuth => FacebookAuth.instance;
 
-  @lazySingleton
-  Translator get translator =>
-      (key) => key.tr();
+  @injectable
+  AuthController authController(IAuthService authService, Logger logger) {
+    return AuthController(authService, logger, (key) => key.tr());
+  }
 }

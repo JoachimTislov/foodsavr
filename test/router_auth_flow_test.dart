@@ -21,20 +21,22 @@ class _MockUser extends Mock implements User {}
 
 class _MockUserCredential extends Mock implements UserCredential {}
 
-class _FakeAuthService implements IAuthService {
-  final _controller = StreamController<User?>.broadcast();
-  String? _userId;
+class _FakeAuthService extends IAuthService {
+  final _userController = StreamController<User?>.broadcast();
+  User? _currentUser;
 
-  void signInForTest(String userId) {
-    _userId = userId;
-    _controller.add(_MockUser());
+  @override
+  Stream<User?> get authStateChanges => _userController.stream;
+
+  @override
+  String? getUserId() {
+    return _currentUser?.uid;
   }
 
-  @override
-  Stream<User?> get authStateChanges => _controller.stream;
-
-  @override
-  String? getUserId() => _userId;
+  void _updateUser(User? user) {
+    _currentUser = user;
+    _userController.add(user);
+  }
 
   @override
   Future<UserCredential> signIn({
@@ -42,7 +44,9 @@ class _FakeAuthService implements IAuthService {
     required String password,
     bool rememberMe = false,
   }) async {
-    signInForTest('test-user');
+    final user = _MockUser();
+    when(() => user.uid).thenReturn('test-uid');
+    _updateUser(user);
     return _MockUserCredential();
   }
 
@@ -51,49 +55,38 @@ class _FakeAuthService implements IAuthService {
     required String email,
     required String password,
   }) async {
-    signInForTest('test-user');
+    final user = _MockUser();
+    when(() => user.uid).thenReturn('test-uid');
+    _updateUser(user);
     return _MockUserCredential();
   }
 
   @override
   Future<void> signOut() async {
-    _userId = null;
-    _controller.add(null);
+    _updateUser(null);
   }
+
+  @override
+  Future<UserCredential> signInWithGoogle() async {
+    final user = _MockUser();
+    when(() => user.uid).thenReturn('test-uid');
+    _updateUser(user);
+    return _MockUserCredential();
+  }
+
+  @override
+  Future<UserCredential> signInWithFacebook() async {
+    final user = _MockUser();
+    when(() => user.uid).thenReturn('test-uid');
+    _updateUser(user);
+    return _MockUserCredential();
+  }
+
+  @override
+  Future<void> sendPasswordResetEmail(String email) async {}
 
   Future<void> dispose() async {
-    await _controller.close();
-  }
-
-  @override
-  Future<UserCredential> signInWithFacebook() {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<UserCredential> signInWithGoogle() {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> sendPasswordResetEmail(String email) {
-    throw UnimplementedError();
-  }
-}
-
-class _TestApp extends StatelessWidget {
-  final GoRouter router;
-
-  const _TestApp({required this.router});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp.router(
-      localizationsDelegates: context.localizationDelegates,
-      supportedLocales: context.supportedLocales,
-      locale: context.locale,
-      routerConfig: router,
-    );
+    await _userController.close();
   }
 }
 
@@ -120,7 +113,7 @@ void main() {
         () => AuthController(
           getIt<IAuthService>(),
           Logger(level: Level.off),
-          translate: (key) => key,
+          (key) => key,
         ),
       );
     });
@@ -128,51 +121,74 @@ void main() {
     tearDown(() async {
       router.dispose();
       await authService.dispose();
-      await getIt.reset();
     });
 
-    testWidgets(
-      'redirects from landing page to main screen after authentication',
-      (tester) async {
-        final originalOnError = FlutterError.onError;
-        FlutterError.onError = (details) {
-          final message = details.exceptionAsString();
-          if (message.contains('A RenderFlex overflowed')) {
-            return;
-          }
-          originalOnError?.call(details);
-        };
-        addTearDown(() {
-          FlutterError.onError = originalOnError;
-        });
+    Widget createTestWidget({required GoRouter router}) {
+      return EasyLocalization(
+        supportedLocales: const [Locale('en', 'US')],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('en', 'US'),
+        child: Builder(
+          builder: (context) {
+            return MaterialApp.router(
+              localizationsDelegates: context.localizationDelegates,
+              supportedLocales: context.supportedLocales,
+              locale: context.locale,
+              routerConfig: router,
+            );
+          },
+        ),
+      );
+    }
 
-        tester.view.physicalSize = const Size(1400, 2200);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('should redirect to login when not authenticated', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          EasyLocalization(
-            supportedLocales: const [Locale('en', 'US'), Locale('nb', 'NO')],
-            path: 'assets/translations',
-            fallbackLocale: const Locale('en', 'US'),
-            child: _TestApp(router: router),
-          ),
-        );
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(createTestWidget(router: router));
+      await tester.pumpAndSettle();
+      expect(find.byType(LandingPageView), findsOneWidget);
+    });
 
-        expect(find.byType(LandingPageView), findsOneWidget);
+    testWidgets('should redirect to main when authenticated', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        authService.signInForTest('uid-123');
-        await tester.pumpAndSettle();
+      await authService.signIn(email: 'test@example.com', password: 'password');
+      await tester.pumpWidget(createTestWidget(router: router));
+      await tester.pumpAndSettle();
+      // GoRouter might need extra pumps for the initial redirect if it happened during pumpWidget
+      await tester.pumpAndSettle();
+      expect(find.byType(MainAppScreen), findsOneWidget);
+    });
 
-        expect(find.byType(MainAppScreen), findsOneWidget);
-        expect(find.byType(LandingPageView), findsNothing);
-      },
-    );
-  });
+    testWidgets('should handle session state change', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-  tearDownAll(() {
-    messenger.setMockMessageHandler('flutter/lifecycle', null);
+      await tester.pumpWidget(createTestWidget(router: router));
+      await tester.pumpAndSettle();
+      expect(find.byType(LandingPageView), findsOneWidget);
+
+      // Sign in
+      await authService.signIn(email: 'test@example.com', password: 'password');
+      await tester.pump(); // Trigger stream listener
+      await tester.pumpAndSettle(); // Allow redirect
+      expect(find.byType(MainAppScreen), findsOneWidget);
+
+      // Sign out
+      await authService.signOut();
+      await tester.pump(); // Trigger stream listener
+      await tester.pumpAndSettle(); // Allow redirect
+      expect(find.byType(LandingPageView), findsOneWidget);
+    });
   });
 }

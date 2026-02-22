@@ -111,11 +111,14 @@ class _LandingPageViewState extends State<LandingPageView> {
                           children: [
                             const Icon(Icons.mail_outline),
                             const SizedBox(width: 8),
-                            Text(
-                              'auth.social.continue_email'.tr(),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                            Flexible(
+                              child: Text(
+                                'auth.social.continue_email'.tr(),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -125,8 +128,9 @@ class _LandingPageViewState extends State<LandingPageView> {
                       const SizedBox(height: 32),
 
                       // Footer
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
                             'auth.toggle.no_account'.tr(),

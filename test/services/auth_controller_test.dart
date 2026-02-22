@@ -19,11 +19,7 @@ void main() {
   setUp(() {
     mockAuthService = MockAuthService();
     mockLogger = MockLogger();
-    authController = AuthController(
-      mockAuthService,
-      mockLogger,
-      translate: (key) => key,
-    );
+    authController = AuthController(mockAuthService, mockLogger, (key) => key);
   });
 
   group('AuthController', () {

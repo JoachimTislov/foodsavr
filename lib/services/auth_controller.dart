@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 
 import '../interfaces/i_auth_service.dart';
@@ -7,7 +6,6 @@ import '../utils/auth_error_handler.dart';
 
 typedef Translator = String Function(String);
 
-@injectable
 class AuthController extends ChangeNotifier {
   final IAuthService _authService;
   final Logger _logger;
