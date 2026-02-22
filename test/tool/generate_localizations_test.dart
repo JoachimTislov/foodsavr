@@ -95,4 +95,32 @@ void main() {
     final secondKeyIndex = enContent.indexOf('zebra');
     expect(firstKeyIndex < secondKeyIndex, isTrue);
   });
+
+  test('Logs a warning when a conflict occurs during stub generation',
+      () async {
+    // Current state has auth.login as a string. Let's try to insert a nested key auth.login.title.
+    await enJson.writeAsString(jsonEncode({
+      'auth': {'login': 'Login'}
+    }));
+    await mainDart.writeAsString('''
+      void main() {
+        print("auth.login.title".tr());
+      }
+    ''');
+
+    final result = await runGenerate();
+    expect(result.exitCode, 0);
+    expect(
+      result.stderr,
+      contains(
+        'WARNING: Key path conflict at "auth.login". Replacing existing leaf value "Login" with a nested structure.',
+      ),
+    );
+
+    final enMap =
+        jsonDecode(await enJson.readAsString()) as Map<String, dynamic>;
+    expect(enMap['auth'], isA<Map>());
+    expect(enMap['auth']['login'], isA<Map>());
+    expect(enMap['auth']['login']['title'], '[STUB] auth.login.title');
+  });
 }
