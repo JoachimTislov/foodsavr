@@ -68,12 +68,12 @@ class _ProfileViewState extends State<ProfileView> {
                     _SettingsItem(
                       icon: Icons.lock_reset,
                       label: 'generated.forgotPassword'.tr(),
-                      onTap: () {},
+                      onTap: () => _showNotImplemented(context),
                     ),
                     _SettingsItem(
                       icon: Icons.mail_outline,
                       label: 'generated.changeEmail'.tr(),
-                      onTap: () {},
+                      onTap: () => _showNotImplemented(context),
                     ),
                     _SettingsItem(
                       icon: Icons.security,
@@ -99,6 +99,12 @@ class _ProfileViewState extends State<ProfileView> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showNotImplemented(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('settings.notImplemented'.tr())),
     );
   }
 
@@ -411,13 +417,7 @@ class _SettingsItem extends StatelessWidget {
           fontWeight: FontWeight.w500,
         ),
       ),
-      trailing: isDestructive
-          ? null
-          : Icon(
-              Icons.chevron_right,
-              size: 20,
-              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-            ),
+      trailing: null,
     );
   }
 }

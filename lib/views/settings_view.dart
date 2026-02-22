@@ -302,20 +302,7 @@ class _SettingsTile extends StatelessWidget {
               ),
             )
           : null,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          trailing ?? const SizedBox.shrink(),
-          if (onTap != null) ...[
-            const SizedBox(width: 8),
-            Icon(
-              Icons.chevron_right,
-              size: 20,
-              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-            ),
-          ],
-        ],
-      ),
+      trailing: trailing,
     );
   }
 }
