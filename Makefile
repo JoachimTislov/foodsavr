@@ -86,7 +86,7 @@ preflight:
 	fi
 
 push: preflight
-	@if git diff --quiet --exit-code lib/service_locator.dart lib/services/ lib/interfaces/ lib/repositories/; then \
+	@if git diff --quiet --exit-code lib/service_locator.dart lib/services/ lib/interfaces/ lib/repositories/ lib/di/ lib/injection.dart; then \
 		echo "No DI changes detected, skipping generate-di."; \
 	else \
 		echo "DI changes detected, running generate-di..."; \
