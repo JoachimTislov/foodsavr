@@ -85,7 +85,7 @@ preflight:
 		exit 1; \
 	fi
 
-push: preflight
+push: deps preflight
 	@if git diff --quiet --exit-code lib/service_locator.dart lib/services/ lib/interfaces/ lib/repositories/ lib/di/ lib/injection.dart; then \
 		echo "No DI changes detected, skipping generate-di."; \
 	else \
