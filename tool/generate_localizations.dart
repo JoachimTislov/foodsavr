@@ -1,12 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-// Use comments to avoid extraction of test keys
-// "auth.login".tr()
-// "auth.extra".tr()
-// "auth.missing".tr()
-// "auth.new_key".tr()
-
 final _trMethodRegex = RegExp(r'''['"]([^'"]+)['"]\.tr\(\)''');
 final _trFunctionRegex = RegExp(r'''_tr\(\s*['"]([^'"]+)['"]\s*\)''');
 
@@ -21,6 +15,49 @@ Set<String> _flattenKeys(Map<String, dynamic> map, [String prefix = '']) {
     }
   });
   return keys;
+}
+
+Map<String, dynamic> _unflatten(
+  Set<String> keys, {
+  Map<String, dynamic>? existing,
+  String Function(String)? stubGenerator,
+}) {
+  final root = existing ?? <String, dynamic>{};
+  for (final key in keys) {
+    final parts = key.split('.');
+    var current = root;
+    for (var i = 0; i < parts.length; i++) {
+      final part = parts[i];
+      if (i == parts.length - 1) {
+        if (!current.containsKey(part)) {
+          current[part] = stubGenerator?.call(key) ?? '[STUB] $key';
+        }
+      } else {
+        final next = current.putIfAbsent(part, () => <String, dynamic>{});
+        if (next is! Map<String, dynamic>) {
+          current[part] = <String, dynamic>{};
+          current = current[part] as Map<String, dynamic>;
+        } else {
+          current = next;
+        }
+      }
+    }
+  }
+  return root;
+}
+
+void _sortMap(Map<String, dynamic> m) {
+  final keys = m.keys.toList()..sort();
+  final sorted = <String, dynamic>{};
+  for (final k in keys) {
+    final v = m[k];
+    if (v is Map<String, dynamic>) {
+      _sortMap(v);
+    }
+    sorted[k] = v;
+  }
+  m.clear();
+  m.addAll(sorted);
 }
 
 Set<String> _extractUsedKeys(
@@ -75,14 +112,15 @@ void main() {
   final repoRoot = Directory.current.path;
   final localeDir = Directory('$repoRoot/assets/translations');
 
-  _handleValidate(sourceDirs, ignorePaths, localeDir);
+  _handleGenerate(sourceDirs, ignorePaths, localeDir);
 }
 
-void _handleValidate(
+void _handleGenerate(
   List<String> sourceDirs,
   List<String> ignorePaths,
   Directory localeDir,
 ) {
+  stdout.writeln('--- Generating Localization Stubs ---');
   final usedKeys = _extractUsedKeys(sourceDirs, ignorePaths);
   final localeFiles = _getLocaleFiles(localeDir);
 
@@ -91,9 +129,9 @@ void _handleValidate(
     exit(1);
   }
 
-  var hasIssues = false;
   final allLocaleKeys = <String, Set<String>>{};
   final unionOfAllKeys = <String>{};
+  unionOfAllKeys.addAll(usedKeys);
 
   for (final file in localeFiles) {
     final fileName = file.uri.pathSegments.last;
@@ -101,49 +139,28 @@ void _handleValidate(
     final keys = _flattenKeys(map);
     allLocaleKeys[fileName] = keys;
     unionOfAllKeys.addAll(keys);
-
-    final missing = usedKeys.difference(keys).toList()..sort();
-    final unused = keys.difference(usedKeys).toList()..sort();
-
-    if (missing.isNotEmpty || unused.isNotEmpty) {
-      hasIssues = true;
-      stdout.writeln('\n[$fileName]');
-      if (missing.isNotEmpty) {
-        stdout.writeln('  Missing keys from source (${missing.length}):');
-        for (final key in missing) {
-          stdout.writeln('    - $key');
-        }
-      }
-      if (unused.isNotEmpty) {
-        stdout.writeln('  Unused keys (${unused.length}):');
-        for (final key in unused) {
-          stdout.writeln('    - $key');
-        }
-      }
-    }
   }
 
-  // Structure consistency check
-  stdout.writeln('\nChecking structure consistency across all locale files...');
-  for (final entry in allLocaleKeys.entries) {
-    final fileName = entry.key;
-    final keys = entry.value;
-    final missingFromOther = unionOfAllKeys.difference(keys).toList()..sort();
-    if (missingFromOther.isNotEmpty) {
-      hasIssues = true;
-      stdout.writeln('  [$fileName] is missing keys present in other locales:');
-      for (final key in missingFromOther) {
-        stdout.writeln('    - $key');
-      }
-    }
-  }
+  final encoder = JsonEncoder.withIndent('    ');
 
-  if (hasIssues) {
-    stderr.writeln('\nLocalization validation failed.');
-    exit(1);
-  } else {
-    stdout.writeln(
-      'Localization validation passed (${usedKeys.length} used keys checked).',
-    );
+  for (final file in localeFiles) {
+    final fileName = file.uri.pathSegments.last;
+    final map = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+    final keys = allLocaleKeys[fileName]!;
+    final missing = unionOfAllKeys.difference(keys);
+
+    if (missing.isEmpty) {
+      stdout.writeln('[$fileName] No missing keys. Sorting existing keys...');
+      _sortMap(map);
+      file.writeAsStringSync(encoder.convert(map));
+      continue;
+    }
+
+    stdout.writeln('[$fileName] Adding ${missing.length} stubs and sorting...');
+    final updatedMap = _unflatten(missing, existing: map);
+    _sortMap(updatedMap);
+
+    file.writeAsStringSync(encoder.convert(updatedMap));
+    stdout.writeln('[$fileName] Updated.');
   }
 }
