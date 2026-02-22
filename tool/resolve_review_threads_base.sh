@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
+# resolve_review_threads_base.sh
+# Usage: $0 <outdated|active|all> <pr-number> [owner/repo]
+# Resolves ALL unresolved threads matching the given mode (not just the first).
 set -euo pipefail
 
 if [[ $# -lt 2 ]]; then
-  echo "Usage: $0 <outdated|active> <pr-number> [owner/repo]"
+  echo "Usage: $0 <outdated|active|all> <pr-number> [owner/repo]"
   exit 1
 fi
 
@@ -21,8 +24,12 @@ case "$MODE" in
     JQ_FILTER='.data.repository.pullRequest.reviewThreads.nodes[] | select(.isOutdated == false and .isResolved == false) | .id'
     LABEL='active'
     ;;
+  all)
+    JQ_FILTER='.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false) | .id'
+    LABEL='all unresolved'
+    ;;
   *)
-    echo "Invalid mode: $MODE. Expected one of: outdated, active"
+    echo "Invalid mode: $MODE. Expected one of: outdated, active, all"
     exit 1
     ;;
 esac
@@ -51,15 +58,21 @@ MUTATION='mutation($id:ID!){
   }
 }'
 
-thread_id="$(
+mapfile -t thread_ids < <(
   gh api graphql -f query="$QUERY" -F owner="$OWNER" -F repo="$NAME" -F num="$PR_NUMBER" \
-    -q "$JQ_FILTER" | head -n 1
-)"
+    -q "$JQ_FILTER"
+)
 
-if [[ -z "${thread_id:-}" ]]; then
-  echo "No unresolved ${LABEL} thread found."
+if [[ ${#thread_ids[@]} -eq 0 ]]; then
+  echo "No unresolved ${LABEL} threads found."
   exit 0
 fi
 
-gh api graphql -f query="$MUTATION" -F id="$thread_id" >/dev/null
-echo "Resolved ${LABEL} thread: $thread_id"
+count=0
+for thread_id in "${thread_ids[@]}"; do
+  [[ -z "$thread_id" ]] && continue
+  gh api graphql -f query="$MUTATION" -F id="$thread_id" >/dev/null
+  echo "Resolved: $thread_id"
+  (( count++ )) || true
+done
+echo "Done — resolved ${count} ${LABEL} thread(s)."

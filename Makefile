@@ -1,4 +1,4 @@
-.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test test-auth-flow clean locales check check-full deps locale-check generate-di preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated
+.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test test-auth-flow clean locales check check-full deps locale-check generate-di preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated pr-comments-resolve-all pr-comments-resolve-thread pr-comments-list
 
 dev-chrome-prod: deps
 	@flutter run -d chrome --no-pub --flavor production
@@ -153,3 +153,28 @@ pr-comments-resolve-outdated:
 		exit 1; \
 	fi
 	@tool/resolve_outdated_review_threads.sh $(PR)
+
+pr-comments-resolve-all:
+	@if [ -z "$(PR)" ]; then \
+		echo "Usage: make pr-comments-resolve-all PR=<number>"; \
+		exit 1; \
+	fi
+	@tool/resolve_review_threads_base.sh all $(PR)
+
+# Resolve one or more specific threads by their GraphQL node IDs.
+# Usage: make pr-comments-resolve-thread IDS="PRRT_abc PRRT_def"
+pr-comments-resolve-thread:
+	@if [ -z "$(IDS)" ]; then \
+		echo "Usage: make pr-comments-resolve-thread IDS=\"PRRT_... PRRT_...\""; \
+		exit 1; \
+	fi
+	@tool/resolve_thread_by_id.sh $(IDS)
+
+# List threads for a PR. Filter with FILTER=--all|--active|--outdated|--resolved
+# Usage: make pr-comments-list PR=<number> [FILTER=--all]
+pr-comments-list:
+	@if [ -z "$(PR)" ]; then \
+		echo "Usage: make pr-comments-list PR=<number> [FILTER=--all|--active|--outdated|--resolved]"; \
+		exit 1; \
+	fi
+	@tool/list_review_threads.sh $(PR) $(if $(FILTER),$(FILTER),--active)
