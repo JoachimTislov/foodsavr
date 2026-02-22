@@ -12,11 +12,14 @@ Look into
 - url_launcher
 - lints
 - dart_code_metrics: Advanced linter
-- injectable
-	- injectable_generator
 - font_awesome
 - timezone
 - analyzer
+
+## Implemented packages
+
+- injectable
+- injectable_generator
 
 ## Testing Checklist (after #3)
 - [x] Test with Firebase emulator running
