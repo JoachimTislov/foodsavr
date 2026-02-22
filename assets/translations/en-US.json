@@ -62,6 +62,108 @@
         "close": "Close",
         "terms_of_service": "Terms of Service",
         "and": " and ",
-        "or": "OR"
+        "or": "OR",
+        "viewAll": "View All",
+        "settings": "Settings",
+        "signOut": "Sign Out",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "from": "From",
+        "to": "To"
+    },
+    "dashboard": {
+        "title": "Dashboard",
+        "overview": "Overview",
+        "transfer": "Transfer",
+        "moveItems": "Move items",
+        "myInventory": "My Inventory",
+        "myInventories": "My Inventories",
+        "manageProducts": "Manage products",
+        "shoppingList": "Shopping List",
+        "manageLists": "Manage lists",
+        "globalProducts": "Global Products",
+        "browseProducts": "Browse products",
+        "expiringSoon": "Expiring Soon",
+        "noProductsExpiringSoon": "No products expiring soon."
+    },
+    "product": {
+        "title": "My Products",
+        "changeViewMode": "Change view mode",
+        "compact": "Compact",
+        "normal": "Normal",
+        "details": "Product Details",
+        "select": "Select Products",
+        "errorLoading": "Error loading products",
+        "noProductsFound": "No products found",
+        "addFirst": "Add your first product to get started",
+        "settingsSoon": "Settings feature coming soon!",
+        "addSoon": "Add product feature coming soon!",
+        "add": "Add Product",
+        "editSoon": "Edit feature coming soon!",
+        "delete": "Delete Product",
+        "search_hint": "Search your pantry...",
+        "available_stock": "AVAILABLE STOCK",
+        "status": "Status"
+    },
+    "transfer": {
+        "title": "Transfer Inventory",
+        "selectProducts": "Select products",
+        "fromLocation": "From Location",
+        "toLocation": "To Location",
+        "transfer_items": "Transfer {} items"
+    },
+    "profile": {
+        "title": "Profile",
+        "deleteAccountConfirmation": "Yes, Delete Account"
+    },
+    "collection": {
+        "addProductSoon": "Add product to collection feature coming soon!",
+        "errorLoadingProducts": "Error loading products",
+        "noProducts": "No products in this collection"
+    },
+    "generated": {
+        "100_42": "1.0.0 (42)",
+        "128": "128",
+        "42": "42",
+        "accountSettings": "Account Settings",
+        "acquiredProducts": "Acquired Products",
+        "changeEmail": "Change Email",
+        "defaultfirebaseoptionsAreNotSupported": "DefaultFirebaseOptions are not supported for this platform.",
+        "defaultfirebaseoptionsHaveNotBeen": "DefaultFirebaseOptions have not been configured for this platform.",
+        "deleteAccount": "Delete Account",
+        "dummy": "dummy",
+        "en": "en",
+        "forgotPassword": "Forgot Password",
+        "itemsTracked": "Items Tracked",
+        "janeDoe": "Jane Doe",
+        "janedoepantrypalcom": "jane.doe@pantrypal.com",
+        "logOut": "Log Out",
+        "nb": "nb",
+        "no": "NO",
+        "profile": "/profile",
+        "thisActionIsPermanent": "This action is permanent and cannot be undone.",
+        "twofactorAuthentication": "Two-factor Authentication",
+        "us": "US",
+        "youCanReconfigureThis": "You can reconfigure this in the Firebase console."
+    },
+    "settings": {
+        "about": "About",
+        "account": "Account",
+        "app_version": "App Version",
+        "appearance": "Appearance",
+        "language": "Language",
+        "languages": {
+            "en": "English",
+            "nb": "Norwegian"
+        },
+        "privacy_policy": "Privacy Policy",
+        "terms_of_service": "Terms of Service",
+        "theme_mode": "Theme Mode",
+        "themes": {
+            "dark": "Dark",
+            "light": "Light",
+            "system": "System"
+        },
+        "title": "Settings"
     }
 }

@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/product_model.dart';
@@ -70,7 +71,7 @@ class ProductSelectItem extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Status: ',
+                        'product.status'.tr() + ': ',
                         style: textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),

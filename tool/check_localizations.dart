@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-final _trMethodRegex = RegExp(r'''['"]([^'"]+)['"]\.tr\(\)''');
+final _trMethodRegex = RegExp(r'''['"]([^'"]+)['"]\.tr'''); // For simple 'key'.tr or 'key'.tr(args: ...)
+final _trConditionalRegex = RegExp(r'''\?\s*['"]([^'"]+)['"]\s*:\s*['"]([^'"]+)['"]\)'''); // For (cond ? 'key1' : 'key2')
 final _trFunctionRegex = RegExp(r'''_tr\(\s*['"]([^'"]+)['"]\s*\)''');
 
 Set<String> _flattenKeys(Map<String, dynamic> map, [String prefix = '']) {
@@ -38,19 +39,24 @@ void main() {
       for (final match in _trMethodRegex.allMatches(content)) {
         usedKeys.add(match.group(1)!);
       }
-      for (final match in _trFunctionRegex.allMatches(content)) {
-        usedKeys.add(match.group(1)!);
+      for (final match in _trConditionalRegex.allMatches(content)) {
+        // No longer add matches here, as conditional keys are handled directly in the UI.
       }
-    }
-  }
-
-  final localeFiles =
-      localeDir
-          .listSync()
-          .whereType<File>()
-          .where((f) => f.path.endsWith('.json'))
-          .toList()
-        ..sort((a, b) => a.path.compareTo(b.path));
+            for (final match in _trFunctionRegex.allMatches(content)) {
+              usedKeys.add(match.group(1)!);
+            }
+          }
+        }
+      
+      
+      
+        final localeFiles =
+            localeDir
+                .listSync()
+                .whereType<File>()
+                .where((f) => f.path.endsWith('.json'))
+                .toList()
+              ..sort((a, b) => a.path.compareTo(b.path));
 
   if (localeFiles.isEmpty) {
     stderr.writeln('No locale JSON files found in ${localeDir.path}');

@@ -1,11 +1,13 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../interfaces/i_auth_service.dart';
 import '../models/product_model.dart';
+import '../models/collection_model.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
+import '../services/collection_service.dart';
 import '../widgets/dashboard/expiring_item_card.dart';
 import '../widgets/dashboard/overview_card.dart';
 
@@ -19,15 +21,28 @@ class DashboardView extends StatefulWidget {
 class _DashboardViewState extends State<DashboardView> {
   late final IAuthService _authService;
   late final ProductService _productService;
+  late final CollectionService _collectionService;
   late final Future<List<Product>> _expiringSoonFuture;
+  late final Future<List<Collection>> _inventoriesFuture;
+  late final Future<List<Collection>> _shoppingListsFuture;
 
   @override
   void initState() {
     super.initState();
     _authService = getIt<IAuthService>();
     _productService = getIt<ProductService>();
-    _expiringSoonFuture = _productService.getExpiringSoon(
-      _authService.getUserId(),
+    _collectionService = getIt<CollectionService>();
+    final userId = _authService.getUserId();
+
+    _expiringSoonFuture = _productService.getExpiringSoon(userId);
+
+    _inventoriesFuture = _collectionService.getCollectionsForUser(
+      userId!,
+      type: 'inventory',
+    );
+    _shoppingListsFuture = _collectionService.getCollectionsForUser(
+      userId,
+      type: 'shopping',
     );
   }
 
@@ -43,9 +58,9 @@ class _DashboardViewState extends State<DashboardView> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Dashboard',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            Text(
+              'dashboard.title'.tr(),
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             Text(
               today,
@@ -60,13 +75,13 @@ class _DashboardViewState extends State<DashboardView> {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () {},
-            tooltip: 'Settings',
+            onPressed: () => context.push('/settings'),
+            tooltip: 'common.settings'.tr(),
           ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => _authService.signOut(),
-            tooltip: 'Sign Out',
+            tooltip: 'common.signOut'.tr(),
           ),
         ],
       ),
@@ -78,48 +93,63 @@ class _DashboardViewState extends State<DashboardView> {
             _ExpiringSoonSection(expiringSoonFuture: _expiringSoonFuture),
             const SizedBox(height: 32),
             Text(
-              'Overview',
+              'dashboard.overview'.tr(),
               style: textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 16),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              children: [
-                OverviewCard(
-                  title: 'Transfer',
-                  subtitle: 'Move items',
-                  icon: Icons.move_up,
-                  iconColor: colorScheme.primary,
-                  onTap: () => context.push('/transfer'),
-                ),
-                OverviewCard(
-                  title: 'My Inventory',
-                  subtitle: 'Manage products',
-                  icon: Icons.inventory_2_outlined,
-                  iconColor: colorScheme.secondary,
-                  onTap: () => context.push('/product-list'),
-                ),
-                OverviewCard(
-                  title: 'Shopping List',
-                  subtitle: 'Manage lists',
-                  icon: Icons.shopping_cart_outlined,
-                  iconColor: colorScheme.tertiary,
-                  onTap: () => context.push('/collection-list'),
-                ),
-                OverviewCard(
-                  title: 'Global Products',
-                  subtitle: 'Browse products',
-                  icon: Icons.public_outlined,
-                  iconColor: colorScheme.primary,
-                  onTap: () => context.push('/global-products'),
-                ),
-              ],
+            FutureBuilder(
+              future: Future.wait([_inventoriesFuture, _shoppingListsFuture]),
+              builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final inventories = snapshot.data?[0] as List<Collection>? ?? [];
+
+                return GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  children: [
+                    OverviewCard(
+                      title: 'dashboard.transfer'.tr(),
+                      subtitle: 'dashboard.moveItems'.tr(),
+                      icon: Icons.move_up,
+                      iconColor: colorScheme.primary,
+                      onTap: () => context.push('/transfer'),
+                    ),
+                    OverviewCard(
+                      title: inventories.length == 1
+                          ? 'dashboard.myInventory'.tr()
+                          : 'dashboard.myInventories'.tr(),
+                      subtitle: 'dashboard.manageProducts'.tr(),
+                      icon: Icons.inventory_2_outlined,
+                      iconColor: colorScheme.secondary,
+                      onTap: () =>
+                          context.push('/collection-list?type=inventory'),
+                    ),
+                    OverviewCard(
+                      title: 'dashboard.shoppingList'.tr(),
+                      subtitle: 'dashboard.manageLists'.tr(),
+                      icon: Icons.shopping_cart_outlined,
+                      iconColor: colorScheme.tertiary,
+                      onTap: () =>
+                          context.push('/collection-list?type=shopping'),
+                    ),
+                    OverviewCard(
+                      title: 'dashboard.globalProducts'.tr(),
+                      subtitle: 'dashboard.browseProducts'.tr(),
+                      icon: Icons.public_outlined,
+                      iconColor: colorScheme.primary,
+                      onTap: () => context.push('/global-products'),
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -144,14 +174,14 @@ class _ExpiringSoonSection extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Expiring Soon',
+              'dashboard.expiringSoon'.tr(),
               style: textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
             TextButton(
               onPressed: () => context.push('/product-list'),
-              child: const Text('View All'),
+              child: Text('common.viewAll'.tr()),
             ),
           ],
         ),
@@ -165,7 +195,7 @@ class _ExpiringSoonSection extends StatelessWidget {
             final products = snapshot.data ?? [];
             if (products.isEmpty) {
               return Text(
-                'No products expiring soon.',
+                'dashboard.noProductsExpiringSoon'.tr(),
                 style: textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),

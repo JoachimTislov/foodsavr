@@ -62,6 +62,108 @@
         "close": "Lukk",
         "terms_of_service": "Vilkår for bruk",
         "and": " og ",
-        "or": "ELLER"
+        "or": "ELLER",
+        "viewAll": "Se alle",
+        "settings": "Innstillinger",
+        "signOut": "Logg ut",
+        "cancel": "Avbryt",
+        "delete": "Slett",
+        "from": "Fra",
+        "to": "Til"
+    },
+    "dashboard": {
+        "title": "Dashbord",
+        "overview": "Oversikt",
+        "transfer": "Overføring",
+        "moveItems": "Flytt varer",
+        "myInventory": "Mitt lager",
+        "myInventories": "Mine lagre",
+        "manageProducts": "Administrer produkter",
+        "shoppingList": "Handleliste",
+        "manageLists": "Administrer lister",
+        "globalProducts": "Globale produkter",
+        "browseProducts": "Bla gjennom produkter",
+        "expiringSoon": "Utløper snart",
+        "noProductsExpiringSoon": "Ingen produkter utløper snart."
+    },
+    "product": {
+        "title": "Mine produkter",
+        "changeViewMode": "Endre visningsmodus",
+        "compact": "Kompakt",
+        "normal": "Normal",
+        "details": "Produktdetaljer",
+        "select": "Velg produkter",
+        "errorLoading": "Feil ved lasting av produkter",
+        "noProductsFound": "Ingen produkter funnet",
+        "addFirst": "Legg til ditt første produkt for å komme i gang",
+        "settingsSoon": "Innstillingsfunksjon kommer snart!",
+        "addSoon": "Legg til produkt-funksjon kommer snart!",
+        "add": "Legg til produkt",
+        "editSoon": "Redigeringsfunksjon kommer snart!",
+        "delete": "Slett produkt",
+        "search_hint": "Søk i matskapet ditt...",
+        "available_stock": "TILGJENGELIG LAGER",
+        "status": "Status"
+    },
+    "transfer": {
+        "title": "Overfør lager",
+        "selectProducts": "Velg produkter",
+        "fromLocation": "Fra sted",
+        "toLocation": "Til sted",
+        "transfer_items": "Overfør {} varer"
+    },
+    "profile": {
+        "title": "Profil",
+        "deleteAccountConfirmation": "Ja, slett konto"
+    },
+    "collection": {
+        "addProductSoon": "Legg til produkt i samling-funksjon kommer snart!",
+        "errorLoadingProducts": "Feil ved lasting av produkter",
+        "noProducts": "Ingen produkter i denne samlingen"
+    },
+    "generated": {
+        "100_42": "1.0.0 (42)",
+        "128": "128",
+        "42": "42",
+        "accountSettings": "Kontoinnstillinger",
+        "acquiredProducts": "Anskaffede produkter",
+        "changeEmail": "Endre e-post",
+        "defaultfirebaseoptionsAreNotSupported": "DefaultFirebaseOptions støttes ikke for denne plattformen.",
+        "defaultfirebaseoptionsHaveNotBeen": "DefaultFirebaseOptions har ikke blitt konfigurert for denne plattformen.",
+        "deleteAccount": "Slett konto",
+        "dummy": "dummy",
+        "en": "en",
+        "forgotPassword": "Glemt passord",
+        "itemsTracked": "Vare sporet",
+        "janeDoe": "Jane Doe",
+        "janedoepantrypalcom": "jane.doe@pantrypal.no",
+        "logOut": "Logg ut",
+        "nb": "nb",
+        "no": "NO",
+        "profile": "/profil",
+        "thisActionIsPermanent": "Denne handlingen er permanent og kan ikke angres.",
+        "twofactorAuthentication": "To-faktor autentisering",
+        "us": "US",
+        "youCanReconfigureThis": "Du kan rekonfigurere dette i Firebase-konsollen."
+    },
+    "settings": {
+        "about": "Om",
+        "account": "Konto",
+        "app_version": "App-versjon",
+        "appearance": "Utseende",
+        "language": "Språk",
+        "languages": {
+            "en": "Engelsk",
+            "nb": "Norsk"
+        },
+        "privacy_policy": "Personvernregler",
+        "terms_of_service": "Vilkår for bruk",
+        "theme_mode": "Temamodus",
+        "themes": {
+            "dark": "Mørk",
+            "light": "Lys",
+            "system": "System"
+        },
+        "title": "Innstillinger"
     }
 }

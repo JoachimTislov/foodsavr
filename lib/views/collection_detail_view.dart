@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../models/collection_model.dart';
@@ -70,8 +71,8 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Add product to collection feature coming soon!'),
+            SnackBar(
+              content: Text('collection.addProductSoon'.tr()),
             ),
           );
         },
@@ -87,11 +88,11 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         } else if (snapshot.hasError) {
-          return const ErrorStateWidget(message: 'Error loading products');
+          return ErrorStateWidget(message: 'collection.errorLoadingProducts'.tr());
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const EmptyStateWidget(
+          return EmptyStateWidget(
             icon: Icons.inventory_2_outlined,
-            title: 'No products in this collection',
+            title: 'collection.noProducts'.tr(),
           );
         } else {
           return _buildProductList(snapshot.data!);
