@@ -43,6 +43,7 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i116.GoogleSignIn>(() => registerModule.googleSignIn);
     gh.lazySingleton<_i806.FacebookAuth>(() => registerModule.facebookAuth);
+    gh.lazySingleton<_i882.Translator>(() => registerModule.translator);
     gh.lazySingleton<_i794.IAuthService>(
       () => _i277.AuthService(
         gh<_i59.FirebaseAuth>(),
@@ -57,11 +58,11 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i655.ICollectionRepository>(
       () => _i92.CollectionRepository(gh<_i974.FirebaseFirestore>()),
     );
-    gh.factoryParam<_i882.AuthController, _i882.Translator?, dynamic>(
-      (translate, _) => _i882.AuthController(
+    gh.factory<_i882.AuthController>(
+      () => _i882.AuthController(
         gh<_i794.IAuthService>(),
         gh<_i783.Logger>(),
-        translate: translate,
+        translate: gh<_i882.Translator>(),
       ),
     );
     gh.factory<_i464.SeedingService>(
