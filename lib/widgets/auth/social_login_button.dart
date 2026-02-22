@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:vector_graphics/vector_graphics.dart';
 
 class SocialLoginButton extends StatelessWidget {
@@ -37,8 +36,8 @@ class SocialLoginButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SvgPicture(
-              AssetBytesLoader(iconPath),
+            VectorGraphic(
+              loader: AssetBytesLoader(iconPath),
               height: 24,
               width: 24,
               semanticsLabel: text,
