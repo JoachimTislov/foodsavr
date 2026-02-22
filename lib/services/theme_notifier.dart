@@ -5,8 +5,7 @@ const _kThemeModeKey = 'app_theme_mode';
 
 /// Manages the app-wide [ThemeMode] and persists the selection.
 class ThemeNotifier extends ChangeNotifier {
-  ThemeNotifier(this._prefs)
-      : _themeMode = _load(_prefs);
+  ThemeNotifier(this._prefs) : _themeMode = _load(_prefs);
 
   final SharedPreferences _prefs;
   ThemeMode _themeMode;

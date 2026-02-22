@@ -100,6 +100,7 @@
     "settingsSoon": "Settings feature coming soon!",
     "addSoon": "Add product feature coming soon!",
     "add": "Add Product",
+    "availableIn": "Available in: {inventories}",
     "editSoon": "Edit feature coming soon!",
     "delete": "Delete Product",
     "search_hint": "Search your pantry...",

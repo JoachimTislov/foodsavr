@@ -100,6 +100,7 @@
     "settingsSoon": "Innstillingsfunksjon kommer snart!",
     "addSoon": "Legg til produkt-funksjon kommer snart!",
     "add": "Legg til produkt",
+    "availableIn": "Tilgjengelig i {inventories}",
     "editSoon": "Redigeringsfunksjon kommer snart!",
     "delete": "Slett produkt",
     "search_hint": "Søk i matskapet ditt...",
