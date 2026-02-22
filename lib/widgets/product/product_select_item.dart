@@ -71,7 +71,7 @@ class ProductSelectItem extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'product.status'.tr() + ': ',
+                        '${'product.status'.tr()}: ',
                         style: textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),

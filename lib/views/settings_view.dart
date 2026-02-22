@@ -103,7 +103,7 @@ class _SettingsViewState extends State<SettingsView> {
                 _SettingsTile(
                   icon: Icons.info_outline,
                   title: 'settings.app_version'.tr(),
-                  trailing: const Text('generated.100_42'.tr()),
+                  trailing: Text('generated.100_42'.tr()),
                   onTap: null,
                 ),
               ],
@@ -161,7 +161,7 @@ class _SettingsViewState extends State<SettingsView> {
                   ? const Icon(Icons.check, color: Colors.blue)
                   : null,
               onTap: () {
-                context.setLocale(const Locale('generated.en'.tr(), 'generated.us'.tr()));
+                context.setLocale(Locale('generated.en'.tr(), 'generated.us'.tr()));
                 Navigator.pop(context);
               },
             ),
@@ -171,7 +171,7 @@ class _SettingsViewState extends State<SettingsView> {
                   ? const Icon(Icons.check, color: Colors.blue)
                   : null,
               onTap: () {
-                context.setLocale(const Locale('generated.nb'.tr(), 'generated.no'.tr()));
+                context.setLocale(Locale('generated.nb'.tr(), 'generated.no'.tr()));
                 Navigator.pop(context);
               },
             ),

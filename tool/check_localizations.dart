@@ -39,12 +39,13 @@ void main() {
       for (final match in _trMethodRegex.allMatches(content)) {
         usedKeys.add(match.group(1)!);
       }
-      for (final match in _trConditionalRegex.allMatches(content)) {
-        // No longer add matches here, as conditional keys are handled directly in the UI.
+      for (final _ in _trConditionalRegex.allMatches(content)) {
+        // As DashboardView has been refactored, these keys are now directly handled,
+        // so we don't need to add them here from the regex.
       }
-            for (final match in _trFunctionRegex.allMatches(content)) {
-              usedKeys.add(match.group(1)!);
-            }
+      for (final match in _trFunctionRegex.allMatches(content)) {
+        usedKeys.add(match.group(1)!);
+      }
           }
         }
       

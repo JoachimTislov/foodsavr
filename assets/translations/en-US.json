@@ -128,10 +128,7 @@
         "accountSettings": "Account Settings",
         "acquiredProducts": "Acquired Products",
         "changeEmail": "Change Email",
-        "defaultfirebaseoptionsAreNotSupported": "DefaultFirebaseOptions are not supported for this platform.",
-        "defaultfirebaseoptionsHaveNotBeen": "DefaultFirebaseOptions have not been configured for this platform.",
         "deleteAccount": "Delete Account",
-        "dummy": "dummy",
         "en": "en",
         "forgotPassword": "Forgot Password",
         "itemsTracked": "Items Tracked",
@@ -143,8 +140,7 @@
         "profile": "/profile",
         "thisActionIsPermanent": "This action is permanent and cannot be undone.",
         "twofactorAuthentication": "Two-factor Authentication",
-        "us": "US",
-        "youCanReconfigureThis": "You can reconfigure this in the Firebase console."
+        "us": "US"
     },
     "settings": {
         "about": "About",

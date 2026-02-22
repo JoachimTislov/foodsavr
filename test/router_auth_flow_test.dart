@@ -12,13 +12,42 @@ import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/services/auth_controller.dart';
 import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/interfaces/i_product_repository.dart';
+import 'package:foodsavr/interfaces/i_collection_repository.dart'; // Explicitly import ICollectionRepository
 import 'package:foodsavr/models/product_model.dart';
+import 'package:foodsavr/models/collection_model.dart'; // Import Collection
 import 'package:foodsavr/views/landing_page_view.dart';
 import 'package:foodsavr/views/dashboard_view.dart';
+import 'package:foodsavr/services/collection_service.dart'; // Import CollectionService
 import 'package:go_router/go_router.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class _FakeCollectionRepository implements ICollectionRepository {
+  @override
+  Future<Collection> add(Collection entity) async => entity;
+
+  @override
+  Future<Collection?> get(String id) async => null;
+
+  @override
+  Future<List<Collection>> getAll() async => [];
+
+  @override
+  Future<void> update(Collection entity) async {}
+
+  @override
+  Future<void> delete(String id) async {}
+
+  @override
+  Future<List<Collection>> getCollections(String userId) async => [];
+
+  @override
+  Future<void> addProduct(String collectionId, int productId) async {}
+
+  @override
+  Future<void> removeProduct(String collectionId, int productId) async {}
+}
 
 class _MockUser extends Mock implements User {}
 
@@ -139,6 +168,12 @@ void main() {
       getIt.registerLazySingleton<ProductService>(
         () =>
             ProductService(_FakeProductRepository(), Logger(level: Level.off)),
+      );
+      getIt.registerLazySingleton<CollectionService>(
+        () => CollectionService(
+          _FakeCollectionRepository(),
+          Logger(level: Level.off),
+        ),
       );
       getIt.registerFactory<AuthController>(
         () => AuthController(

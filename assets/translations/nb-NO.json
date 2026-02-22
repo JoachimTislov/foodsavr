@@ -128,10 +128,7 @@
         "accountSettings": "Kontoinnstillinger",
         "acquiredProducts": "Anskaffede produkter",
         "changeEmail": "Endre e-post",
-        "defaultfirebaseoptionsAreNotSupported": "DefaultFirebaseOptions støttes ikke for denne plattformen.",
-        "defaultfirebaseoptionsHaveNotBeen": "DefaultFirebaseOptions har ikke blitt konfigurert for denne plattformen.",
         "deleteAccount": "Slett konto",
-        "dummy": "dummy",
         "en": "en",
         "forgotPassword": "Glemt passord",
         "itemsTracked": "Vare sporet",
@@ -143,8 +140,7 @@
         "profile": "/profil",
         "thisActionIsPermanent": "Denne handlingen er permanent og kan ikke angres.",
         "twofactorAuthentication": "To-faktor autentisering",
-        "us": "US",
-        "youCanReconfigureThis": "Du kan rekonfigurere dette i Firebase-konsollen."
+        "us": "US"
     },
     "settings": {
         "about": "Om",

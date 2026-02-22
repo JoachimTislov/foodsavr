@@ -88,10 +88,10 @@ void main() {
 
         // Should see language options in English
         expect(find.text('English'), findsNWidgets(2)); // Tile and Modal item
-        expect(find.text('Norsk'), findsOneWidget);
+        expect(find.text('Norwegian'), findsOneWidget);
 
         // Select Norwegian
-        await tester.tap(find.text('Norsk'));
+        await tester.tap(find.text('Norwegian'));
         await tester.pumpAndSettle();
 
         // Title should now be 'Innstillinger' (Norwegian for Settings)

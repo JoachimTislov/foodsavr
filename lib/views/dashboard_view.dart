@@ -8,6 +8,7 @@ import '../models/collection_model.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
 import '../services/collection_service.dart';
+import '../utils/collection_types.dart'; // Import CollectionType
 import '../widgets/dashboard/expiring_item_card.dart';
 import '../widgets/dashboard/overview_card.dart';
 
@@ -38,11 +39,11 @@ class _DashboardViewState extends State<DashboardView> {
 
     _inventoriesFuture = _collectionService.getCollectionsForUser(
       userId!,
-      type: 'inventory',
+      type: CollectionType.inventory,
     );
     _shoppingListsFuture = _collectionService.getCollectionsForUser(
       userId,
-      type: 'shopping',
+      type: CollectionType.shoppingList,
     );
   }
 
