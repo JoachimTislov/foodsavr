@@ -44,6 +44,8 @@ class _ProfileViewState extends State<ProfileView> {
             child: _ProfileHeader(
               name: 'generated.janeDoe'.tr(),
               email: 'generated.janedoepantrypalcom'.tr(),
+              // TODO(profile): pass real user.avatarUrl once user profile is loaded
+              avatarUrl: null,
             ),
           ),
           SliverPadding(
@@ -178,8 +180,9 @@ class _ProfileViewState extends State<ProfileView> {
 class _ProfileHeader extends StatelessWidget {
   final String name;
   final String email;
+  final String? avatarUrl;
 
-  const _ProfileHeader({required this.name, required this.email});
+  const _ProfileHeader({required this.name, required this.email, this.avatarUrl});
 
   @override
   Widget build(BuildContext context) {
@@ -199,9 +202,16 @@ class _ProfileHeader extends StatelessWidget {
               CircleAvatar(
                 radius: 56,
                 backgroundColor: colorScheme.outlineVariant,
-                backgroundImage: const NetworkImage(
-                  'https://lh3.googleusercontent.com/aida-public/AB6AXuDwWMgdYu2bPbsZUzBnp79nL40ENwB92gxV_m2tBlAkF0GGsbIPvV13lQsCLn5FLv1NVV6sdsRgRli8enFcLGbfiYaLIjBJkhK0VmLsrja29MeKUoZzZQjJHlExYCNQ7OjC2ztEXPs6s5RdUQ6nLoFf7baUhjxTRFzBnTXni8mYGRb13_k0110FqejEe84HVZvQlRVl9rm8tWZm9phi12hrKvZ03xmmHV9B1ySaoe35wCB3pnjwxqSfEkZVbtS0bKwI_7tyRLrRQXMC',
-                ),
+                backgroundImage: avatarUrl != null
+                    ? NetworkImage(avatarUrl!) as ImageProvider
+                    : null,
+                child: avatarUrl == null
+                    ? Icon(
+                        Icons.person,
+                        size: 56,
+                        color: colorScheme.onSurfaceVariant,
+                      )
+                    : null,
               ),
               Positioned(
                 bottom: 0,
