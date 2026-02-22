@@ -2,9 +2,7 @@ name: Flutter Analyze
 
 on:
   push:
-    # including copilot branch results in double runs for the same commit
-    # - "copilot/**"
-    branches: [main]
+    branches: [main, copilot/**]
     paths:
       - "**.dart"
       - "lib/**"
