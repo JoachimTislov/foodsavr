@@ -35,7 +35,7 @@ deps: .deps-stamp
 # Code quality commands
 check: deps analyze test locale-check
 
-check-full: deps check fix fmt clean
+check-full: check fix fmt clean
 
 analyze: deps
 	@echo "Running Flutter analyze..."

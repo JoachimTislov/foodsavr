@@ -45,4 +45,4 @@ jobs:
           echo $FIREBASE_OPTIONS > lib/firebase_options.dart
 
       - name: Check code
-        run: make check-full
+        run: make check
