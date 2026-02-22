@@ -20,7 +20,7 @@ version: 1.0.0+1
 
 environment:
   sdk: ^3.10.7
-  flutter: '>=3.27.0'
+  flutter: '>=3.32.0'
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -49,6 +49,7 @@ dependencies:
   go_router: ^17.1.0
   injectable: ^2.7.1+4
   vector_graphics: ^1.1.19
+  shared_preferences: ^2.3.0
 
 dev_dependencies:
   flutter_test:

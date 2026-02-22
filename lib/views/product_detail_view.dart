@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import '../constants/product_categories.dart';
 import '../models/product_model.dart';
@@ -214,7 +215,11 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Available in: ${_inventoryNames!.join(", ")}',
+                            'product.availableIn'.tr(
+                              namedArgs: {
+                                'inventories': _inventoryNames!.join(', '),
+                              },
+                            ),
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: colorScheme.primary,
                               fontWeight: FontWeight.w600,

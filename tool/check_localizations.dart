@@ -46,6 +46,12 @@ Set<String> _extractUsedKeys(
       for (final match in _trMethodRegex.allMatches(content)) {
         usedKeys.add(match.group(1)!);
       }
+      for (final match in _trConditionalRegex.allMatches(content)) {
+        final firstKey = match.group(1);
+        final secondKey = match.group(2);
+        if (firstKey != null) usedKeys.add(firstKey);
+        if (secondKey != null) usedKeys.add(secondKey);
+      }
       for (final match in _trFunctionRegex.allMatches(content)) {
         usedKeys.add(match.group(1)!);
       }

@@ -29,10 +29,20 @@ class CollectionService {
   }
 
   /// Get all collections for a specific user
-  Future<List<Collection>> getCollectionsForUser(String userId) async {
-    _logger.i('Fetching collections for user: ${_redactUserId(userId)}');
+  Future<List<Collection>> getCollectionsForUser(
+    String userId, {
+    CollectionType? type,
+  }) async {
+    _logger.i(
+      'Fetching collections for user: ${_redactUserId(userId)} with type: $type',
+    );
     try {
-      final collections = await _collectionRepository.getCollections(userId);
+      List<Collection> collections = await _collectionRepository.getCollections(
+        userId,
+      );
+      if (type != null) {
+        collections = collections.where((c) => c.type == type).toList();
+      }
       _logger.i(
         'Successfully fetched ${collections.length} collections for user.',
       );
