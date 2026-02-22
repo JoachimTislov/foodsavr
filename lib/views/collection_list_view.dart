@@ -31,9 +31,19 @@ class _CollectionListViewState extends State<CollectionListView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Collections'),
+        title: const Text('My Inventories'),
         backgroundColor: colorScheme.surface,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Add collection feature coming soon!')),
+              );
+            },
+          ),
+        ],
       ),
       body: FutureBuilder<List<Collection>>(
         future: _collectionsFuture,
@@ -48,7 +58,7 @@ class _CollectionListViewState extends State<CollectionListView> {
                   Icon(Icons.error_outline, size: 64, color: colorScheme.error),
                   const SizedBox(height: 16),
                   Text(
-                    'Error loading collections',
+                    'Error loading inventories',
                     style: theme.textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
@@ -68,18 +78,15 @@ class _CollectionListViewState extends State<CollectionListView> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.folder_open,
+                    Icons.inventory_2_outlined,
                     size: 64,
                     color: colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(height: 16),
-                  Text(
-                    'No collections available',
-                    style: theme.textTheme.titleLarge,
-                  ),
+                  Text('No inventories found', style: theme.textTheme.titleLarge),
                   const SizedBox(height: 8),
                   Text(
-                    'Standard collections (Inventory, Shopping List) will appear here',
+                    'Create your first inventory to get started',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -93,7 +100,7 @@ class _CollectionListViewState extends State<CollectionListView> {
             return RefreshIndicator(
               onRefresh: _refreshCollections,
               child: ListView.builder(
-                padding: const EdgeInsets.only(top: 8, bottom: 20),
+                padding: const EdgeInsets.only(top: 12, bottom: 20),
                 itemCount: collections.length,
                 itemBuilder: (context, index) {
                   final collection = collections[index];

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../models/product_model.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
+import '../services/collection_service.dart';
+import '../utils/collection_types.dart';
 import '../interfaces/i_auth_service.dart';
 import '../widgets/product/product_card_compact.dart';
 import '../widgets/product/product_card_normal.dart';
@@ -22,9 +24,62 @@ class ProductListView extends StatefulWidget {
 class _ProductListViewState extends State<ProductListView> {
   late Future<List<Product>> _productsFuture;
   late final ProductService _productService;
+  late final CollectionService _collectionService;
   late final IAuthService _authService;
   ProductViewMode _viewMode = ProductViewMode.normal;
   bool _isSigningOut = false;
+  Map<int, List<String>> _productInventories = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _productService = getIt<ProductService>();
+    _collectionService = getIt<CollectionService>();
+    _authService = getIt<IAuthService>();
+    _productsFuture = _fetchProducts();
+  }
+
+  Future<List<Product>> _fetchProducts() async {
+    List<Product> products;
+    if (widget.showGlobalProducts) {
+      products = await _productService.getAllProducts();
+    } else {
+      final userId = _authService.getUserId();
+      products = await _productService.getProducts(userId);
+    }
+
+    if (!widget.showGlobalProducts) {
+      _loadInventoryNames(products);
+    }
+
+    return products;
+  }
+
+  Future<void> _loadInventoryNames(List<Product> products) async {
+    final userId = _authService.getUserId();
+    if (userId == null) return;
+
+    final collections = await _collectionService.getCollectionsForUser(userId);
+    final inventoryMap = <int, List<String>>{};
+
+    for (final collection in collections) {
+      if (collection.type == CollectionType.inventory) {
+        for (final pid in collection.productIds) {
+          inventoryMap.update(
+            pid,
+            (names) => [...names, collection.name],
+            ifAbsent: () => [collection.name],
+          );
+        }
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _productInventories = inventoryMap;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -233,6 +288,7 @@ class _ProductListViewState extends State<ProductListView> {
         return ProductCardDetails(
           product: product,
           onTap: () => _navigateToProductDetail(product),
+          inventoryNames: _productInventories[product.id],
           onEdit: () {
             // TODO: Navigate to edit screen
             ScaffoldMessenger.of(context).showSnackBar(
@@ -290,23 +346,6 @@ class _ProductListViewState extends State<ProductListView> {
         ],
       ),
     );
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _productService = getIt<ProductService>();
-    _authService = getIt<IAuthService>();
-    _productsFuture = _fetchProducts();
-  }
-
-  Future<List<Product>> _fetchProducts() async {
-    if (widget.showGlobalProducts) {
-      return _productService.getAllProducts();
-    }
-
-    final userId = _authService.getUserId();
-    return _productService.getProducts(userId);
   }
 
   Future<void> _refreshProducts() async {

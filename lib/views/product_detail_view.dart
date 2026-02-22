@@ -2,14 +2,59 @@ import 'package:flutter/material.dart';
 import '../constants/product_categories.dart';
 import '../models/product_model.dart';
 import '../widgets/product/product_details_card.dart';
+import '../service_locator.dart';
+import '../services/collection_service.dart';
+import '../interfaces/i_auth_service.dart';
 
-class ProductDetailView extends StatelessWidget {
+class ProductDetailView extends StatefulWidget {
   final Product product;
 
   const ProductDetailView({super.key, required this.product});
 
   @override
+  State<ProductDetailView> createState() => _ProductDetailViewState();
+}
+
+class _ProductDetailViewState extends State<ProductDetailView> {
+  late final CollectionService _collectionService;
+  late final IAuthService _authService;
+  List<String>? _inventoryNames;
+  bool _isLoadingInventories = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _collectionService = getIt<CollectionService>();
+    _authService = getIt<IAuthService>();
+    _loadInventories();
+  }
+
+  Future<void> _loadInventories() async {
+    final userId = _authService.getUserId();
+    if (userId == null) return;
+
+    setState(() => _isLoadingInventories = true);
+    try {
+      final inventories = await _collectionService.getInventoriesByProductId(
+        userId,
+        widget.product.id,
+      );
+      if (mounted) {
+        setState(() {
+          _inventoryNames = inventories.map((c) => c.name).toList();
+          _isLoadingInventories = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingInventories = false);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final product = widget.product;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -147,6 +192,33 @@ class ProductDetailView extends StatelessWidget {
                       height: 1.5,
                     ),
                   ),
+                  if (_isLoadingInventories)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 12),
+                      child: LinearProgressIndicator(),
+                    )
+                  else if (_inventoryNames != null && _inventoryNames!.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 16,
+                          color: colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Available in: ${_inventoryNames!.join(", ")}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 32),
                   // Details section
                   Text(
