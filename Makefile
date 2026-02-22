@@ -106,6 +106,7 @@ preflight:
 	else \
 		echo "No upstream branch found, skipping behind check."; \
 	fi
+
 push: deps preflight
 	@DI_FILES=$$(/usr/bin/ls lib/services/* lib/interfaces/* lib/repositories/* lib/di/*; echo lib/service_locator.dart lib/injection.dart); \
 	if git rev-parse --verify @{upstream} >/dev/null 2>&1; then \
@@ -122,6 +123,7 @@ push: deps preflight
 		git add .; \
 		git commit -m "format with dart"; \
 		git rev-parse HEAD >> .git-blame-ignore-revs; \
+		git add .git-blame-ignore-revs; \
 		git commit -m "add formatting changes to .git-blame-ignore-revs" --amend --no-edit; \
 	fi
 	@echo "Pushing to remote..."
