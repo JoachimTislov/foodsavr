@@ -21,6 +21,8 @@ class _MockUser extends Mock implements User {}
 
 class _MockUserCredential extends Mock implements UserCredential {}
 
+String mockTranslations(String key) => key;
+
 class _FakeAuthService implements IAuthService {
   final _controller = StreamController<User?>.broadcast();
   String? _userId;
@@ -120,7 +122,7 @@ void main() {
         () => AuthController(
           getIt<IAuthService>(),
           Logger(level: Level.off),
-          translate: (key) => key,
+          mockTranslations,
         ),
       );
     });
