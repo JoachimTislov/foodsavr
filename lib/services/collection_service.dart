@@ -2,6 +2,7 @@ import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import '../models/collection_model.dart';
 import '../interfaces/i_collection_repository.dart';
+import '../utils/collection_types.dart';
 
 @lazySingleton
 class CollectionService {
@@ -19,6 +20,35 @@ class CollectionService {
       return collections;
     } catch (e) {
       _logger.e('Error fetching collections: $e');
+      rethrow;
+    }
+  }
+
+  /// Get all collections for a specific user
+  Future<List<Collection>> getCollectionsForUser(String userId) async {
+    _logger.i('Fetching collections for user: $userId');
+    try {
+      final collections = await _collectionRepository.getCollections(userId);
+      _logger.i('Successfully fetched ${collections.length} collections for user.');
+      return collections;
+    } catch (e) {
+      _logger.e('Error fetching user collections: $e');
+      rethrow;
+    }
+  }
+
+  /// Find all inventories (CollectionType.inventory) that contain a specific product ID
+  Future<List<Collection>> getInventoriesByProductId(String userId, int productId) async {
+    _logger.i('Finding inventories for product $productId and user $userId');
+    try {
+      final collections = await getCollectionsForUser(userId);
+      final inventories = collections
+          .where((c) => c.type == CollectionType.inventory && c.productIds.contains(productId))
+          .toList();
+      _logger.i('Found ${inventories.length} inventories for product $productId');
+      return inventories;
+    } catch (e) {
+      _logger.e('Error finding inventories for product: $e');
       rethrow;
     }
   }
