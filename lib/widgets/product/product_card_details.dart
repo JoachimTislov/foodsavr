@@ -8,6 +8,7 @@ class ProductCardDetails extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final List<String>? inventoryNames;
 
   const ProductCardDetails({
     super.key,
@@ -15,6 +16,7 @@ class ProductCardDetails extends StatelessWidget {
     this.onTap,
     this.onEdit,
     this.onDelete,
+    this.inventoryNames,
   });
 
   @override
@@ -155,6 +157,28 @@ class ProductCardDetails extends StatelessWidget {
                   color: colorScheme.onSurfaceVariant,
                 ),
               ),
+              if (inventoryNames != null && inventoryNames!.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.inventory_2_outlined,
+                      size: 16,
+                      color: colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Available in: ${inventoryNames!.join(", ")}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 20),
               // Status banner (Optional - TODO suggested omitting but let's keep it if it has multiple entries)
               if (product.expiries.isNotEmpty)

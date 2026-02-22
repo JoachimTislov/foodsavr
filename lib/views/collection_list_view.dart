@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../models/collection_model.dart';
 import '../service_locator.dart';
 import '../services/collection_service.dart';
+import '../interfaces/i_auth_service.dart';
+import '../utils/collection_types.dart';
 import '../widgets/collection/collection_card.dart';
 import 'collection_detail_view.dart';
 
@@ -16,11 +18,13 @@ class CollectionListView extends StatefulWidget {
 class _CollectionListViewState extends State<CollectionListView> {
   late Future<List<Collection>> _collectionsFuture;
   late final CollectionService _collectionService;
+  late final IAuthService _authService;
 
   @override
   void initState() {
     super.initState();
     _collectionService = getIt<CollectionService>();
+    _authService = getIt<IAuthService>();
     _collectionsFuture = _fetchCollections();
   }
 
@@ -31,9 +35,21 @@ class _CollectionListViewState extends State<CollectionListView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Collections'),
+        title: const Text('My Inventories'),
         backgroundColor: colorScheme.surface,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Add inventory feature coming soon!'),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: FutureBuilder<List<Collection>>(
         future: _collectionsFuture,
@@ -48,7 +64,7 @@ class _CollectionListViewState extends State<CollectionListView> {
                   Icon(Icons.error_outline, size: 64, color: colorScheme.error),
                   const SizedBox(height: 16),
                   Text(
-                    'Error loading collections',
+                    'Error loading inventories',
                     style: theme.textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
@@ -68,18 +84,18 @@ class _CollectionListViewState extends State<CollectionListView> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.folder_open,
+                    Icons.inventory_2_outlined,
                     size: 64,
                     color: colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'No collections available',
+                    'No inventories found',
                     style: theme.textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Standard collections (Inventory, Shopping List) will appear here',
+                    'Create your first inventory to get started',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -93,7 +109,7 @@ class _CollectionListViewState extends State<CollectionListView> {
             return RefreshIndicator(
               onRefresh: _refreshCollections,
               child: ListView.builder(
-                padding: const EdgeInsets.only(top: 8, bottom: 20),
+                padding: const EdgeInsets.only(top: 12, bottom: 20),
                 itemCount: collections.length,
                 itemBuilder: (context, index) {
                   final collection = collections[index];
@@ -111,7 +127,10 @@ class _CollectionListViewState extends State<CollectionListView> {
   }
 
   Future<List<Collection>> _fetchCollections() async {
-    return _collectionService.getCollections();
+    final userId = _authService.getUserId();
+    if (userId == null) return [];
+    final all = await _collectionService.getCollectionsForUser(userId);
+    return all.where((c) => c.type == CollectionType.inventory).toList();
   }
 
   Future<void> _refreshCollections() async {
