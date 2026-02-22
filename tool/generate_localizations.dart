@@ -36,8 +36,10 @@ Map<String, dynamic> _unflatten(
         final next = current.putIfAbsent(part, () => <String, dynamic>{});
         if (next is! Map<String, dynamic>) {
           final path = parts.sublist(0, i + 1).join('.');
-          stderr.writeln('WARNING: Key path conflict at "$path". '
-              'Replacing existing leaf value "$next" with a nested structure.');
+          stderr.writeln(
+            'WARNING: Key path conflict at "$path". '
+            'Replacing existing leaf value "$next" with a nested structure.',
+          );
           current[part] = <String, dynamic>{};
           current = current[part] as Map<String, dynamic>;
         } else {

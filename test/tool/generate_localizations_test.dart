@@ -96,12 +96,13 @@ void main() {
     expect(firstKeyIndex < secondKeyIndex, isTrue);
   });
 
-  test('Logs a warning when a conflict occurs during stub generation',
-      () async {
+  test('Logs a warning when a conflict occurs during stub generation', () async {
     // Current state has auth.login as a string. Let's try to insert a nested key auth.login.title.
-    await enJson.writeAsString(jsonEncode({
-      'auth': {'login': 'Login'}
-    }));
+    await enJson.writeAsString(
+      jsonEncode({
+        'auth': {'login': 'Login'},
+      }),
+    );
     await mainDart.writeAsString('''
       void main() {
         print("auth.login.title".tr());
