@@ -17,10 +17,10 @@ class AuthService implements IAuthService {
     this._firebaseAuth, {
     GoogleSignIn? googleSignIn,
     FacebookAuth? facebookAuth,
-    bool? supportsPersistence,
+    @Named('supportsPersistence') bool? supportsPersistence,
   }) : _googleSignIn = googleSignIn ?? GoogleSignIn.instance,
-       _facebookAuth = facebookAuth ?? FacebookAuth.instance,
-       _supportsPersistence = supportsPersistence ?? kIsWeb;
+        _facebookAuth = facebookAuth ?? FacebookAuth.instance,
+        _supportsPersistence = supportsPersistence ?? kIsWeb;
 
   @override
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
