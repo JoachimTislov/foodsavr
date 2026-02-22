@@ -16,8 +16,7 @@ class AuthService implements IAuthService {
     this._firebaseAuth, {
     required GoogleSignIn googleSignIn,
     required FacebookAuth facebookAuth,
-    @Named('supportsPersistence')
-    required bool supportsPersistence,
+    @Named('supportsPersistence') required bool supportsPersistence,
   }) : _googleSignIn = googleSignIn,
        _facebookAuth = facebookAuth,
        _supportsPersistence = supportsPersistence;

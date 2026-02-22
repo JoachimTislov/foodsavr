@@ -25,5 +25,4 @@ abstract class RegisterModule {
 
   @Named('supportsPersistence')
   bool get supportsPersistence => kIsWeb;
-
 }
