@@ -19,6 +19,7 @@ abstract class RegisterModule {
   @lazySingleton
   FacebookAuth get facebookAuth => FacebookAuth.instance;
 
+  @lazySingleton
   @Named('supportsPersistence')
   bool get supportsPersistence => kIsWeb;
 }

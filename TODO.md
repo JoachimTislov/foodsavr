@@ -9,17 +9,17 @@ Look into
 
 ## packages to consider
 
-- url_launcher
-- lints
-- dart_code_metrics: Advanced linter
-- font_awesome
-- timezone
-- analyzer
+- [ ] url_launcher
+- [ ] lints
+- [ ] dart_code_metrics: Advanced linter
+- [ ] font_awesome
+- [ ] timezone
+- [ ] analyzer
 
 ## Implemented packages
 
-- injectable
-- injectable_generator
+- [x] injectable
+- [x] injectable_generator
 
 ## Testing Checklist (after #3)
 - [x] Test with Firebase emulator running

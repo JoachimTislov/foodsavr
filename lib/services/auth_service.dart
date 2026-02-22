@@ -1,5 +1,4 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:injectable/injectable.dart';
@@ -15,12 +14,12 @@ class AuthService implements IAuthService {
 
   AuthService(
     this._firebaseAuth, {
-    GoogleSignIn? googleSignIn,
-    FacebookAuth? facebookAuth,
-    @Named('supportsPersistence') bool? supportsPersistence,
-  }) : _googleSignIn = googleSignIn ?? GoogleSignIn.instance,
-        _facebookAuth = facebookAuth ?? FacebookAuth.instance,
-        _supportsPersistence = supportsPersistence ?? kIsWeb;
+    required GoogleSignIn googleSignIn,
+    required FacebookAuth facebookAuth,
+    @Named('supportsPersistence') required bool supportsPersistence,
+  }) : _googleSignIn = googleSignIn,
+        _facebookAuth = facebookAuth,
+        _supportsPersistence = supportsPersistence;
 
   @override
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
