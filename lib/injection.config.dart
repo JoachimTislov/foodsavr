@@ -12,7 +12,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart' as _i974;
 import 'package:firebase_auth/firebase_auth.dart' as _i59;
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart' as _i806;
-import 'package:foodsavr/di/register_module.dart' as _i966;
 import 'package:foodsavr/interfaces/i_auth_service.dart' as _i794;
 import 'package:foodsavr/interfaces/i_collection_repository.dart' as _i655;
 import 'package:foodsavr/interfaces/i_product_repository.dart' as _i424;
@@ -35,11 +34,6 @@ extension GetItInjectableX on _i174.GetIt {
     _i526.EnvironmentFilter? environmentFilter,
   }) {
     final gh = _i526.GetItHelper(this, environment, environmentFilter);
-    final registerModule = _$RegisterModule();
-    gh.lazySingleton<_i59.FirebaseAuth>(() => registerModule.firebaseAuth);
-    gh.lazySingleton<_i974.FirebaseFirestore>(
-      () => registerModule.firebaseFirestore,
-    );
     gh.lazySingleton<_i794.IAuthService>(
       () => _i277.AuthService(
         gh<_i59.FirebaseAuth>(),
@@ -58,7 +52,7 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i882.AuthController(
         gh<_i794.IAuthService>(),
         gh<_i974.Logger>(),
-        translate: gh<_i882.Translator>(),
+        gh<_i882.Translator>(),
       ),
     );
     gh.factory<_i464.SeedingService>(
@@ -84,5 +78,3 @@ extension GetItInjectableX on _i174.GetIt {
     return this;
   }
 }
-
-class _$RegisterModule extends _i966.RegisterModule {}

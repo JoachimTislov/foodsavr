@@ -1,4 +1,3 @@
-import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
@@ -14,8 +13,7 @@ class AuthController extends ChangeNotifier {
   final Logger _logger;
   final Translator _tr;
 
-  AuthController(this._authService, this._logger, {Translator? translate})
-    : _tr = translate ?? ((key) => key.tr());
+  AuthController(this._authService, this._logger, this._tr);
 
   bool _isLogin = true;
   bool _isLoading = false;

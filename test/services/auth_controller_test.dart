@@ -11,6 +11,8 @@ class MockLogger extends Mock implements Logger {}
 
 class MockUserCredential extends Mock implements UserCredential {}
 
+String mockTranslations(String key) => key;
+
 void main() {
   late MockAuthService mockAuthService;
   late MockLogger mockLogger;
@@ -22,7 +24,7 @@ void main() {
     authController = AuthController(
       mockAuthService,
       mockLogger,
-      translate: (key) => key,
+      mockTranslations,
     );
   });
 
