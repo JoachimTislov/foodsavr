@@ -30,6 +30,7 @@ class _ProductListViewState extends State<ProductListView> {
   ProductViewMode _viewMode = ProductViewMode.normal;
   bool _isSigningOut = false;
   Map<int, List<String>> _productInventories = {};
+  int _inventoryLoadSeq = 0;
 
   @override
   void initState() {
@@ -51,8 +52,9 @@ class _ProductListViewState extends State<ProductListView> {
     }
 
     if (!widget.showGlobalProducts) {
+      final loadSeq = ++_inventoryLoadSeq;
       unawaited(
-        _loadInventoryNames(products).catchError((Object error) {
+        _loadInventoryNames(products, loadSeq).catchError((Object error) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Failed to load inventory info: $error')),
@@ -65,9 +67,14 @@ class _ProductListViewState extends State<ProductListView> {
     return products;
   }
 
-  Future<void> _loadInventoryNames(List<Product> products) async {
+  Future<void> _loadInventoryNames(List<Product> products, int loadSeq) async {
     final userId = _authService.getUserId();
-    if (userId == null) return;
+    if (userId == null) {
+      if (mounted && loadSeq == _inventoryLoadSeq) {
+        setState(() => _productInventories = {});
+      }
+      return;
+    }
 
     final productIds = products.map((p) => p.id).toSet();
     final inventoryMap = await _collectionService.getInventoryNamesForProducts(
@@ -75,7 +82,7 @@ class _ProductListViewState extends State<ProductListView> {
       productIds,
     );
 
-    if (mounted) {
+    if (mounted && loadSeq == _inventoryLoadSeq) {
       setState(() {
         _productInventories = inventoryMap;
       });
