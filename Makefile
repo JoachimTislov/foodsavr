@@ -124,7 +124,7 @@ push: deps preflight
 		git commit -m "format with dart"; \
 		git rev-parse HEAD >> .git-blame-ignore-revs; \
 		git add .git-blame-ignore-revs; \
-		git commit -m "add formatting changes to .git-blame-ignore-revs" --amend --no-edit; \
+		git commit -m "add formatting changes to .git-blame-ignore-revs"; \
 	fi
 	@echo "Pushing to remote..."
 	@if ! git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then \
