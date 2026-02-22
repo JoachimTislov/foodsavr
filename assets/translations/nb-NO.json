@@ -114,7 +114,7 @@
     "selectProducts": "Velg produkter",
     "fromLocation": "Fra sted",
     "toLocation": "Til sted",
-    "transfer_items": "Overfør {} varer"
+    "transfer_items": "Overfør {count} varer"
   },
   "profile": {
     "title": "Profil",

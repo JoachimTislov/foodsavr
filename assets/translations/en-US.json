@@ -114,7 +114,7 @@
     "selectProducts": "Select products",
     "fromLocation": "From Location",
     "toLocation": "To Location",
-    "transfer_items": "Transfer {} items"
+    "transfer_items": "Transfer {count} items"
   },
   "profile": {
     "title": "Profile",

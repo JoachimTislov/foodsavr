@@ -196,7 +196,9 @@ class _SelectProductsViewState extends State<SelectProductsView> {
                       const SizedBox(width: 8),
                       Text(
                         'transfer.transfer_items'.tr(
-                          args: [_controller.selectedCount.toString()],
+                          namedArgs: {
+                            'count': _controller.selectedCount.toString(),
+                          },
                         ),
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
