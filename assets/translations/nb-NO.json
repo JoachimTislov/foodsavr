@@ -124,7 +124,10 @@
     "addProductSoon": "Legg til produkt i samling-funksjon kommer snart!",
     "errorLoadingProducts": "Feil ved lasting av produkter",
     "noProducts": "Ingen produkter i denne samlingen",
-    "addSoon": "Legg til samling-funksjon kommer snart!"
+    "addSoon": "Legg til samling-funksjon kommer snart!",
+    "loadError": "Feil ved lasting av inventarer",
+    "emptyTitle": "Ingen inventarer funnet",
+    "emptySubtitle": "Opprett ditt første inventar for å komme i gang"
   },
   "generated": {
     "100_42": "1.0.0 (42)",

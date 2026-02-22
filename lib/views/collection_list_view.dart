@@ -63,7 +63,7 @@ class _CollectionListViewState extends State<CollectionListView> {
                   Icon(Icons.error_outline, size: 64, color: colorScheme.error),
                   const SizedBox(height: 16),
                   Text(
-                    'Error loading inventories',
+                    'collection.loadError'.tr(),
                     style: theme.textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
@@ -89,12 +89,12 @@ class _CollectionListViewState extends State<CollectionListView> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'No inventories found',
+                    'collection.emptyTitle'.tr(),
                     style: theme.textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Create your first inventory to get started',
+                    'collection.emptySubtitle'.tr(),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),

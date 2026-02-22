@@ -124,7 +124,10 @@
     "addProductSoon": "Add product to collection feature coming soon!",
     "errorLoadingProducts": "Error loading products",
     "noProducts": "No products in this collection",
-    "addSoon": "Add collection feature coming soon!"
+    "addSoon": "Add collection feature coming soon!",
+    "loadError": "Error loading inventories",
+    "emptyTitle": "No inventories found",
+    "emptySubtitle": "Create your first inventory to get started"
   },
   "generated": {
     "100_42": "1.0.0 (42)",
