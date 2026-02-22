@@ -103,9 +103,9 @@ class _ProfileViewState extends State<ProfileView> {
   }
 
   void _showNotImplemented(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('settings.notImplemented'.tr())),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('settings.notImplemented'.tr())));
   }
 
   void _showDeleteAccountConfirmation(BuildContext context) {
