@@ -44,9 +44,7 @@ class _CollectionListViewState extends State<CollectionListView> {
             icon: const Icon(Icons.add_circle_outline),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('collection.addSoon'.tr()),
-                ),
+                SnackBar(content: Text('collection.addSoon'.tr())),
               );
             },
           ),
