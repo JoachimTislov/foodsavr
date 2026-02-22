@@ -85,12 +85,12 @@ preflight:
 	@git fetch --quiet
 	@if ! git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then \
 		branch=$$(git rev-parse --abbrev-ref HEAD); \
-		if git ls-remote --exit-code --heads origin "$$branch" >/dev/null 2>&1; then \
+		if git show-ref --verify --quiet refs/remotes/origin/$$branch; then \
 			echo "Setting upstream to origin/$$branch"; \
 			git branch --set-upstream-to=origin/$$branch; \
 		else \
-			echo "No remote branch for $$branch yet. Run 'git push -u origin $$branch' first."; \
-		fi; \
+			echo "Upstream not set and remote branch not found. Skipping upstream check."; \
+		fi \
 	else \
 		echo "Upstream already set."; \
 	fi
@@ -121,7 +121,11 @@ push: deps preflight
 		git commit -m "add formatting changes to .git-blame-ignore-revs" --amend --no-edit; \
 	fi
 	@echo "Pushing to remote..."
-	@git push
+	@if ! git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then \
+		git push -u origin $$(git rev-parse --abbrev-ref HEAD); \
+	else \
+		git push; \
+	fi
 
 pr-comments-active:
 	@if [ -z "$(PR)" ]; then \
