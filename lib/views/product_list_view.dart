@@ -1,5 +1,4 @@
-import 'dart:async';
-
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../models/product_model.dart';
@@ -30,7 +29,6 @@ class _ProductListViewState extends State<ProductListView> {
   ProductViewMode _viewMode = ProductViewMode.normal;
   bool _isSigningOut = false;
   Map<int, List<String>> _productInventories = {};
-  int _inventoryLoadSeq = 0;
 
   @override
   void initState() {
@@ -52,27 +50,28 @@ class _ProductListViewState extends State<ProductListView> {
     }
 
     if (!widget.showGlobalProducts) {
-      final loadSeq = ++_inventoryLoadSeq;
-      unawaited(
-        _loadInventoryNames(products, loadSeq).catchError((Object error) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to load inventory info: $error')),
-            );
-          }
-        }),
-      );
+      try {
+        await _loadInventoryNames(products);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'product.inventoryLoadError'.tr(namedArgs: {'error': '$e'}),
+              ),
+            ),
+          );
+        }
+      }
     }
 
     return products;
   }
 
-  Future<void> _loadInventoryNames(List<Product> products, int loadSeq) async {
+  Future<void> _loadInventoryNames(List<Product> products) async {
     final userId = _authService.getUserId();
     if (userId == null) {
-      if (mounted && loadSeq == _inventoryLoadSeq) {
-        setState(() => _productInventories = {});
-      }
+      if (mounted) setState(() => _productInventories = {});
       return;
     }
 
@@ -82,7 +81,7 @@ class _ProductListViewState extends State<ProductListView> {
       productIds,
     );
 
-    if (mounted && loadSeq == _inventoryLoadSeq) {
+    if (mounted) {
       setState(() {
         _productInventories = inventoryMap;
       });
@@ -97,7 +96,9 @@ class _ProductListViewState extends State<ProductListView> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.showGlobalProducts ? 'Global Products' : 'My Products',
+          widget.showGlobalProducts
+              ? 'dashboard.globalProducts'.tr()
+              : 'product.title'.tr(),
         ),
         backgroundColor: colorScheme.surface,
         elevation: 0,
@@ -108,7 +109,7 @@ class _ProductListViewState extends State<ProductListView> {
               ViewModeHelper.getViewModeIcon(_viewMode),
               color: colorScheme.primary,
             ),
-            tooltip: 'Change view mode',
+            tooltip: 'product.changeViewMode'.tr(),
             onSelected: (mode) {
               setState(() {
                 _viewMode = mode;
@@ -127,7 +128,7 @@ class _ProductListViewState extends State<ProductListView> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'Compact',
+                      'product.compact'.tr(),
                       style: TextStyle(
                         fontWeight: _viewMode == ProductViewMode.compact
                             ? FontWeight.w600
@@ -149,7 +150,7 @@ class _ProductListViewState extends State<ProductListView> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'Normal',
+                      'product.normal'.tr(),
                       style: TextStyle(
                         fontWeight: _viewMode == ProductViewMode.normal
                             ? FontWeight.w600
@@ -171,7 +172,7 @@ class _ProductListViewState extends State<ProductListView> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'Details',
+                      'product.details'.tr(),
                       style: TextStyle(
                         fontWeight: _viewMode == ProductViewMode.details
                             ? FontWeight.w600
@@ -187,15 +188,15 @@ class _ProductListViewState extends State<ProductListView> {
             icon: const Icon(Icons.settings),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Settings feature coming soon!')),
+                SnackBar(content: Text('product.settingsSoon'.tr())),
               );
             },
-            tooltip: 'Settings',
+            tooltip: 'common.settings'.tr(),
           ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _isSigningOut ? null : _handleSignOut,
-            tooltip: 'Sign Out',
+            tooltip: 'common.signOut'.tr(),
           ),
         ],
       ),
@@ -212,7 +213,7 @@ class _ProductListViewState extends State<ProductListView> {
                   Icon(Icons.error_outline, size: 64, color: colorScheme.error),
                   const SizedBox(height: 16),
                   Text(
-                    'Error loading products',
+                    'product.errorLoading'.tr(),
                     style: theme.textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
@@ -237,10 +238,13 @@ class _ProductListViewState extends State<ProductListView> {
                     color: colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(height: 16),
-                  Text('No products found', style: theme.textTheme.titleLarge),
+                  Text(
+                    'product.noProductsFound'.tr(),
+                    style: theme.textTheme.titleLarge,
+                  ),
                   const SizedBox(height: 8),
                   Text(
-                    'Add your first product to get started',
+                    'product.addFirst'.tr(),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -270,12 +274,12 @@ class _ProductListViewState extends State<ProductListView> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           // TODO: Navigate to add product screen
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Add product feature coming soon!')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('product.addSoon'.tr())));
         },
         icon: const Icon(Icons.add),
-        label: const Text('Add Product'),
+        label: Text('product.add'.tr()),
       ),
     );
   }
@@ -299,9 +303,9 @@ class _ProductListViewState extends State<ProductListView> {
           inventoryNames: _productInventories[product.id],
           onEdit: () {
             // TODO: Navigate to edit screen
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Edit feature coming soon!')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('product.editSoon'.tr())));
           },
           onDelete: () {
             // TODO: Show delete confirmation
@@ -323,12 +327,14 @@ class _ProductListViewState extends State<ProductListView> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete Product'),
-        content: Text('Are you sure you want to delete "${product.name}"?'),
+        title: Text('product.delete'.tr()),
+        content: Text(
+          'product.deleteConfirmMessage'.tr(namedArgs: {'name': product.name}),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
+            child: Text('common.cancel'.tr()),
           ),
           FilledButton(
             onPressed: () async {
@@ -337,7 +343,11 @@ class _ProductListViewState extends State<ProductListView> {
                 await _productService.deleteProduct(product.id);
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('${product.name} deleted')),
+                  SnackBar(
+                    content: Text(
+                      'product.deleted'.tr(namedArgs: {'name': product.name}),
+                    ),
+                  ),
                 );
                 setState(() {
                   _productsFuture = _fetchProducts();
@@ -345,11 +355,15 @@ class _ProductListViewState extends State<ProductListView> {
               } catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error deleting product: $e')),
+                  SnackBar(
+                    content: Text(
+                      'product.deleteError'.tr(namedArgs: {'error': '$e'}),
+                    ),
+                  ),
                 );
               }
             },
-            child: const Text('Delete'),
+            child: Text('common.delete'.tr()),
           ),
         ],
       ),

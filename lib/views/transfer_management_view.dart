@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -83,9 +84,9 @@ class _TransferManagementViewState extends State<TransferManagementView> {
           icon: const Icon(Icons.close),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
-          'Transfer Inventory',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          'transfer.title'.tr(),
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: colorScheme.surface,
         elevation: 0,
@@ -101,7 +102,7 @@ class _TransferManagementViewState extends State<TransferManagementView> {
                 children: [
                   LocationSectionHeader(
                     icon: Icons.logout,
-                    title: 'From Location',
+                    title: 'transfer.fromLocation'.tr(),
                     color: colorScheme.primary,
                   ),
                   const SizedBox(height: 16),
@@ -147,7 +148,7 @@ class _TransferManagementViewState extends State<TransferManagementView> {
                   ),
                   LocationSectionHeader(
                     icon: Icons.login,
-                    title: 'To Location',
+                    title: 'transfer.toLocation'.tr(),
                     color: colorScheme.primary,
                   ),
                   const SizedBox(height: 16),
@@ -192,14 +193,14 @@ class _TransferManagementViewState extends State<TransferManagementView> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.add_circle_outline),
-                    SizedBox(width: 8),
+                    const Icon(Icons.add_circle_outline),
+                    const SizedBox(width: 8),
                     Text(
-                      'Select products',
-                      style: TextStyle(
+                      'transfer.selectProducts'.tr(),
+                      style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
