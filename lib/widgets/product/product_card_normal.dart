@@ -80,35 +80,27 @@ class ProductCardNormal extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              if (statusColor != null) ...[
-                                const SizedBox(width: 8),
-                                Tooltip(
-                                  message: statusMessage ?? '',
-                                  child: Icon(
-                                    statusIcon,
-                                    size: 18,
-                                    color: statusColor,
-                                  ),
-                                ),
-                              ],
                             ],
                           ),
                         ),
-                        // Quantity badge
+                        // Simplified Quantity Badge
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
+                            horizontal: 8,
+                            vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: colorScheme.secondaryContainer,
-                            borderRadius: BorderRadius.circular(12),
+                            color: colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: colorScheme.outlineVariant,
+                            ),
                           ),
                           child: Text(
-                            '×${product.quantity}',
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: colorScheme.onSecondaryContainer,
-                              fontWeight: FontWeight.w600,
+                            '${product.quantity}',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
@@ -124,10 +116,16 @@ class ProductCardNormal extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 8),
-                    // Status and expiration
+                    // Refined Status and Expiration
                     Row(
                       children: [
                         if (product.category != null) ...[
+                          Icon(
+                            ProductCategory.getIcon(product.category),
+                            size: 14,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 4),
                           Text(
                             product.category!,
                             style: theme.textTheme.bodySmall?.copyWith(
@@ -137,11 +135,13 @@ class ProductCardNormal extends StatelessWidget {
                           const SizedBox(width: 16),
                         ],
                         if (statusColor != null && statusMessage != null) ...[
+                          Icon(statusIcon, size: 14, color: statusColor),
+                          const SizedBox(width: 4),
                           Text(
                             statusMessage,
                             style: theme.textTheme.labelSmall?.copyWith(
                               color: statusColor,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ] else if (daysLeft != null) ...[

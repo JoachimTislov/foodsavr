@@ -42,12 +42,18 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit),
+            icon: const Icon(Icons.search),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Edit collection feature coming soon!'),
-                ),
+                const SnackBar(content: Text('Search coming soon')),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.more_vert),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('More options coming soon')),
               );
             },
           ),
@@ -57,11 +63,11 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CollectionHeader(collection: widget.collection),
-          const SizedBox(height: 16),
+          const Divider(height: 1),
           Expanded(child: _buildProductsList(theme, colorScheme)),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: () {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -69,8 +75,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
             ),
           );
         },
-        icon: const Icon(Icons.add),
-        label: const Text('Add Product'),
+        child: const Icon(Icons.add),
       ),
     );
   }

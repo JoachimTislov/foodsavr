@@ -83,15 +83,29 @@ generate-di: deps
 preflight:
 	@echo "Running preflight sync checks..."
 	@git fetch --quiet
+	@if ! git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then \
+		branch=$$(git rev-parse --abbrev-ref HEAD); \
+		if git ls-remote --exit-code --heads origin "$$branch" >/dev/null 2>&1; then \
+			echo "Setting upstream to origin/$$branch"; \
+			git branch --set-upstream-to=origin/$$branch; \
+		else \
+			echo "No remote branch for $$branch yet. Run 'git push -u origin $$branch' first."; \
+		fi; \
+	else \
+		echo "Upstream already set."; \
+	fi
 	@if [ -n "$$(git status --porcelain)" ]; then \
 		echo "Preflight failed: working tree is not clean."; \
 		exit 1; \
 	fi
-	@if [ "$$(git rev-list --left-right --count @{upstream}...HEAD | awk '{print $$1}')" -ne 0 ]; then \
-		echo "Preflight failed: branch is behind upstream. Pull/rebase first."; \
-		exit 1; \
+	@if git rev-parse --verify @{upstream} >/dev/null 2>&1; then \
+		if [ "$$(git rev-list --left-right --count @{upstream}...HEAD | awk '{print $$1}')" -ne 0 ]; then \
+			echo "Preflight failed: branch is behind upstream. Pull/rebase first."; \
+			exit 1; \
+		fi \
+	else \
+		echo "No upstream branch found, skipping behind check."; \
 	fi
-
 push: deps preflight
 	@DI_FILES=$$(/usr/bin/ls lib/services/* lib/interfaces/* lib/repositories/* lib/di/*; echo lib/service_locator.dart lib/injection.dart); \
 	CHANGED=$$(git --no-pager diff --name-only @{upstream}..HEAD); \
