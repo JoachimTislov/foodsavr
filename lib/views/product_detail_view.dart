@@ -45,9 +45,13 @@ class _ProductDetailViewState extends State<ProductDetailView> {
           _isLoadingInventories = false;
         });
       }
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('Failed to load inventories: $e\n$stack');
       if (mounted) {
         setState(() => _isLoadingInventories = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to load inventory info')),
+        );
       }
     }
   }

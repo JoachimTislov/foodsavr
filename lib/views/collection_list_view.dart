@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../models/collection_model.dart';
 import '../service_locator.dart';
 import '../services/collection_service.dart';
+import '../interfaces/i_auth_service.dart';
+import '../utils/collection_types.dart';
 import '../widgets/collection/collection_card.dart';
 import 'collection_detail_view.dart';
 
@@ -16,11 +18,13 @@ class CollectionListView extends StatefulWidget {
 class _CollectionListViewState extends State<CollectionListView> {
   late Future<List<Collection>> _collectionsFuture;
   late final CollectionService _collectionService;
+  late final IAuthService _authService;
 
   @override
   void initState() {
     super.initState();
     _collectionService = getIt<CollectionService>();
+    _authService = getIt<IAuthService>();
     _collectionsFuture = _fetchCollections();
   }
 
@@ -40,7 +44,7 @@ class _CollectionListViewState extends State<CollectionListView> {
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Add collection feature coming soon!'),
+                  content: Text('Add inventory feature coming soon!'),
                 ),
               );
             },
@@ -123,7 +127,10 @@ class _CollectionListViewState extends State<CollectionListView> {
   }
 
   Future<List<Collection>> _fetchCollections() async {
-    return _collectionService.getCollections();
+    final userId = _authService.getUserId();
+    if (userId == null) return [];
+    final all = await _collectionService.getCollectionsForUser(userId);
+    return all.where((c) => c.type == CollectionType.inventory).toList();
   }
 
   Future<void> _refreshCollections() async {

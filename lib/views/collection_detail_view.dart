@@ -44,13 +44,17 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () {
-              // TODO: Implement search
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Search coming soon')),
+              );
             },
           ),
           IconButton(
             icon: const Icon(Icons.more_vert),
             onPressed: () {
-              // TODO: Show options
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('More options coming soon')),
+              );
             },
           ),
         ],

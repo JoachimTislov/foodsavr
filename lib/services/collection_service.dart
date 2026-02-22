@@ -11,6 +11,10 @@ class CollectionService {
 
   CollectionService(this._collectionRepository, this._logger);
 
+  String _redactUserId(String userId) => userId.length <= 6
+      ? '***'
+      : '${userId.substring(0, 3)}***${userId.substring(userId.length - 3)}';
+
   /// Get all collections (global for all users)
   Future<List<Collection>> getCollections() async {
     _logger.i('Fetching all collections.');
@@ -26,7 +30,7 @@ class CollectionService {
 
   /// Get all collections for a specific user
   Future<List<Collection>> getCollectionsForUser(String userId) async {
-    _logger.i('Fetching collections for user: $userId');
+    _logger.i('Fetching collections for user: ${_redactUserId(userId)}');
     try {
       final collections = await _collectionRepository.getCollections(userId);
       _logger.i(
@@ -39,12 +43,39 @@ class CollectionService {
     }
   }
 
+  /// Build a map of product ID → inventory names for the given product IDs
+  Future<Map<int, List<String>>> getInventoryNamesForProducts(
+    String userId,
+    Set<int> productIds,
+  ) async {
+    _logger.i('Building inventory map for ${productIds.length} products');
+    try {
+      final collections = await getCollectionsForUser(userId);
+      final inventoryMap = <int, List<String>>{};
+      for (final collection in collections) {
+        if (collection.type == CollectionType.inventory) {
+          for (final pid in collection.productIds) {
+            if (productIds.contains(pid)) {
+              inventoryMap.putIfAbsent(pid, () => []).add(collection.name);
+            }
+          }
+        }
+      }
+      return inventoryMap;
+    } catch (e) {
+      _logger.e('Error building inventory map: $e');
+      rethrow;
+    }
+  }
+
   /// Find all inventories (CollectionType.inventory) that contain a specific product ID
   Future<List<Collection>> getInventoriesByProductId(
     String userId,
     int productId,
   ) async {
-    _logger.i('Finding inventories for product $productId and user $userId');
+    _logger.i(
+      'Finding inventories for product $productId and user ${_redactUserId(userId)}',
+    );
     try {
       final collections = await getCollectionsForUser(userId);
       final inventories = collections

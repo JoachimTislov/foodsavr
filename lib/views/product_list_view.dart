@@ -1,10 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/product_model.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
 import '../services/collection_service.dart';
-import '../utils/collection_types.dart';
 import '../interfaces/i_auth_service.dart';
 import '../widgets/product/product_card_compact.dart';
 import '../widgets/product/product_card_normal.dart';
@@ -45,11 +46,20 @@ class _ProductListViewState extends State<ProductListView> {
       products = await _productService.getAllProducts();
     } else {
       final userId = _authService.getUserId();
+      if (userId == null) return [];
       products = await _productService.getProducts(userId);
     }
 
     if (!widget.showGlobalProducts) {
-      _loadInventoryNames(products);
+      unawaited(
+        _loadInventoryNames(products).catchError((Object error) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to load inventory info: $error')),
+            );
+          }
+        }),
+      );
     }
 
     return products;
@@ -59,20 +69,11 @@ class _ProductListViewState extends State<ProductListView> {
     final userId = _authService.getUserId();
     if (userId == null) return;
 
-    final collections = await _collectionService.getCollectionsForUser(userId);
-    final inventoryMap = <int, List<String>>{};
-
-    for (final collection in collections) {
-      if (collection.type == CollectionType.inventory) {
-        for (final pid in collection.productIds) {
-          inventoryMap.update(
-            pid,
-            (names) => [...names, collection.name],
-            ifAbsent: () => [collection.name],
-          );
-        }
-      }
-    }
+    final productIds = products.map((p) => p.id).toSet();
+    final inventoryMap = await _collectionService.getInventoryNamesForProducts(
+      userId,
+      productIds,
+    );
 
     if (mounted) {
       setState(() {

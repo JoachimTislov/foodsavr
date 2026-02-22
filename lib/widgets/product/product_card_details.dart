@@ -169,7 +169,7 @@ class ProductCardDetails extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Stored in: ${inventoryNames!.join(", ")}',
+                        'Available in: ${inventoryNames!.join(", ")}',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: colorScheme.primary,
                           fontWeight: FontWeight.w600,

@@ -85,8 +85,12 @@ preflight:
 	@git fetch --quiet
 	@if ! git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then \
 		branch=$$(git rev-parse --abbrev-ref HEAD); \
-		echo "Setting upstream to origin/$$branch"; \
-		git branch --set-upstream-to=origin/$(git rev-parse --abbrev-ref HEAD); \
+		if git ls-remote --exit-code --heads origin "$$branch" >/dev/null 2>&1; then \
+			echo "Setting upstream to origin/$$branch"; \
+			git branch --set-upstream-to=origin/$$branch; \
+		else \
+			echo "No remote branch for $$branch yet. Run 'git push -u origin $$branch' first."; \
+		fi; \
 	else \
 		echo "Upstream already set."; \
 	fi
