@@ -86,10 +86,10 @@ preflight:
 	fi
 
 push: deps preflight
-	@if git diff --quiet --exit-code lib/service_locator.dart lib/services/ lib/interfaces/ lib/repositories/ lib/di/ lib/injection.dart; then \
-		echo "No DI changes detected, skipping generate-di."; \
-	else \
-		echo "DI changes detected, running generate-di..."; \
+	@DI_FILES=$$(ls lib/service_locator.dart lib/services/* lib/interfaces/* lib/repositories/* lib/di/* lib/injection.dart 2>/dev/null); \
+	CHANGED=$$(git --no-pager diff --name-only @{upstream}..HEAD); \
+	if echo "$$CHANGED" | grep -qF "$$DI_FILES"; then \
+		echo "Upstream DI changes detected, running generate-di..."; \
 		$(MAKE) generate-di || { echo "generate-di failed, aborting push."; exit 1; }; \
 	fi
 	@$(MAKE) check-full
