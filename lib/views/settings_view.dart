@@ -40,8 +40,9 @@ class _SettingsViewState extends State<SettingsView> {
                 _SettingsTile(
                   leading: CircleAvatar(
                     radius: 20,
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primaryContainer,
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.primaryContainer,
                     child: Icon(
                       Icons.person_outline,
                       size: 20,

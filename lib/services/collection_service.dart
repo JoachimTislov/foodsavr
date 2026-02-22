@@ -33,7 +33,9 @@ class CollectionService {
     String userId, {
     CollectionType? type,
   }) async {
-    _logger.i('Fetching collections for user: ${_redactUserId(userId)} with type: $type');
+    _logger.i(
+      'Fetching collections for user: ${_redactUserId(userId)} with type: $type',
+    );
     try {
       List<Collection> collections = await _collectionRepository.getCollections(
         userId,
