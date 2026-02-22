@@ -11,7 +11,7 @@ import 'package:foodsavr/router.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/services/auth_controller.dart';
 import 'package:foodsavr/views/landing_page_view.dart';
-import 'package:foodsavr/views/main_view.dart';
+import 'package:foodsavr/views/dashboard_view.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
@@ -166,7 +166,7 @@ void main() {
         authService.signInForTest('uid-123');
         await tester.pumpAndSettle();
 
-        expect(find.byType(MainAppScreen), findsOneWidget);
+        expect(find.byType(DashboardView), findsOneWidget);
         expect(find.byType(LandingPageView), findsNothing);
       },
     );

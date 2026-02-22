@@ -7,9 +7,11 @@ import 'package:go_router/go_router.dart';
 import 'interfaces/i_auth_service.dart';
 import 'views/auth_view.dart';
 import 'views/landing_page_view.dart';
-import 'views/main_view.dart';
+import 'views/dashboard_view.dart';
 import 'views/product_list_view.dart';
 import 'views/collection_list_view.dart';
+import 'views/transfer_management_view.dart';
+import 'views/select_products_view.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -58,7 +60,7 @@ GoRouter createAppRouter(IAuthService authService) {
       GoRoute(
         path: '/products',
         builder: (BuildContext context, GoRouterState state) {
-          return const MainAppScreen();
+          return const DashboardView();
         },
       ),
       // Define other routes here as needed to replace imperative navigation
@@ -74,6 +76,14 @@ GoRouter createAppRouter(IAuthService authService) {
         path: '/global-products',
         builder: (context, state) =>
             const ProductListView(showGlobalProducts: true),
+      ),
+      GoRoute(
+        path: '/transfer',
+        builder: (context, state) => const TransferManagementView(),
+      ),
+      GoRoute(
+        path: '/select-products',
+        builder: (context, state) => const SelectProductsView(),
       ),
     ],
   );
