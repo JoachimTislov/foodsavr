@@ -43,9 +43,13 @@ void main() {
   });
 
   Future<ProcessResult> runGenerate() async {
-    return Process.run('dart', [
-      '/home/joachim/projects/foodsavr-gemini/tool/generate_localizations.dart',
-    ], workingDirectory: tempDir.path);
+    final scriptPath =
+        '${Directory.current.path}/tool/generate_localizations.dart';
+    return Process.run(
+      'dart',
+      [scriptPath],
+      workingDirectory: tempDir.path,
+    );
   }
 
   test('Generates stubs for keys in source but not in JSON', () async {
