@@ -83,7 +83,13 @@ GoRouter createAppRouter(IAuthService authService) {
       ),
       GoRoute(
         path: '/select-products',
-        builder: (context, state) => const SelectProductsView(),
+        builder: (context, state) {
+          final extra = state.extra as Map<String, String>? ?? {};
+          return SelectProductsView(
+            fromLocationId: extra['fromLocationId'] ?? '',
+            toLocationId: extra['toLocationId'] ?? '',
+          );
+        },
       ),
     ],
   );

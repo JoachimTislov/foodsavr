@@ -2,18 +2,40 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../service_locator.dart';
 import '../interfaces/i_auth_service.dart';
+import '../models/product_model.dart';
+import '../service_locator.dart';
+import '../services/product_service.dart';
+import '../widgets/dashboard/expiring_item_card.dart';
+import '../widgets/dashboard/overview_card.dart';
 
-class DashboardView extends StatelessWidget {
+class DashboardView extends StatefulWidget {
   const DashboardView({super.key});
+
+  @override
+  State<DashboardView> createState() => _DashboardViewState();
+}
+
+class _DashboardViewState extends State<DashboardView> {
+  late final IAuthService _authService;
+  late final ProductService _productService;
+  late final Future<List<Product>> _expiringSoonFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _authService = getIt<IAuthService>();
+    _productService = getIt<ProductService>();
+    _expiringSoonFuture = _productService.getExpiringSoon(
+      _authService.getUserId(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
-    final authService = getIt<IAuthService>();
     final today = DateFormat('EEEE, MMM d, yyyy').format(DateTime.now());
 
     return Scaffold(
@@ -38,14 +60,12 @@ class DashboardView extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () {
-              // Settings logic
-            },
+            onPressed: () {},
             tooltip: 'Settings',
           ),
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => authService.signOut(),
+            onPressed: () => _authService.signOut(),
             tooltip: 'Sign Out',
           ),
         ],
@@ -55,42 +75,8 @@ class DashboardView extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Expiring Soon Section
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Expiring Soon',
-                  style: textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    // View all expiring items
-                  },
-                  child: const Text('View All'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _buildExpiringItem(
-              context,
-              'Whole Milk',
-              '2 days',
-              Colors.red[400]!,
-            ),
-            const SizedBox(height: 12),
-            _buildExpiringItem(
-              context,
-              'Greek Yogurt',
-              '5 days',
-              Colors.amber[400]!,
-            ),
-
+            _ExpiringSoonSection(expiringSoonFuture: _expiringSoonFuture),
             const SizedBox(height: 32),
-
-            // Overview Section
             Text(
               'Overview',
               style: textTheme.titleLarge?.copyWith(
@@ -105,37 +91,33 @@ class DashboardView extends StatelessWidget {
               mainAxisSpacing: 16,
               crossAxisSpacing: 16,
               children: [
-                _buildOverviewCard(
-                  context,
-                  'Transfer',
-                  'Move items',
-                  Icons.move_up,
-                  colorScheme.primary,
-                  () => context.push('/transfer'),
+                OverviewCard(
+                  title: 'Transfer',
+                  subtitle: 'Move items',
+                  icon: Icons.move_up,
+                  iconColor: colorScheme.primary,
+                  onTap: () => context.push('/transfer'),
                 ),
-                _buildOverviewCard(
-                  context,
-                  'My Inventory',
-                  'Manage products',
-                  Icons.inventory_2_outlined,
-                  colorScheme.secondary,
-                  () => context.push('/product-list'),
+                OverviewCard(
+                  title: 'My Inventory',
+                  subtitle: 'Manage products',
+                  icon: Icons.inventory_2_outlined,
+                  iconColor: colorScheme.secondary,
+                  onTap: () => context.push('/product-list'),
                 ),
-                _buildOverviewCard(
-                  context,
-                  'Shopping List',
-                  'Manage lists',
-                  Icons.shopping_cart_outlined,
-                  colorScheme.tertiary,
-                  () => context.push('/collection-list'),
+                OverviewCard(
+                  title: 'Shopping List',
+                  subtitle: 'Manage lists',
+                  icon: Icons.shopping_cart_outlined,
+                  iconColor: colorScheme.tertiary,
+                  onTap: () => context.push('/collection-list'),
                 ),
-                _buildOverviewCard(
-                  context,
-                  'Global Products',
-                  'Browse products',
-                  Icons.public_outlined,
-                  colorScheme.primary,
-                  () => context.push('/global-products'),
+                OverviewCard(
+                  title: 'Global Products',
+                  subtitle: 'Browse products',
+                  icon: Icons.public_outlined,
+                  iconColor: colorScheme.primary,
+                  onTap: () => context.push('/global-products'),
                 ),
               ],
             ),
@@ -144,96 +126,62 @@ class DashboardView extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _buildExpiringItem(
-    BuildContext context,
-    String title,
-    String timeLeft,
-    Color timeColor,
-  ) {
-    final colorScheme = Theme.of(context).colorScheme;
+class _ExpiringSoonSection extends StatelessWidget {
+  final Future<List<Product>> expiringSoonFuture;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.1),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          Text(
-            timeLeft,
-            style: TextStyle(
-              color: timeColor,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  const _ExpiringSoonSection({required this.expiringSoonFuture});
 
-  Widget _buildOverviewCard(
-    BuildContext context,
-    String title,
-    String subtitle,
-    IconData icon,
-    Color iconColor,
-    VoidCallback onTap,
-  ) {
-    final colorScheme = Theme.of(context).colorScheme;
+  @override
+  Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.1),
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: iconColor, size: 28),
-            ),
-            const SizedBox(height: 12),
             Text(
-              title,
-              style: textTheme.titleMedium?.copyWith(
+              'Expiring Soon',
+              style: textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
-              textAlign: TextAlign.center,
             ),
-            Text(
-              subtitle,
-              style: textTheme.labelSmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
+            TextButton(
+              onPressed: () => context.push('/product-list'),
+              child: const Text('View All'),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 8),
+        FutureBuilder<List<Product>>(
+          future: expiringSoonFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final products = snapshot.data ?? [];
+            if (products.isEmpty) {
+              return Text(
+                'No products expiring soon.',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              );
+            }
+            return Column(
+              children: [
+                for (int i = 0; i < products.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 12),
+                  ExpiringItemCard(product: products[i]),
+                ],
+              ],
+            );
+          },
+        ),
+      ],
     );
   }
 }

@@ -10,6 +10,9 @@ import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/router.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/services/auth_controller.dart';
+import 'package:foodsavr/services/product_service.dart';
+import 'package:foodsavr/interfaces/i_product_repository.dart';
+import 'package:foodsavr/models/product_model.dart';
 import 'package:foodsavr/views/landing_page_view.dart';
 import 'package:foodsavr/views/dashboard_view.dart';
 import 'package:go_router/go_router.dart';
@@ -20,6 +23,23 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _MockUser extends Mock implements User {}
 
 class _MockUserCredential extends Mock implements UserCredential {}
+
+class _FakeProductRepository implements IProductRepository {
+  @override
+  Future<Product> add(Product entity) async => entity;
+  @override
+  Future<Product?> get(int id) async => null;
+  @override
+  Future<void> update(Product entity) async {}
+  @override
+  Future<void> delete(int id) async {}
+  @override
+  Future<List<Product>> getAll() async => [];
+  @override
+  Future<List<Product>> getProducts(String userId) async => [];
+  @override
+  Future<List<Product>> getGlobalProducts() async => [];
+}
 
 class _FakeAuthService implements IAuthService {
   final _controller = StreamController<User?>.broadcast();
@@ -116,6 +136,10 @@ void main() {
       authService = _FakeAuthService();
       router = createAppRouter(authService);
       getIt.registerLazySingleton<IAuthService>(() => authService);
+      getIt.registerLazySingleton<ProductService>(
+        () =>
+            ProductService(_FakeProductRepository(), Logger(level: Level.off)),
+      );
       getIt.registerFactory<AuthController>(
         () => AuthController(
           getIt<IAuthService>(),

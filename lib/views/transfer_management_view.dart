@@ -1,13 +1,81 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-class TransferManagementView extends StatelessWidget {
+import '../widgets/transfer/location_card.dart';
+import '../widgets/transfer/location_section_header.dart';
+
+/// A simple value object representing a storage location.
+class _LocationOption {
+  final String id;
+  final String name;
+  final String detail;
+  final IconData icon;
+
+  const _LocationOption({
+    required this.id,
+    required this.name,
+    required this.detail,
+    required this.icon,
+  });
+}
+
+class TransferManagementView extends StatefulWidget {
   const TransferManagementView({super.key});
 
   @override
+  State<TransferManagementView> createState() => _TransferManagementViewState();
+}
+
+class _TransferManagementViewState extends State<TransferManagementView> {
+  // TODO(feat): replace with locations fetched from a LocationService when available
+  static const List<_LocationOption> _fromOptions = [
+    _LocationOption(
+      id: 'main_fridge',
+      name: 'Main Fridge',
+      detail: 'Zone A • 42 Items',
+      icon: Icons.kitchen,
+    ),
+    _LocationOption(
+      id: 'pantry',
+      name: 'Pantry',
+      detail: 'Aisle 4 • 128 Items',
+      icon: Icons.inventory_2_outlined,
+    ),
+    _LocationOption(
+      id: 'deep_freezer',
+      name: 'Deep Freezer',
+      detail: 'Basement • 15 Items',
+      icon: Icons.ac_unit,
+    ),
+  ];
+
+  static const List<_LocationOption> _toOptions = [
+    _LocationOption(
+      id: 'garage',
+      name: 'Garage',
+      detail: 'Storage Rack 2',
+      icon: Icons.garage,
+    ),
+    _LocationOption(
+      id: 'loading_dock',
+      name: 'Loading Dock',
+      detail: 'Outbound Area',
+      icon: Icons.local_shipping_outlined,
+    ),
+    _LocationOption(
+      id: 'retail_shelf',
+      name: 'Retail Shelf',
+      detail: 'Main Floor',
+      icon: Icons.storefront,
+    ),
+  ];
+
+  String _selectedFromId = 'main_fridge';
+  String _selectedToId = 'loading_dock';
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -19,12 +87,6 @@ class TransferManagementView extends StatelessWidget {
           'Transfer Inventory',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => context.pop(),
-            child: const Text('Cancel'),
-          ),
-        ],
         backgroundColor: colorScheme.surface,
         elevation: 0,
         centerTitle: true,
@@ -37,39 +99,22 @@ class TransferManagementView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // From Location
-                  _buildLocationHeader(
-                    context,
-                    Icons.logout,
-                    'From Location',
-                    colorScheme.primary,
+                  LocationSectionHeader(
+                    icon: Icons.logout,
+                    title: 'From Location',
+                    color: colorScheme.primary,
                   ),
                   const SizedBox(height: 16),
-                  _buildLocationCard(
-                    context,
-                    'Main Fridge',
-                    'Zone A • 42 Items',
-                    Icons.kitchen,
-                    true,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildLocationCard(
-                    context,
-                    'Pantry',
-                    'Aisle 4 • 128 Items',
-                    Icons.inventory_2_outlined,
-                    false,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildLocationCard(
-                    context,
-                    'Deep Freezer',
-                    'Basement • 15 Items',
-                    Icons.ac_unit,
-                    false,
-                  ),
-
-                  // Flow Indicator
+                  for (final loc in _fromOptions) ...[
+                    LocationCard(
+                      title: loc.name,
+                      subtitle: loc.detail,
+                      icon: loc.icon,
+                      isSelected: _selectedFromId == loc.id,
+                      onTap: () => setState(() => _selectedFromId = loc.id),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Center(
@@ -100,43 +145,26 @@ class TransferManagementView extends StatelessWidget {
                       ),
                     ),
                   ),
-
-                  // To Location
-                  _buildLocationHeader(
-                    context,
-                    Icons.login,
-                    'To Location',
-                    colorScheme.primary,
+                  LocationSectionHeader(
+                    icon: Icons.login,
+                    title: 'To Location',
+                    color: colorScheme.primary,
                   ),
                   const SizedBox(height: 16),
-                  _buildLocationCard(
-                    context,
-                    'Garage',
-                    'Storage Rack 2',
-                    Icons.garage,
-                    false,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildLocationCard(
-                    context,
-                    'Loading Dock',
-                    'Outbound Area',
-                    Icons.local_shipping_outlined,
-                    true,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildLocationCard(
-                    context,
-                    'Retail Shelf',
-                    'Main Floor',
-                    Icons.storefront,
-                    false,
-                  ),
+                  for (final loc in _toOptions) ...[
+                    LocationCard(
+                      title: loc.name,
+                      subtitle: loc.detail,
+                      icon: loc.icon,
+                      isSelected: _selectedToId == loc.id,
+                      onTap: () => setState(() => _selectedToId = loc.id),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                 ],
               ),
             ),
           ),
-          // CTA Action Bar
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -149,7 +177,13 @@ class TransferManagementView extends StatelessWidget {
             ),
             child: SafeArea(
               child: ElevatedButton(
-                onPressed: () => context.push('/select-products'),
+                onPressed: () => context.push(
+                  '/select-products',
+                  extra: <String, String>{
+                    'fromLocationId': _selectedFromId,
+                    'toLocationId': _selectedToId,
+                  },
+                ),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(56),
                   backgroundColor: colorScheme.primary,
@@ -176,90 +210,6 @@ class TransferManagementView extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildLocationHeader(
-    BuildContext context,
-    IconData icon,
-    String title,
-    Color color,
-  ) {
-    return Row(
-      children: [
-        Icon(icon, color: color),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLocationCard(
-    BuildContext context,
-    String title,
-    String subtitle,
-    IconData icon,
-    bool isSelected,
-  ) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return InkWell(
-      onTap: () {
-        // Handle selection
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? colorScheme.primary
-              : colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(12),
-          border: isSelected
-              ? Border.all(color: colorScheme.primary)
-              : Border.all(
-                  color: colorScheme.outlineVariant.withValues(alpha: 0.1),
-                ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 24,
-              color: isSelected ? colorScheme.onPrimary : colorScheme.primary,
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: isSelected
-                        ? colorScheme.onPrimary
-                        : colorScheme.onSurface,
-                  ),
-                ),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: isSelected
-                        ? colorScheme.onPrimary.withValues(alpha: 0.8)
-                        : colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
