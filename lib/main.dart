@@ -3,11 +3,13 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:logger/logger.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
 import 'interfaces/i_auth_service.dart';
 import 'router.dart';
 import 'service_locator.dart';
+import 'services/theme_notifier.dart';
 import 'utils/app_theme.dart';
 import 'utils/config.dart';
 
@@ -60,6 +62,8 @@ void main() async {
 
   const enLocale = Locale('en', 'US');
   await EasyLocalization.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
   final router = createAppRouter(getIt<IAuthService>());
   runApp(
     EasyLocalization(
@@ -78,15 +82,18 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'FoodSavr',
-      localizationsDelegates: context.localizationDelegates,
-      supportedLocales: context.supportedLocales,
-      locale: context.locale,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
-      routerConfig: router,
+    return ListenableBuilder(
+      listenable: getIt<ThemeNotifier>(),
+      builder: (context, _) => MaterialApp.router(
+        title: 'FoodSavr',
+        localizationsDelegates: context.localizationDelegates,
+        supportedLocales: context.supportedLocales,
+        locale: context.locale,
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: getIt<ThemeNotifier>().themeMode,
+        routerConfig: router,
+      ),
     );
   }
 }

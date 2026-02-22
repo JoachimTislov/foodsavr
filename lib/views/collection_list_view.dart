@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../models/collection_model.dart';
 import '../service_locator.dart';
@@ -35,7 +36,7 @@ class _CollectionListViewState extends State<CollectionListView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Inventories'),
+        title: Text('dashboard.myInventories'.tr()),
         backgroundColor: colorScheme.surface,
         elevation: 0,
         actions: [
@@ -43,9 +44,7 @@ class _CollectionListViewState extends State<CollectionListView> {
             icon: const Icon(Icons.add_circle_outline),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Add inventory feature coming soon!'),
-                ),
+                SnackBar(content: Text('collection.addSoon'.tr())),
               );
             },
           ),
@@ -64,7 +63,7 @@ class _CollectionListViewState extends State<CollectionListView> {
                   Icon(Icons.error_outline, size: 64, color: colorScheme.error),
                   const SizedBox(height: 16),
                   Text(
-                    'Error loading inventories',
+                    'collection.loadError'.tr(),
                     style: theme.textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
@@ -90,12 +89,12 @@ class _CollectionListViewState extends State<CollectionListView> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'No inventories found',
+                    'collection.emptyTitle'.tr(),
                     style: theme.textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Create your first inventory to get started',
+                    'collection.emptySubtitle'.tr(),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),

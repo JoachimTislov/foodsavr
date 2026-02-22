@@ -12,6 +12,8 @@ import 'views/product_list_view.dart';
 import 'views/collection_list_view.dart';
 import 'views/transfer_management_view.dart';
 import 'views/select_products_view.dart';
+import 'views/settings_view.dart';
+import 'views/profile_view.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -90,6 +92,14 @@ GoRouter createAppRouter(IAuthService authService) {
             toLocationId: extra['toLocationId'] ?? '',
           );
         },
+      ),
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) => const SettingsView(),
+      ),
+      GoRoute(
+        path: '/profile',
+        builder: (context, state) => const ProfileView(),
       ),
     ],
   );

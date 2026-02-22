@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -58,9 +59,9 @@ class _SelectProductsViewState extends State<SelectProductsView> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
-          'Select Products',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          'product.select'.tr(),
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: colorScheme.surface,
         elevation: 0,
@@ -83,7 +84,7 @@ class _SelectProductsViewState extends State<SelectProductsView> {
               children: [
                 Expanded(
                   child: CompactLocationCard(
-                    label: 'From',
+                    label: 'common.from'.tr(),
                     locationName: widget.fromLocationId,
                     isActive: true,
                   ),
@@ -94,7 +95,7 @@ class _SelectProductsViewState extends State<SelectProductsView> {
                 ),
                 Expanded(
                   child: CompactLocationCard(
-                    label: 'To',
+                    label: 'common.to'.tr(),
                     locationName: widget.toLocationId,
                     isActive: false,
                   ),
@@ -110,7 +111,7 @@ class _SelectProductsViewState extends State<SelectProductsView> {
               controller: _searchController,
               onChanged: _controller.updateQuery,
               decoration: InputDecoration(
-                hintText: 'Search your pantry...',
+                hintText: 'product.search_hint'.tr(),
                 prefixIcon: const Icon(Icons.search),
                 filled: true,
                 fillColor: colorScheme.surfaceContainerHigh,
@@ -128,7 +129,7 @@ class _SelectProductsViewState extends State<SelectProductsView> {
             child: Row(
               children: [
                 Text(
-                  'AVAILABLE STOCK',
+                  'product.available_stock'.tr(),
                   style: textTheme.labelSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.2,
@@ -194,7 +195,11 @@ class _SelectProductsViewState extends State<SelectProductsView> {
                       const Icon(Icons.swap_horiz),
                       const SizedBox(width: 8),
                       Text(
-                        'Transfer ${_controller.selectedCount} items',
+                        'transfer.transfer_items'.tr(
+                          namedArgs: {
+                            'count': _controller.selectedCount.toString(),
+                          },
+                        ),
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,

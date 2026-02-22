@@ -1,67 +1,171 @@
 {
-    "auth": {
-        "terms": {
-            "required": "Du må godta vilkårene for bruk og personvernerklæringen.",
-            "prefix": "Jeg godtar "
-        },
-        "reset": {
-            "email_prompt": "Vennligst skriv inn e-postadressen din for å tilbakestille passordet.",
-            "email_sent": "E-post for tilbakestilling av passord sendt. Sjekk innboksen din."
-        },
-        "header": {
-            "welcome_back": "Velkommen tilbake",
-            "create_account": "Opprett konto",
-            "sign_in_subtitle": "Logg inn for å administrere lageret ditt.",
-            "sign_up_subtitle": "Registrer deg for å begynne å spare tid og penger."
-        },
-        "form": {
-            "remember_me": "Husk meg",
-            "forgot_password": "Glemt passord?",
-            "email": {
-                "label": "E-postadresse",
-                "hint": "navn@eksempel.no",
-                "required": "Vennligst skriv inn e-postadressen din"
-            },
-            "password": {
-                "label": "Passord",
-                "hint": "Skriv inn passordet ditt",
-                "required": "Vennligst skriv inn passordet ditt"
-            }
-        },
-        "social": {
-            "continue_google": "Fortsett med Google",
-            "continue_facebook": "Fortsett med Facebook",
-            "continue_email": "Fortsett med e-post"
-        },
-        "landing": {
-            "title": "Lagerinnlogging",
-            "subtitle": "Spor, administrer og skaler lageret ditt effektivt."
-        },
-        "toggle": {
-            "no_account": "Har du ikke en konto?",
-            "sign_up": "Registrer deg",
-            "already_have_account": "Har du allerede en konto?",
-            "login": "Logg inn"
-        },
-        "submit": {
-            "register": "Registrer"
-        },
-        "error": {
-            "user_not_found": "Ingen bruker funnet for denne e-posten.",
-            "wrong_password": "Feil passord oppgitt for denne brukeren.",
-            "email_already_in_use": "Kontoen finnes allerede for denne e-posten.",
-            "invalid_email": "E-postadressen er ikke gyldig.",
-            "weak_password": "Passordet er for svakt.",
-            "operation_not_allowed": "Operasjonen er ikke tillatt.",
-            "user_disabled": "Brukerkontoen er deaktivert.",
-            "unknown": "En udefinert feil oppstod."
-        }
+  "auth": {
+    "terms": {
+      "required": "Du må godta vilkårene for bruk og personvernerklæringen.",
+      "prefix": "Jeg godtar "
     },
-    "common": {
-        "privacy_notice": "Personvernerklæring",
-        "close": "Lukk",
-        "terms_of_service": "Vilkår for bruk",
-        "and": " og ",
-        "or": "ELLER"
+    "reset": {
+      "email_prompt": "Vennligst skriv inn e-postadressen din for å tilbakestille passordet.",
+      "email_sent": "E-post for tilbakestilling av passord sendt. Sjekk innboksen din."
+    },
+    "header": {
+      "welcome_back": "Velkommen tilbake",
+      "create_account": "Opprett konto",
+      "sign_in_subtitle": "Logg inn for å administrere lageret ditt.",
+      "sign_up_subtitle": "Registrer deg for å begynne å spare tid og penger."
+    },
+    "form": {
+      "remember_me": "Husk meg",
+      "forgot_password": "Glemt passord?",
+      "email": {
+        "label": "E-postadresse",
+        "hint": "navn@eksempel.no",
+        "required": "Vennligst skriv inn e-postadressen din"
+      },
+      "password": {
+        "label": "Passord",
+        "hint": "Skriv inn passordet ditt",
+        "required": "Vennligst skriv inn passordet ditt"
+      }
+    },
+    "social": {
+      "continue_google": "Fortsett med Google",
+      "continue_facebook": "Fortsett med Facebook",
+      "continue_email": "Fortsett med e-post"
+    },
+    "landing": {
+      "title": "Lagerinnlogging",
+      "subtitle": "Spor, administrer og skaler lageret ditt effektivt."
+    },
+    "toggle": {
+      "no_account": "Har du ikke en konto?",
+      "sign_up": "Registrer deg",
+      "already_have_account": "Har du allerede en konto?",
+      "login": "Logg inn"
+    },
+    "submit": {
+      "register": "Registrer"
+    },
+    "error": {
+      "user_not_found": "Ingen bruker funnet for denne e-posten.",
+      "wrong_password": "Feil passord oppgitt for denne brukeren.",
+      "email_already_in_use": "Kontoen finnes allerede for denne e-posten.",
+      "invalid_email": "E-postadressen er ikke gyldig.",
+      "weak_password": "Passordet er for svakt.",
+      "operation_not_allowed": "Operasjonen er ikke tillatt.",
+      "user_disabled": "Brukerkontoen er deaktivert.",
+      "unknown": "En udefinert feil oppstod."
     }
+  },
+  "common": {
+    "privacy_notice": "Personvernerklæring",
+    "close": "Lukk",
+    "terms_of_service": "Vilkår for bruk",
+    "and": " og ",
+    "or": "ELLER",
+    "viewAll": "Se alle",
+    "settings": "Innstillinger",
+    "signOut": "Logg ut",
+    "cancel": "Avbryt",
+    "delete": "Slett",
+    "from": "Fra",
+    "to": "Til"
+  },
+  "dashboard": {
+    "title": "Dashbord",
+    "overview": "Oversikt",
+    "transfer": "Overføring",
+    "moveItems": "Flytt varer",
+    "myInventory": "Mitt lager",
+    "myInventories": "Mine lagre",
+    "manageProducts": "Administrer produkter",
+    "shoppingList": "Handleliste",
+    "manageLists": "Administrer lister",
+    "globalProducts": "Globale produkter",
+    "browseProducts": "Bla gjennom produkter",
+    "expiringSoon": "Utløper snart",
+    "noProductsExpiringSoon": "Ingen produkter utløper snart.",
+    "errorLoading": "Feil ved lasting av data"
+  },
+  "product": {
+    "title": "Mine produkter",
+    "changeViewMode": "Endre visningsmodus",
+    "compact": "Kompakt",
+    "normal": "Normal",
+    "details": "Produktdetaljer",
+    "select": "Velg produkter",
+    "errorLoading": "Feil ved lasting av produkter",
+    "noProductsFound": "Ingen produkter funnet",
+    "addFirst": "Legg til ditt første produkt for å komme i gang",
+    "settingsSoon": "Innstillingsfunksjon kommer snart!",
+    "addSoon": "Legg til produkt-funksjon kommer snart!",
+    "add": "Legg til produkt",
+    "availableIn": "Tilgjengelig i {inventories}",
+    "editSoon": "Redigeringsfunksjon kommer snart!",
+    "delete": "Slett produkt",
+    "search_hint": "Søk i matskapet ditt...",
+    "available_stock": "TILGJENGELIG LAGER",
+    "status": "Status",
+    "deleteConfirmMessage": "Er du sikker på at du vil slette \"{name}\"?",
+    "deleted": "{name} slettet",
+    "deleteError": "Feil ved sletting av produkt: {error}",
+    "inventoryLoadError": "Feil ved lasting av inventarinfo: {error}"
+  },
+  "transfer": {
+    "title": "Overfør lager",
+    "selectProducts": "Velg produkter",
+    "fromLocation": "Fra sted",
+    "toLocation": "Til sted",
+    "transfer_items": "Overfør {count} varer"
+  },
+  "profile": {
+    "title": "Profil",
+    "deleteAccountConfirmation": "Ja, slett konto"
+  },
+  "collection": {
+    "addProductSoon": "Legg til produkt i samling-funksjon kommer snart!",
+    "errorLoadingProducts": "Feil ved lasting av produkter",
+    "noProducts": "Ingen produkter i denne samlingen",
+    "addSoon": "Legg til samling-funksjon kommer snart!",
+    "loadError": "Feil ved lasting av inventarer",
+    "emptyTitle": "Ingen inventarer funnet",
+    "emptySubtitle": "Opprett ditt første inventar for å komme i gang"
+  },
+  "generated": {
+    "100_42": "1.0.0 (42)",
+    "128": "128",
+    "42": "42",
+    "accountSettings": "Kontoinnstillinger",
+    "acquiredProducts": "Anskaffede produkter",
+    "changeEmail": "Endre e-post",
+    "deleteAccount": "Slett konto",
+    "forgotPassword": "Glemt passord",
+    "itemsTracked": "Vare sporet",
+    "janeDoe": "Jane Doe",
+    "janedoepantrypalcom": "jane.doe@pantrypal.no",
+    "logOut": "Logg ut",
+    "thisActionIsPermanent": "Denne handlingen er permanent og kan ikke angres.",
+    "twofactorAuthentication": "To-faktor autentisering"
+  },
+  "settings": {
+    "about": "Om",
+    "account": "Konto",
+    "app_version": "App-versjon",
+    "appearance": "Utseende",
+    "language": "Språk",
+    "languages": {
+      "en": "Engelsk",
+      "nb": "Norsk"
+    },
+    "privacy_policy": "Personvernregler",
+    "terms_of_service": "Vilkår for bruk",
+    "theme_mode": "Temamodus",
+    "themes": {
+      "dark": "Mørk",
+      "light": "Lys",
+      "system": "System"
+    },
+    "title": "Innstillinger",
+    "notImplemented": "Denne funksjonen er ikke tilgjengelig ennå"
+  }
 }

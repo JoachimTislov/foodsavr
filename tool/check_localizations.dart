@@ -1,7 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
-final _trMethodRegex = RegExp(r'''['"]([^'"]+)['"]\.tr\(\)''');
+final _trMethodRegex = RegExp(
+  r'''['"]([^'"]+)['"]\.tr''',
+); // For simple 'key'.tr or 'key'.tr(args: ...)
+final _trConditionalRegex = RegExp(
+  r'''\?\s*['"]([^'"]+)['"]\s*:\s*['"]([^'"]+)['"]\)''',
+); // For (cond ? 'key1' : 'key2')
 final _trFunctionRegex = RegExp(r'''_tr\(\s*['"]([^'"]+)['"]\s*\)''');
 
 Set<String> _flattenKeys(Map<String, dynamic> map, [String prefix = '']) {
@@ -37,6 +42,12 @@ void main() {
       final content = entity.readAsStringSync();
       for (final match in _trMethodRegex.allMatches(content)) {
         usedKeys.add(match.group(1)!);
+      }
+      for (final match in _trConditionalRegex.allMatches(content)) {
+        final firstKey = match.group(1);
+        final secondKey = match.group(2);
+        if (firstKey != null) usedKeys.add(firstKey);
+        if (secondKey != null) usedKeys.add(secondKey);
       }
       for (final match in _trFunctionRegex.allMatches(content)) {
         usedKeys.add(match.group(1)!);

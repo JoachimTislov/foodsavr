@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../../constants/product_categories.dart';
 import '../../models/product_model.dart';
 
@@ -169,7 +169,11 @@ class ProductCardDetails extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Available in: ${inventoryNames!.join(", ")}',
+                        'product.availableIn'.tr(
+                          namedArgs: {
+                            'inventories': inventoryNames!.join(', '),
+                          },
+                        ),
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: colorScheme.primary,
                           fontWeight: FontWeight.w600,
