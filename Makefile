@@ -83,6 +83,13 @@ generate-di: deps
 preflight:
 	@echo "Running preflight sync checks..."
 	@git fetch --quiet
+	@if ! git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then \
+		branch=$$(git rev-parse --abbrev-ref HEAD); \
+		echo "Setting upstream to origin/$$branch"; \
+		git branch --set-upstream-to=origin/$(git rev-parse --abbrev-ref HEAD); \
+	else \
+		echo "Upstream already set."; \
+	fi
 	@if [ -n "$$(git status --porcelain)" ]; then \
 		echo "Preflight failed: working tree is not clean."; \
 		exit 1; \
@@ -95,7 +102,6 @@ preflight:
 	else \
 		echo "No upstream branch found, skipping behind check."; \
 	fi
-
 push: deps preflight
 	@DI_FILES=$$(/usr/bin/ls lib/services/* lib/interfaces/* lib/repositories/* lib/di/*; echo lib/service_locator.dart lib/injection.dart); \
 	CHANGED=$$(git --no-pager diff --name-only @{upstream}..HEAD); \
