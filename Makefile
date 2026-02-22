@@ -30,6 +30,7 @@ deps: .deps-stamp
 .deps-stamp: pubspec.yaml pubspec.lock
 	@echo "Getting dependencies..."
 	@flutter pub get > /dev/null
+	@touch .deps-stamp
 
 # Code quality commands
 check: deps analyze test locale-check
