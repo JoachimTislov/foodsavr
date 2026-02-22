@@ -8,7 +8,10 @@ Read one comment at a time and do the following:
 1. Implement and verify the fix using the project's standard workflow: gather full context and apply changes
 2. Update tests, documentation and TODOs
 3. Commit the change with a clear message referencing the resolved comment, ensuring that the commit history reflects the rationale behind the fix.
-4. Resolve the comment
+4. Resolve the comment with make:
+    - pr-comments-active:
+    - pr-comments-resolve-active:
+    - pr-comments-resolve-outdated:
 
 - After all comments:
   - Review codebase for Material 3 and Effective Dart consistency
