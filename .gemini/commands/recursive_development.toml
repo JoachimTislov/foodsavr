@@ -3,8 +3,8 @@ prompt = """
 1. Split the implementation into relationally independent changes.
 2. Apply the change to the codebase.
 3. Update the tests and documentation to reflect the change.
-3. Verify the change with `make check`
-	- Passes: Run `make push`,
-	- If either check or push fails, return to step two.
+4. Verify the change with `make check`
+  - If `make check` passes, run `make push`.
+  - If either check or push fails, return to step 2.
 5. Write a summary comment with bullet points describing the change(s)
 """
