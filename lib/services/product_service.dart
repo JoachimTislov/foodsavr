@@ -29,6 +29,16 @@ class ProductService {
     }
   }
 
+  /// Returns products for [userId] that are expiring soon (within 6 days) or today.
+  Future<List<Product>> getExpiringSoon(String? userId) async {
+    final products = await getProducts(userId);
+    return products.where((p) => p.isExpiringSoon || p.isExpiringToday).toList()
+      ..sort(
+        (a, b) =>
+            (a.daysUntilExpiration ?? 0).compareTo(b.daysUntilExpiration ?? 0),
+      );
+  }
+
   /// Fetches all global products (catalog)
   Future<List<Product>> getAllProducts() async {
     _logger.i('Fetching all global products.');
