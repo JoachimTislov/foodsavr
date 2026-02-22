@@ -38,15 +38,19 @@ class _SettingsViewState extends State<SettingsView> {
               title: 'settings.account'.tr(),
               children: [
                 _SettingsTile(
-                  leading: const CircleAvatar(
+                  leading: CircleAvatar(
                     radius: 20,
-                    backgroundImage: NetworkImage(
-                      'https://lh3.googleusercontent.com/aida-public/AB6AXuDwWMgdYu2bPbsZUzBnp79nL40ENwB92gxV_m2tBlAkF0GGsbIPvV13lQsCLn5FLv1NVV6sdsRgRli8enFcLGbfiYaLIjBJkhK0VmLsrja29MeKUoZzZQjJHlExYCNQ7OjC2ztEXPs6s5RdUQ6nLoFf7baUhjxTRFzBnTXni8mYGRb13_k0110FqejEe84HVZvQlRVl9rm8tWZm9phi12hrKvZ03xmmHV9B1ySaoe35wCB3pnjwxqSfEkZVbtS0bKwI_7tyRLrRQXMC',
+                    backgroundColor:
+                        Theme.of(context).colorScheme.primaryContainer,
+                    child: Icon(
+                      Icons.person_outline,
+                      size: 20,
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
                     ),
                   ),
                   title: 'generated.janeDoe'.tr(),
                   subtitle: 'generated.janedoepantrypalcom'.tr(),
-                  onTap: () => context.push('generated.profile'.tr()),
+                  onTap: () => context.push('/profile'),
                 ),
               ],
             ),
@@ -72,7 +76,7 @@ class _SettingsViewState extends State<SettingsView> {
                   icon: Icons.language_outlined,
                   title: 'settings.language'.tr(),
                   trailing: Text(
-                    context.locale.languageCode == 'generated.en'.tr()
+                    context.locale.languageCode == 'en'
                         ? 'settings.languages.en'.tr()
                         : 'settings.languages.nb'.tr(),
                     style: textTheme.bodyMedium?.copyWith(
@@ -127,16 +131,19 @@ class _SettingsViewState extends State<SettingsView> {
             ListTile(
               leading: const Icon(Icons.brightness_auto),
               title: Text('settings.themes.system'.tr()),
+              // TODO(theme): Apply and persist system theme via ThemeNotifier
               onTap: () => Navigator.pop(context),
             ),
             ListTile(
               leading: const Icon(Icons.light_mode),
               title: Text('settings.themes.light'.tr()),
+              // TODO(theme): Apply and persist light theme via ThemeNotifier
               onTap: () => Navigator.pop(context),
             ),
             ListTile(
               leading: const Icon(Icons.dark_mode),
               title: Text('settings.themes.dark'.tr()),
+              // TODO(theme): Apply and persist dark theme via ThemeNotifier
               onTap: () => Navigator.pop(context),
             ),
           ],
@@ -157,25 +164,21 @@ class _SettingsViewState extends State<SettingsView> {
           children: [
             ListTile(
               title: Text('settings.languages.en'.tr()),
-              trailing: context.locale.languageCode == 'generated.en'.tr()
+              trailing: context.locale.languageCode == 'en'
                   ? const Icon(Icons.check, color: Colors.blue)
                   : null,
               onTap: () {
-                context.setLocale(
-                  Locale('generated.en'.tr(), 'generated.us'.tr()),
-                );
+                context.setLocale(const Locale('en', 'US'));
                 Navigator.pop(context);
               },
             ),
             ListTile(
               title: Text('settings.languages.nb'.tr()),
-              trailing: context.locale.languageCode == 'generated.nb'.tr()
+              trailing: context.locale.languageCode == 'nb'
                   ? const Icon(Icons.check, color: Colors.blue)
                   : null,
               onTap: () {
-                context.setLocale(
-                  Locale('generated.nb'.tr(), 'generated.no'.tr()),
-                );
+                context.setLocale(const Locale('nb', 'NO'));
                 Navigator.pop(context);
               },
             ),

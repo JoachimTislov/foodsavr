@@ -43,9 +43,11 @@ void main() {
       for (final match in _trMethodRegex.allMatches(content)) {
         usedKeys.add(match.group(1)!);
       }
-      for (final _ in _trConditionalRegex.allMatches(content)) {
-        // As DashboardView has been refactored, these keys are now directly handled,
-        // so we don't need to add them here from the regex.
+      for (final match in _trConditionalRegex.allMatches(content)) {
+        final firstKey = match.group(1);
+        final secondKey = match.group(2);
+        if (firstKey != null) usedKeys.add(firstKey);
+        if (secondKey != null) usedKeys.add(secondKey);
       }
       for (final match in _trFunctionRegex.allMatches(content)) {
         usedKeys.add(match.group(1)!);

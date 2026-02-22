@@ -145,7 +145,11 @@ class _ProfileViewState extends State<ProfileView> {
             ),
             const SizedBox(height: 32),
             ElevatedButton(
-              onPressed: () => Navigator.pop(context),
+              // TODO(profile): Call _authService.deleteAccount() once implemented in IAuthService
+              onPressed: () async {
+                Navigator.pop(context);
+                _authService.signOut();
+              },
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size.fromHeight(56),
                 backgroundColor: Colors.red,

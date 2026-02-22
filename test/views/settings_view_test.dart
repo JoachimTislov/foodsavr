@@ -6,7 +6,6 @@ import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:io';
 
 class _MockAuthService extends Mock implements IAuthService {}
 
@@ -33,10 +32,6 @@ void main() {
 
   group('SettingsView Widget Tests', () {
     late _MockAuthService mockAuthService;
-
-    setUpAll(() {
-      HttpOverrides.global = null;
-    });
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});

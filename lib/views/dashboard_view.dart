@@ -23,9 +23,8 @@ class _DashboardViewState extends State<DashboardView> {
   late final IAuthService _authService;
   late final ProductService _productService;
   late final CollectionService _collectionService;
-  late final Future<List<Product>> _expiringSoonFuture;
-  late final Future<List<Collection>> _inventoriesFuture;
-  late final Future<List<Collection>> _shoppingListsFuture;
+  late Future<List<Product>> _expiringSoonFuture;
+  late Future<List<Collection>> _inventoriesFuture;
 
   @override
   void initState() {
@@ -35,15 +34,16 @@ class _DashboardViewState extends State<DashboardView> {
     _collectionService = getIt<CollectionService>();
     final userId = _authService.getUserId();
 
-    _expiringSoonFuture = _productService.getExpiringSoon(userId);
+    if (userId == null) {
+      _expiringSoonFuture = Future.value([]);
+      _inventoriesFuture = Future.value([]);
+      return;
+    }
 
+    _expiringSoonFuture = _productService.getExpiringSoon(userId);
     _inventoriesFuture = _collectionService.getCollectionsForUser(
-      userId!,
-      type: CollectionType.inventory,
-    );
-    _shoppingListsFuture = _collectionService.getCollectionsForUser(
       userId,
-      type: CollectionType.shoppingList,
+      type: CollectionType.inventory,
     );
   }
 
@@ -100,15 +100,18 @@ class _DashboardViewState extends State<DashboardView> {
               ),
             ),
             const SizedBox(height: 16),
-            FutureBuilder(
-              future: Future.wait([_inventoriesFuture, _shoppingListsFuture]),
-              builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
+            FutureBuilder<List<Collection>>(
+              future: _inventoriesFuture,
+              builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                final inventories =
-                    snapshot.data?[0] as List<Collection>? ?? [];
+                if (snapshot.hasError) {
+                  return Text('dashboard.errorLoading'.tr());
+                }
+
+                final inventories = snapshot.data ?? [];
 
                 return GridView.count(
                   shrinkWrap: true,

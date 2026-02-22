@@ -330,7 +330,9 @@ class _ProductListViewState extends State<ProductListView> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text('product.delete'.tr()),
-        content: Text('Are you sure you want to delete "${product.name}"?'),
+        content: Text(
+          'product.deleteConfirmMessage'.tr(namedArgs: {'name': product.name}),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
@@ -343,7 +345,11 @@ class _ProductListViewState extends State<ProductListView> {
                 await _productService.deleteProduct(product.id);
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('${product.name} deleted')),
+                  SnackBar(
+                    content: Text(
+                      'product.deleted'.tr(namedArgs: {'name': product.name}),
+                    ),
+                  ),
                 );
                 setState(() {
                   _productsFuture = _fetchProducts();
@@ -351,7 +357,11 @@ class _ProductListViewState extends State<ProductListView> {
               } catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error deleting product: $e')),
+                  SnackBar(
+                    content: Text(
+                      'product.deleteError'.tr(namedArgs: {'error': '$e'}),
+                    ),
+                  ),
                 );
               }
             },
