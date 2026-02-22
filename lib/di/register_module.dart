@@ -21,7 +21,7 @@ abstract class RegisterModule {
   FacebookAuth get facebookAuth => FacebookAuth.instance;
 
   @lazySingleton
-  Logger get logger => Logger();
+  Logger get logger => Logger(level: kReleaseMode ? Level.warning : Level.all);
 
   @Named('supportsPersistence')
   bool get supportsPersistence => kIsWeb;

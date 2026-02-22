@@ -39,7 +39,10 @@ void main() async {
   }
   WidgetsFlutterBinding.ensureInitialized();
 
-  final logger = Logger(level: kReleaseMode ? Level.warning : Level.all);
+  final serviceLocator = ServiceLocator();
+  await serviceLocator.registerDependencies();
+
+  final logger = getIt<Logger>();
   logger.i('Running in ${Config.environment} mode');
 
   // init Firebase app if not already initialized
@@ -52,8 +55,6 @@ void main() async {
           : DefaultFirebaseOptions.currentPlatform,
     );
   }
-  final serviceLocator = ServiceLocator(logger);
-  await serviceLocator.registerDependencies();
   if (Config.isDevelopment) {
     await serviceLocator.setupDevelopment();
   }

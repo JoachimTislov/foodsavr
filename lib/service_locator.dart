@@ -10,24 +10,14 @@ import 'utils/config.dart';
 export 'injection.dart' show getIt;
 
 class ServiceLocator {
-  final _auth = FirebaseAuth.instance;
-  final _firestore = FirebaseFirestore.instance;
-  final Logger _logger;
-
-  ServiceLocator(this._logger);
-
-  Future<void> registerDependencies() async {
-    if (!getIt.isRegistered<Logger>()) {
-      getIt.registerLazySingleton<Logger>(() => _logger);
-    }
-    await configureDependencies();
-  }
+  Future<void> registerDependencies() async => await configureDependencies();
 
   Future<void> setupDevelopment() async {
-    await _auth.useAuthEmulator('localhost', 9099);
-    _firestore.useFirestoreEmulator('localhost', 8080);
+    await getIt<FirebaseAuth>().useAuthEmulator('localhost', 9099);
+    getIt<FirebaseFirestore>().useFirestoreEmulator('localhost', 8080);
 
     // Pre-check if user is already signed in to avoid redundant seeding on hot reload or full restart during development.
+    final logger = getIt<Logger>();
     final authService = getIt<IAuthService>();
     var userId = authService.getUserId();
     try {
@@ -39,13 +29,13 @@ class ServiceLocator {
       // ignore error ...
     }
     if (userId == null) {
-      _logger.i('Seeding database with initial data...');
+      logger.i('Seeding database with initial data...');
       // Only init and seed the database if no user is signed in.
       // Presumably, if the user is signed in, the emulators are already seeded and ready to go.
       // TODO: should the seed data reset on hot reload or full restart? Maybe add a flag to control this behavior?
       await getIt<SeedingService>().seedDatabase();
     } else {
-      _logger.i('User already signed in, skipping seeding');
+      logger.i('User already signed in, skipping seeding');
     }
   }
 }
