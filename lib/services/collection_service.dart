@@ -35,8 +35,9 @@ class CollectionService {
   }) async {
     _logger.i('Fetching collections for user: ${_redactUserId(userId)} with type: $type');
     try {
-      List<Collection> collections =
-        await _collectionRepository.getCollections(userId);
+      List<Collection> collections = await _collectionRepository.getCollections(
+        userId,
+      );
       if (type != null) {
         collections = collections.where((c) => c.type == type).toList();
       }

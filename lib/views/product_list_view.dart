@@ -98,7 +98,9 @@ class _ProductListViewState extends State<ProductListView> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.showGlobalProducts ? 'Global Products' : 'My Products',
+          widget.showGlobalProducts
+              ? 'dashboard.globalProducts'.tr()
+              : 'product.title'.tr(),
         ),
         backgroundColor: colorScheme.surface,
         elevation: 0,
@@ -109,7 +111,7 @@ class _ProductListViewState extends State<ProductListView> {
               ViewModeHelper.getViewModeIcon(_viewMode),
               color: colorScheme.primary,
             ),
-            tooltip: 'Change view mode',
+            tooltip: 'product.changeViewMode'.tr(),
             onSelected: (mode) {
               setState(() {
                 _viewMode = mode;
@@ -128,7 +130,7 @@ class _ProductListViewState extends State<ProductListView> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'Compact',
+                      'product.compact'.tr(),
                       style: TextStyle(
                         fontWeight: _viewMode == ProductViewMode.compact
                             ? FontWeight.w600
@@ -150,7 +152,7 @@ class _ProductListViewState extends State<ProductListView> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'Normal',
+                      'product.normal'.tr(),
                       style: TextStyle(
                         fontWeight: _viewMode == ProductViewMode.normal
                             ? FontWeight.w600
@@ -172,7 +174,7 @@ class _ProductListViewState extends State<ProductListView> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'Details',
+                      'product.details'.tr(),
                       style: TextStyle(
                         fontWeight: _viewMode == ProductViewMode.details
                             ? FontWeight.w600
@@ -188,15 +190,15 @@ class _ProductListViewState extends State<ProductListView> {
             icon: const Icon(Icons.settings),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Settings feature coming soon!')),
+                SnackBar(content: Text('product.settingsSoon'.tr())),
               );
             },
-            tooltip: 'Settings',
+            tooltip: 'common.settings'.tr(),
           ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _isSigningOut ? null : _handleSignOut,
-            tooltip: 'Sign Out',
+            tooltip: 'common.signOut'.tr(),
           ),
         ],
       ),
@@ -213,7 +215,7 @@ class _ProductListViewState extends State<ProductListView> {
                   Icon(Icons.error_outline, size: 64, color: colorScheme.error),
                   const SizedBox(height: 16),
                   Text(
-                    'Error loading products',
+                    'product.errorLoading'.tr(),
                     style: theme.textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
@@ -238,10 +240,13 @@ class _ProductListViewState extends State<ProductListView> {
                     color: colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(height: 16),
-                  Text('No products found', style: theme.textTheme.titleLarge),
+                  Text(
+                    'product.noProductsFound'.tr(),
+                    style: theme.textTheme.titleLarge,
+                  ),
                   const SizedBox(height: 8),
                   Text(
-                    'Add your first product to get started',
+                    'product.addFirst'.tr(),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -271,12 +276,12 @@ class _ProductListViewState extends State<ProductListView> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           // TODO: Navigate to add product screen
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Add product feature coming soon!')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('product.addSoon'.tr())));
         },
         icon: const Icon(Icons.add),
-        label: const Text('Add Product'),
+        label: Text('product.add'.tr()),
       ),
     );
   }
@@ -300,9 +305,9 @@ class _ProductListViewState extends State<ProductListView> {
           inventoryNames: _productInventories[product.id],
           onEdit: () {
             // TODO: Navigate to edit screen
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Edit feature coming soon!')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('product.editSoon'.tr())));
           },
           onDelete: () {
             // TODO: Show delete confirmation
@@ -324,12 +329,12 @@ class _ProductListViewState extends State<ProductListView> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete Product'),
+        title: Text('product.delete'.tr()),
         content: Text('Are you sure you want to delete "${product.name}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
+            child: Text('common.cancel'.tr()),
           ),
           FilledButton(
             onPressed: () async {
@@ -350,7 +355,7 @@ class _ProductListViewState extends State<ProductListView> {
                 );
               }
             },
-            child: const Text('Delete'),
+            child: Text('common.delete'.tr()),
           ),
         ],
       ),

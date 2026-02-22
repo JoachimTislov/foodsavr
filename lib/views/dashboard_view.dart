@@ -107,7 +107,8 @@ class _DashboardViewState extends State<DashboardView> {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                final inventories = snapshot.data?[0] as List<Collection>? ?? [];
+                final inventories =
+                    snapshot.data?[0] as List<Collection>? ?? [];
 
                 return GridView.count(
                   shrinkWrap: true,

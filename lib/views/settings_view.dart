@@ -161,7 +161,9 @@ class _SettingsViewState extends State<SettingsView> {
                   ? const Icon(Icons.check, color: Colors.blue)
                   : null,
               onTap: () {
-                context.setLocale(Locale('generated.en'.tr(), 'generated.us'.tr()));
+                context.setLocale(
+                  Locale('generated.en'.tr(), 'generated.us'.tr()),
+                );
                 Navigator.pop(context);
               },
             ),
@@ -171,7 +173,9 @@ class _SettingsViewState extends State<SettingsView> {
                   ? const Icon(Icons.check, color: Colors.blue)
                   : null,
               onTap: () {
-                context.setLocale(Locale('generated.nb'.tr(), 'generated.no'.tr()));
+                context.setLocale(
+                  Locale('generated.nb'.tr(), 'generated.no'.tr()),
+                );
                 Navigator.pop(context);
               },
             ),
@@ -186,10 +190,7 @@ class _SettingsSection extends StatelessWidget {
   final String title;
   final List<Widget> children;
 
-  const _SettingsSection({
-    required this.title,
-    required this.children,
-  });
+  const _SettingsSection({required this.title, required this.children});
 
   @override
   Widget build(BuildContext context) {
@@ -263,19 +264,21 @@ class _SettingsTile extends StatelessWidget {
     return ListTile(
       onTap: onTap,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      leading: leading ?? (icon == null ? null : Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer.withValues(alpha: 0.5),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 20, color: colorScheme.primary),
-            )),
+      leading:
+          leading ??
+          (icon == null
+              ? null
+              : Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 20, color: colorScheme.primary),
+                )),
       title: Text(
         title,
-        style: textTheme.bodyLarge?.copyWith(
-          fontWeight: FontWeight.w600,
-        ),
+        style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
       subtitle: subtitle != null
           ? Text(

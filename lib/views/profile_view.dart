@@ -131,17 +131,17 @@ class _ProfileViewState extends State<ProfileView> {
             const SizedBox(height: 16),
             Text(
               'generated.deleteAccount'.tr(),
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Text(
               'generated.thisActionIsPermanent'.tr(),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 32),
             ElevatedButton(
@@ -299,18 +299,12 @@ class _StatCard extends StatelessWidget {
               color: colorScheme.primaryContainer,
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              icon,
-              size: 20,
-              color: colorScheme.primary,
-            ),
+            child: Icon(icon, size: 20, color: colorScheme.primary),
           ),
           const SizedBox(height: 12),
           Text(
             value,
-            style: textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+            style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           Text(
             label.toUpperCase(),
@@ -390,11 +384,7 @@ class _SettingsItem extends StatelessWidget {
               : colorScheme.surfaceContainer,
           shape: BoxShape.circle,
         ),
-        child: Icon(
-          icon,
-          size: 20,
-          color: color,
-        ),
+        child: Icon(icon, size: 20, color: color),
       ),
       title: Text(
         label,

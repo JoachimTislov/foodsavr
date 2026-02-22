@@ -71,9 +71,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('collection.addProductSoon'.tr()),
-            ),
+            SnackBar(content: Text('collection.addProductSoon'.tr())),
           );
         },
         child: const Icon(Icons.add),
@@ -88,7 +86,9 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         } else if (snapshot.hasError) {
-          return ErrorStateWidget(message: 'collection.errorLoadingProducts'.tr());
+          return ErrorStateWidget(
+            message: 'collection.errorLoadingProducts'.tr(),
+          );
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return EmptyStateWidget(
             icon: Icons.inventory_2_outlined,
