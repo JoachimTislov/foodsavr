@@ -1,11 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:injectable/injectable.dart';
-
-import '../services/auth_controller.dart';
+import 'package:logger/logger.dart';
 
 @module
 abstract class RegisterModule {
@@ -22,6 +21,9 @@ abstract class RegisterModule {
   FacebookAuth get facebookAuth => FacebookAuth.instance;
 
   @lazySingleton
-  Translator get translator =>
-      (key) => key.tr();
+  Logger get logger => Logger();
+
+  @Named('supportsPersistence')
+  bool get supportsPersistence => kIsWeb;
+
 }

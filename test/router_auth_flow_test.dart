@@ -122,7 +122,7 @@ void main() {
         () => AuthController(
           getIt<IAuthService>(),
           Logger(level: Level.off),
-          mockTranslations,
+          translate: mockTranslations,
         ),
       );
     });

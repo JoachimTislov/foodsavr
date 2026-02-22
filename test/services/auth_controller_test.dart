@@ -24,7 +24,7 @@ void main() {
     authController = AuthController(
       mockAuthService,
       mockLogger,
-      mockTranslations,
+      translate: mockTranslations,
     );
   });
 
