@@ -1,4 +1,3 @@
-import 'dart:async';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -31,7 +30,6 @@ class _ProductListViewState extends State<ProductListView> {
   ProductViewMode _viewMode = ProductViewMode.normal;
   bool _isSigningOut = false;
   Map<int, List<String>> _productInventories = {};
-  int _inventoryLoadSeq = 0;
 
   @override
   void initState() {
@@ -53,27 +51,28 @@ class _ProductListViewState extends State<ProductListView> {
     }
 
     if (!widget.showGlobalProducts) {
-      final loadSeq = ++_inventoryLoadSeq;
-      unawaited(
-        _loadInventoryNames(products, loadSeq).catchError((Object error) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to load inventory info: $error')),
-            );
-          }
-        }),
-      );
+      try {
+        await _loadInventoryNames(products);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'product.inventoryLoadError'.tr(namedArgs: {'error': '$e'}),
+              ),
+            ),
+          );
+        }
+      }
     }
 
     return products;
   }
 
-  Future<void> _loadInventoryNames(List<Product> products, int loadSeq) async {
+  Future<void> _loadInventoryNames(List<Product> products) async {
     final userId = _authService.getUserId();
     if (userId == null) {
-      if (mounted && loadSeq == _inventoryLoadSeq) {
-        setState(() => _productInventories = {});
-      }
+      if (mounted) setState(() => _productInventories = {});
       return;
     }
 
@@ -83,7 +82,7 @@ class _ProductListViewState extends State<ProductListView> {
       productIds,
     );
 
-    if (mounted && loadSeq == _inventoryLoadSeq) {
+    if (mounted) {
       setState(() {
         _productInventories = inventoryMap;
       });

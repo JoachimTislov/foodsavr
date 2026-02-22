@@ -107,7 +107,8 @@
     "status": "Status",
     "deleteConfirmMessage": "Are you sure you want to delete \"{name}\"?",
     "deleted": "{name} deleted",
-    "deleteError": "Error deleting product: {error}"
+    "deleteError": "Error deleting product: {error}",
+    "inventoryLoadError": "Failed to load inventory info: {error}"
   },
   "transfer": {
     "title": "Transfer Inventory",
