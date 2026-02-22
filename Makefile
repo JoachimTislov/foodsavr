@@ -25,16 +25,17 @@ kill-firebase-emulators:
 		echo "No Firebase Emulators running"; \
 	fi
 
-deps:
+deps: .deps-stamp
+
+.deps-stamp: pubspec.yaml pubspec.lock
 	@echo "Getting dependencies..."
 	@flutter pub get
+	@touch .deps-stamp
 
 # Code quality commands
-check: check-fast
+check: deps analyze test locale-check
 
-check-fast: deps analyze fix fmt test locale-check
-
-check-full: check-fast clean
+check-full: deps check fix fmt clean
 
 analyze: deps
 	@echo "Running Flutter analyze..."
@@ -85,6 +86,12 @@ preflight:
 	fi
 
 push: preflight
+	@if git diff --quiet --exit-code lib/service_locator.dart lib/services/ lib/interfaces/ lib/repositories/; then \
+		echo "No DI changes detected, skipping generate-di."; \
+	else \
+		echo "DI changes detected, running generate-di..."; \
+		$(MAKE) generate-di || { echo "generate-di failed, aborting push."; exit 1; }; \
+	fi
 	@$(MAKE) check-full
 	@echo "Pushing to remote..."
 	@git push
