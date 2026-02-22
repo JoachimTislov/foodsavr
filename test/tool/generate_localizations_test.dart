@@ -45,11 +45,7 @@ void main() {
   Future<ProcessResult> runGenerate() async {
     final scriptPath =
         '${Directory.current.path}/tool/generate_localizations.dart';
-    return Process.run(
-      'dart',
-      [scriptPath],
-      workingDirectory: tempDir.path,
-    );
+    return Process.run('dart', [scriptPath], workingDirectory: tempDir.path);
   }
 
   test('Generates stubs for keys in source but not in JSON', () async {
