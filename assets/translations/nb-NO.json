@@ -123,7 +123,8 @@
   "collection": {
     "addProductSoon": "Legg til produkt i samling-funksjon kommer snart!",
     "errorLoadingProducts": "Feil ved lasting av produkter",
-    "noProducts": "Ingen produkter i denne samlingen"
+    "noProducts": "Ingen produkter i denne samlingen",
+    "addSoon": "Legg til samling-funksjon kommer snart!"
   },
   "generated": {
     "100_42": "1.0.0 (42)",

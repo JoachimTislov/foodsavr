@@ -123,7 +123,8 @@
   "collection": {
     "addProductSoon": "Add product to collection feature coming soon!",
     "errorLoadingProducts": "Error loading products",
-    "noProducts": "No products in this collection"
+    "noProducts": "No products in this collection",
+    "addSoon": "Add collection feature coming soon!"
   },
   "generated": {
     "100_42": "1.0.0 (42)",

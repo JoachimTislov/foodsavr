@@ -1,4 +1,4 @@
-.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test test-auth-flow clean locales check check-full deps locale-check generate-di preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated pr-comments-resolve-all pr-comments-resolve-thread pr-comments-list
+.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test test-auth-flow clean locales check check-full deps locale-check generate-di preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated pr-comments-resolve-all pr-comments-resolve-thread pr-comments-list pr-comment-get
 
 dev-chrome-prod: deps
 	@flutter run -d chrome --no-pub --flavor production
@@ -178,3 +178,13 @@ pr-comments-list:
 		exit 1; \
 	fi
 	@tool/list_review_threads.sh $(PR) $(if $(FILTER),$(FILTER),--active)
+
+# Fetch a single PR review comment by its numeric ID (from the URL fragment).
+# Usage: make pr-comment-get ID=2837290495
+pr-comment-get:
+	@if [ -z "$(ID)" ]; then \
+		echo "Usage: make pr-comment-get ID=<numeric-comment-id>"; \
+		exit 1; \
+	fi
+	@chmod +x tool/get_review_comment.sh
+	@tool/get_review_comment.sh $(ID)

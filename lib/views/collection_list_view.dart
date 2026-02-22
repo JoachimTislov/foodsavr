@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../models/collection_model.dart';
 import '../service_locator.dart';
@@ -35,7 +36,7 @@ class _CollectionListViewState extends State<CollectionListView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Inventories'),
+        title: Text('dashboard.myInventories'.tr()),
         backgroundColor: colorScheme.surface,
         elevation: 0,
         actions: [
@@ -43,8 +44,8 @@ class _CollectionListViewState extends State<CollectionListView> {
             icon: const Icon(Icons.add_circle_outline),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Add inventory feature coming soon!'),
+                SnackBar(
+                  content: Text('collection.addSoon'.tr()),
                 ),
               );
             },
