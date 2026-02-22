@@ -22,5 +22,6 @@ abstract class RegisterModule {
   FacebookAuth get facebookAuth => FacebookAuth.instance;
 
   @lazySingleton
-  Translator get translator => (key) => key.tr();
+  Translator get translator =>
+      (key) => key.tr();
 }
