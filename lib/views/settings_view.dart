@@ -2,6 +2,9 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../service_locator.dart';
+import '../services/theme_notifier.dart';
+
 class SettingsView extends StatefulWidget {
   const SettingsView({super.key});
 
@@ -120,6 +123,7 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   void _showThemeSelector(BuildContext context) {
+    final themeNotifier = getIt<ThemeNotifier>();
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -132,20 +136,26 @@ class _SettingsViewState extends State<SettingsView> {
             ListTile(
               leading: const Icon(Icons.brightness_auto),
               title: Text('settings.themes.system'.tr()),
-              // TODO(theme): Apply and persist system theme via ThemeNotifier
-              onTap: () => Navigator.pop(context),
+              onTap: () {
+                themeNotifier.setTheme(ThemeMode.system);
+                Navigator.pop(context);
+              },
             ),
             ListTile(
               leading: const Icon(Icons.light_mode),
               title: Text('settings.themes.light'.tr()),
-              // TODO(theme): Apply and persist light theme via ThemeNotifier
-              onTap: () => Navigator.pop(context),
+              onTap: () {
+                themeNotifier.setTheme(ThemeMode.light);
+                Navigator.pop(context);
+              },
             ),
             ListTile(
               leading: const Icon(Icons.dark_mode),
               title: Text('settings.themes.dark'.tr()),
-              // TODO(theme): Apply and persist dark theme via ThemeNotifier
-              onTap: () => Navigator.pop(context),
+              onTap: () {
+                themeNotifier.setTheme(ThemeMode.dark);
+                Navigator.pop(context);
+              },
             ),
           ],
         ),
