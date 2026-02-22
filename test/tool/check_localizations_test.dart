@@ -53,7 +53,7 @@ void main() {
 
   Future<ProcessResult> runCheck() async {
     return Process.run('dart', [
-      '/home/joachim/projects/foodsavr-gemini/tool/check_localizations.dart',
+      File('tool/check_localizations.dart').absolute.path,
     ], workingDirectory: tempDir.path);
   }
 
