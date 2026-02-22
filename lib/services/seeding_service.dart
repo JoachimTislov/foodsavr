@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 
 import '../mock_data/collections.dart';
@@ -12,6 +13,7 @@ import '../models/collection_model.dart';
 import '../models/product_model.dart';
 import '../utils/collection_types.dart';
 
+@injectable
 class SeedingService {
   final IAuthService _authService;
   final IProductRepository _productRepository;

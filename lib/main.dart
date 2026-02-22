@@ -1,6 +1,5 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:logger/logger.dart';
@@ -39,7 +38,10 @@ void main() async {
   }
   WidgetsFlutterBinding.ensureInitialized();
 
-  final logger = Logger(level: kReleaseMode ? Level.warning : Level.all);
+  final serviceLocator = ServiceLocator();
+  await serviceLocator.registerDependencies();
+
+  final logger = getIt<Logger>();
   logger.i('Running in ${Config.environment} mode');
 
   // init Firebase app if not already initialized
@@ -52,11 +54,9 @@ void main() async {
           : DefaultFirebaseOptions.currentPlatform,
     );
   }
-  final serviceLocator = ServiceLocator(logger);
   if (Config.isDevelopment) {
     await serviceLocator.setupDevelopment();
   }
-  await serviceLocator.registerDependencies();
 
   const enLocale = Locale('en', 'US');
   await EasyLocalization.ensureInitialized();

@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:injectable/injectable.dart';
 import '../models/collection_model.dart';
 import '../interfaces/i_collection_repository.dart';
 
 /// Firestore implementation of ICollectionRepository.
 /// Persists collection data in Firestore 'collections' collection.
+@LazySingleton(as: ICollectionRepository)
 class CollectionRepository implements ICollectionRepository {
   final FirebaseFirestore _firestore;
   final String _collectionName = 'collections';
