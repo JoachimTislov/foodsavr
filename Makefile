@@ -93,6 +93,11 @@ push: preflight
 		$(MAKE) generate-di || { echo "generate-di failed, aborting push."; exit 1; }; \
 	fi
 	@$(MAKE) check-full
+	@if [ -n "$$(git status --short)" ]; then \
+		git add .; \
+		git commit -m "format with dart"; \
+		head -n 1 .git/COMMIT_EDITMSG | xargs -I{} echo {} >> .git-blame-ignore-revs; \
+	fi
 	@echo "Pushing to remote..."
 	@git push
 
