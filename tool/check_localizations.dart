@@ -1,11 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-
-// Use comments to avoid extraction of test keys
-// "auth.login".tr()
-// "auth.extra".tr()
-// "auth.missing".tr()
-// "auth.new_key".tr()
+import 'package:path/path.dart' as p;
 
 final _trMethodRegex = RegExp(r'''['"]([^'"]+)['"]\.tr\(''');
 final _trFunctionRegex = RegExp(r'''\b_?tr\(\s*['"]([^'"]+)['"]''');
@@ -36,9 +31,11 @@ Set<String> _extractUsedKeys(
     for (final entity in dir.listSync(recursive: true)) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
 
+      final relativePath = p.relative(entity.path, from: repoRoot);
       bool shouldIgnore = false;
       for (final ignorePath in ignorePaths) {
-        if (entity.path.contains(ignorePath)) {
+        if (p.isWithin(ignorePath, relativePath) ||
+            p.equals(ignorePath, relativePath)) {
           shouldIgnore = true;
           break;
         }
@@ -70,7 +67,7 @@ List<File> _getLocaleFiles(Directory localeDir) {
 void main() {
   final sourceDirs = ['lib', 'integration_test', 'test'];
   final ignorePaths = [
-    'test/tool/',
+    p.normalize('test/tool/'),
   ]; // Ignore tool tests as they use dummy keys
   final repoRoot = Directory.current.path;
   final localeDir = Directory('$repoRoot/assets/translations');
