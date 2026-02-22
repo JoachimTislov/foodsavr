@@ -35,7 +35,7 @@ deps: .deps-stamp
 # Code quality commands
 check: deps analyze test locale-check
 
-check-full: check fix fmt clean
+check-full: check fix fmt
 
 analyze: deps
 	@echo "Running Flutter analyze..."
@@ -60,6 +60,7 @@ test-auth-flow: deps
 clean:
 	@echo "Cleaning build artifacts..."
 	@flutter clean
+	@rm .deps-stamp 2>/dev/null
 
 locales:
 	@echo "Extracting locales..."
