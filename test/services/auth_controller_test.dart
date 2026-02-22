@@ -22,7 +22,7 @@ void main() {
     authController = AuthController(
       mockAuthService,
       mockLogger,
-      translate: (key) => key,
+      translate: (String key) => key,
     );
   });
 

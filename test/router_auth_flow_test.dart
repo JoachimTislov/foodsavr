@@ -144,7 +144,7 @@ void main() {
         () => AuthController(
           getIt<IAuthService>(),
           Logger(level: Level.off),
-          translate: (key) => key,
+          translate: (String key) => key,
         ),
       );
     });

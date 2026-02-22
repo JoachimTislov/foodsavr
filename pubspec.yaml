@@ -46,8 +46,9 @@ dependencies:
   intl: ^0.20.2
   google_sign_in: ^7.2.0
   flutter_facebook_auth: ^7.1.5
-  flutter_svg: ^2.2.3
   go_router: ^17.1.0
+  injectable: ^2.7.1+4
+  vector_graphics: ^1.1.19
 
 dev_dependencies:
   flutter_test:
@@ -62,11 +63,15 @@ dev_dependencies:
   mocktail: ^1.0.4
   integration_test:
     sdk: flutter
+  injectable_generator: ^2.12.0
+  build_runner: ^2.11.1
+  vector_graphics_compiler: ^1.1.20
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
 # The following section is specific to Flutter packages.
+  shared_preferences: any
 flutter:
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
@@ -75,7 +80,9 @@ flutter:
 
   assets:
     - assets/translations/
-    - assets/images/ # SVG compilation is handled by flutter_svg, so we can include the SVG files directly as assets
+    - path: assets/images/
+      transformers:
+        - package: vector_graphics_compiler
 
 
   # An image asset can refer to one or more resolution-specific "variants", see
