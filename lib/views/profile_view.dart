@@ -182,7 +182,11 @@ class _ProfileHeader extends StatelessWidget {
   final String email;
   final String? avatarUrl;
 
-  const _ProfileHeader({required this.name, required this.email, this.avatarUrl});
+  const _ProfileHeader({
+    required this.name,
+    required this.email,
+    this.avatarUrl,
+  });
 
   @override
   Widget build(BuildContext context) {
