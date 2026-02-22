@@ -2,7 +2,7 @@ name: Localization Check
 
 on:
   push:
-    branches: [main]
+    branches: [main, copilot/**]
     paths:
       - "lib/**"
       - "test/**"

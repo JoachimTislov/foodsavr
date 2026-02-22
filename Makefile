@@ -1,4 +1,4 @@
-.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test test-auth-flow clean locales check check-fast check-full deps locale-check preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated
+.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test test-auth-flow clean locales check check-full deps locale-check generate-di preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated
 
 dev-chrome-prod: deps
 	@flutter run -d chrome --no-pub --flavor production
@@ -25,16 +25,17 @@ kill-firebase-emulators:
 		echo "No Firebase Emulators running"; \
 	fi
 
-deps:
+deps: .deps-stamp
+
+.deps-stamp: pubspec.yaml pubspec.lock
 	@echo "Getting dependencies..."
-	@flutter pub get
+	@flutter pub get > /dev/null
+	@touch .deps-stamp
 
 # Code quality commands
-check: check-fast
+check: deps analyze test locale-check
 
-check-fast: deps analyze fix fmt test locale-check
-
-check-full: check-fast clean
+check-full: check fix fmt
 
 analyze: deps
 	@echo "Running Flutter analyze..."
@@ -49,8 +50,14 @@ fix: deps
 	@dart fix --apply
 
 test: deps
-	@echo "Running tests..."
-	@flutter test --no-pub
+	@echo "Checking for Dart file changes in local commits or staged changes..."
+	@FILES=$$(git --no-pager diff --name-only @{upstream}..HEAD;git --no-pager diff --name-only --staged; git --no-pager diff); \
+	if echo "$$FILES" | grep -E '\.dart$$' > /dev/null; then \
+		echo "Running tests..."; \
+		flutter test --no-pub; \
+	else \
+		echo "No Dart changes detected in local commits or staged changes. Skipping tests."; \
+	fi
 
 test-auth-flow: deps
 	@echo "Running auth flow regression test..."
@@ -59,6 +66,7 @@ test-auth-flow: deps
 clean:
 	@echo "Cleaning build artifacts..."
 	@flutter clean
+	@rm .deps-stamp 2>/dev/null
 
 locales:
 	@echo "Extracting locales..."
@@ -67,6 +75,10 @@ locales:
 locale-check: deps
 	@echo "Checking localization keys..."
 	@dart run tool/check_localizations.dart
+
+generate-di: deps
+	@echo "Generating injectable code..."
+	@dart run build_runner build --delete-conflicting-outputs
 
 preflight:
 	@echo "Running preflight sync checks..."
@@ -80,8 +92,20 @@ preflight:
 		exit 1; \
 	fi
 
-push: preflight
+push: deps preflight
+	@DI_FILES=$$(/usr/bin/ls lib/services/* lib/interfaces/* lib/repositories/* lib/di/*; echo lib/service_locator.dart lib/injection.dart); \
+	CHANGED=$$(git --no-pager diff --name-only @{upstream}..HEAD); \
+	if echo "$$CHANGED" | grep -qF "$$DI_FILES"; then \
+		echo "Upstream DI changes detected, running generate-di..."; \
+		$(MAKE) generate-di || { echo "generate-di failed, aborting push."; exit 1; }; \
+	fi
 	@$(MAKE) check-full
+	@if [ -n "$$(git status --short)" ]; then \
+		git add .; \
+		git commit -m "format with dart"; \
+		git rev-parse HEAD >> .git-blame-ignore-revs; \
+		git commit -m "add formatting changes to .git-blame-ignore-revs" --amend --no-edit; \
+	fi
 	@echo "Pushing to remote..."
 	@git push
 
