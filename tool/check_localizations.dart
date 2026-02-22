@@ -139,7 +139,11 @@ void _handleValidate(
   }
 
   if (hasIssues) {
-    stderr.writeln('\nLocalization validation failed.');
+    stderr.writeln(
+      '\nLocalization validation failed. '
+      'Please add missing keys and remove unused keys in your locale JSON files, '
+      'or run the localization generator tool to update them.',
+    );
     exit(1);
   } else {
     stdout.writeln(
