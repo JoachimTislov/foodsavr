@@ -161,7 +161,11 @@ class ProductCardDetails extends StatelessWidget {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Icon(Icons.inventory_2_outlined, size: 16, color: colorScheme.primary),
+                    Icon(
+                      Icons.inventory_2_outlined,
+                      size: 16,
+                      color: colorScheme.primary,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(

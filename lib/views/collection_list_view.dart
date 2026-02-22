@@ -39,7 +39,9 @@ class _CollectionListViewState extends State<CollectionListView> {
             icon: const Icon(Icons.add_circle_outline),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Add collection feature coming soon!')),
+                const SnackBar(
+                  content: Text('Add collection feature coming soon!'),
+                ),
               );
             },
           ),
@@ -83,7 +85,10 @@ class _CollectionListViewState extends State<CollectionListView> {
                     color: colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(height: 16),
-                  Text('No inventories found', style: theme.textTheme.titleLarge),
+                  Text(
+                    'No inventories found',
+                    style: theme.textTheme.titleLarge,
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     'Create your first inventory to get started',

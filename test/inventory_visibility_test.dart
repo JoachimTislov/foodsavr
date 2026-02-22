@@ -44,9 +44,14 @@ void main() {
       ),
     ];
 
-    when(() => mockRepository.getCollections(userId)).thenAnswer((_) async => collections);
+    when(
+      () => mockRepository.getCollections(userId),
+    ).thenAnswer((_) async => collections);
 
-    final results = await collectionService.getInventoriesByProductId(userId, productId);
+    final results = await collectionService.getInventoriesByProductId(
+      userId,
+      productId,
+    );
 
     expect(results.length, 2);
     expect(results.any((c) => c.name == 'Pantry'), isTrue);

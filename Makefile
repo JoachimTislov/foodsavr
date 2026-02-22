@@ -87,9 +87,13 @@ preflight:
 		echo "Preflight failed: working tree is not clean."; \
 		exit 1; \
 	fi
-	@if [ "$$(git rev-list --left-right --count @{upstream}...HEAD | awk '{print $$1}')" -ne 0 ]; then \
-		echo "Preflight failed: branch is behind upstream. Pull/rebase first."; \
-		exit 1; \
+	@if git rev-parse --verify @{upstream} >/dev/null 2>&1; then \
+		if [ "$$(git rev-list --left-right --count @{upstream}...HEAD | awk '{print $$1}')" -ne 0 ]; then \
+			echo "Preflight failed: branch is behind upstream. Pull/rebase first."; \
+			exit 1; \
+		fi \
+	else \
+		echo "No upstream branch found, skipping behind check."; \
 	fi
 
 push: deps preflight

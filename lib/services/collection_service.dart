@@ -29,7 +29,9 @@ class CollectionService {
     _logger.i('Fetching collections for user: $userId');
     try {
       final collections = await _collectionRepository.getCollections(userId);
-      _logger.i('Successfully fetched ${collections.length} collections for user.');
+      _logger.i(
+        'Successfully fetched ${collections.length} collections for user.',
+      );
       return collections;
     } catch (e) {
       _logger.e('Error fetching user collections: $e');
@@ -38,14 +40,23 @@ class CollectionService {
   }
 
   /// Find all inventories (CollectionType.inventory) that contain a specific product ID
-  Future<List<Collection>> getInventoriesByProductId(String userId, int productId) async {
+  Future<List<Collection>> getInventoriesByProductId(
+    String userId,
+    int productId,
+  ) async {
     _logger.i('Finding inventories for product $productId and user $userId');
     try {
       final collections = await getCollectionsForUser(userId);
       final inventories = collections
-          .where((c) => c.type == CollectionType.inventory && c.productIds.contains(productId))
+          .where(
+            (c) =>
+                c.type == CollectionType.inventory &&
+                c.productIds.contains(productId),
+          )
           .toList();
-      _logger.i('Found ${inventories.length} inventories for product $productId');
+      _logger.i(
+        'Found ${inventories.length} inventories for product $productId',
+      );
       return inventories;
     } catch (e) {
       _logger.e('Error finding inventories for product: $e');

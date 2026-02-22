@@ -197,7 +197,8 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                       padding: EdgeInsets.only(top: 12),
                       child: LinearProgressIndicator(),
                     )
-                  else if (_inventoryNames != null && _inventoryNames!.isNotEmpty) ...[
+                  else if (_inventoryNames != null &&
+                      _inventoryNames!.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Row(
                       children: [
