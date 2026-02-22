@@ -11,6 +11,7 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:cloud_firestore/cloud_firestore.dart' as _i974;
 import 'package:firebase_auth/firebase_auth.dart' as _i59;
+import 'package:flutter/foundation.dart' as _i455;
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart' as _i806;
 import 'package:foodsavr/di/register_module.dart' as _i966;
 import 'package:foodsavr/interfaces/i_auth_service.dart' as _i794;
@@ -42,16 +43,12 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i116.GoogleSignIn>(() => registerModule.googleSignIn);
     gh.lazySingleton<_i806.FacebookAuth>(() => registerModule.facebookAuth);
-    gh.lazySingleton<bool>(
-      () => registerModule.supportsPersistence,
-      instanceName: 'supportsPersistence',
-    );
     gh.lazySingleton<_i794.IAuthService>(
       () => _i277.AuthService(
         gh<_i59.FirebaseAuth>(),
         googleSignIn: gh<_i116.GoogleSignIn>(),
         facebookAuth: gh<_i806.FacebookAuth>(),
-        supportsPersistence: gh<bool>(instanceName: 'supportsPersistence'),
+        supportsPersistence: _i455.kIsWeb,
       ),
     );
     gh.lazySingleton<_i424.IProductRepository>(
