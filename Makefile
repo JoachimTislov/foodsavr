@@ -95,7 +95,8 @@ push: deps preflight
 	@if [ -n "$$(git status --short)" ]; then \
 		git add .; \
 		git commit -m "format with dart"; \
-		head -n 1 .git/COMMIT_EDITMSG | xargs -I{} echo {} >> .git-blame-ignore-revs; \
+		git rev-parse HEAD >> .git-blame-ignore-revs; \
+		git commit -m "add formatting changes to .git-blame-ignore-revs" --amend --no-edit; \
 	fi
 	@echo "Pushing to remote..."
 	@git push
