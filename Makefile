@@ -50,8 +50,14 @@ fix: deps
 	@dart fix --apply
 
 test: deps
-	@echo "Running tests..."
-	@flutter test --no-pub
+	@echo "Checking for Dart file changes in local commits or staged changes..."
+	@FILES=$$(git --no-pager diff --name-only @{upstream}..HEAD;git --no-pager diff --name-only --staged; git --no-pager diff); \
+	if echo "$$FILES" | grep -E '\.dart$$' > /dev/null; then \
+		echo "Running tests..."; \
+		flutter test --no-pub; \
+	else \
+		echo "No Dart changes detected in local commits or staged changes. Skipping tests."; \
+	fi
 
 test-auth-flow: deps
 	@echo "Running auth flow regression test..."
