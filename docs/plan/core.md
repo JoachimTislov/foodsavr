@@ -2,7 +2,7 @@
 
 There are countless features to include in the application, but these are worthless without the core functionality.
 
-Opt for an event based domain driven design, using generic repository in each domain. One table in the database equals one domain.
+Opt for an event-based domain-driven design, using generic repository in each domain. One table in the database equals one domain.
 
 ## Guiding principles
 
@@ -38,7 +38,7 @@ Opt for an event based domain driven design, using generic repository in each do
 - Add meals and recipes
 - Add products to meals and recipes
 
-## Challengs
+## Challenges
 
 - Keeping the user experience seamless and intuitive while keeping the inventory and shopping list up-to-date.
     - avoid cumbersome manual input and management
@@ -74,7 +74,7 @@ Opt for an event based domain driven design, using generic repository in each do
     - Deleting a product which is referenced in a meal etc ...
 - Create on add new product (this might be mentioned somewhere else)
 - There multiple version of a single product, so trying to keep track of each unique product is not ideal. 
-    - Instead, it's better to categorize all similar product into one; chocolate, pizza, etc. 
+    - Instead, it's better to similar products into broader groups (e.g., chocolate, pizza, etc.)
     - Challenge is mapping a generalized product with a recipe that requires a specific product
     - Can support specific product extension of the generalized product, adding details such as ingredients, nutrients, etc.
         - need an estimate of the quantity (1/2, 1/4, etc) to be able to track the inventory and generate shopping lists

@@ -23,7 +23,7 @@ Follow these instructions for managing translations and ensuring multi-language 
 4. **Implementation in UI:**
    - Use `.tr()` extension method from `easy_localization` on strings.
    - For plurals, use `plural()` and ensure appropriate keys (e.g., `zero`, `one`, `other`) are defined.
-   - For parameters, use named arguments: `"{name} joined".tr(namedArgs: {'name': 'Joachim'})`.
+   - For parameters, use named arguments: `"activity.user_joined".tr(namedArgs: {'name': 'Joachim'})`.
 
 5. **Code Generation for Keys:**
    - If the project uses generated keys, run:
