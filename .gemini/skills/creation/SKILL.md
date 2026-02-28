@@ -13,8 +13,8 @@ Follow these instructions for implementing new features, widgets, and business l
    - **Data Layer (`repositories/`, `models/`, `interfaces/`):** Define models, repository contracts, and Firestore implementations.
 
 2. **Define the Domain Model:**
-   - Create models in `lib/models/` using `json_serializable` for Firestore serialization.
-   - Always run `dart run build_runner build --delete-conflicting-outputs` after modifying models.
+   - Create models in `lib/models/` using `toJson()` for Firestore serialization.
+   - Always run `make codegen` after modifying models.
 
 3. **Establish Repository Contracts:**
    - Define abstract repository interfaces in `lib/interfaces/`.
