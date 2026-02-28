@@ -1,4 +1,0 @@
-[[rule]]
-toolName = "web_fetch"
-decision = "deny"
-priority = 999

@@ -18,7 +18,7 @@ priority = 999
 
 [[rule]]
 toolName = "run_shell_command"
-commandPrefix = ["rg ", "find "]
+commandPrefix = ["rg ", "find ", "cat "]
 decision = "allow"
 priority = 2
 
