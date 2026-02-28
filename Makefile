@@ -1,4 +1,4 @@
-.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test test-auth-flow clean locales check check-full deps locale-check generate-di preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated
+.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test test-auth-flow clean locales check deps locale-check generate-di preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated
 
 dev-chrome-prod: deps
 	@flutter run -d chrome --no-pub --flavor production
@@ -32,10 +32,11 @@ deps: .deps-stamp
 	@flutter pub get > /dev/null
 	@touch .deps-stamp
 
-# Code quality commands
-check: deps analyze test locale-check
+codegen:
+	@dart run build_runner build --delete-conflicting-outputs
 
-check-full: check fix fmt
+# Code quality commands
+check: deps analyze test locale-check fix fmt
 
 analyze: deps
 	@echo "Running Flutter analyze..."

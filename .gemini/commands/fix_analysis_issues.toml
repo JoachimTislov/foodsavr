@@ -1,8 +1,0 @@
-description = "Runs Flutter analysis and automatically applies fixes for common issues."
-prompt = """
-1. Run `dart_fix` to automatically apply all available fixes.
-2. Run `dart_format` to ensure consistent formatting.
-3. Run `analyze_files` on the modified files to check for remaining issues.
-4. If errors persist, read the error message carefully and apply manual fixes.
-5. Finally, run `make check` to ensure everything is resolved.
-"""

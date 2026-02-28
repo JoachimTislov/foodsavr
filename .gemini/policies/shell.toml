@@ -43,7 +43,7 @@ priority = 2
 
 [[rule]]
 toolName = "run_shell_command"
-commandRegex = "make (check|push)"
+commandRegex = "make (codegen|check|push)"
 decision = "allow"
 priority = 2
 

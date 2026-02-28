@@ -1,6 +1,6 @@
 ---
 name: localization
-description: Guide for managing translations and multi-language support.
+description: Use this skill when asked to write localization for managing translations and multi-language support.
 ---
 
 # Localization Management Guide

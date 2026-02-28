@@ -46,22 +46,20 @@ The app automatically connects to emulators when `ENVIRONMENT=development` in `a
 ### Useful commands
 
 ```bash
-make dev-android   # Start emulators and run on Android
-make test          # Run tests
-make test-auth-flow # Run auth redirect regression test only
-make analyze       # Run static analysis
-make fmt           # Format Dart code
+make dev-*         # Run in development mode (dev-chrome, dev-android)
 make clean         # Clean build artifacts
 make check         # Fast validation (analyze/fix/fmt/test/locale-check)
-make check-full    # Full validation + clean
-make preflight     # Verify clean working tree and upstream sync
 make push          # preflight + check-full + git push
-make pr-comments-active PR=9            # List one active PR thread
-make pr-comments-resolve-active PR=9    # Resolve one active PR thread
-make pr-comments-resolve-outdated PR=9  # Resolve one outdated PR thread
+make pr-comments-active PR=X            # List one active PR thread
+make pr-comments-resolve-active PR=X    # Resolve one active PR thread
+make pr-comments-resolve-outdated PR=X  # Resolve one outdated PR thread
 ```
 
 ## Tech Stack
+
+Google
+
+### Details
 
 - Flutter
 - Naturally Dart
@@ -70,6 +68,13 @@ make pr-comments-resolve-outdated PR=9  # Resolve one outdated PR thread
     - Firestore
     - Authentication
 - Google Cloud
+
+## Documentation
+
+- [Flutter](https://docs.flutter.dev/)
+    - [Material lib](https://api.flutter.dev/flutter/material/)
+- [Firebase](https://firebase.google.com/docs/flutter/setup?platform=android)
+- [Analyze options](https://dart.dev/guides/language/analysis-options)
 
 ## Getting Started
 
@@ -80,9 +85,3 @@ For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
 
-## Documentation
-
-- [Flutter](https://docs.flutter.dev/)
-    - [Material lib](https://api.flutter.dev/flutter/material/)
-- [Firebase](https://firebase.google.com/docs/flutter/setup?platform=android)
-- [Analyze options](https://dart.dev/guides/language/analysis-options)

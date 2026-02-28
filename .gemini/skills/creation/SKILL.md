@@ -1,11 +1,11 @@
 ---
 name: creation
-description: Guide for implementing new features, widgets, and logic in the project's source code.
+description: Use this skill when asked to implement new features
 ---
 
 # Source Code Creation Guide
 
-Follow these instructions for implementing new features, widgets, and business logic in the FoodSavr project.
+Follow these instructions for implementing new features, widgets, and business logic
 
 1. **Follow 3-Tier Architecture:**
    - **UI Layer (`views/`, `widgets/`):** Create views and reusable widgets that delegate to services.
@@ -28,7 +28,7 @@ Follow these instructions for implementing new features, widgets, and business l
 5. **State Management and DI:**
    - Use Riverpod for application state management (AsyncNotifier, Notifier).
    - Use `@injectable` for repository implementations.
-   - Run `dart run build_runner build --delete-conflicting-outputs` to generate both Riverpod and Injectable code.
+   - Run `make codegen` to generate both Riverpod and Injectable code.
    - UI should consume state via `ConsumerWidget` or `ref.watch`.
 
 6. **Adhere to Naming Conventions:**

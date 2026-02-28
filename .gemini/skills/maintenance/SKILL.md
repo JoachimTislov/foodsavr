@@ -1,6 +1,6 @@
 ---
 name: maintenance
-description: Guide for refactoring, organizing, and maintaining the project's source code.
+description: Use this skill when tasked to refactor, organize, or restructure the source code for better maintainability and adherence to engineering principles.
 ---
 
 # Source Code Management Guide
