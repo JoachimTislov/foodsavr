@@ -1,9 +1,9 @@
 [[rule]]
 mcpName = "*"
 decision = "deny"
-priority = 1
+priority = 100
 
 [[rule]]
 mcpName = ["stitch", "github"]
 decision = "allow"
-priority = 2
+priority = 101
