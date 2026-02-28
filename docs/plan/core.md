@@ -1,261 +1,115 @@
 # Core plan
 
-There are countless features to include in the application, but these are worthless without the core functionality.
-
-Opt for an event-based domain-driven design, using generic repository in each domain. One table in the database equals one domain.
+This document outlines the foundational strategy and goals for `foodsavr`. It 
+establishes the core principles and intended functionality that drive the 
+development of a seamless, automated food management experience.
 
 ## Guiding principles
 
-- Outsource when possible
-- Flexible architecture to allow future changes
-- Gradual implementation of features
+Develop `foodsavr` with a focus on simplicity and scalability. Adhere to these 
+principles:
 
-## Idealistic app functionality
+- **Outsource when possible:** Leverage external services (like Firebase) to 
+  minimize maintenance overhead.
+- **Flexible architecture:** Design the system to accommodate future 
+  enhancements and changes.
+- **Gradual implementation:** Prioritize core features and introduce 
+  complex functionalities iteratively.
 
-- The user should not get the feeling of having to do extra work.
-- It should be a seamless experience where the user can just add products and meals, and the app takes care of the rest.
-- The user should not have to worry about tracking inventory, generating shopping lists, or finding discounts.
+## Product goals
 
-## Automatic
+The application aims to provide a seamless experience where you can manage 
+products and meals effortlessly. The system handles the heavy lifting, such as 
+tracking inventory and generating shopping lists.
 
-- Track inventory
-    - Automatically sync inventory when meals are consumed or products are bought
-    - Add products by scanning QR/barcode
-    - Track quantity and expiration dates
-    - Notify users of expiring products
-    - Retrieve product information from API
-- Generate shopping lists
-- Import products and recipes from external sources (e.g., websites, other apps)
-- Add meals, recipes, and products from a global database
-- Retrieve discounts and offers from stores based on the products in the inventory and shopping list
+### Automated functionality
 
-## Manual
+- **Inventory tracking:**
+    - Automatically sync inventory as you consume meals or buy products.
+    - Add products by scanning QR or barcodes.
+    - Track quantities and expiration dates.
+    - Receive notifications for expiring products.
+    - Retrieve detailed product information from global databases.
+- **Shopping list generation:** Automatically create lists based on missing 
+  inventory or planned meals.
+- **External integration:** Import products and recipes from websites and other 
+  applications.
+- **Global database access:** Add meals, recipes, and products from a curated 
+  global database.
+- **Discount retrieval:** Get store offers based on your inventory and 
+  shopping lists.
 
-- Create and manage:
-    - group/family
-    - user profile
-- Register initial inventory (scanning barcode or even support manual input for products without barcodes)
-- Add meals and recipes
-- Add products to meals and recipes
+### Manual actions
 
-## Challenges
+- Create and manage groups or family accounts.
+- Set up and update your user profile.
+- Register initial inventory through barcode scanning or manual input.
+- Add and manage custom meals and recipes.
+- Link products to specific meals and recipes.
 
-- Keeping the user experience seamless and intuitive while keeping the inventory and shopping list up-to-date.
-    - avoid cumbersome manual input and management
-    - overhead work (e.g. anything manual and all clicking and inputting should be avoided as much as possible)
-- To track prices and mainly discounts: Importing up-to-date product information from external sources
-    - web crawling, APIs, etc
-- Collecting shopping data from stores to automatically synchronize inventory and shoppinglist
-    - best case: scan every product in the store and take a picture of the receipt
+## Development challenges
 
-## Thoughts
+Building a seamless and intuitive food management app involves several 
+technical hurdles:
 
-- Two factor authentication, and open up for passwordless signins?
-    - This might be overkill for a food app ...
-- Setup a internal notification system, or just use email?
-- Let the user manage all the login sessions
-- Should the products contain ingredients?
-    - Per 100g ...
-    - I think this feature can be added easily later ...
-    - This is meant for tracking macros and thats not the main purpose of this application
-- If users are in a group will there only be once instance of the product/recipe/meal in the database?
-    - .. meaning that multiple people have a relation to the entity it can cause state issues.
-    - Use a copy-on-share model
-    - Products/meals/recipes and users have many-to-many relationship
-    - Users should have their own copy of the original entity to prevent conflicts
-        - The copy should take place on "add" for both the group and global list entries
-- The inventory needs to shared amoungst the whole group
-    - should be asked if they want to share inventory or synchronize them
-- Supporting group owned entities is a bad design choice - will cause complex logic when merging and splitting groups
-    - Can be resolved by simply mapping from owner products to be included in a group.
-    - When disbanding a group, the products are still owned by the users
-- Add shared flag for visibility group/global
-- Allow soft-deletion but not hard-deletion if entities are referenced by others.
-    - Deleting a product which is referenced in a meal etc ...
-- Create on add new product (this might be mentioned somewhere else)
-- There multiple version of a single product, so trying to keep track of each unique product is not ideal. 
-    - Instead, it's better to similar products into broader groups (e.g., chocolate, pizza, etc.)
-    - Challenge is mapping a generalized product with a recipe that requires a specific product
-    - Can support specific product extension of the generalized product, adding details such as ingredients, nutrients, etc.
-        - need an estimate of the quantity (1/2, 1/4, etc) to be able to track the inventory and generate shopping lists
-        - translates to 1dl of milk (1L), 500g of flour (1kg), etc
-        - Can't store detailed information, its too complex
+- **Seamless user experience:** Minimizing manual data entry is critical. 
+  Automating as many interactions as possible prevents user fatigue.
+- **Up-to-date data:** Maintaining accurate product information, prices, and 
+  discounts requires robust integration with external APIs or web crawlers.
+- **Store integration:** Automatically synchronizing inventory after shopping 
+  trips depends on reliable methods for collecting data from various retailers.
 
-## Questions
+## Technical architecture
 
-- How should users join each other?
-    - Create invite link?
-    - The invite can be sent to their mail - easiest solution, I think
-    - Resulting in
-        - CreateGroup
-        - LeaveGroup
-        - DeleteGroup
-        - Remove user
-        - InviteUser
-        - AcceptOrDeclineRequest
-    - Creating an internal notification system is too much and I think that is the only alternative
-        - Can possible migrate to this solution if a notification system is implemented
+`foodsavr` is built using a modern, scalable stack and follows a 3-tier 
+layered architecture.
 
-## TODO research
+### Tech stack
 
-- gRPC vs REST API vs GraphQL
-- Authentication methods
-    - OAuth
-    - JWT
-- QR code/barcode scanning libraries
-- DTOs (Data transfer objects)
-- CORS
-- Testing
-- AI agent protocol - Web API protocol for autonomous agents
-- MCP - model context protocol
-- OpenAPIs for food products/recipes/discounts
-- CI/CD pipelines
-    - Deployment configuration to firsly Google Play Store
-- Web crawler for product database population
-    - agent
-    - microservice (Micronaut with gRPC?, connect with flutter app?)
-    - Robot.txt
-- Logging for debugging and safety
+- **Frontend:** Flutter (Dart) for cross-platform mobile and web support.
+- **Backend:** Firebase services for authentication, serverless compute, and 
+  data storage.
+- **Database:** Cloud Firestore (NoSQL) for flexible, real-time data 
+  management.
+- **Dependency injection:** `GetIt` and `injectable` for clean, testable logic.
+- **Localization:** `easy_localization` for multi-language support.
 
-## Database
+### Layered architecture
 
-### FireStore
+The project follows a strict separation of concerns through these layers:
 
-- Easy to setup, scale, use and maintain.
-- NoSQL, quick prototyping, and flexible.
-- However, it can be expensive and has limitations on querying and data structure.
+1.  **UI (views/ and widgets/):** Handles screen rendering and user 
+    interaction. Inject services via `getIt<Service>()`.
+2.  **Service (services/):** Orchestrates business logic and validation. 
+    Depends on repository interfaces.
+3.  **Data (interfaces/ and repositories/):** Manages data persistence and 
+    retrieval through defined contracts.
+4.  **Domain (models/):** Contains plain data classes with serialization logic 
+    and computed properties.
 
-### PostgreSQL
+## Database structure
 
-- Relational database. More complex to setup and maintain, but offers better performance, scalability, and data integrity. 
-- It also supports advanced querying and data structure.
+The application uses Cloud Firestore for its primary data storage. You can find 
+detailed security rules and structure definitions in the 
+`docs/implementation/firebase-store/` directory.
 
-Use Spring JPA (Java Persistence API)
+### Core entities
 
-### Entities
+- **Users:** Store user profiles, roles, and preferences.
+- **Groups:** Manage collective data sharing among families or housemates.
+- **Products:** Define product attributes, categories, and locations.
+- **Inventory:** Track current stock, quantities, and expiration dates.
+- **Recipes:** Manage ingredient lists and cooking instructions.
+- **Meals:** Group recipes into scheduled or reusable meal entries.
+- **Shopping lists:** Store items to be purchased, linked to inventory or 
+  meal plans.
 
-[View relations for more details](./relations.md)
+## Role-based access
 
-- Users
-- Groups
-- Products
-- Location
-- Inventory
-- Recipes
-- Meals
+Access control is managed through roles defined in user documents:
 
-## API design
-
-I want to use gRPC for type-safety and other reasons
-- [grpc-web](https://github.com/grpc/grpc-web)
-    - https://www.youtube.com/watch?v=nBOmalmldx8
-- [Spring-docs-grpc](https://docs.spring.io/spring-grpc/reference/server.html)
-- Client side pkgs
-    - grpc-web
-    - google-protobuf
-    - @types/google-protobuf
-- Should keep it modular and not merge all the backend services to one big one, pointless step.
-- REST API and gRPC can coexist
-    - Debate on implementig both
-
-For server-side clients (Microservices) - https://github.com/grpc-ecosystem/grpc-spring
-
-BUT, I think setting up a REST API is simpler and less complex
-
-## Layers
-
-- Database
-    - Should have strict/redundant validation to act as a safety net
-- Generic repository
-- Domains/Contexts
-    - repository
-    - service
-- API (gRPC) and business logic
-- UI/Client
-
-## Roles
-
-User, Admin, SuperAdmin
-
-## Domains
-
-[View relations](./relations.md)
-
-### Features
-
-- Scan QR/Barcodes to Add Products
-
-#### Food Tracking
-
-- Track products in fridge, freezer, and cabinets (or just a unified inventory if you want simplicity).
-- Info: name, price, quantity, expiration date, nutrients (optional).
-- Track what has been used and what is left.
-    - Delete or archive consumed products?
-
-#### Shopping List
-
-- Automatically generate shopping lists from meal plans or missing items.
-- Option to mark items as bought and update inventory.
-- Reduce duplicate purchases by knowing what’s already in stock.
-
-#### Recipes
-
-- Store and manage recipes.
-- Automatically check which ingredients are missing and add them to the shopping list.
-- Avoid the user having to select each product manually.
-
-#### Meal plans
-
-- Consists of recipes
-- Follows calender or to keep simple weekly plan
-- Should be following the calender to synchronize with the expiration dates
-
-#### Global Products Database
-
-- Maintain a global and personal product list.
-- Use barcodes or manual input for easy tracking.
-- Optional integration with discounts or store offers.
-
-#### Budget and Expense Tracking
-
-- Track shopping costs per trip.
-- Cost per meal and product
-- Summarize spending over time.
-
-## Steps
-
-[View relations for detailed database design](./relations.md)
-
-1. Configure gRPC and setup the PostgreSQL database
-2. Add Logging
-3. Setup simple authentication (email and password)
-    - Create User table
-        - email
-        - password
-        - login attempts
-        - store login state? Im not sure if this would work well; force the client to send a request to the server to logout
-    - Setup the initial database logic/layer
-    - Make the generic repository with the BaseEntity
-    - Create the user and admin domain with CRUD queries
-    - Configure the API endpoints for login in and GET users
-    - Connect the database layer to the API
-    - Create login page and admin manage users - should an admin be allowed to delete users?
-4. Setup the basic profile (delete me and update/change password) and create landing page
-    - Debate on adding profile picture or anything else
-5. Product domain
-    - Create global and users product table
-        global
-        - name
-        - type (cabinet, frigde, freezer)
-        - Add a mapping table to track which meals its typically used in?
-        users (is the same with a userID as foreign key)
-        For later
-            - ingredients
-            - nutrients
-6. Shoppinglist domain
-7. Ensure the correct access control, validation and functionality
-    - Resolve bugs, issues, etc
-    - Attempt to determine flaws in the architecture to avoid technical debt in the future
-    - FIX all issues harming the implementation of future features.
-    - Important to do this at this stage
-
+- **User:** Can manage their own data and group-shared content.
+- **Admin:** Can manage global product lists and perform administrative 
+  cleanup.
+- **SuperAdmin:** Has full access to system-wide settings and administrative 
+  oversight.

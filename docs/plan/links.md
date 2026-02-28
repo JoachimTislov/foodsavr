@@ -1,23 +1,21 @@
-# Links
+# Resource links
 
-- [Material 3](https://m3.material.io/develop)
-    - [Modular and customizable](https://m3.material.io/develop/android/mdc-android)
-    - [Android](https://github.com/material-components/material-components-android/tree/master/docs/components)
-- [Firebase](https://firebase.google.com/docs)
-- [Flutter](https://flutter.dev/docs)
-- [Dart](https://dart.dev/guides)
+This document provides a collection of external resources, documentation, and 
+tools used in the development of `foodsavr`.
 
-- [Flutter build modes](https://docs.flutter.dev/testing/build-modes)
+## Frameworks and libraries
 
-## Gemini CLI
+- [Material 3: Design guidelines](https://m3.material.io/develop)
+- [Firebase: Official documentation](https://firebase.google.com/docs)
+- [Flutter: Developer guides](https://flutter.dev/docs)
+- [Dart: Language documentation](https://dart.dev/guides)
 
-- [Their repo .gemini folder](https://github.com/google-gemini/gemini-cli/blob/main/.gemini/)
-- [11 Tips](https://www.youtube.com/watch?v=KrnyAJyjVG4)
+## Development and deployment
 
-## Svelte + Spring
+- [Flutter: Build modes](https://docs.flutter.dev/testing/build-modes)
+- [GitHub: Copilot instructions](.github/copilot-instructions.md)
 
-- [Svelte](https://svelte.dev/docs)
-- [Spring](https://spring.io/quickstart)
-- [Spring JPA](https://spring.io/projects/spring-data-jpa)
+## Gemini CLI and tools
 
-
+- [Gemini CLI: Configuration examples](https://github.com/google-gemini/gemini-cli/blob/main/.gemini/)
+- [Gemini CLI: Best practices and tips](https://www.youtube.com/watch?v=KrnyAJyjVG4)

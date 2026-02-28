@@ -1,87 +1,87 @@
 # FoodSavr
 
-FoodSavr is designed to help people save food, time and money.
+`foodsavr` is a mobile and web application designed to help you reduce food 
+waste, save time, and manage your grocery expenses efficiently. By tracking 
+inventory and automating meal planning, the application ensures you always know 
+what you have and what you need.
 
 ## Motivation
 
-- Reduce food waste – Track product expiration dates, get reminders and prevent bad purchases
-- Save time by eliminating repetitive tasks of checking inventory and cross-referencing recipes.
-- Increase control and overview of food
+- **Reduce food waste:** Track product expiration dates and receive timely 
+  reminders to use items before they spoil.
+- **Save time:** Eliminate the need for manual inventory checks by 
+  synchronizing your stock with recipes and meal plans.
+- **Increase control:** Gain a clear overview of your food supplies and 
+  spending habits across multiple storage locations.
 
-[Core plan](./docs/plan/core.md)
+For more details on the project strategy, see the 
+[Core plan](./docs/plan/core.md).
 
-## Development Setup
+## Development setup
 
 ### Prerequisites
 
-- Flutter SDK (^3.10.7)
-- Firebase CLI: `npm install -g firebase-tools`
+- **Flutter SDK:** Version `^3.10.7` is required.
+- **Firebase CLI:** Install via npm: `npm install -g firebase-tools`.
 
-### Firebase Emulator Setup
+### Firebase emulator setup
 
-1. **Initialize Firebase** (first time only):
-   ```bash
-   firebase login
-   firebase init emulators
-   ```
-    - Authentication Emulator (port 9099)
-    - Firestore Emulator (port 8080)
-    - Emulator UI (port 8081)
+`foodsavr` uses the Firebase Emulator Suite for local development to avoid 
+unnecessary cloud costs and ensure a consistent environment.
 
-2. **Start emulators**:
-   ```bash
-   make start-firebase-emulators
-   # or firebase emulators:start
-   ```
-   Emulator UI available at: `http://localhost:8081`
+1.  **Initialize Firebase (first time only):**
+    ```bash
+    firebase login
+    firebase init emulators
+    ```
+    - Authentication Emulator: Port 9099
+    - Firestore Emulator: Port 8080
+    - Emulator UI: Port 8081
 
-3. **Run the app** (in another terminal):
-   ```bash
-   make dev-chrome
-   # or: flutter run -d chrome
-   ```
+2.  **Start the emulators:**
+    ```bash
+    make start-firebase-emulators
+    # or: firebase emulators:start
+    ```
+    Access the Emulator UI at `http://localhost:8081`.
 
-The app automatically connects to emulators when `ENVIRONMENT=development` in `assets/.env`.
+3.  **Run the application:**
+    ```bash
+    make dev-chrome
+    # or: flutter run -d chrome
+    ```
+    The application connects to the emulators when `ENVIRONMENT=development` is 
+    set in `assets/.env`.
 
-### Useful commands
+### Common commands
 
-```bash
-make dev-*         # Run in development mode (dev-chrome, dev-android)
-make clean         # Clean build artifacts
-make check         # Fast validation (analyze/fix/fmt/test/locale-check)
-make push          # preflight + check-full + git push
-make pr-comments-active PR=X            # List one active PR thread
-make pr-comments-resolve-active PR=X    # Resolve one active PR thread
-make pr-comments-resolve-outdated PR=X  # Resolve one outdated PR thread
-```
+| Command | Description |
+| :--- | :--- |
+| `make dev-*` | Run in development mode (e.g., `dev-chrome`, `dev-android`). |
+| `make clean` | Remove build artifacts and temporary files. |
+| `make check` | Perform fast validation (analyze, fix, format, and test). |
+| `make push` | Run full preflight checks and push to the remote repository. |
 
-## Tech Stack
+## Technical architecture
 
-Google
+`foodsavr` is built using a modern, scalable stack and follows a 3-tier 
+layered architecture.
 
-### Details
-
-- Flutter
-- Naturally Dart
-- Material Design
-- Firebase
-    - Firestore
-    - Authentication
-- Google Cloud
+- **Frontend:** Flutter and Dart using Material 3 design principles.
+- **Backend:** Firebase Authentication and Cloud Firestore for real-time data.
+- **Cloud:** Google Cloud Platform for serverless compute and infrastructure.
 
 ## Documentation
 
-- [Flutter](https://docs.flutter.dev/)
-    - [Material lib](https://api.flutter.dev/flutter/material/)
-- [Firebase](https://firebase.google.com/docs/flutter/setup?platform=android)
-- [Analyze options](https://dart.dev/guides/language/analysis-options)
+- [Flutter Documentation](https://docs.flutter.dev/)
+- [Firebase Flutter Setup](https://firebase.google.com/docs/flutter/setup)
+- [Dart Analysis Options](https://dart.dev/guides/language/analysis-options)
+- [Material 3 Components](https://m3.material.io/components)
 
-## Getting Started
+## Getting started
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+If you are new to Flutter, we recommend reviewing these resources:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-
+- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
+- [Flutter Cookbook](https://docs.flutter.dev/cookbook)
+- [Full API Reference](https://api.flutter.dev/)
