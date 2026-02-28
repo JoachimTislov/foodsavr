@@ -59,10 +59,6 @@ test: deps
 		echo "No Dart changes detected in local commits or staged changes. Skipping tests."; \
 	fi
 
-test-auth-flow: deps
-	@echo "Running auth flow regression test..."
-	@flutter test --no-pub test/router_auth_flow_test.dart
-
 clean:
 	@echo "Cleaning build artifacts..."
 	@flutter clean
@@ -106,6 +102,7 @@ preflight:
 	else \
 		echo "No upstream branch found, skipping behind check."; \
 	fi
+
 push: deps preflight
 	@DI_FILES=$$(/usr/bin/ls lib/services/* lib/interfaces/* lib/repositories/* lib/di/*; echo lib/service_locator.dart lib/injection.dart); \
 	CHANGED=$$(git --no-pager diff --name-only @{upstream}..HEAD); \
