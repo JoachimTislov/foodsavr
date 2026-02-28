@@ -1,20 +1,15 @@
 # Core plan
 
-This document outlines the foundational strategy and goals for `foodsavr`. It 
-establishes the core principles and intended functionality that drive the 
-development of a seamless, automated food management experience.
+This document outlines the foundational strategy and goals for `foodsavr`.
+It establishes the core principles and intended functionality that drive the development of a seamless, automated food management experience.
 
 ## Guiding principles
 
-Develop `foodsavr` with a focus on simplicity and scalability. Adhere to these 
-principles:
+Develop `foodsavr` with a focus on simplicity and scalability. Adhere to these principles:
 
-- **Outsource when possible:** Leverage external services (like Firebase) to 
-  minimize maintenance overhead.
-- **Flexible architecture:** Design the system to accommodate future 
-  enhancements and changes.
-- **Gradual implementation:** Prioritize core features and introduce 
-  complex functionalities iteratively.
+- **Outsource when possible:** Leverage external services (like Firebase) to minimize maintenance overhead.
+- **Flexible architecture:** Design the system to accommodate future enhancements and changes.
+- **Gradual implementation:** Prioritize core features and introduce complex functionalities iteratively.
 
 ## Product goals
 
@@ -30,14 +25,10 @@ tracking inventory and generating shopping lists.
     - Track quantities and expiration dates.
     - Receive notifications for expiring products.
     - Retrieve detailed product information from global databases.
-- **Shopping list generation:** Automatically create lists based on missing 
-  inventory or planned meals.
-- **External integration:** Import products and recipes from websites and other 
-  applications.
-- **Global database access:** Add meals, recipes, and products from a curated 
-  global database.
-- **Discount retrieval:** Get store offers based on your inventory and 
-  shopping lists.
+- **Shopping list generation:** Automatically create lists based on missing inventory or planned meals.
+- **External integration:** Import products and recipes from websites and other applications.
+- **Global database access:** Add meals, recipes, and products from a curated global database.
+- **Discount retrieval:** Get store offers based on your inventory and shopping lists.
 
 ### Manual actions
 
@@ -49,11 +40,10 @@ tracking inventory and generating shopping lists.
 
 ## Development challenges
 
-Building a seamless and intuitive food management app involves several 
-technical hurdles:
+Building a seamless and intuitive food management app involves several technical hurdles:
 
-- **Seamless user experience:** Minimizing manual data entry is critical. 
-  Automating as many interactions as possible prevents user fatigue.
+- **Seamless user experience:** Minimizing manual data entry is critical
+  Automating as many interactions as possible prevents user fatigue
 - **Up-to-date data:** Maintaining accurate product information, prices, and 
   discounts requires robust integration with external APIs or web crawlers.
 - **Store integration:** Automatically synchronizing inventory after shopping 
@@ -61,16 +51,13 @@ technical hurdles:
 
 ## Technical architecture
 
-`foodsavr` is built using a modern, scalable stack and follows a 3-tier 
-layered architecture.
+`foodsavr` is built using a modern, scalable stack and follows a 4-tier 
 
 ### Tech stack
 
 - **Frontend:** Flutter (Dart) for cross-platform mobile and web support.
-- **Backend:** Firebase services for authentication, serverless compute, and 
-  data storage.
-- **Database:** Cloud Firestore (NoSQL) for flexible, real-time data 
-  management.
+- **Backend:** Firebase services for authentication, serverless compute, and data storage.
+- **Database:** Cloud Firestore (NoSQL) for flexible, real-time data management.
 - **Dependency injection:** `GetIt` and `injectable` for clean, testable logic.
 - **Localization:** `easy_localization` for multi-language support.
 
@@ -78,20 +65,14 @@ layered architecture.
 
 The project follows a strict separation of concerns through these layers:
 
-1.  **UI (views/ and widgets/):** Handles screen rendering and user 
-    interaction. Inject services via `getIt<Service>()`.
-2.  **Service (services/):** Orchestrates business logic and validation. 
-    Depends on repository interfaces.
-3.  **Data (interfaces/ and repositories/):** Manages data persistence and 
-    retrieval through defined contracts.
-4.  **Domain (models/):** Contains plain data classes with serialization logic 
-    and computed properties.
+1.  **UI (views/ and widgets/):** Handles screen rendering and user interaction. Inject services via `getIt<Service>()`.
+2.  **Service (services/):** Orchestrates business logic and validation. Depends on repository interfaces.
+3.  **Data (interfaces/ and repositories/):** Manages data persistence and retrieval through defined contracts.
+4.  **Domain (models/):** Contains plain data classes with serialization logic and computed properties.
 
 ## Database structure
 
-The application uses Cloud Firestore for its primary data storage. You can find 
-detailed security rules and structure definitions in the 
-`docs/implementation/firebase-store/` directory.
+The application uses Cloud Firestore for its primary data storage, [view security rules and structure definitions](../implementation/firebase-store/)
 
 ### Core entities
 
@@ -101,15 +82,12 @@ detailed security rules and structure definitions in the
 - **Inventory:** Track current stock, quantities, and expiration dates.
 - **Recipes:** Manage ingredient lists and cooking instructions.
 - **Meals:** Group recipes into scheduled or reusable meal entries.
-- **Shopping lists:** Store items to be purchased, linked to inventory or 
-  meal plans.
+- **Shopping lists:** Store items to be purchased, linked to inventory or meal plans.
 
 ## Role-based access
 
 Access control is managed through roles defined in user documents:
 
 - **User:** Can manage their own data and group-shared content.
-- **Admin:** Can manage global product lists and perform administrative 
-  cleanup.
-- **SuperAdmin:** Has full access to system-wide settings and administrative 
-  oversight.
+- **Admin:** Can manage global product lists and perform administrative cleanup.
+- **SuperAdmin:** Has full access to system-wide settings and administrative oversight.

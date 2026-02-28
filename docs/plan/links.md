@@ -1,7 +1,6 @@
 # Resource links
 
-This document provides a collection of external resources, documentation, and 
-tools used in the development of `foodsavr`.
+This document provides a collection of external resources, documentation, and tools used in the development of `foodsavr`.
 
 ## Frameworks and libraries
 
@@ -14,6 +13,7 @@ tools used in the development of `foodsavr`.
 
 - [Flutter: Build modes](https://docs.flutter.dev/testing/build-modes)
 - [GitHub: Copilot instructions](.github/copilot-instructions.md)
+- [Gemini Instructions](../../GEMINI.md)
 
 ## Gemini CLI and tools
 
