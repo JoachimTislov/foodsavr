@@ -5,14 +5,14 @@ priority = 1
 
 [[rule]]
 toolName = "run_shell_command"
-commmandPrefix = "rm "
+commandPrefix = "rm "
 decision = "deny"
 priority = 999
 
 # Disallow non-existent "--g" flag
 [[rule]]
 toolName = "run_shell_command"
-commmandPrefix = "rg --g"
+commandPrefix = "rg --g"
 decision = "deny"
 priority = 999
 
@@ -24,26 +24,26 @@ priority = 2
 
 [[rule]]
 toolName = "run_shell_command"
-commmandRegex = "git (commit|add|status|grep|diff|log)"
+commandRegex = "git (commit|add|status|grep|diff|log)"
 decision = "allow"
 priority = 2
 
 [[rule]]
 toolName = "run_shell_command"
-commmandRegex = "git (merge|rebase|rm|restore|reset|checkout|branch)"
+commandRegex = "git (merge|rebase|rm|restore|reset|checkout|branch)"
 decision = "ask_user"
 priority = 2
 
 
 [[rule]]
 toolName = "run_shell_command"
-commmandRegex = "gh (pr|issue)"
+commandRegex = "gh (pr|issue)"
 decision = "allow"
 priority = 2
 
 [[rule]]
 toolName = "run_shell_command"
-commmandRegex = "make (check|push)"
+commandRegex = "make (check|push)"
 decision = "allow"
 priority = 2
 
