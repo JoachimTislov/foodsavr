@@ -9,7 +9,7 @@ decision = "allow"
 priority = 100
 modes = ["autoEdit", "default"]
 
-[[rules]]
+[[rule]]
 toolName = ["google_web_search", "web_fetch"]
 decision = "deny"
 priority = 999
