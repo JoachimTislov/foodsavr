@@ -19,11 +19,11 @@ class AuthService implements IAuthService {
     required GoogleSignIn googleSignIn,
     required FacebookAuth facebookAuth,
     @Named('supportsPersistence') required bool supportsPersistence,
-    FirebaseFirestore? firestore,
+    required FirebaseFirestore firestore,
   }) : _googleSignIn = googleSignIn,
         _facebookAuth = facebookAuth,
         _supportsPersistence = supportsPersistence,
-        _firestore = firestore ?? FirebaseFirestore.instance;
+        _firestore = firestore;
 
   @override
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();

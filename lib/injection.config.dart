@@ -53,6 +53,7 @@ extension GetItInjectableX on _i174.GetIt {
         googleSignIn: gh<_i116.GoogleSignIn>(),
         facebookAuth: gh<_i806.FacebookAuth>(),
         supportsPersistence: gh<bool>(instanceName: 'supportsPersistence'),
+        firestore: gh<_i974.FirebaseFirestore>(),
       ),
     );
     gh.lazySingleton<_i424.IProductRepository>(

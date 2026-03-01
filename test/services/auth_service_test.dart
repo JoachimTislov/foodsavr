@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +7,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
 void main() {
+  late MockFirebaseFirestore mockFirestore;
   late MockFirebaseAuth mockFirebaseAuth;
   late MockGoogleSignIn mockGoogleSignIn;
   late MockFacebookAuth mockFacebookAuth;
@@ -17,6 +19,7 @@ void main() {
   });
 
   setUp(() {
+    mockFirestore = MockFirebaseFirestore();
     mockFirebaseAuth = MockFirebaseAuth();
     mockGoogleSignIn = MockGoogleSignIn();
     mockFacebookAuth = MockFacebookAuth();
@@ -26,6 +29,7 @@ void main() {
       googleSignIn: mockGoogleSignIn,
       facebookAuth: mockFacebookAuth,
       supportsPersistence: true,
+      firestore: mockFirestore,
     );
   });
 
@@ -226,6 +230,8 @@ class FakeAuthCredential extends Fake implements AuthCredential {}
 class MockAccessToken extends Mock implements AccessToken {}
 
 class MockFacebookAuth extends Mock implements FacebookAuth {}
+
+class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
 
 class MockFirebaseAuth extends Mock implements FirebaseAuth {}
 
