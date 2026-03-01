@@ -39,7 +39,6 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _cameraController?.dispose();
-    _barcodeScannerService.close();
     super.dispose();
   }
 

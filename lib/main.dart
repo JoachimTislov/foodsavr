@@ -68,6 +68,7 @@ void main() async {
   if (!getIt.isRegistered<BarcodeScannerService>()) {
     getIt.registerLazySingleton<BarcodeScannerService>(
       () => BarcodeScannerService(),
+      dispose: (service) => service.close(),
     );
   }
   final router = createAppRouter(getIt<IAuthService>());
