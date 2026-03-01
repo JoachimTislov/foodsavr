@@ -2,7 +2,7 @@ name: Flutter Analyze
 
 on:
   push:
-    branches: [main, copilot/**]
+    branches: [main]
     paths:
       - "**.dart"
       - "lib/**"
