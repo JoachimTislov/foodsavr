@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import '../models/product_model.dart';
@@ -55,6 +57,7 @@ class _ProductFormContent extends StatefulWidget {
 }
 
 class _ProductFormContentState extends State<_ProductFormContent> {
+  static final Random _random = Random();
   final _formKey = GlobalKey<FormState>();
   late final ProductService _productService;
   late final CollectionService _collectionService;
@@ -100,8 +103,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
     setState(() => _isSaving = true);
 
     try {
-      final productId =
-          widget.product?.id ?? DateTime.now().millisecondsSinceEpoch;
+      final productId = widget.product?.id ?? _generateProductId();
       final product = Product(
         id: productId,
         name: _nameController.text,
@@ -111,10 +113,43 @@ class _ProductFormContentState extends State<_ProductFormContent> {
         nonExpiringQuantity: _nonExpiringQuantity,
         category: _selectedCategory,
         isGlobal: widget.product?.isGlobal ?? false,
+        registryType: widget.product?.registryType ?? 'current',
+        mappedFromProductId: widget.product?.mappedFromProductId,
       );
 
       if (widget.product == null) {
-        await _productService.addProduct(product);
+        if (widget.initialCollectionId != null) {
+          var personalProductId = _generateProductId();
+          if (personalProductId == productId) {
+            personalProductId++;
+          }
+          final personalProduct = Product(
+            id: personalProductId,
+            name: _nameController.text,
+            description: _descriptionController.text,
+            userId: userId,
+            category: _selectedCategory,
+            registryType: 'personal',
+          );
+          await _productService.addProduct(personalProduct);
+          await _productService.addProduct(
+            Product(
+              id: product.id,
+              name: product.name,
+              description: product.description,
+              userId: product.userId,
+              expiries: product.expiries,
+              nonExpiringQuantity: product.nonExpiringQuantity,
+              category: product.category,
+              imageUrl: product.imageUrl,
+              isGlobal: false,
+              registryType: 'current',
+              mappedFromProductId: personalProductId,
+            ),
+          );
+        } else {
+          await _productService.addProduct(product);
+        }
         if (widget.initialCollectionId != null) {
           final collection = await _collectionService.getCollection(
             widget.initialCollectionId!,
@@ -144,6 +179,10 @@ class _ProductFormContentState extends State<_ProductFormContent> {
         setState(() => _isSaving = false);
       }
     }
+  }
+
+  int _generateProductId() {
+    return (DateTime.now().microsecondsSinceEpoch * 1000) + _random.nextInt(1000);
   }
 
   @override

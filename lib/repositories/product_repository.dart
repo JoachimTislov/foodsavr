@@ -59,6 +59,19 @@ class ProductRepository implements IProductRepository {
         .get();
     return querySnapshot.docs
         .map((doc) => Product.fromJson(doc.data()))
+        .where((product) => product.registryType != 'personal')
+        .toList();
+  }
+
+  @override
+  Future<List<Product>> getPersonalProducts(String userId) async {
+    final querySnapshot = await _firestore
+        .collection(_collectionName)
+        .where('userId', isEqualTo: userId)
+        .where('registryType', isEqualTo: 'personal')
+        .get();
+    return querySnapshot.docs
+        .map((doc) => Product.fromJson(doc.data()))
         .toList();
   }
 
