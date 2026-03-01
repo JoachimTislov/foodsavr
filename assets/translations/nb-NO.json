@@ -69,7 +69,11 @@
     "cancel": "Avbryt",
     "delete": "Slett",
     "from": "Fra",
-    "to": "Til"
+    "to": "Til",
+    "unknown": "Ukjent",
+    "search": "Søk",
+    "more_options": "Flere valg",
+    "error_loading_data": "Feil ved lasting av data"
   },
   "dashboard": {
     "title": "Dashbord",
@@ -109,7 +113,29 @@
     "deleteConfirmMessage": "Er du sikker på at du vil slette \"{name}\"?",
     "deleted": "{name} slettet",
     "deleteError": "Feil ved sletting av produkt: {error}",
-    "inventoryLoadError": "Feil ved lasting av inventarinfo: {error}"
+    "inventoryLoadError": "Feil ved lasting av inventarinfo: {error}",
+    "status_expired": "Utgått",
+    "status_today": "I dag",
+    "status_days_remaining": "{days}d igjen",
+    "status_days": "{days} dager",
+    "status_expired_days_ago": "Utgått for {days} dager siden",
+    "status_expires_today": "Utløper i dag",
+    "status_days_left": "{days}d igjen",
+    "status_compact_exp": "Utgått",
+    "total_quantity": "Totalt antall",
+    "expirations": "Utløpsdatoer",
+    "units": "enheter",
+    "global_product": "Globalt produkt",
+    "type": "Type",
+    "status_fresh": "Frisk",
+    "status_expires_soon": "Utløper snart",
+    "description": "Beskrivelse",
+    "details_section": "Detaljer",
+    "soonest_expiration": "Nærmeste utløpsdato",
+    "days_until_soonest_expiry": "Dager til nærmeste utløp",
+    "expiration_breakdown": "Utløpsoversikt",
+    "personal_product": "Personlig produkt",
+    "na": "N/A"
   },
   "transfer": {
     "title": "Overfør lager",
@@ -129,7 +155,10 @@
     "addSoon": "Legg til samling-funksjon kommer snart!",
     "loadError": "Feil ved lasting av inventarer",
     "emptyTitle": "Ingen inventarer funnet",
-    "emptySubtitle": "Opprett ditt første inventar for å komme i gang"
+    "emptySubtitle": "Opprett ditt første inventar for å komme i gang",
+    "items_count": "{count} varer",
+    "type_inventory": "Beholdning",
+    "type_shopping": "Handleliste"
   },
   "generated": {
     "100_42": "1.0.0 (42)",

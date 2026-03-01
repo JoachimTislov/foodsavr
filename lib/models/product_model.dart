@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 /// Product status based on expiration date
 enum ProductStatus {
@@ -22,11 +23,11 @@ enum ProductStatus {
   String getMessage() {
     switch (this) {
       case ProductStatus.fresh:
-        return 'Fresh';
+        return 'product.status_fresh'.tr();
       case ProductStatus.expiringSoon:
-        return 'Expires Soon';
+        return 'product.status_expires_soon'.tr();
       case ProductStatus.expired:
-        return 'Expired';
+        return 'product.status_expired'.tr();
     }
   }
 
@@ -219,9 +220,15 @@ class Product {
   /// Get a friendly status message for display
   String getFriendlyStatus({bool compact = false}) {
     final days = daysUntilExpiration;
-    if (isExpired) return compact ? 'Exp' : 'Expired';
-    if (isExpiringToday) return 'Today';
-    if (days != null && days > 0) return '${days}d';
+    if (isExpired) {
+      return compact
+          ? 'product.status_compact_exp'.tr()
+          : 'product.status_expired'.tr();
+    }
+    if (isExpiringToday) return 'product.status_today'.tr();
+    if (days != null && days > 0) {
+      return 'product.status_days_remaining'.tr(args: [days.toString()]);
+    }
     return status.getMessage();
   }
 }

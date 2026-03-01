@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../../constants/product_categories.dart';
 import '../../models/product_model.dart';
 
@@ -21,15 +22,17 @@ class ProductCardNormal extends StatelessWidget {
     final daysLeft = product.daysUntilExpiration;
     if (product.isExpired) {
       statusColor = colorScheme.error;
-      statusMessage = 'Expired';
+      statusMessage = 'product.status_expired'.tr();
       statusIcon = Icons.error_outline;
     } else if (product.isExpiringToday) {
       statusColor = colorScheme.tertiary;
-      statusMessage = 'Today';
+      statusMessage = 'product.status_today'.tr();
       statusIcon = Icons.warning_amber_rounded;
     } else if (product.isExpiringSoon) {
       statusColor = colorScheme.tertiary;
-      statusMessage = '${daysLeft}d';
+      statusMessage = 'product.status_days_left'.tr(
+        args: [daysLeft.toString()],
+      );
       statusIcon = Icons.warning_amber_rounded;
     }
 
@@ -152,7 +155,9 @@ class ProductCardNormal extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            '${daysLeft}d left',
+                            'product.status_days_left'.tr(
+                              args: [daysLeft.toString()],
+                            ),
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: colorScheme.onSurfaceVariant,
                             ),
