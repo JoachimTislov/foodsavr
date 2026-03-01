@@ -3,15 +3,17 @@ toolName = "run_shell_command"
 decision = "deny"
 priority = 100
 
+# https://github.com/JoachimTislov/foodsavr/pull/17#discussion_r2867934305
+# Avoid -exec through find, which can be used to run arbitrary commands on files.
 [[rule]]
 toolName = "run_shell_command"
-commandPrefix = ["rm ", "rg --g"]
+commandPrefix = ["rm ", "find " "rg --g"]
 decision = "deny"
 priority = 999
 
 [[rule]]
 toolName = "run_shell_command"
-commandPrefix = ["rg ", "find ", "cat ", "touch "]
+commandPrefix = ["rg ", "cat ", "touch "]
 decision = "allow"
 priority = 200
 
