@@ -30,7 +30,8 @@
     },
     "social": {
       "continue_google": "Continue with Google",
-      "continue_email": "Continue with Email"
+      "continue_email": "Continue with Email",
+      "continue_guest": "Continue as guest"
     },
     "landing": {
       "title": "Inventory Login",
@@ -153,6 +154,7 @@
   },
   "profile": {
     "title": "Profile",
+    "create_account": "Create account",
     "deleteAccountConfirmation": "Yes, Delete Account",
     "account_settings": "Account Settings",
     "forgot_password": "Forgot Password",

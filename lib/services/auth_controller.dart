@@ -114,6 +114,19 @@ class AuthController extends ChangeNotifier {
     }
   }
 
+  Future<void> signInAsGuest() async {
+    if (_isLoading) return;
+    _setLoading(true);
+    try {
+      await _authService.signInAsGuest();
+    } catch (e) {
+      _logger.e('Guest sign-in error: $e');
+      _errorMessage = AuthErrorHandler.getErrorMessage(e);
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   Future<void> forgotPassword(String email) async {
     if (_isLoading) return;
 

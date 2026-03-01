@@ -53,6 +53,18 @@ unnecessary cloud costs and ensure a consistent environment.
     The application connects to the emulators when `ENVIRONMENT=development` is 
     set in `assets/.env`.
 
+### Anonymous auth (guest mode)
+
+FoodSavr supports "Continue as guest" using Firebase Anonymous Authentication.
+For local and production auth providers, ensure **Anonymous** sign-in is enabled
+in Firebase Authentication (Sign-in method).
+
+When a guest creates an account, FoodSavr upgrades the same Firebase user by
+linking credentials (instead of creating a second user), which preserves the
+guest user's existing app data.
+
+Reference: https://firebase.google.com/docs/auth/web/anonymous-auth
+
 ### Common commands
 
 | Command | Description |
