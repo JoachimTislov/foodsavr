@@ -46,10 +46,12 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.inactive) {
-      _cameraController?.stopImageStream();
-      _cameraController?.dispose();
-      _cameraController = null;
-      _isCameraReady = false;
+      setState(() {
+        _cameraController?.stopImageStream();
+        _cameraController?.dispose();
+        _cameraController = null;
+        _isCameraReady = false;
+      });
     } else if (state == AppLifecycleState.resumed && mounted) {
       _initializeCamera();
     }
@@ -182,7 +184,9 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
 
     final plane = image.planes.first;
     final bytes = plane.bytes;
-    final inputImageFormat = InputImageFormatValue.fromRawValue(image.format.raw);
+    final inputImageFormat = InputImageFormatValue.fromRawValue(
+      image.format.raw,
+    );
     if (inputImageFormat == null) return null;
 
     final rotation =
