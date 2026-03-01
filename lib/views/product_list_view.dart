@@ -266,6 +266,7 @@ class _ProductListViewState extends State<ProductListView> {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'product_list_fab',
         onPressed: () async {
           final result = await context.push('/product-form');
           if (!mounted) return;
