@@ -71,7 +71,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        heroTag: 'collection_detail_fab',
+        heroTag: 'collection_detail_fab_${widget.collection.id}',
         onPressed: () async {
           final result = await context.push(
             '/product-form?collectionId=${widget.collection.id}',
