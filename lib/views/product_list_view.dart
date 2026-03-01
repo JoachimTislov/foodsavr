@@ -1,5 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../models/product_model.dart';
 import '../service_locator.dart';
@@ -259,14 +260,46 @@ class _ProductListViewState extends State<ProductListView> {
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'product_list_fab',
         onPressed: () async {
-          final result = await ProductFormView.show(context);
-          if (!mounted) return;
-          if (result == true) {
-            _refreshProducts();
+          final messenger = ScaffoldMessenger.of(context);
+          final scannedBarcode = await context.push<String>('/barcode-scan');
+          if (!mounted || scannedBarcode == null || scannedBarcode.isEmpty) {
+            return;
+          }
+          final userId = _authService.getUserId();
+          if (userId == null) return;
+          try {
+            final result = await _productService.addOrIncrementByBarcode(
+              userId: userId,
+              barcode: scannedBarcode,
+            );
+            if (!mounted) return;
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(
+                  result.matchedExisting
+                      ? 'product.barcodeMatched'.tr(
+                          namedArgs: {'name': result.product.name},
+                        )
+                      : 'product.barcodeCreated'.tr(
+                          namedArgs: {'name': result.product.name},
+                        ),
+                ),
+              ),
+            );
+            await _refreshProducts();
+          } catch (e) {
+            if (!mounted) return;
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(
+                  'product.barcodeAddError'.tr(namedArgs: {'error': '$e'}),
+                ),
+              ),
+            );
           }
         },
-        icon: const Icon(Icons.add),
-        label: Text('product.add'.tr()),
+        icon: const Icon(Icons.qr_code_scanner),
+        label: Text('product.scanBarcode'.tr()),
       ),
     );
   }

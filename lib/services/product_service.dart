@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import '../models/product_model.dart';
@@ -9,6 +11,60 @@ class ProductService {
   final Logger _logger;
 
   ProductService(this._productRepository, this._logger);
+
+  Future<ScanAddProductResult> addOrIncrementByBarcode({
+    required String userId,
+    required String barcode,
+  }) async {
+    _logger.i('addOrIncrementByBarcode: processing barcode for user $userId');
+    final normalizedBarcode = barcode.trim();
+    if (normalizedBarcode.isEmpty) {
+      throw ArgumentError('Barcode cannot be empty');
+    }
+
+    final products = await _productRepository.getProducts(userId);
+    Product? existingProduct;
+    for (final product in products) {
+      if (product.barcode == normalizedBarcode) {
+        existingProduct = product;
+        break;
+      }
+    }
+
+    if (existingProduct != null) {
+      _logger.i('Barcode matched existing product: ${existingProduct.name}');
+      final updatedProduct = Product(
+        id: existingProduct.id,
+        name: existingProduct.name,
+        description: existingProduct.description,
+        userId: existingProduct.userId,
+        expiries: existingProduct.expiries,
+        nonExpiringQuantity: existingProduct.nonExpiringQuantity + 1,
+        category: existingProduct.category,
+        imageUrl: existingProduct.imageUrl,
+        barcode: existingProduct.barcode,
+        isGlobal: existingProduct.isGlobal,
+      );
+      await _productRepository.update(updatedProduct);
+      return ScanAddProductResult(
+        product: updatedProduct,
+        matchedExisting: true,
+      );
+    }
+
+    final randomSuffix = Random().nextInt(1000);
+    final newProduct = Product(
+      id: DateTime.now().microsecondsSinceEpoch + randomSuffix,
+      name: normalizedBarcode,
+      description: '',
+      userId: userId,
+      nonExpiringQuantity: 1,
+      barcode: normalizedBarcode,
+    );
+    final addedProduct = await _productRepository.add(newProduct);
+    _logger.i('Created new product from barcode: $normalizedBarcode');
+    return ScanAddProductResult(product: addedProduct, matchedExisting: false);
+  }
 
   /// Fetches all products for a specific user
   /// Returns empty list if userId is null (no user logged in)
@@ -95,4 +151,14 @@ class ProductService {
       rethrow;
     }
   }
+}
+
+class ScanAddProductResult {
+  final Product product;
+  final bool matchedExisting;
+
+  const ScanAddProductResult({
+    required this.product,
+    required this.matchedExisting,
+  });
 }

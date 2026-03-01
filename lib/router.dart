@@ -15,6 +15,7 @@ import 'views/transfer_management_view.dart';
 import 'views/select_products_view.dart';
 import 'views/settings_view.dart';
 import 'views/profile_view.dart';
+import 'views/barcode_scan_view.dart';
 import 'views/main_navigation_view.dart';
 import 'views/dynamic_collection_view.dart';
 
@@ -138,6 +139,10 @@ GoRouter createAppRouter(IAuthService authService) {
       GoRoute(
         path: '/profile',
         builder: (context, state) => const ProfileView(),
+      ),
+      GoRoute(
+        path: '/barcode-scan',
+        builder: (context, state) => const BarcodeScanView(),
       ),
     ],
   );
