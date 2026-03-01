@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:watch_it/watch_it.dart';
 
 import 'firebase_options.dart';
 import 'interfaces/i_auth_service.dart';
@@ -78,25 +79,25 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends WatchingWidget {
   final RouterConfig<Object> router;
 
   const MyApp({super.key, required this.router});
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: getIt<ThemeNotifier>(),
-      builder: (context, _) => MaterialApp.router(
-        title: 'FoodSavr',
-        localizationsDelegates: context.localizationDelegates,
-        supportedLocales: context.supportedLocales,
-        locale: context.locale,
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: getIt<ThemeNotifier>().themeMode,
-        routerConfig: router,
-      ),
+    final themeMode = watchPropertyValue(
+      (ThemeNotifier notifier) => notifier.themeMode,
+    );
+    return MaterialApp.router(
+      title: 'FoodSavr',
+      localizationsDelegates: context.localizationDelegates,
+      supportedLocales: context.supportedLocales,
+      locale: context.locale,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeMode,
+      routerConfig: router,
     );
   }
 }
