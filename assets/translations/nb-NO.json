@@ -96,6 +96,8 @@
     "compact": "Kompakt",
     "normal": "Normal",
     "details": "Produktdetaljer",
+    "expiredDaysAgo": "Utløpt for {days} dager siden",
+    "daysRemaining": "{days} dager igjen",
     "select": "Velg produkter",
     "errorLoading": "Feil ved lasting av produkter",
     "noProductsFound": "Ingen produkter funnet",

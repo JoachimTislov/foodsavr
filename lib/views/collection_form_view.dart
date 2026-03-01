@@ -178,7 +178,11 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet> {
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Text('common.create'.tr()),
+                  : Text(
+                      widget.collection != null
+                          ? 'common.save'.tr()
+                          : 'common.create'.tr(),
+                    ),
             ),
           ],
         ),

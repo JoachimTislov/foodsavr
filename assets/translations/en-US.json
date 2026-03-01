@@ -96,6 +96,8 @@
     "compact": "Compact",
     "normal": "Normal",
     "details": "Product Details",
+    "expiredDaysAgo": "Expired {days} days ago",
+    "daysRemaining": "{days} days remaining",
     "select": "Select Products",
     "errorLoading": "Error loading products",
     "noProductsFound": "No products found",

@@ -193,8 +193,18 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                               if (product.daysUntilExpiration != null)
                                 Text(
                                   product.daysUntilExpiration! < 0
-                                      ? 'Expired ${product.daysUntilExpiration!.abs()} days ago'
-                                      : '${product.daysUntilExpiration} days remaining',
+                                      ? 'product.expiredDaysAgo'.tr(
+                                          namedArgs: {
+                                            'days':
+                                                '${product.daysUntilExpiration!.abs()}',
+                                          },
+                                        )
+                                      : 'product.daysRemaining'.tr(
+                                          namedArgs: {
+                                            'days':
+                                                '${product.daysUntilExpiration}',
+                                          },
+                                        ),
                                   style: theme.textTheme.bodyMedium?.copyWith(
                                     color: statusColor,
                                   ),
@@ -207,7 +217,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                   ),
                   // Description section
                   Text(
-                    'Description',
+                    'product.description'.tr(),
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -255,7 +265,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                   const SizedBox(height: 32),
                   // Details section
                   Text(
-                    'Details',
+                    'product.details'.tr(),
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
