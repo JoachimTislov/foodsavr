@@ -134,8 +134,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                                   product.daysUntilExpiration! < 0
                                       ? 'product.status_expired_days_ago'.tr(
                                           namedArgs: {
-                                            'days': product
-                                                .daysUntilExpiration!
+                                            'days': product.daysUntilExpiration!
                                                 .abs()
                                                 .toString(),
                                           },

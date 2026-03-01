@@ -227,7 +227,9 @@ class Product {
     }
     if (isExpiringToday) return 'product.status_today'.tr();
     if (days != null && days > 0) {
-      return 'product.status_days_remaining'.tr(namedArgs: {'days': days.toString()});
+      return 'product.status_days_remaining'.tr(
+        namedArgs: {'days': days.toString()},
+      );
     }
     return status.getMessage();
   }
