@@ -38,6 +38,10 @@ void main() {
       await EasyLocalization.ensureInitialized();
       await getIt.reset();
       mockAuthService = _MockAuthService();
+      when(
+        () => mockAuthService.authStateChanges,
+      ).thenAnswer((_) => const Stream.empty());
+      when(() => mockAuthService.currentUser).thenReturn(null);
       getIt.registerLazySingleton<IAuthService>(() => mockAuthService);
     });
 
@@ -56,7 +60,6 @@ void main() {
         expect(find.text('ACCOUNT'), findsOneWidget);
         expect(find.text('APPEARANCE'), findsOneWidget);
         expect(find.text('ABOUT'), findsOneWidget);
-        expect(find.text('Jane Doe'), findsOneWidget);
         expect(find.text('Theme Mode'), findsOneWidget);
         expect(find.text('Language'), findsOneWidget);
       });

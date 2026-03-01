@@ -146,7 +146,12 @@
   },
   "profile": {
     "title": "Profil",
-    "deleteAccountConfirmation": "Ja, slett konto"
+    "deleteAccountConfirmation": "Ja, slett konto",
+    "account_settings": "Kontoinnstillinger",
+    "forgot_password": "Glemt passord",
+    "change_email": "Endre e-post",
+    "two_factor_auth": "To-faktor autentisering",
+    "log_out": "Logg ut"
   },
   "collection": {
     "errorLoadingProducts": "Feil ved lasting av produkter",
@@ -164,18 +169,7 @@
     "type_shopping": "Handleliste"
   },
   "generated": {
-    "100_42": "1.0.0 (42)",
-    "128": "128",
-    "42": "42",
-    "accountSettings": "Kontoinnstillinger",
-    "acquiredProducts": "Anskaffede produkter",
-    "changeEmail": "Endre e-post",
-    "forgotPassword": "Glemt passord",
-    "itemsTracked": "Vare sporet",
-    "janeDoe": "Jane Doe",
-    "janedoepantrypalcom": "jane.doe@pantrypal.no",
-    "logOut": "Logg ut",
-    "twofactorAuthentication": "To-faktor autentisering"
+    "100_42": "1.0.0 (42)"
   },
   "settings": {
     "about": "Om",
