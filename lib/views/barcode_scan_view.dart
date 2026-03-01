@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 
+import '../service_locator.dart';
+import '../services/barcode_scanner_service.dart';
 import '../widgets/product/barcode_scanner_overlay.dart';
 
 class BarcodeScanView extends StatefulWidget {
@@ -19,15 +21,17 @@ class BarcodeScanView extends StatefulWidget {
 class _BarcodeScanViewState extends State<BarcodeScanView>
     with WidgetsBindingObserver {
   CameraController? _cameraController;
-  final BarcodeScanner _barcodeScanner = BarcodeScanner();
+  late final BarcodeScannerService _barcodeScannerService;
   bool _isCameraReady = false;
   bool _isProcessingFrame = false;
+  bool _multipleBarcodesDetected = false;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _barcodeScannerService = getIt<BarcodeScannerService>();
     _initializeCamera();
   }
 
@@ -35,7 +39,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _cameraController?.dispose();
-    _barcodeScanner.close();
+    _barcodeScannerService.close();
     super.dispose();
   }
 
@@ -68,7 +72,9 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
             left: 24,
             right: 24,
             child: Text(
-              'product.scanBarcodeHint'.tr(),
+              _multipleBarcodesDetected
+                  ? 'product.scanSingleBarcodeHint'.tr()
+                  : 'product.scanBarcodeHint'.tr(),
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.white,
@@ -143,7 +149,20 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
 
     _isProcessingFrame = true;
     try {
-      final barcodes = await _barcodeScanner.processImage(inputImage);
+      final barcodes = await _barcodeScannerService.processImage(inputImage);
+      if (barcodes.length > 1) {
+        if (mounted && !_multipleBarcodesDetected) {
+          setState(() {
+            _multipleBarcodesDetected = true;
+          });
+        }
+        return;
+      }
+      if (_multipleBarcodesDetected && mounted) {
+        setState(() {
+          _multipleBarcodesDetected = false;
+        });
+      }
       if (barcodes.isEmpty) return;
       final scannedValue = barcodes.first.rawValue;
       if (scannedValue == null || scannedValue.isEmpty) return;

@@ -102,6 +102,7 @@
     "add": "Add Product",
     "scanBarcode": "Scan Barcode",
     "scanBarcodeHint": "Align the barcode inside the frame",
+    "scanSingleBarcodeHint": "Multiple barcodes detected. Focus on one barcode.",
     "scanUnavailable": "Barcode scanner unavailable: {error}",
     "barcodeMatched": "Updated existing product \"{name}\"",
     "barcodeCreated": "Created new product \"{name}\"",

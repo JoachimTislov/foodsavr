@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import '../models/product_model.dart';
@@ -48,8 +50,9 @@ class ProductService {
       );
     }
 
+    final randomSuffix = Random().nextInt(1000);
     final newProduct = Product(
-      id: DateTime.now().microsecondsSinceEpoch,
+      id: DateTime.now().microsecondsSinceEpoch * 1000 + randomSuffix,
       name: normalizedBarcode,
       description: '',
       userId: userId,

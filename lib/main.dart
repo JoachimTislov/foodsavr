@@ -9,6 +9,7 @@ import 'firebase_options.dart';
 import 'interfaces/i_auth_service.dart';
 import 'router.dart';
 import 'service_locator.dart';
+import 'services/barcode_scanner_service.dart';
 import 'services/theme_notifier.dart';
 import 'utils/app_theme.dart';
 import 'utils/config.dart';
@@ -64,6 +65,9 @@ void main() async {
   await EasyLocalization.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
+  if (!getIt.isRegistered<BarcodeScannerService>()) {
+    getIt.registerFactory<BarcodeScannerService>(BarcodeScannerService.new);
+  }
   final router = createAppRouter(getIt<IAuthService>());
   runApp(
     EasyLocalization(
