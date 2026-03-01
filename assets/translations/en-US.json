@@ -113,7 +113,6 @@
     "expiries": "Expiries",
     "add_expiry": "Add Expiry",
     "quantity_units": "{} units",
-    "settingsSoon": "Settings feature coming soon!",
     "scanBarcode": "Scan Barcode",
     "scanBarcodeHint": "Align the barcode inside the frame",
     "scanSingleBarcodeHint": "Multiple barcodes detected. Focus on one barcode.",

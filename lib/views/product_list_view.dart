@@ -260,6 +260,7 @@ class _ProductListViewState extends State<ProductListView> {
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'product_list_fab',
         onPressed: () async {
+          final messenger = ScaffoldMessenger.of(context);
           final scannedBarcode = await context.push<String>('/barcode-scan');
           if (!mounted || scannedBarcode == null || scannedBarcode.isEmpty) {
             return;
@@ -272,7 +273,7 @@ class _ProductListViewState extends State<ProductListView> {
               barcode: scannedBarcode,
             );
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
+            messenger.showSnackBar(
               SnackBar(
                 content: Text(
                   result.matchedExisting
@@ -288,7 +289,7 @@ class _ProductListViewState extends State<ProductListView> {
             await _refreshProducts();
           } catch (e) {
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
+            messenger.showSnackBar(
               SnackBar(
                 content: Text(
                   'product.barcodeAddError'.tr(namedArgs: {'error': '$e'}),
