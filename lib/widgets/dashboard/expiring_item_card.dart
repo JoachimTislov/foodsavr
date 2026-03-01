@@ -13,46 +13,54 @@ class ExpiringItemCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final timeColor = product.status.getColor(colorScheme);
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.1),
+    return MouseRegion(
+      cursor: onTap != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.basic,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.1),
+            ),
           ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              product.name,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  product.getFriendlyStatus(),
-                  style: TextStyle(
-                    color: timeColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                product.name,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
                 ),
-                if (onTap != null) ...[
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.chevron_right,
-                    size: 20,
-                    color: colorScheme.onSurfaceVariant,
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    product.getFriendlyStatus(),
+                    style: TextStyle(
+                      color: timeColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
                   ),
+                  if (onTap != null) ...[
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.chevron_right,
+                      size: 20,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ],
                 ],
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
