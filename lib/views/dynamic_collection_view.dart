@@ -31,6 +31,14 @@ class _DynamicCollectionViewState extends State<DynamicCollectionView> {
     _collectionsFuture = _fetchCollections();
   }
 
+  @override
+  void didUpdateWidget(covariant DynamicCollectionView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.type != widget.type) {
+      _collectionsFuture = _fetchCollections();
+    }
+  }
+
   void refresh() {
     setState(() {
       _collectionsFuture = _fetchCollections();

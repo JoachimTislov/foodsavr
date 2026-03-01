@@ -268,6 +268,7 @@ class _ProductListViewState extends State<ProductListView> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final result = await context.push('/product-form');
+          if (!mounted) return;
           if (result == true) {
             _refreshProducts();
           }
@@ -297,6 +298,7 @@ class _ProductListViewState extends State<ProductListView> {
           inventoryNames: _productInventories[product.id],
           onEdit: () async {
             final result = await context.push('/product-form', extra: product);
+            if (!mounted) return;
             if (result == true) {
               _refreshProducts();
             }

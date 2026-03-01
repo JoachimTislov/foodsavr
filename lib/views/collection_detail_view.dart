@@ -62,6 +62,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
           final result = await context.push(
             '/product-form?collectionId=${widget.collection.id}',
           );
+          if (!mounted) return;
           if (result == true) {
             _refreshProducts();
           }
