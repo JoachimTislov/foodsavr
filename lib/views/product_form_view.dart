@@ -1,5 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:watch_it/watch_it.dart';
 import '../models/product_model.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
@@ -54,7 +55,8 @@ class _ProductFormContent extends StatefulWidget {
   State<_ProductFormContent> createState() => _ProductFormContentState();
 }
 
-class _ProductFormContentState extends State<_ProductFormContent> {
+class _ProductFormContentState extends State<_ProductFormContent>
+    with WatchItStatefulWidgetMixin {
   final _formKey = GlobalKey<FormState>();
   late final ProductService _productService;
   late final CollectionService _collectionService;
@@ -62,11 +64,10 @@ class _ProductFormContentState extends State<_ProductFormContent> {
 
   late TextEditingController _nameController;
   late TextEditingController _descriptionController;
-  String? _selectedCategory;
-  int _nonExpiringQuantity = 0;
-  List<ExpiryEntry> _expiries = [];
-
-  bool _isSaving = false;
+  late final ValueNotifier<String?> _selectedCategory;
+  late final ValueNotifier<int> _nonExpiringQuantity;
+  late final ValueNotifier<List<ExpiryEntry>> _expiries;
+  final _isSaving = ValueNotifier<bool>(false);
 
   @override
   void initState() {
@@ -79,15 +80,23 @@ class _ProductFormContentState extends State<_ProductFormContent> {
     _descriptionController = TextEditingController(
       text: widget.product?.description ?? '',
     );
-    _selectedCategory = widget.product?.category;
-    _nonExpiringQuantity = widget.product?.nonExpiringQuantity ?? 0;
-    _expiries = List.from(widget.product?.expiries ?? []);
+    _selectedCategory = ValueNotifier<String?>(widget.product?.category);
+    _nonExpiringQuantity = ValueNotifier<int>(
+      widget.product?.nonExpiringQuantity ?? 0,
+    );
+    _expiries = ValueNotifier<List<ExpiryEntry>>(
+      List<ExpiryEntry>.from(widget.product?.expiries ?? const []),
+    );
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
+    _selectedCategory.dispose();
+    _nonExpiringQuantity.dispose();
+    _expiries.dispose();
+    _isSaving.dispose();
     super.dispose();
   }
 
@@ -97,7 +106,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
     final userId = _authService.getUserId();
     if (userId == null) return;
 
-    setState(() => _isSaving = true);
+    _isSaving.value = true;
 
     try {
       final productId =
@@ -107,9 +116,9 @@ class _ProductFormContentState extends State<_ProductFormContent> {
         name: _nameController.text,
         description: _descriptionController.text,
         userId: userId,
-        expiries: _expiries,
-        nonExpiringQuantity: _nonExpiringQuantity,
-        category: _selectedCategory,
+        expiries: _expiries.value,
+        nonExpiringQuantity: _nonExpiringQuantity.value,
+        category: _selectedCategory.value,
         isGlobal: widget.product?.isGlobal ?? false,
       );
 
@@ -141,13 +150,17 @@ class _ProductFormContentState extends State<_ProductFormContent> {
       }
     } finally {
       if (mounted) {
-        setState(() => _isSaving = false);
+        _isSaving.value = false;
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final selectedCategory = watch(_selectedCategory).value;
+    final nonExpiringQuantity = watch(_nonExpiringQuantity).value;
+    final expiries = watch(_expiries).value;
+    final isSaving = watch(_isSaving).value;
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
 
@@ -191,7 +204,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  initialValue: _selectedCategory,
+                  initialValue: selectedCategory,
                   decoration: InputDecoration(
                     labelText: 'product.category'.tr(),
                     border: const OutlineInputBorder(),
@@ -199,7 +212,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
                   items: ProductCategory.allNames.map((cat) {
                     return DropdownMenuItem(value: cat, child: Text(cat));
                   }).toList(),
-                  onChanged: (val) => setState(() => _selectedCategory = val),
+                  onChanged: (val) => _selectedCategory.value = val,
                 ),
                 const SizedBox(height: 24),
                 Text(
@@ -210,15 +223,18 @@ class _ProductFormContentState extends State<_ProductFormContent> {
                 ),
                 const SizedBox(height: 8),
                 QuantitySection(
-                  quantity: _nonExpiringQuantity,
-                  onChanged: (val) =>
-                      setState(() => _nonExpiringQuantity = val),
+                  quantity: nonExpiringQuantity,
+                  onChanged: (val) => _nonExpiringQuantity.value = val,
                 ),
                 const SizedBox(height: 24),
                 ExpiriesSection(
-                  expiries: _expiries,
+                  expiries: expiries,
                   onAdd: _addExpiry,
-                  onRemove: (idx) => setState(() => _expiries.removeAt(idx)),
+                  onRemove: (idx) {
+                    final updated = List<ExpiryEntry>.from(_expiries.value)
+                      ..removeAt(idx);
+                    _expiries.value = updated;
+                  },
                 ),
               ],
             ),
@@ -229,9 +245,9 @@ class _ProductFormContentState extends State<_ProductFormContent> {
           padding: const EdgeInsets.all(16),
           child: SizedBox(
             width: double.infinity,
-            child: FilledButton(
-              onPressed: _isSaving ? null : _save,
-              child: _isSaving
+              child: FilledButton(
+                onPressed: isSaving ? null : _save,
+                child: isSaving
                   ? const SizedBox(
                       width: 20,
                       height: 20,
@@ -258,9 +274,8 @@ class _ProductFormContentState extends State<_ProductFormContent> {
     );
 
     if (date != null && mounted) {
-      setState(() {
-        _expiries.add(ExpiryEntry(quantity: 1, expirationDate: date));
-      });
+      _expiries.value = List<ExpiryEntry>.from(_expiries.value)
+        ..add(ExpiryEntry(quantity: 1, expirationDate: date));
     }
   }
 }

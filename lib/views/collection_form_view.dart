@@ -1,5 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:watch_it/watch_it.dart';
 import '../models/collection_model.dart';
 import '../service_locator.dart';
 import '../services/collection_service.dart';
@@ -48,7 +49,8 @@ class _CollectionFormSheet extends StatefulWidget {
   State<_CollectionFormSheet> createState() => _CollectionFormSheetState();
 }
 
-class _CollectionFormSheetState extends State<_CollectionFormSheet> {
+class _CollectionFormSheetState extends State<_CollectionFormSheet>
+    with WatchItStatefulWidgetMixin {
   final _formKey = GlobalKey<FormState>();
   late final CollectionService _collectionService;
   late final IAuthService _authService;
@@ -56,7 +58,7 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet> {
   late TextEditingController _nameController;
   late TextEditingController _descriptionController;
 
-  bool _isSaving = false;
+  final _isSaving = ValueNotifier<bool>(false);
 
   @override
   void initState() {
@@ -76,6 +78,7 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet> {
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
+    _isSaving.dispose();
     super.dispose();
   }
 
@@ -96,7 +99,7 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet> {
     final userId = _authService.getUserId();
     if (userId == null) return;
 
-    setState(() => _isSaving = true);
+    _isSaving.value = true;
 
     try {
       final collection = Collection(
@@ -125,13 +128,14 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet> {
       }
     } finally {
       if (mounted) {
-        setState(() => _isSaving = false);
+        _isSaving.value = false;
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isSaving = watch(_isSaving).value;
     final textTheme = Theme.of(context).textTheme;
 
     return Padding(
@@ -171,8 +175,8 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet> {
             ),
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: _isSaving ? null : _save,
-              child: _isSaving
+              onPressed: isSaving ? null : _save,
+              child: isSaving
                   ? const SizedBox(
                       width: 20,
                       height: 20,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:watch_it/watch_it.dart';
 
 import '../models/collection_model.dart';
 import '../service_locator.dart';
@@ -19,8 +20,9 @@ class CollectionListView extends StatefulWidget {
   State<CollectionListView> createState() => _CollectionListViewState();
 }
 
-class _CollectionListViewState extends State<CollectionListView> {
-  late Future<List<Collection>> _collectionsFuture;
+class _CollectionListViewState extends State<CollectionListView>
+    with WatchItStatefulWidgetMixin {
+  late final ValueNotifier<Future<List<Collection>>> _collectionsFuture;
   late final CollectionService _collectionService;
   late final IAuthService _authService;
 
@@ -29,11 +31,20 @@ class _CollectionListViewState extends State<CollectionListView> {
     super.initState();
     _collectionService = getIt<CollectionService>();
     _authService = getIt<IAuthService>();
-    _collectionsFuture = _fetchCollections();
+    _collectionsFuture = ValueNotifier<Future<List<Collection>>>(
+      _fetchCollections(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _collectionsFuture.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final collectionsFuture = watch(_collectionsFuture).value;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -61,7 +72,7 @@ class _CollectionListViewState extends State<CollectionListView> {
         ],
       ),
       body: FutureBuilder<List<Collection>>(
-        future: _collectionsFuture,
+        future: collectionsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -181,9 +192,7 @@ class _CollectionListViewState extends State<CollectionListView> {
   }
 
   Future<void> _refreshCollections() async {
-    setState(() {
-      _collectionsFuture = _fetchCollections();
-    });
+    _collectionsFuture.value = _fetchCollections();
   }
 
   void _navigateToCollectionDetail(Collection collection) {

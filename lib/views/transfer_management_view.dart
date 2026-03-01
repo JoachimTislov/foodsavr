@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:watch_it/watch_it.dart';
 
 import '../widgets/transfer/location_card.dart';
 import '../widgets/transfer/location_section_header.dart';
@@ -27,7 +28,8 @@ class TransferManagementView extends StatefulWidget {
   State<TransferManagementView> createState() => _TransferManagementViewState();
 }
 
-class _TransferManagementViewState extends State<TransferManagementView> {
+class _TransferManagementViewState extends State<TransferManagementView>
+    with WatchItStatefulWidgetMixin {
   // TODO(feat): replace with locations fetched from a LocationService when available
   static const List<_LocationOption> _fromOptions = [
     _LocationOption(
@@ -71,11 +73,20 @@ class _TransferManagementViewState extends State<TransferManagementView> {
     ),
   ];
 
-  String _selectedFromId = 'main_fridge';
-  String _selectedToId = 'loading_dock';
+  final _selectedFromId = ValueNotifier<String>('main_fridge');
+  final _selectedToId = ValueNotifier<String>('loading_dock');
+
+  @override
+  void dispose() {
+    _selectedFromId.dispose();
+    _selectedToId.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final selectedFromId = watch(_selectedFromId).value;
+    final selectedToId = watch(_selectedToId).value;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -109,11 +120,11 @@ class _TransferManagementViewState extends State<TransferManagementView> {
                   for (final loc in _fromOptions) ...[
                     LocationCard(
                       title: loc.name,
-                      subtitle: loc.detail,
-                      icon: loc.icon,
-                      isSelected: _selectedFromId == loc.id,
-                      onTap: () => setState(() => _selectedFromId = loc.id),
-                    ),
+                       subtitle: loc.detail,
+                       icon: loc.icon,
+                       isSelected: selectedFromId == loc.id,
+                       onTap: () => _selectedFromId.value = loc.id,
+                     ),
                     const SizedBox(height: 12),
                   ],
                   Padding(
@@ -155,11 +166,11 @@ class _TransferManagementViewState extends State<TransferManagementView> {
                   for (final loc in _toOptions) ...[
                     LocationCard(
                       title: loc.name,
-                      subtitle: loc.detail,
-                      icon: loc.icon,
-                      isSelected: _selectedToId == loc.id,
-                      onTap: () => setState(() => _selectedToId = loc.id),
-                    ),
+                       subtitle: loc.detail,
+                       icon: loc.icon,
+                       isSelected: selectedToId == loc.id,
+                       onTap: () => _selectedToId.value = loc.id,
+                     ),
                     const SizedBox(height: 12),
                   ],
                 ],
@@ -181,8 +192,8 @@ class _TransferManagementViewState extends State<TransferManagementView> {
                 onPressed: () => context.push(
                   '/select-products',
                   extra: <String, String>{
-                    'fromLocationId': _selectedFromId,
-                    'toLocationId': _selectedToId,
+                    'fromLocationId': selectedFromId,
+                    'toLocationId': selectedToId,
                   },
                 ),
                 style: ElevatedButton.styleFrom(

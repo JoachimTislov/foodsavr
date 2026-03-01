@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:watch_it/watch_it.dart';
 
 import '../models/collection_model.dart';
 import '../service_locator.dart';
@@ -18,8 +19,9 @@ class DynamicCollectionView extends StatefulWidget {
   State<DynamicCollectionView> createState() => _DynamicCollectionViewState();
 }
 
-class _DynamicCollectionViewState extends State<DynamicCollectionView> {
-  late Future<List<Collection>> _collectionsFuture;
+class _DynamicCollectionViewState extends State<DynamicCollectionView>
+    with WatchItStatefulWidgetMixin {
+  late final ValueNotifier<Future<List<Collection>>> _collectionsFuture;
   late final CollectionService _collectionService;
   late final IAuthService _authService;
 
@@ -28,21 +30,27 @@ class _DynamicCollectionViewState extends State<DynamicCollectionView> {
     super.initState();
     _collectionService = getIt<CollectionService>();
     _authService = getIt<IAuthService>();
-    _collectionsFuture = _fetchCollections();
+    _collectionsFuture = ValueNotifier<Future<List<Collection>>>(
+      _fetchCollections(),
+    );
   }
 
   @override
   void didUpdateWidget(covariant DynamicCollectionView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.type != widget.type) {
-      _collectionsFuture = _fetchCollections();
+      _collectionsFuture.value = _fetchCollections();
     }
   }
 
+  @override
+  void dispose() {
+    _collectionsFuture.dispose();
+    super.dispose();
+  }
+
   void refresh() {
-    setState(() {
-      _collectionsFuture = _fetchCollections();
-    });
+    _collectionsFuture.value = _fetchCollections();
   }
 
   Future<List<Collection>> _fetchCollections() async {
@@ -54,8 +62,9 @@ class _DynamicCollectionViewState extends State<DynamicCollectionView> {
 
   @override
   Widget build(BuildContext context) {
+    final collectionsFuture = watch(_collectionsFuture).value;
     return FutureBuilder<List<Collection>>(
-      future: _collectionsFuture,
+      future: collectionsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(

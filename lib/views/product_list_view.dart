@@ -1,5 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:watch_it/watch_it.dart';
 
 import '../models/product_model.dart';
 import '../service_locator.dart';
@@ -22,14 +23,15 @@ class ProductListView extends StatefulWidget {
   State<ProductListView> createState() => _ProductListViewState();
 }
 
-class _ProductListViewState extends State<ProductListView> {
-  late Future<List<Product>> _productsFuture;
+class _ProductListViewState extends State<ProductListView>
+    with WatchItStatefulWidgetMixin {
+  late final ValueNotifier<Future<List<Product>>> _productsFuture;
   late final ProductService _productService;
   late final CollectionService _collectionService;
   late final IAuthService _authService;
-  ProductViewMode _viewMode = ProductViewMode.normal;
-  bool _isSigningOut = false;
-  Map<int, List<String>> _productInventories = {};
+  final _viewMode = ValueNotifier<ProductViewMode>(ProductViewMode.normal);
+  final _isSigningOut = ValueNotifier<bool>(false);
+  final _productInventories = ValueNotifier<Map<int, List<String>>>({});
 
   @override
   void initState() {
@@ -37,7 +39,16 @@ class _ProductListViewState extends State<ProductListView> {
     _productService = getIt<ProductService>();
     _collectionService = getIt<CollectionService>();
     _authService = getIt<IAuthService>();
-    _productsFuture = _fetchProducts();
+    _productsFuture = ValueNotifier<Future<List<Product>>>(_fetchProducts());
+  }
+
+  @override
+  void dispose() {
+    _productsFuture.dispose();
+    _viewMode.dispose();
+    _isSigningOut.dispose();
+    _productInventories.dispose();
+    super.dispose();
   }
 
   Future<List<Product>> _fetchProducts() async {
@@ -72,7 +83,7 @@ class _ProductListViewState extends State<ProductListView> {
   Future<void> _loadInventoryNames(List<Product> products) async {
     final userId = _authService.getUserId();
     if (userId == null) {
-      if (mounted) setState(() => _productInventories = {});
+      if (mounted) _productInventories.value = {};
       return;
     }
 
@@ -83,14 +94,15 @@ class _ProductListViewState extends State<ProductListView> {
     );
 
     if (mounted) {
-      setState(() {
-        _productInventories = inventoryMap;
-      });
+      _productInventories.value = inventoryMap;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final productsFuture = watch(_productsFuture).value;
+    final viewMode = watch(_viewMode).value;
+    final isSigningOut = watch(_isSigningOut).value;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -102,13 +114,11 @@ class _ProductListViewState extends State<ProductListView> {
           // View mode toggle
           PopupMenuButton<ProductViewMode>(
             icon: Icon(
-              ViewModeHelper.getViewModeIcon(_viewMode),
+              ViewModeHelper.getViewModeIcon(viewMode),
               color: colorScheme.primary,
             ),
             onSelected: (mode) {
-              setState(() {
-                _viewMode = mode;
-              });
+              _viewMode.value = mode;
             },
             itemBuilder: (context) => [
               PopupMenuItem(
@@ -117,7 +127,7 @@ class _ProductListViewState extends State<ProductListView> {
                   children: [
                     Icon(
                       Icons.view_headline,
-                      color: _viewMode == ProductViewMode.compact
+                      color: viewMode == ProductViewMode.compact
                           ? colorScheme.primary
                           : null,
                     ),
@@ -125,7 +135,7 @@ class _ProductListViewState extends State<ProductListView> {
                     Text(
                       'product.compact'.tr(),
                       style: TextStyle(
-                        fontWeight: _viewMode == ProductViewMode.compact
+                        fontWeight: viewMode == ProductViewMode.compact
                             ? FontWeight.w600
                             : FontWeight.normal,
                       ),
@@ -139,7 +149,7 @@ class _ProductListViewState extends State<ProductListView> {
                   children: [
                     Icon(
                       Icons.view_agenda,
-                      color: _viewMode == ProductViewMode.normal
+                      color: viewMode == ProductViewMode.normal
                           ? colorScheme.primary
                           : null,
                     ),
@@ -147,7 +157,7 @@ class _ProductListViewState extends State<ProductListView> {
                     Text(
                       'product.normal'.tr(),
                       style: TextStyle(
-                        fontWeight: _viewMode == ProductViewMode.normal
+                        fontWeight: viewMode == ProductViewMode.normal
                             ? FontWeight.w600
                             : FontWeight.normal,
                       ),
@@ -161,7 +171,7 @@ class _ProductListViewState extends State<ProductListView> {
                   children: [
                     Icon(
                       Icons.view_day,
-                      color: _viewMode == ProductViewMode.details
+                      color: viewMode == ProductViewMode.details
                           ? colorScheme.primary
                           : null,
                     ),
@@ -169,7 +179,7 @@ class _ProductListViewState extends State<ProductListView> {
                     Text(
                       'product.details'.tr(),
                       style: TextStyle(
-                        fontWeight: _viewMode == ProductViewMode.details
+                        fontWeight: viewMode == ProductViewMode.details
                             ? FontWeight.w600
                             : FontWeight.normal,
                       ),
@@ -181,12 +191,12 @@ class _ProductListViewState extends State<ProductListView> {
           ),
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: _isSigningOut ? null : _handleSignOut,
+            onPressed: isSigningOut ? null : _handleSignOut,
           ),
         ],
       ),
       body: FutureBuilder<List<Product>>(
-        future: _productsFuture,
+        future: productsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -243,7 +253,7 @@ class _ProductListViewState extends State<ProductListView> {
               onRefresh: _refreshProducts,
               child: ListView.builder(
                 padding: EdgeInsets.only(
-                  top: _viewMode == ProductViewMode.compact ? 4 : 8,
+                  top: viewMode == ProductViewMode.compact ? 4 : 8,
                   bottom: 80,
                 ),
                 itemCount: products.length,
@@ -272,7 +282,8 @@ class _ProductListViewState extends State<ProductListView> {
   }
 
   Widget _buildProductCard(Product product) {
-    switch (_viewMode) {
+    final viewMode = _viewMode.value;
+    switch (viewMode) {
       case ProductViewMode.compact:
         return ProductCardCompact(
           product: product,
@@ -287,7 +298,7 @@ class _ProductListViewState extends State<ProductListView> {
         return ProductCardDetails(
           product: product,
           onTap: () => _navigateToProductDetail(product),
-          inventoryNames: _productInventories[product.id],
+          inventoryNames: _productInventories.value[product.id],
           onEdit: () async {
             final result = await ProductFormView.show(
               context,
@@ -340,9 +351,7 @@ class _ProductListViewState extends State<ProductListView> {
                     ),
                   ),
                 );
-                setState(() {
-                  _productsFuture = _fetchProducts();
-                });
+                _productsFuture.value = _fetchProducts();
               } catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -362,15 +371,11 @@ class _ProductListViewState extends State<ProductListView> {
   }
 
   Future<void> _refreshProducts() async {
-    setState(() {
-      _productsFuture = _fetchProducts();
-    });
+    _productsFuture.value = _fetchProducts();
   }
 
   Future<void> _handleSignOut() async {
-    setState(() {
-      _isSigningOut = true;
-    });
+    _isSigningOut.value = true;
     try {
       await _authService.signOut();
     } catch (e) {
@@ -380,9 +385,7 @@ class _ProductListViewState extends State<ProductListView> {
       ).showSnackBar(SnackBar(content: Text('Sign out failed: $e')));
     } finally {
       if (mounted) {
-        setState(() {
-          _isSigningOut = false;
-        });
+        _isSigningOut.value = false;
       }
     }
   }
