@@ -9,6 +9,7 @@ import '../service_locator.dart';
 import '../services/product_service.dart';
 import '../services/collection_service.dart';
 import '../utils/collection_types.dart'; // Import CollectionType
+import '../views/product_detail_view.dart';
 import '../widgets/dashboard/expiring_item_card.dart';
 import '../widgets/dashboard/overview_card.dart';
 
@@ -188,7 +189,14 @@ class _ExpiringSoonSection extends StatelessWidget {
               children: [
                 for (int i = 0; i < products.length; i++) ...[
                   if (i > 0) const SizedBox(height: 12),
-                  ExpiringItemCard(product: products[i]),
+                  ExpiringItemCard(
+                    product: products[i],
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ProductDetailView(product: products[i]),
+                      ),
+                    ),
+                  ),
                 ],
               ],
             );
