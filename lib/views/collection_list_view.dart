@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:go_router/go_router.dart';
 
 import '../models/collection_model.dart';
 import '../service_locator.dart';
@@ -10,7 +11,9 @@ import '../widgets/collection/collection_card.dart';
 import 'collection_detail_view.dart';
 
 class CollectionListView extends StatefulWidget {
-  const CollectionListView({super.key});
+  final CollectionType? typeFilter;
+
+  const CollectionListView({super.key, this.typeFilter});
 
   @override
   State<CollectionListView> createState() => _CollectionListViewState();
@@ -34,18 +37,29 @@ class _CollectionListViewState extends State<CollectionListView> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    final titleText = widget.typeFilter == CollectionType.shoppingList
+        ? 'dashboard.shoppingList'.tr()
+        : 'dashboard.myInventories'.tr();
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('dashboard.myInventories'.tr()),
+        title: Text(titleText),
         backgroundColor: colorScheme.surface,
         elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('collection.addSoon'.tr())),
+            onPressed: () async {
+              final result = await context.push(
+                '/collection-form',
+                extra: {
+                  'type': widget.typeFilter ?? CollectionType.inventory,
+                  'collection': null,
+                },
               );
+              if (result == true) {
+                _refreshCollections();
+              }
             },
           ),
         ],
@@ -83,7 +97,9 @@ class _CollectionListViewState extends State<CollectionListView> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.inventory_2_outlined,
+                    widget.typeFilter == CollectionType.shoppingList
+                        ? Icons.shopping_cart_outlined
+                        : Icons.inventory_2_outlined,
                     size: 64,
                     color: colorScheme.onSurfaceVariant,
                   ),
@@ -129,6 +145,9 @@ class _CollectionListViewState extends State<CollectionListView> {
     final userId = _authService.getUserId();
     if (userId == null) return [];
     final all = await _collectionService.getCollectionsForUser(userId);
+    if (widget.typeFilter != null) {
+      return all.where((c) => c.type == widget.typeFilter).toList();
+    }
     return all.where((c) => c.type == CollectionType.inventory).toList();
   }
 

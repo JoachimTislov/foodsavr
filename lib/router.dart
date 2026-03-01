@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'interfaces/i_auth_service.dart';
+import 'models/product_model.dart';
+import 'models/collection_model.dart';
+import 'utils/collection_types.dart';
 import 'views/auth_view.dart';
 import 'views/landing_page_view.dart';
 import 'views/dashboard_view.dart';
@@ -14,6 +17,10 @@ import 'views/transfer_management_view.dart';
 import 'views/select_products_view.dart';
 import 'views/settings_view.dart';
 import 'views/profile_view.dart';
+import 'views/main_navigation_view.dart';
+import 'views/dynamic_collection_view.dart';
+import 'views/product_form_view.dart';
+import 'views/collection_form_view.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -30,13 +37,11 @@ GoRouter createAppRouter(IAuthService authService) {
       final isLandingRoute = state.uri.path == '/';
 
       if (!isLoggedIn) {
-        // If not logged in and not on landing or auth, redirect to landing
         if (!isLandingRoute && !isAuthRoute) {
           return '/';
         }
         return null;
       } else {
-        // If logged in and on landing or auth, redirect to home (products)
         if (isLandingRoute || isAuthRoute) {
           return '/products';
         }
@@ -59,20 +64,53 @@ GoRouter createAppRouter(IAuthService authService) {
           ),
         ],
       ),
-      GoRoute(
-        path: '/products',
-        builder: (BuildContext context, GoRouterState state) {
-          return const DashboardView();
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
+          return MainNavigationView(navigationShell: navigationShell);
         },
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/products',
+                builder: (context, state) => const DashboardView(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/my-inventory',
+                builder: (context, state) =>
+                    const DynamicCollectionView(type: CollectionType.inventory),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/shopping-lists',
+                builder: (context, state) => const DynamicCollectionView(
+                  type: CollectionType.shoppingList,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
-      // Define other routes here as needed to replace imperative navigation
       GoRoute(
         path: '/product-list',
         builder: (context, state) => const ProductListView(),
       ),
       GoRoute(
         path: '/collection-list',
-        builder: (context, state) => const CollectionListView(),
+        builder: (context, state) {
+          final typeParam = state.uri.queryParameters['type'];
+          CollectionType? typeFilter;
+          if (typeParam == 'inventory') typeFilter = CollectionType.inventory;
+          if (typeParam == 'shopping') typeFilter = CollectionType.shoppingList;
+          return CollectionListView(typeFilter: typeFilter);
+        },
       ),
       GoRoute(
         path: '/global-products',
@@ -100,6 +138,26 @@ GoRouter createAppRouter(IAuthService authService) {
       GoRoute(
         path: '/profile',
         builder: (context, state) => const ProfileView(),
+      ),
+      GoRoute(
+        path: '/product-form',
+        builder: (context, state) {
+          final product = state.extra as Product?;
+          final collectionId = state.uri.queryParameters['collectionId'];
+          return ProductFormView(
+            product: product,
+            initialCollectionId: collectionId,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/collection-form',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          final type = extra['type'] as CollectionType;
+          final collection = extra['collection'] as Collection?;
+          return CollectionFormView(type: type, collection: collection);
+        },
       ),
     ],
   );

@@ -68,12 +68,12 @@ class _ProfileViewState extends State<ProfileView> {
                     _SettingsItem(
                       icon: Icons.lock_reset,
                       label: 'generated.forgotPassword'.tr(),
-                      onTap: () => _showNotImplemented(context),
+                      onTap: () {},
                     ),
                     _SettingsItem(
                       icon: Icons.mail_outline,
                       label: 'generated.changeEmail'.tr(),
-                      onTap: () => _showNotImplemented(context),
+                      onTap: () {},
                     ),
                     _SettingsItem(
                       icon: Icons.security,
@@ -100,12 +100,6 @@ class _ProfileViewState extends State<ProfileView> {
         ],
       ),
     );
-  }
-
-  void _showNotImplemented(BuildContext context) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('settings.notImplemented'.tr())));
   }
 
   void _showDeleteAccountConfirmation(BuildContext context) {

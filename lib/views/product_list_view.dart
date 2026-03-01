@@ -1,5 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../models/product_model.dart';
 import '../service_locator.dart';
@@ -109,7 +110,6 @@ class _ProductListViewState extends State<ProductListView> {
               ViewModeHelper.getViewModeIcon(_viewMode),
               color: colorScheme.primary,
             ),
-            tooltip: 'product.changeViewMode'.tr(),
             onSelected: (mode) {
               setState(() {
                 _viewMode = mode;
@@ -187,16 +187,12 @@ class _ProductListViewState extends State<ProductListView> {
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('product.settingsSoon'.tr())),
-              );
+              // Settings functionality
             },
-            tooltip: 'common.settings'.tr(),
           ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _isSigningOut ? null : _handleSignOut,
-            tooltip: 'common.signOut'.tr(),
           ),
         ],
       ),
@@ -272,11 +268,11 @@ class _ProductListViewState extends State<ProductListView> {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // TODO: Navigate to add product screen
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('product.addSoon'.tr())));
+        onPressed: () async {
+          final result = await context.push('/product-form');
+          if (result == true) {
+            _refreshProducts();
+          }
         },
         icon: const Icon(Icons.add),
         label: Text('product.add'.tr()),
@@ -301,11 +297,11 @@ class _ProductListViewState extends State<ProductListView> {
           product: product,
           onTap: () => _navigateToProductDetail(product),
           inventoryNames: _productInventories[product.id],
-          onEdit: () {
-            // TODO: Navigate to edit screen
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('product.editSoon'.tr())));
+          onEdit: () async {
+            final result = await context.push('/product-form', extra: product);
+            if (result == true) {
+              _refreshProducts();
+            }
           },
           onDelete: () {
             // TODO: Show delete confirmation

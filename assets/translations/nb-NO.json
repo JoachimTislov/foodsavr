@@ -64,8 +64,6 @@
     "and": " og ",
     "or": "ELLER",
     "viewAll": "Se alle",
-    "settings": "Innstillinger",
-    "signOut": "Logg ut",
     "cancel": "Avbryt",
     "delete": "Slett",
     "from": "Fra",
@@ -78,9 +76,7 @@
     "moveItems": "Flytt varer",
     "myInventory": "Mitt lager",
     "myInventories": "Mine lagre",
-    "manageProducts": "Administrer produkter",
     "shoppingList": "Handleliste",
-    "manageLists": "Administrer lister",
     "globalProducts": "Globale produkter",
     "browseProducts": "Bla gjennom produkter",
     "expiringSoon": "Utløper snart",
@@ -89,7 +85,6 @@
   },
   "product": {
     "title": "Mine produkter",
-    "changeViewMode": "Endre visningsmodus",
     "compact": "Kompakt",
     "normal": "Normal",
     "details": "Produktdetaljer",
@@ -97,11 +92,18 @@
     "errorLoading": "Feil ved lasting av produkter",
     "noProductsFound": "Ingen produkter funnet",
     "addFirst": "Legg til ditt første produkt for å komme i gang",
-    "settingsSoon": "Innstillingsfunksjon kommer snart!",
-    "addSoon": "Legg til produkt-funksjon kommer snart!",
     "add": "Legg til produkt",
+    "edit": "Rediger produkt",
+    "name": "Produktnavn",
+    "name_required": "Vennligst oppgi produktnavn",
+    "description": "Beskrivelse",
+    "category": "Kategori",
+    "inventory": "Lager",
+    "non_expiring_quantity": "Mengde uten utløpsdato",
+    "expiries": "Utløpsdatoer",
+    "add_expiry": "Legg til utløpsdato",
+    "quantity_units": "{} enheter",
     "availableIn": "Tilgjengelig i {inventories}",
-    "editSoon": "Redigeringsfunksjon kommer snart!",
     "delete": "Slett produkt",
     "search_hint": "Søk i matskapet ditt...",
     "available_stock": "TILGJENGELIG LAGER",
@@ -123,13 +125,16 @@
     "deleteAccountConfirmation": "Ja, slett konto"
   },
   "collection": {
-    "addProductSoon": "Legg til produkt i samling-funksjon kommer snart!",
     "errorLoadingProducts": "Feil ved lasting av produkter",
     "noProducts": "Ingen produkter i denne samlingen",
-    "addSoon": "Legg til samling-funksjon kommer snart!",
-    "loadError": "Feil ved lasting av inventarer",
-    "emptyTitle": "Ingen inventarer funnet",
-    "emptySubtitle": "Opprett ditt første inventar for å komme i gang"
+    "add": "Legg til samling",
+    "edit": "Rediger samling",
+    "name": "Navn på samling",
+    "name_required": "Vennligst oppgi navn på samling",
+    "description": "Beskrivelse",
+    "loadError": "Feil ved lasting av samlinger",
+    "emptyTitle": "Ingen samlinger funnet",
+    "emptySubtitle": "Opprett din første samling for å komme i gang"
   },
   "generated": {
     "100_42": "1.0.0 (42)",
@@ -165,7 +170,6 @@
       "light": "Lys",
       "system": "System"
     },
-    "title": "Innstillinger",
-    "notImplemented": "Denne funksjonen er ikke tilgjengelig ennå"
+    "title": "Innstillinger"
   }
 }

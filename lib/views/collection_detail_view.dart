@@ -1,5 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../models/collection_model.dart';
 import '../models/product_model.dart';
@@ -31,6 +32,12 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     _productsFuture = _fetchProducts();
   }
 
+  void _refreshProducts() {
+    setState(() {
+      _productsFuture = _fetchProducts();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -41,24 +48,6 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         title: Text(widget.collection.name),
         backgroundColor: colorScheme.surface,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Search coming soon')),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.more_vert),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('More options coming soon')),
-              );
-            },
-          ),
-        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -69,10 +58,13 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('collection.addProductSoon'.tr())),
+        onPressed: () async {
+          final result = await context.push(
+            '/product-form?collectionId=${widget.collection.id}',
           );
+          if (result == true) {
+            _refreshProducts();
+          }
         },
         child: const Icon(Icons.add),
       ),

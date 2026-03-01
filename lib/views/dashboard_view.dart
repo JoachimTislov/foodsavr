@@ -77,12 +77,10 @@ class _DashboardViewState extends State<DashboardView> {
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => context.push('/settings'),
-            tooltip: 'common.settings'.tr(),
           ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => _authService.signOut(),
-            tooltip: 'common.signOut'.tr(),
           ),
         ],
       ),
@@ -111,8 +109,6 @@ class _DashboardViewState extends State<DashboardView> {
                   return Text('dashboard.errorLoading'.tr());
                 }
 
-                final inventories = snapshot.data ?? [];
-
                 return GridView.count(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -126,24 +122,6 @@ class _DashboardViewState extends State<DashboardView> {
                       icon: Icons.move_up,
                       iconColor: colorScheme.primary,
                       onTap: () => context.push('/transfer'),
-                    ),
-                    OverviewCard(
-                      title: inventories.length == 1
-                          ? 'dashboard.myInventory'.tr()
-                          : 'dashboard.myInventories'.tr(),
-                      subtitle: 'dashboard.manageProducts'.tr(),
-                      icon: Icons.inventory_2_outlined,
-                      iconColor: colorScheme.secondary,
-                      onTap: () =>
-                          context.push('/collection-list?type=inventory'),
-                    ),
-                    OverviewCard(
-                      title: 'dashboard.shoppingList'.tr(),
-                      subtitle: 'dashboard.manageLists'.tr(),
-                      icon: Icons.shopping_cart_outlined,
-                      iconColor: colorScheme.tertiary,
-                      onTap: () =>
-                          context.push('/collection-list?type=shopping'),
                     ),
                     OverviewCard(
                       title: 'dashboard.globalProducts'.tr(),

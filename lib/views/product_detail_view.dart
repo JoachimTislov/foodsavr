@@ -1,10 +1,12 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../constants/product_categories.dart';
 import '../models/product_model.dart';
 import '../widgets/product/product_details_card.dart';
 import '../service_locator.dart';
 import '../services/collection_service.dart';
+import '../services/product_service.dart';
 import '../interfaces/i_auth_service.dart';
 
 class ProductDetailView extends StatefulWidget {
@@ -18,15 +20,19 @@ class ProductDetailView extends StatefulWidget {
 
 class _ProductDetailViewState extends State<ProductDetailView> {
   late final CollectionService _collectionService;
+  late final ProductService _productService;
   late final IAuthService _authService;
   List<String>? _inventoryNames;
   bool _isLoadingInventories = false;
+  late Product _currentProduct;
 
   @override
   void initState() {
     super.initState();
     _collectionService = getIt<CollectionService>();
+    _productService = getIt<ProductService>();
     _authService = getIt<IAuthService>();
+    _currentProduct = widget.product;
     _loadInventories();
   }
 
@@ -38,7 +44,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
     try {
       final inventories = await _collectionService.getInventoriesByProductId(
         userId,
-        widget.product.id,
+        _currentProduct.id,
       );
       if (mounted) {
         setState(() {
@@ -59,7 +65,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
 
   @override
   Widget build(BuildContext context) {
-    final product = widget.product;
+    final product = _currentProduct;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -77,15 +83,27 @@ class _ProductDetailViewState extends State<ProductDetailView> {
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
-            onPressed: () {
-              // TODO: Navigate to edit screen
+            onPressed: () async {
+              final result = await context.push(
+                '/product-form',
+                extra: _currentProduct,
+              );
+              if (result == true && mounted) {
+                final updatedProduct = await _productService.getProductById(
+                  _currentProduct.id,
+                );
+                if (updatedProduct != null) {
+                  setState(() {
+                    _currentProduct = updatedProduct;
+                  });
+                  _loadInventories();
+                }
+              }
             },
           ),
           IconButton(
             icon: const Icon(Icons.delete),
-            onPressed: () {
-              // TODO: Show delete confirmation
-            },
+            onPressed: () => _showDeleteConfirmation(product),
           ),
         ],
       ),
@@ -245,6 +263,41 @@ class _ProductDetailViewState extends State<ProductDetailView> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(Product product) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Product'),
+        content: Text('Are you sure you want to delete "${product.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(dialogContext).pop();
+              try {
+                await _productService.deleteProduct(product.id);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('${product.name} deleted')),
+                );
+                context.pop(true);
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to delete product: $e')),
+                );
+              }
+            },
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
   }
