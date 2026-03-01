@@ -14,6 +14,7 @@ import 'views/transfer_management_view.dart';
 import 'views/select_products_view.dart';
 import 'views/settings_view.dart';
 import 'views/profile_view.dart';
+import 'views/barcode_scan_view.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -100,6 +101,10 @@ GoRouter createAppRouter(IAuthService authService) {
       GoRoute(
         path: '/profile',
         builder: (context, state) => const ProfileView(),
+      ),
+      GoRoute(
+        path: '/barcode-scan',
+        builder: (context, state) => const BarcodeScanView(),
       ),
     ],
   );

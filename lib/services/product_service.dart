@@ -10,6 +10,56 @@ class ProductService {
 
   ProductService(this._productRepository, this._logger);
 
+  Future<ScanAddProductResult> addOrIncrementByBarcode({
+    required String userId,
+    required String barcode,
+  }) async {
+    final normalizedBarcode = barcode.trim();
+    if (normalizedBarcode.isEmpty) {
+      throw ArgumentError('Barcode cannot be empty');
+    }
+
+    final products = await _productRepository.getProducts(userId);
+    Product? existingProduct;
+    for (final product in products) {
+      if (product.barcode == normalizedBarcode) {
+        existingProduct = product;
+        break;
+      }
+    }
+
+    if (existingProduct != null) {
+      final updatedProduct = Product(
+        id: existingProduct.id,
+        name: existingProduct.name,
+        description: existingProduct.description,
+        userId: existingProduct.userId,
+        expiries: existingProduct.expiries,
+        nonExpiringQuantity: existingProduct.nonExpiringQuantity + 1,
+        category: existingProduct.category,
+        imageUrl: existingProduct.imageUrl,
+        barcode: existingProduct.barcode,
+        isGlobal: existingProduct.isGlobal,
+      );
+      await _productRepository.update(updatedProduct);
+      return ScanAddProductResult(
+        product: updatedProduct,
+        matchedExisting: true,
+      );
+    }
+
+    final newProduct = Product(
+      id: DateTime.now().millisecondsSinceEpoch,
+      name: normalizedBarcode,
+      description: 'Scanned barcode: $normalizedBarcode',
+      userId: userId,
+      nonExpiringQuantity: 1,
+      barcode: normalizedBarcode,
+    );
+    final addedProduct = await _productRepository.add(newProduct);
+    return ScanAddProductResult(product: addedProduct, matchedExisting: false);
+  }
+
   /// Fetches all products for a specific user
   /// Returns empty list if userId is null (no user logged in)
   Future<List<Product>> getProducts(String? userId) async {
@@ -85,4 +135,14 @@ class ProductService {
       rethrow;
     }
   }
+}
+
+class ScanAddProductResult {
+  final Product product;
+  final bool matchedExisting;
+
+  const ScanAddProductResult({
+    required this.product,
+    required this.matchedExisting,
+  });
 }

@@ -107,6 +107,7 @@ class Product {
   final int nonExpiringQuantity; // Quantity without expiration date
   final String? category; // Category (e.g., 'Dairy', 'Fruits', 'Vegetables')
   final String? imageUrl; // Optional image URL
+  final String? barcode; // Optional product barcode
   final bool isGlobal; // True if product is in global catalog
 
   Product({
@@ -118,6 +119,7 @@ class Product {
     this.nonExpiringQuantity = 0,
     this.category,
     this.imageUrl,
+    this.barcode,
     this.isGlobal = false,
   });
 
@@ -131,6 +133,7 @@ class Product {
       'nonExpiringQuantity': nonExpiringQuantity,
       'category': category,
       'imageUrl': imageUrl,
+      'barcode': barcode,
       'isGlobal': isGlobal,
     };
   }
@@ -166,6 +169,7 @@ class Product {
               : 0),
       category: json['category'] as String?,
       imageUrl: json['imageUrl'] as String?,
+      barcode: json['barcode'] as String?,
       isGlobal: json['isGlobal'] as bool? ?? false,
     );
   }

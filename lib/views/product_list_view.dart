@@ -10,6 +10,7 @@ import '../widgets/product/product_card_compact.dart';
 import '../widgets/product/product_card_normal.dart';
 import '../widgets/product/product_card_details.dart';
 import '../utils/view_mode_helper.dart';
+import 'barcode_scan_view.dart';
 import 'product_detail_view.dart';
 
 class ProductListView extends StatefulWidget {
@@ -272,14 +273,48 @@ class _ProductListViewState extends State<ProductListView> {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // TODO: Navigate to add product screen
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('product.addSoon'.tr())));
+        onPressed: () async {
+          final scannedBarcode = await Navigator.of(context).push<String>(
+            MaterialPageRoute(builder: (context) => const BarcodeScanView()),
+          );
+          if (!mounted || scannedBarcode == null || scannedBarcode.isEmpty) {
+            return;
+          }
+          final userId = _authService.getUserId();
+          if (userId == null) return;
+          try {
+            final result = await _productService.addOrIncrementByBarcode(
+              userId: userId,
+              barcode: scannedBarcode,
+            );
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  result.matchedExisting
+                      ? 'product.barcodeMatched'.tr(
+                          namedArgs: {'name': result.product.name},
+                        )
+                      : 'product.barcodeCreated'.tr(
+                          namedArgs: {'name': result.product.name},
+                        ),
+                ),
+              ),
+            );
+            await _refreshProducts();
+          } catch (e) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'product.barcodeAddError'.tr(namedArgs: {'error': '$e'}),
+                ),
+              ),
+            );
+          }
         },
-        icon: const Icon(Icons.add),
-        label: Text('product.add'.tr()),
+        icon: const Icon(Icons.qr_code_scanner),
+        label: Text('product.scanBarcode'.tr()),
       ),
     );
   }
