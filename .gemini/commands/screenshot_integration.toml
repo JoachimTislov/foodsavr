@@ -1,9 +1,0 @@
-description = "Integrates screenshot-based visual regression testing."
-prompt = """
-1. Capture a baseline of the current UI.
-2. Make UI changes or refactor existing widgets.
-3. Capture a new screenshot of the modified UI.
-4. Compare the new screenshot with the baseline to detect unintended changes.
-5. If changes are intentional, update the baseline.
-6. If changes are unintentional, fix the UI and repeat.
-"""

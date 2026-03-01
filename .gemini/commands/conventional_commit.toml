@@ -1,0 +1,8 @@
+description = "Prepares and proposes a conventional commit message based on staged or worktree changes."
+prompt = """
+1. Gather information about changes using 'git status && git diff HEAD && git log -n 3'.
+2. Use the 'commit' skill to identify the appropriate type, scope, and description for the changes.
+3. Propose a commit message in Conventional Commits format.
+4. If there are unstaged changes, 'git add' them first.
+5. Commit with the message.
+"""
