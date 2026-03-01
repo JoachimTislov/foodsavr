@@ -49,14 +49,6 @@ class ExpiringItemCard extends StatelessWidget {
                       fontSize: 14,
                     ),
                   ),
-                  if (onTap != null) ...[
-                    const SizedBox(width: 8),
-                    Icon(
-                      Icons.chevron_right,
-                      size: 20,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ],
                 ],
               ),
             ],

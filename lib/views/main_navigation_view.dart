@@ -35,6 +35,11 @@ class MainNavigationView extends StatelessWidget {
             selectedIcon: const Icon(Icons.shopping_cart),
             label: 'dashboard.shoppingList'.tr(),
           ),
+          NavigationDestination(
+            icon: const Icon(Icons.settings_outlined),
+            selectedIcon: const Icon(Icons.settings),
+            label: 'settings.title'.tr(),
+          ),
         ],
       ),
     );

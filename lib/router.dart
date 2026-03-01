@@ -97,6 +97,14 @@ GoRouter createAppRouter(IAuthService authService) {
               ),
             ],
           ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/settings',
+                builder: (context, state) => const SettingsView(),
+              ),
+            ],
+          ),
         ],
       ),
       GoRoute(
@@ -131,10 +139,6 @@ GoRouter createAppRouter(IAuthService authService) {
             toLocationId: extra['toLocationId'] ?? '',
           );
         },
-      ),
-      GoRoute(
-        path: '/settings',
-        builder: (context, state) => const SettingsView(),
       ),
       GoRoute(
         path: '/profile',

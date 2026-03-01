@@ -63,10 +63,6 @@ class _CollectionListViewState extends State<CollectionListView> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => context.go('/settings'),
-          ),
-          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => _authService.signOut(),
           ),

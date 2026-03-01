@@ -54,10 +54,6 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => context.go('/settings'),
-          ),
-          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => _authService.signOut(),
           ),

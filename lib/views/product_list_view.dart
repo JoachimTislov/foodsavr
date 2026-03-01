@@ -185,10 +185,6 @@ class _ProductListViewState extends State<ProductListView> {
             ],
           ),
           IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => context.go('/settings'),
-          ),
-          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _isSigningOut ? null : _handleSignOut,
           ),
