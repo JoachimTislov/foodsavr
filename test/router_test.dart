@@ -11,17 +11,25 @@ import 'package:mocktail/mocktail.dart';
 
 class _MockUser extends Mock implements User {}
 
+class _AnonymousUser extends Fake implements User {
+  @override
+  bool get isAnonymous => true;
+}
+
 class _FakeAuthService implements IAuthService {
   final _controller = StreamController<User?>.broadcast();
   String? _userId;
+  bool _isAnonymous = false;
 
-  void signInForTest(String userId) {
+  void signInForTest(String userId, {bool anonymous = false}) {
     _userId = userId;
+    _isAnonymous = anonymous;
     _controller.add(_MockUser());
   }
 
   void signOutForTest() {
     _userId = null;
+    _isAnonymous = false;
     _controller.add(null);
   }
 
@@ -29,7 +37,7 @@ class _FakeAuthService implements IAuthService {
   Stream<User?> get authStateChanges => _controller.stream;
 
   @override
-  User? get currentUser => null;
+  User? get currentUser => _isAnonymous ? _AnonymousUser() : null;
 
   @override
   String? getUserId() => _userId;
@@ -62,6 +70,11 @@ class _FakeAuthService implements IAuthService {
 
   @override
   Future<UserCredential> signInWithGoogle() {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<UserCredential> signInAsGuest() {
     throw UnimplementedError();
   }
 
@@ -125,6 +138,16 @@ void main() {
     test('router configuration includes all expected routes', () {
       final routes = router.configuration.routes;
       expect(routes.length, greaterThanOrEqualTo(2));
+    });
+
+    test('anonymous user can navigate to auth route to create account', () async {
+      authService.signInForTest('guest-1', anonymous: true);
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      router.go('/auth?mode=signup');
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      expect(router.routeInformationProvider.value.uri.path, '/auth');
     });
 
     test('getUserId returns null when not logged in', () {

@@ -109,6 +109,26 @@ void main() {
       ).called(1);
     });
 
+    test('signUp links credentials when current user is anonymous', () async {
+      final mockUser = MockUser();
+      when(() => mockFirebaseAuth.currentUser).thenReturn(mockUser);
+      when(() => mockUser.isAnonymous).thenReturn(true);
+      when(
+        () => mockUser.linkWithCredential(any()),
+      ).thenAnswer((_) async => mockUserCredential);
+
+      final result = await authService.signUp(email: email, password: password);
+
+      expect(result, mockUserCredential);
+      verify(() => mockUser.linkWithCredential(any())).called(1);
+      verifyNever(
+        () => mockFirebaseAuth.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        ),
+      );
+    });
+
     test('sendPasswordResetEmail calls FirebaseAuth', () async {
       when(
         () => mockFirebaseAuth.sendPasswordResetEmail(email: email),
@@ -187,6 +207,17 @@ void main() {
 
       verify(() => mockFirebaseAuth.signOut()).called(1);
     });
+
+    test('signInAsGuest calls signInAnonymously', () async {
+      when(
+        () => mockFirebaseAuth.signInAnonymously(),
+      ).thenAnswer((_) async => mockUserCredential);
+
+      final result = await authService.signInAsGuest();
+
+      expect(result, mockUserCredential);
+      verify(() => mockFirebaseAuth.signInAnonymously()).called(1);
+    });
   });
 }
 
@@ -206,5 +237,7 @@ class MockGoogleSignInAuthentication extends Mock
     implements GoogleSignInAuthentication {}
 
 class MockLoginResult extends Mock implements LoginResult {}
+
+class MockUser extends Mock implements User {}
 
 class MockUserCredential extends Mock implements UserCredential {}

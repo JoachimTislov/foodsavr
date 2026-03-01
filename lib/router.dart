@@ -37,6 +37,7 @@ GoRouter createAppRouter(IAuthService authService) {
       }
 
       final isLoggedIn = authService.getUserId() != null;
+      final isAnonymousUser = authService.currentUser?.isAnonymous ?? false;
       final isAuthRoute = state.uri.path == '/auth';
       final isLandingRoute = state.uri.path == '/';
 
@@ -46,7 +47,7 @@ GoRouter createAppRouter(IAuthService authService) {
         }
         return null;
       } else {
-        if (isLandingRoute || isAuthRoute) {
+        if (isLandingRoute || (isAuthRoute && !isAnonymousUser)) {
           return '/products';
         }
         return null;
