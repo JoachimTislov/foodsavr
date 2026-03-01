@@ -1,11 +1,10 @@
-import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import '../constants/product_categories.dart';
-import '../models/product_model.dart';
-import '../widgets/product/product_details_card.dart';
-import '../service_locator.dart';
-import '../services/collection_service.dart';
-import '../interfaces/i_auth_service.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:get_it/get_it.dart';
+import '../../models/product_model.dart';
+import '../../interfaces/i_auth_service.dart';
+import '../../services/collection_service.dart';
+import '../../widgets/product/product_details_card.dart';
 
 class ProductDetailView extends StatefulWidget {
   final Product product;
@@ -17,41 +16,46 @@ class ProductDetailView extends StatefulWidget {
 }
 
 class _ProductDetailViewState extends State<ProductDetailView> {
-  late final CollectionService _collectionService;
-  late final IAuthService _authService;
+  final _collectionService = GetIt.I<CollectionService>();
+  final _authService = GetIt.I<IAuthService>();
   List<String>? _inventoryNames;
-  bool _isLoadingInventories = false;
+  bool _isLoadingInventories = true;
 
   @override
   void initState() {
     super.initState();
-    _collectionService = getIt<CollectionService>();
-    _authService = getIt<IAuthService>();
     _loadInventories();
   }
 
   Future<void> _loadInventories() async {
-    final userId = _authService.getUserId();
-    if (userId == null) return;
-
-    setState(() => _isLoadingInventories = true);
     try {
+      final userId = _authService.getUserId();
+      if (userId == null) return;
+
       final inventories = await _collectionService.getInventoriesByProductId(
         userId,
         widget.product.id,
       );
+
       if (mounted) {
         setState(() {
-          _inventoryNames = inventories.map((c) => c.name).toList();
+          _inventoryNames = inventories.map((i) => i.name).toList();
           _isLoadingInventories = false;
         });
       }
-    } catch (e, stack) {
-      debugPrint('Failed to load inventories: $e\n$stack');
+    } catch (e) {
       if (mounted) {
-        setState(() => _isLoadingInventories = false);
+        setState(() {
+          _isLoadingInventories = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to load inventory info')),
+          SnackBar(
+            content: Text(
+              'product.inventoryLoadError'.tr(
+                namedArgs: {'error': e.toString()},
+              ),
+            ),
+          ),
         );
       }
     }
@@ -62,90 +66,48 @@ class _ProductDetailViewState extends State<ProductDetailView> {
     final product = widget.product;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-
-    // Get status from product model
     final status = product.status;
     final statusColor = status.getColor(colorScheme);
-    final statusMessage = status == ProductStatus.expired
-        ? 'This product has expired'
-        : 'This product expires soon';
     final statusIcon = status.getIcon();
+    final statusMessage = status.getMessage();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Product Details'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () {
-              // TODO: Navigate to edit screen
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete),
-            onPressed: () {
-              // TODO: Show delete confirmation
-            },
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Hero image section
-            Container(
-              width: double.infinity,
-              height: 200,
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
+      body: SafeArea(
+        top: false,
+        child: CustomScrollView(
+          slivers: [
+            SliverAppBar.large(
+              title: Text(product.name),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('product.editSoon'.tr())),
+                    );
+                  },
                 ),
-              ),
-              child: Center(
-                child: Icon(
-                  ProductCategory.getIcon(product.category),
-                  size: 100,
-                  color: colorScheme.onPrimaryContainer,
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('product.delete'.tr())),
+                    );
+                  },
                 ),
-              ),
+              ],
             ),
-            const SizedBox(height: 24),
-            // Content
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title and category
-                  Text(
-                    product.name,
-                    style: theme.textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
                   const SizedBox(height: 8),
-                  if (product.category != null)
-                    Chip(
-                      label: Text(product.category!),
-                      labelStyle: theme.textTheme.labelLarge,
-                      backgroundColor: colorScheme.secondaryContainer,
-                      avatar: Icon(
-                        ProductCategory.getIcon(product.category),
-                        size: 20,
-                        color: colorScheme.onSecondaryContainer,
-                      ),
-                    ),
-                  const SizedBox(height: 24),
-                  // Status banner
+                  // Expiration Highlight
                   Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(20),
                     margin: const EdgeInsets.only(bottom: 24),
                     decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.15),
+                      color: statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: statusColor.withValues(alpha: 0.5),
@@ -170,8 +132,19 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                               if (product.daysUntilExpiration != null)
                                 Text(
                                   product.daysUntilExpiration! < 0
-                                      ? 'Expired ${product.daysUntilExpiration!.abs()} days ago'
-                                      : '${product.daysUntilExpiration} days remaining',
+                                      ? 'product.status_expired_days_ago'.tr(
+                                          namedArgs: {
+                                            'days': product.daysUntilExpiration!
+                                                .abs()
+                                                .toString(),
+                                          },
+                                        )
+                                      : 'product.status_days_remaining'.tr(
+                                          namedArgs: {
+                                            'days': product.daysUntilExpiration
+                                                .toString(),
+                                          },
+                                        ),
                                   style: theme.textTheme.bodyMedium?.copyWith(
                                     color: statusColor,
                                   ),
@@ -184,7 +157,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                   ),
                   // Description section
                   Text(
-                    'Description',
+                    'product.description'.tr(),
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -232,7 +205,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                   const SizedBox(height: 32),
                   // Details section
                   Text(
-                    'Details',
+                    'product.details_section'.tr(),
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -240,7 +213,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                   const SizedBox(height: 16),
                   ProductDetailsCard(product: product),
                   const SizedBox(height: 32),
-                ],
+                ]),
               ),
             ),
           ],

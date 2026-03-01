@@ -69,7 +69,11 @@
     "cancel": "Cancel",
     "delete": "Delete",
     "from": "From",
-    "to": "To"
+    "to": "To",
+    "unknown": "Unknown",
+    "search": "Search",
+    "more_options": "More options",
+    "error_loading_data": "Error loading data"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -113,10 +117,33 @@
     "search_hint": "Search your pantry...",
     "available_stock": "AVAILABLE STOCK",
     "status": "Status",
+    "locations": "Locations",
     "deleteConfirmMessage": "Are you sure you want to delete \"{name}\"?",
     "deleted": "{name} deleted",
     "deleteError": "Error deleting product: {error}",
-    "inventoryLoadError": "Failed to load inventory info: {error}"
+    "inventoryLoadError": "Failed to load inventory info: {error}",
+    "status_expired": "Expired",
+    "status_today": "Today",
+    "status_days_remaining": "{days}d remaining",
+    "status_days": "{days} days",
+    "status_expired_days_ago": "Expired {days} days ago",
+    "status_expires_today": "Expires today",
+    "status_days_left": "{days}d left",
+    "status_compact_exp": "Exp",
+    "total_quantity": "Total Quantity",
+    "expirations": "Expirations",
+    "units": "units",
+    "global_product": "Global Product",
+    "type": "Type",
+    "status_fresh": "Fresh",
+    "status_expires_soon": "Expires Soon",
+    "description": "Description",
+    "details_section": "Details",
+    "soonest_expiration": "Soonest Expiration",
+    "days_until_soonest_expiry": "Days Until Soonest Expiry",
+    "expiration_breakdown": "Expiration Breakdown",
+    "personal_product": "Personal Product",
+    "na": "N/A"
   },
   "transfer": {
     "title": "Transfer Inventory",
@@ -136,7 +163,10 @@
     "addSoon": "Add collection feature coming soon!",
     "loadError": "Error loading inventories",
     "emptyTitle": "No inventories found",
-    "emptySubtitle": "Create your first inventory to get started"
+    "emptySubtitle": "Create your first inventory to get started",
+    "items_count": "{count} items",
+    "type_inventory": "Inventory",
+    "type_shopping": "Shopping"
   },
   "generated": {
     "100_42": "1.0.0 (42)",
