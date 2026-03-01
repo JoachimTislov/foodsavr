@@ -143,7 +143,9 @@ class _AuthViewState extends ConsumerState<AuthView> {
                         AuthSubmitButton(
                           isLogin: controller.isLogin,
                           isLoading: controller.isLoading,
-                          onPressed: controller.isLoading ? null : _authenticate,
+                          onPressed: controller.isLoading
+                              ? null
+                              : _authenticate,
                         ),
                       ],
                     ),

@@ -25,30 +25,33 @@ void main() {
     await getIt.reset();
   });
 
-  test('authControllerProvider authenticates via registered auth service', () async {
-    when(
-      () => authService.signIn(
+  test(
+    'authControllerProvider authenticates via registered auth service',
+    () async {
+      when(
+        () => authService.signIn(
+          email: 'user@example.com',
+          password: 'password123',
+          rememberMe: any(named: 'rememberMe'),
+        ),
+      ).thenAnswer((_) async => _MockUserCredential());
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final controller = container.read(authControllerProvider);
+
+      await controller.authenticate(
         email: 'user@example.com',
         password: 'password123',
-        rememberMe: any(named: 'rememberMe'),
-      ),
-    ).thenAnswer((_) async => _MockUserCredential());
+      );
 
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
-    final controller = container.read(authControllerProvider);
-
-    await controller.authenticate(
-      email: 'user@example.com',
-      password: 'password123',
-    );
-
-    verify(
-      () => authService.signIn(
-        email: 'user@example.com',
-        password: 'password123',
-        rememberMe: false,
-      ),
-    ).called(1);
-  });
+      verify(
+        () => authService.signIn(
+          email: 'user@example.com',
+          password: 'password123',
+          rememberMe: false,
+        ),
+      ).called(1);
+    },
+  );
 }

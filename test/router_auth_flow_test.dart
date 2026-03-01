@@ -167,6 +167,7 @@ void main() {
       authService = _FakeAuthService();
       router = createAppRouter(authService);
       getIt.registerLazySingleton<IAuthService>(() => authService);
+      getIt.registerLazySingleton<Logger>(() => Logger(level: Level.off));
       getIt.registerLazySingleton<ProductService>(
         () =>
             ProductService(_FakeProductRepository(), Logger(level: Level.off)),
