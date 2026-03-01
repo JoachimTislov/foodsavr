@@ -41,11 +41,6 @@ void main() async {
   final engine = WidgetsFlutterBinding.ensureInitialized();
   engine.performReassemble();
 
-  // Reset GetIt on full restart to avoid duplicate registration errors
-  if (getIt.isRegistered<Logger>()) {
-    await getIt.reset();
-  }
-
   final serviceLocator = ServiceLocator();
   await serviceLocator.registerDependencies();
 
@@ -69,9 +64,7 @@ void main() async {
   const enLocale = Locale('en', 'US');
   await EasyLocalization.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
-  if (!getIt.isRegistered<ThemeNotifier>()) {
-    getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
-  }
+  getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
   final router = createAppRouter(getIt<IAuthService>());
   runApp(
     EasyLocalization(
