@@ -7,7 +7,7 @@ priority = 100
 # Avoid -exec through find, which can be used to run arbitrary commands on files.
 [[rule]]
 toolName = "run_shell_command"
-commandPrefix = ["rm ", "find " "rg --g"]
+commandPrefix = ["rm ", "find ", "rg --g"]
 decision = "deny"
 priority = 999
 

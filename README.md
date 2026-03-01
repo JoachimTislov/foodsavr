@@ -57,7 +57,7 @@ unnecessary cloud costs and ensure a consistent environment.
 
 | Command | Description |
 | :--- | :--- |
-| `make dev-*` | Run in development mode (e.g., `dev-chrome`, `dev-android`). |
+| `make dev-<target>` | Run in development mode (e.g., `dev-chrome`, `dev-android`). |
 | `make clean` | Remove build artifacts and temporary files. |
 | `make check` | Perform fast validation (analyze, fix, format, and test). |
 | `make push` | Run full preflight checks and push to the remote repository. |

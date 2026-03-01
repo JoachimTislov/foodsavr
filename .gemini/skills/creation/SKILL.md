@@ -7,13 +7,13 @@ description: Use this skill when asked to implement new features
 
 Follow these instructions for implementing new features, widgets, and business logic
 
-1. **Follow 3-Tier Architecture:**
+1. **Follow 4-Tier Architecture:**
    - **UI Layer (`views/`, `widgets/`):** Create views and reusable widgets that delegate to services.
    - **Application Layer (`services/`):** Implement business logic and orchestrate use cases.
    - **Data Layer (`repositories/`, `models/`, `interfaces/`):** Define models, repository contracts, and Firestore implementations.
 
 2. **Define the Domain Model:**
-   - Create models in `lib/models/` using `toJson()` for Firestore serialization.
+   - Create models in `lib/models/` using `toJson()` and `fromJson()` for Firestore serialization.
    - Always run `make codegen` after modifying models.
 
 3. **Establish Repository Contracts:**

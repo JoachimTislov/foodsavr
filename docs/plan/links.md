@@ -12,7 +12,7 @@ This document provides a collection of external resources, documentation, and to
 ## Development and deployment
 
 - [Flutter: Build modes](https://docs.flutter.dev/testing/build-modes)
-- [GitHub: Copilot instructions](.github/copilot-instructions.md)
+- [GitHub: Copilot instructions](../../.github/copilot-instructions.md)
 - [Gemini Instructions](../../GEMINI.md)
 
 ## Gemini CLI and tools

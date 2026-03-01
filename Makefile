@@ -1,4 +1,4 @@
-.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test test-auth-flow clean locales check deps locale-check generate-di preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated
+.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps locale-check generate-di preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated
 
 dev-chrome-prod: deps
 	@flutter run -d chrome --no-pub --flavor production
@@ -111,7 +111,7 @@ push: deps preflight
 		echo "Upstream DI changes detected, running generate-di..."; \
 		$(MAKE) generate-di || { echo "generate-di failed, aborting push."; exit 1; }; \
 	fi
-	@$(MAKE) check-full
+	@$(MAKE) check
 	@if [ -n "$$(git status --short)" ]; then \
 		git add .; \
 		git commit -m "format with dart"; \

@@ -11,7 +11,7 @@ Currently, `foodsavr` leverages Firebase for rapid development and prototyping. 
 
 ## The Case for SQL (Supabase / PostgREST)
 
-As the application grows in complexity, particularly with the intricate relationships defined in our [Domain Architecture](../relations.md), a relational database becomes essential for long-term scalability and maintainability.
+As the application grows in complexity, particularly with the intricate relationships defined in our [Domain Architecture](./relations.md), a relational database becomes essential for long-term scalability and maintainability.
 
 ### 1. Complex Relationships and Data Integrity
 Our domain model (Users, Groups, Products, Inventory, Recipes, Meals, Shopping Lists) is inherently relational. 

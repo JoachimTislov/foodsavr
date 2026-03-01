@@ -34,11 +34,7 @@ This skill guides the creation of high-quality issues to track bugs, features, o
 
 5.  **Create Issue**: Use the `gh` CLI. To avoid shell escaping issues with multi-line Markdown, write the description to a temporary file first.
     ```bash
-    # 1. Write the drafted description to a temporary file
-    # 2. Create the issue using the --body-file flag
-    gh issue create --title "type: succinct description" --body-file <temp_file_path> --label "bug|feature|task"
-    # 3. Remove the temporary file
-    rm <temp_file_path>
+    gh issue create --title "type: succinct description" --body-file "<description>" --label "bug|feature|task"
     ```
 
 # Principles
