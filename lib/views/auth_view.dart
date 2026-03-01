@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/privacy_notice.dart';
 import '../constants/terms_of_service.dart';
 import '../features/auth/auth_providers.dart';
+import '../services/auth_controller.dart';
 import '../widgets/auth/auth_form_fields.dart';
 import '../widgets/auth/auth_header.dart';
 import '../widgets/auth/auth_status_messages.dart';
@@ -132,7 +133,7 @@ class _AuthViewState extends ConsumerState<AuthView> {
                             ),
                             const SizedBox(height: 16.0),
                             if (controller.isLogin)
-                              _buildLoginOptions()
+                              _buildLoginOptions(controller)
                             else
                               TermsAndPrivacyCheckbox(
                                 value: controller.agreedToTerms,
@@ -180,8 +181,7 @@ class _AuthViewState extends ConsumerState<AuthView> {
     );
   }
 
-  Widget _buildLoginOptions() {
-    final controller = ref.read(authControllerProvider);
+  Widget _buildLoginOptions(AuthController controller) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [

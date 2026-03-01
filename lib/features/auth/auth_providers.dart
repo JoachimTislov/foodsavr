@@ -6,5 +6,9 @@ import '../../service_locator.dart';
 import '../../services/auth_controller.dart';
 
 final authControllerProvider = ChangeNotifierProvider<AuthController>(
-  (ref) => AuthController(getIt<IAuthService>(), getIt<Logger>()),
+  (ref) => AuthController(
+    getIt<IAuthService>(),
+    getIt<Logger>(),
+    translate: (key) => key,
+  ),
 );
