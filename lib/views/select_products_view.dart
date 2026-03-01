@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:watch_it/watch_it.dart';
 
 import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
@@ -23,7 +24,8 @@ class SelectProductsView extends StatefulWidget {
   State<SelectProductsView> createState() => _SelectProductsViewState();
 }
 
-class _SelectProductsViewState extends State<SelectProductsView> {
+class _SelectProductsViewState extends State<SelectProductsView>
+    with WatchItStatefulWidgetMixin {
   late final ProductService _productService;
   late final IAuthService _authService;
   late final SelectProductsController _controller;
@@ -50,8 +52,10 @@ class _SelectProductsViewState extends State<SelectProductsView> {
 
   @override
   Widget build(BuildContext context) {
+    watch(_controller);
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final products = _controller.filteredProducts;
 
     return Scaffold(
       appBar: AppBar(
@@ -142,71 +146,62 @@ class _SelectProductsViewState extends State<SelectProductsView> {
 
           // Product list
           Expanded(
-            child: ListenableBuilder(
-              listenable: _controller,
-              builder: (context, _) {
-                final products = _controller.filteredProducts;
-                return ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: products.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final product = products[index];
-                    return ProductSelectItem(
-                      product: product,
-                      isSelected: _controller.isSelected(product.id),
-                      onToggle: () => _controller.toggleSelection(product.id),
-                    );
-                  },
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: products.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final product = products[index];
+                return ProductSelectItem(
+                  product: product,
+                  isSelected: _controller.isSelected(product.id),
+                  onToggle: () => _controller.toggleSelection(product.id),
                 );
               },
             ),
           ),
 
           // CTA
-          ListenableBuilder(
-            listenable: _controller,
-            builder: (context, _) => Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: colorScheme.surface,
-                border: Border(
-                  top: BorderSide(
-                    color: colorScheme.outlineVariant.withValues(alpha: 0.1),
-                  ),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              border: Border(
+                top: BorderSide(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.1),
                 ),
               ),
-              child: SafeArea(
-                child: ElevatedButton(
-                  onPressed: _controller.selectedCount > 0
-                      ? () => context.pop()
-                      : null,
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(56),
-                    backgroundColor: colorScheme.primary,
-                    foregroundColor: colorScheme.onPrimary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+            ),
+            child: SafeArea(
+              child: ElevatedButton(
+                onPressed: _controller.selectedCount > 0
+                    ? () => context.pop()
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(56),
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.swap_horiz),
-                      const SizedBox(width: 8),
-                      Text(
-                        'transfer.transfer_items'.tr(
-                          namedArgs: {
-                            'count': _controller.selectedCount.toString(),
-                          },
-                        ),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.swap_horiz),
+                    const SizedBox(width: 8),
+                    Text(
+                      'transfer.transfer_items'.tr(
+                        namedArgs: {
+                          'count': _controller.selectedCount.toString(),
+                        },
                       ),
-                    ],
-                  ),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

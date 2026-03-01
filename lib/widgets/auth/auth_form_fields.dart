@@ -1,5 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:watch_it/watch_it.dart';
 
 class AuthFormFields extends StatefulWidget {
   final TextEditingController emailController;
@@ -15,11 +16,19 @@ class AuthFormFields extends StatefulWidget {
   State<AuthFormFields> createState() => _AuthFormFieldsState();
 }
 
-class _AuthFormFieldsState extends State<AuthFormFields> {
-  bool _isPasswordVisible = false;
+class _AuthFormFieldsState extends State<AuthFormFields>
+    with WatchItStatefulWidgetMixin {
+  final _isPasswordVisible = ValueNotifier<bool>(false);
+
+  @override
+  void dispose() {
+    _isPasswordVisible.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isPasswordVisible = watch(_isPasswordVisible).value;
     return Column(
       children: [
         // Email Input
@@ -53,7 +62,7 @@ class _AuthFormFieldsState extends State<AuthFormFields> {
         // Password Input
         TextFormField(
           controller: widget.passwordController,
-          obscureText: !_isPasswordVisible,
+          obscureText: !isPasswordVisible,
           decoration: InputDecoration(
             labelText: 'auth.form.password.label'.tr(),
             hintText: 'auth.form.password.hint'.tr(),
@@ -70,12 +79,10 @@ class _AuthFormFieldsState extends State<AuthFormFields> {
             ),
             suffixIcon: IconButton(
               icon: Icon(
-                _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                isPasswordVisible ? Icons.visibility : Icons.visibility_off,
               ),
               onPressed: () {
-                setState(() {
-                  _isPasswordVisible = !_isPasswordVisible;
-                });
+                _isPasswordVisible.value = !isPasswordVisible;
               },
             ),
           ),

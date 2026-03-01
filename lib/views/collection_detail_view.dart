@@ -1,5 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:watch_it/watch_it.dart';
 
 import '../models/collection_model.dart';
 import '../models/product_model.dart';
@@ -24,8 +25,9 @@ class CollectionDetailView extends StatefulWidget {
   State<CollectionDetailView> createState() => _CollectionDetailViewState();
 }
 
-class _CollectionDetailViewState extends State<CollectionDetailView> {
-  late Future<List<Product>> _productsFuture;
+class _CollectionDetailViewState extends State<CollectionDetailView>
+    with WatchItStatefulWidgetMixin {
+  late final ValueNotifier<Future<List<Product>>> _productsFuture;
   late final ProductService _productService;
   late final IAuthService _authService;
 
@@ -34,19 +36,23 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     super.initState();
     _productService = getIt<ProductService>();
     _authService = getIt<IAuthService>();
-    _productsFuture = _fetchProducts();
+    _productsFuture = ValueNotifier<Future<List<Product>>>(_fetchProducts());
+  }
+
+  @override
+  void dispose() {
+    _productsFuture.dispose();
+    super.dispose();
   }
 
   void _refreshProducts() {
-    setState(() {
-      _productsFuture = _fetchProducts();
-    });
+    _productsFuture.value = _fetchProducts();
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final productsFuture = watch(_productsFuture).value;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -63,7 +69,9 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CollectionHeader(collection: widget.collection),
-          Expanded(child: _buildProductsList(theme, colorScheme)),
+          Expanded(
+            child: _buildProductsList(productsFuture),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -91,9 +99,9 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     );
   }
 
-  Widget _buildProductsList(ThemeData theme, ColorScheme colorScheme) {
+  Widget _buildProductsList(Future<List<Product>> productsFuture) {
     return FutureBuilder<List<Product>>(
-      future: _productsFuture,
+      future: productsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());

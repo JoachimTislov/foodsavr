@@ -50,6 +50,7 @@ dependencies:
   injectable: ^2.7.1+4
   vector_graphics: ^1.1.19
   shared_preferences: ^2.3.0
+  watch_it: ^2.2.0
 
 dev_dependencies:
   flutter_test:

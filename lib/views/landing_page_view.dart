@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:watch_it/watch_it.dart';
 import '../service_locator.dart';
 import '../services/auth_controller.dart';
 import '../widgets/auth/social_auth_section.dart';
@@ -12,7 +13,8 @@ class LandingPageView extends StatefulWidget {
   State<LandingPageView> createState() => _LandingPageViewState();
 }
 
-class _LandingPageViewState extends State<LandingPageView> {
+class _LandingPageViewState extends State<LandingPageView>
+    with WatchItStatefulWidgetMixin {
   late final AuthController _controller;
 
   @override
@@ -23,6 +25,7 @@ class _LandingPageViewState extends State<LandingPageView> {
 
   @override
   Widget build(BuildContext context) {
+    watch(_controller);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
@@ -34,13 +37,10 @@ class _LandingPageViewState extends State<LandingPageView> {
             padding: const EdgeInsets.all(24.0),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 400),
-              child: ListenableBuilder(
-                listenable: _controller,
-                builder: (context, _) {
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
                       // Header Section
                       Container(
                         width: 80,
@@ -154,9 +154,7 @@ class _LandingPageViewState extends State<LandingPageView> {
                           ),
                         ],
                       ),
-                    ],
-                  );
-                },
+                ],
               ),
             ),
           ),

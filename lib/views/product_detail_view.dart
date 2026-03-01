@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:watch_it/watch_it.dart';
 
 import 'product_form_view.dart';
 import '../constants/product_categories.dart';
@@ -20,13 +21,14 @@ class ProductDetailView extends StatefulWidget {
   State<ProductDetailView> createState() => _ProductDetailViewState();
 }
 
-class _ProductDetailViewState extends State<ProductDetailView> {
+class _ProductDetailViewState extends State<ProductDetailView>
+    with WatchItStatefulWidgetMixin {
   late final CollectionService _collectionService;
   late final ProductService _productService;
   late final IAuthService _authService;
-  List<String>? _inventoryNames;
-  bool _isLoadingInventories = false;
-  late Product _currentProduct;
+  final _inventoryNames = ValueNotifier<List<String>?>(null);
+  final _isLoadingInventories = ValueNotifier<bool>(false);
+  late final ValueNotifier<Product> _currentProduct;
 
   @override
   void initState() {
@@ -34,30 +36,36 @@ class _ProductDetailViewState extends State<ProductDetailView> {
     _collectionService = getIt<CollectionService>();
     _productService = getIt<ProductService>();
     _authService = getIt<IAuthService>();
-    _currentProduct = widget.product;
+    _currentProduct = ValueNotifier<Product>(widget.product);
     _loadInventories();
+  }
+
+  @override
+  void dispose() {
+    _inventoryNames.dispose();
+    _isLoadingInventories.dispose();
+    _currentProduct.dispose();
+    super.dispose();
   }
 
   Future<void> _loadInventories() async {
     final userId = _authService.getUserId();
     if (userId == null) return;
 
-    setState(() => _isLoadingInventories = true);
+    _isLoadingInventories.value = true;
     try {
       final inventories = await _collectionService.getInventoriesByProductId(
         userId,
-        _currentProduct.id,
+        _currentProduct.value.id,
       );
       if (mounted) {
-        setState(() {
-          _inventoryNames = inventories.map((c) => c.name).toList();
-          _isLoadingInventories = false;
-        });
+        _inventoryNames.value = inventories.map((c) => c.name).toList();
+        _isLoadingInventories.value = false;
       }
     } catch (e, stack) {
       debugPrint('Failed to load inventories: $e\n$stack');
       if (mounted) {
-        setState(() => _isLoadingInventories = false);
+        _isLoadingInventories.value = false;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -71,7 +79,9 @@ class _ProductDetailViewState extends State<ProductDetailView> {
 
   @override
   Widget build(BuildContext context) {
-    final product = _currentProduct;
+    final product = watch(_currentProduct).value;
+    final isLoadingInventories = watch(_isLoadingInventories).value;
+    final inventoryNames = watch(_inventoryNames).value;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -129,15 +139,13 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                         onPressed: () async {
                           final result = await ProductFormView.show(
                             context,
-                            product: _currentProduct,
+                            product: _currentProduct.value,
                           );
                           if (result == true && mounted) {
                             final updatedProduct = await _productService
-                                .getProductById(_currentProduct.id);
+                                .getProductById(_currentProduct.value.id);
                             if (updatedProduct != null) {
-                              setState(() {
-                                _currentProduct = updatedProduct;
-                              });
+                              _currentProduct.value = updatedProduct;
                               _loadInventories();
                             }
                           }
@@ -230,13 +238,13 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                       height: 1.5,
                     ),
                   ),
-                  if (_isLoadingInventories)
+                  if (isLoadingInventories)
                     const Padding(
                       padding: EdgeInsets.only(top: 12),
                       child: LinearProgressIndicator(),
                     )
-                  else if (_inventoryNames != null &&
-                      _inventoryNames!.isNotEmpty) ...[
+                  else if (inventoryNames != null &&
+                      inventoryNames.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -250,7 +258,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                           child: Text(
                             'product.availableIn'.tr(
                               namedArgs: {
-                                'inventories': _inventoryNames!.join(', '),
+                                'inventories': inventoryNames.join(', '),
                               },
                             ),
                             style: theme.textTheme.bodySmall?.copyWith(

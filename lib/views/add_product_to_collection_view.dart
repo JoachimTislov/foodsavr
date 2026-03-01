@@ -1,5 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:watch_it/watch_it.dart';
 
 import '../interfaces/i_auth_service.dart';
 import '../models/product_model.dart';
@@ -53,13 +54,14 @@ class _AddProductSheet extends StatefulWidget {
   State<_AddProductSheet> createState() => _AddProductSheetState();
 }
 
-class _AddProductSheetState extends State<_AddProductSheet> {
+class _AddProductSheetState extends State<_AddProductSheet>
+    with WatchItStatefulWidgetMixin {
   late final ProductService _productService;
   late final CollectionService _collectionService;
   late final IAuthService _authService;
-  late Future<List<Product>> _productsFuture;
-  final Set<int> _selectedIds = {};
-  bool _isSaving = false;
+  late final ValueNotifier<Future<List<Product>>> _productsFuture;
+  final _selectedIds = ValueNotifier<Set<int>>(<int>{});
+  final _isSaving = ValueNotifier<bool>(false);
 
   @override
   void initState() {
@@ -67,7 +69,15 @@ class _AddProductSheetState extends State<_AddProductSheet> {
     _productService = getIt<ProductService>();
     _collectionService = getIt<CollectionService>();
     _authService = getIt<IAuthService>();
-    _productsFuture = _loadProducts();
+    _productsFuture = ValueNotifier<Future<List<Product>>>(_loadProducts());
+  }
+
+  @override
+  void dispose() {
+    _productsFuture.dispose();
+    _selectedIds.dispose();
+    _isSaving.dispose();
+    super.dispose();
   }
 
   Future<List<Product>> _loadProducts() async {
@@ -82,12 +92,12 @@ class _AddProductSheetState extends State<_AddProductSheet> {
   }
 
   Future<void> _addSelected() async {
-    if (_selectedIds.isEmpty) return;
-    setState(() => _isSaving = true);
+    if (_selectedIds.value.isEmpty) return;
+    _isSaving.value = true;
     try {
       await _collectionService.addProductsToCollection(
         widget.collectionId,
-        _selectedIds.toList(),
+        _selectedIds.value.toList(),
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
@@ -97,12 +107,15 @@ class _AddProductSheetState extends State<_AddProductSheet> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isSaving = false);
+      if (mounted) _isSaving.value = false;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final productsFuture = watch(_productsFuture).value;
+    final selectedIds = watch(_selectedIds).value;
+    final isSaving = watch(_isSaving).value;
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
@@ -118,7 +131,7 @@ class _AddProductSheetState extends State<_AddProductSheet> {
         const Divider(),
         Expanded(
           child: FutureBuilder<List<Product>>(
-            future: _productsFuture,
+            future: productsFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -157,16 +170,16 @@ class _AddProductSheetState extends State<_AddProductSheet> {
                 itemCount: products.length,
                 itemBuilder: (context, index) {
                   final product = products[index];
-                  final isSelected = _selectedIds.contains(product.id);
+                  final isSelected = selectedIds.contains(product.id);
                   return ListTile(
                     onTap: () {
-                      setState(() {
-                        if (isSelected) {
-                          _selectedIds.remove(product.id);
-                        } else {
-                          _selectedIds.add(product.id);
-                        }
-                      });
+                      final updated = Set<int>.from(selectedIds);
+                      if (isSelected) {
+                        updated.remove(product.id);
+                      } else {
+                        updated.add(product.id);
+                      }
+                      _selectedIds.value = updated;
                     },
                     leading: Icon(
                       isSelected ? Icons.check_circle : Icons.circle_outlined,
@@ -188,10 +201,10 @@ class _AddProductSheetState extends State<_AddProductSheet> {
           child: SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: _selectedIds.isEmpty || _isSaving
+              onPressed: selectedIds.isEmpty || isSaving
                   ? null
                   : _addSelected,
-              child: _isSaving
+              child: isSaving
                   ? const SizedBox(
                       width: 20,
                       height: 20,
