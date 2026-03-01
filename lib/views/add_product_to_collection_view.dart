@@ -111,38 +111,10 @@ class _AddProductSheetState extends State<_AddProductSheet> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 16, 0),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'product.select'.tr(),
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              if (_isSaving)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-              else
-                TextButton(
-                  onPressed: _selectedIds.isEmpty ? null : _addSelected,
-                  child: Text(
-                    'common.add'.tr(),
-                    style: TextStyle(
-                      color: _selectedIds.isEmpty ? null : colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-            ],
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+          child: Text(
+            'product.select'.tr(),
+            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
         ),
         const Divider(),
@@ -210,6 +182,25 @@ class _AddProductSheetState extends State<_AddProductSheet> {
                 },
               );
             },
+          ),
+        ),
+        const Divider(height: 1),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _selectedIds.isEmpty || _isSaving
+                  ? null
+                  : _addSelected,
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text('common.add'.tr()),
+            ),
           ),
         ),
       ],

@@ -155,28 +155,10 @@ class _ProductFormContentState extends State<_ProductFormContent> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 16, 0),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  widget.product == null
-                      ? 'product.add'.tr()
-                      : 'product.edit'.tr(),
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              if (_isSaving)
-                const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                IconButton(icon: const Icon(Icons.check), onPressed: _save),
-            ],
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+          child: Text(
+            widget.product == null ? 'product.add'.tr() : 'product.edit'.tr(),
+            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
         ),
         const Divider(),
@@ -184,7 +166,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
           child: Form(
             key: _formKey,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
               shrinkWrap: true,
               children: [
                 TextFormField(
@@ -239,6 +221,23 @@ class _ProductFormContentState extends State<_ProductFormContent> {
                   onRemove: (idx) => setState(() => _expiries.removeAt(idx)),
                 ),
               ],
+            ),
+          ),
+        ),
+        const Divider(height: 1),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _isSaving ? null : _save,
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text('common.save'.tr()),
             ),
           ),
         ),
