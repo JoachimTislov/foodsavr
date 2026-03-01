@@ -37,6 +37,12 @@ priority = 200
 
 [[rule]]
 toolName = "run_shell_command"
+commandRegex = "git rebase --continue"
+decision = "allow"
+priority = 201
+
+[[rule]]
+toolName = "run_shell_command"
 commandRegex = "gh (pr|issue)"
 decision = "allow"
 priority = 200
