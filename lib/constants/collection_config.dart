@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../utils/collection_types.dart';
 
 /// Collection type configuration
@@ -19,13 +20,13 @@ class CollectionConfig {
   static final List<CollectionConfig> all = [
     CollectionConfig(
       type: CollectionType.inventory,
-      label: 'Inventory',
+      label: 'collection.type_inventory'.tr(),
       icon: Icons.inventory_2,
       colorGetter: (cs) => cs.primaryContainer,
     ),
     CollectionConfig(
       type: CollectionType.shoppingList,
-      label: 'Shopping',
+      label: 'collection.type_shopping'.tr(),
       icon: Icons.shopping_cart,
       colorGetter: (cs) => cs.tertiaryContainer,
     ),
@@ -47,7 +48,7 @@ class CollectionConfig {
 
   /// Get label for collection type
   static String getLabel(CollectionType type) {
-    return getConfig(type)?.label ?? 'Unknown';
+    return getConfig(type)?.label ?? 'common.unknown'.tr();
   }
 
   /// Get color for collection type

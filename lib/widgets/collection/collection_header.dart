@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../../constants/collection_config.dart';
 import '../../models/collection_model.dart';
 
@@ -74,7 +75,11 @@ class CollectionHeader extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  '${collection.productIds.length} items',
+                  'collection.items_count'.tr(
+                    namedArgs: {
+                      'count': collection.productIds.length.toString(),
+                    },
+                  ),
                   style: theme.textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.w600,
                     color: colorScheme.primary,

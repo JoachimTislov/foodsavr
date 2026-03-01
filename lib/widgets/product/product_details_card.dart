@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../../models/product_model.dart';
 import 'product_detail_item.dart';
 
@@ -26,27 +26,37 @@ class ProductDetailsCard extends StatelessWidget {
         children: [
           ProductDetailItem(
             icon: Icons.inventory_2_outlined,
-            label: 'Total Quantity',
+            label: 'product.total_quantity'.tr(),
             value: '${product.quantity}',
           ),
           const SizedBox(height: 20),
           if (product.soonestExpirationDate != null) ...[
             ProductDetailItem(
               icon: Icons.calendar_today,
-              label: 'Soonest Expiration',
+              label: 'product.soonest_expiration'.tr(),
               value: DateFormat.yMMMMd().format(product.soonestExpirationDate!),
             ),
             const SizedBox(height: 20),
             ProductDetailItem(
               icon: Icons.timelapse,
-              label: 'Days Until Soonest Expiry',
+              label: 'product.days_until_soonest_expiry'.tr(),
               value: product.daysUntilExpiration != null
                   ? product.daysUntilExpiration! < 0
-                        ? 'Expired ${product.daysUntilExpiration!.abs()} days ago'
+                        ? 'product.status_expired_days_ago'.tr(
+                            namedArgs: {
+                              'days': product.daysUntilExpiration!
+                                  .abs()
+                                  .toString(),
+                            },
+                          )
                         : product.daysUntilExpiration! == 0
-                        ? 'Today'
-                        : '${product.daysUntilExpiration} days'
-                  : 'N/A',
+                        ? 'product.status_today'.tr()
+                        : 'product.status_days'.tr(
+                            namedArgs: {
+                              'days': product.daysUntilExpiration.toString(),
+                            },
+                          )
+                  : 'product.na'.tr(),
             ),
             const SizedBox(height: 20),
           ],
@@ -54,7 +64,7 @@ class ProductDetailsCard extends StatelessWidget {
             const Divider(),
             const SizedBox(height: 8),
             Text(
-              'Expiration Breakdown',
+              'product.expiration_breakdown'.tr(),
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -66,7 +76,7 @@ class ProductDetailsCard extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('${entry.quantity} units'),
+                    Text('${entry.quantity} ${'product.units'.tr()}'),
                     Text(
                       DateFormat.yMMMd().format(entry.expirationDate),
                       style: TextStyle(
@@ -90,8 +100,10 @@ class ProductDetailsCard extends StatelessWidget {
           ],
           ProductDetailItem(
             icon: product.isGlobal ? Icons.public : Icons.person,
-            label: 'Type',
-            value: product.isGlobal ? 'Global Product' : 'Personal Product',
+            label: 'product.type'.tr(),
+            value: product.isGlobal
+                ? 'product.global_product'.tr()
+                : 'product.personal_product'.tr(),
           ),
         ],
       ),

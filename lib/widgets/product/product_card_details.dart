@@ -1,201 +1,105 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import '../../constants/product_categories.dart';
 import '../../models/product_model.dart';
 
 class ProductCardDetails extends StatelessWidget {
   final Product product;
   final VoidCallback? onTap;
+  final List<String>? inventoryNames;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
-  final List<String>? inventoryNames;
 
   const ProductCardDetails({
     super.key,
     required this.product,
     this.onTap,
+    this.inventoryNames,
     this.onEdit,
     this.onDelete,
-    this.inventoryNames,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-
-    // Get status from product model
     final status = product.status;
     final statusColor = status.getColor(colorScheme);
-    final statusMessage = product.getFriendlyStatus();
     final statusIcon = status.getIcon();
-
-    final daysLeft = product.daysUntilExpiration;
     final friendlyStatus = product.getFriendlyStatus();
+    final daysLeft = product.daysUntilExpiration;
 
     return Card(
-      elevation: 2,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      elevation: 0,
       color: colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
       child: InkWell(
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header with image and title
+              // Product Header
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Product icon/image
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: colorScheme.shadow.withValues(alpha: 0.1),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      ProductCategory.getIcon(product.category),
-                      size: 40,
-                      color: colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Title and category
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                product.name,
-                                style: theme.textTheme.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            if (statusColor != colorScheme.primary) ...[
-                              const SizedBox(width: 8),
-                              Tooltip(
-                                message: statusMessage,
-                                child: Icon(
-                                  statusIcon,
-                                  color: statusColor,
-                                  size: 24,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        if (product.category != null)
-                          Chip(
-                            label: Text(product.category!),
-                            labelStyle: theme.textTheme.labelMedium,
-                            backgroundColor: colorScheme.secondaryContainer,
-                            padding: EdgeInsets.zero,
-                            visualDensity: VisualDensity.compact,
+                        Text(
+                          product.name,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSurface,
                           ),
+                        ),
+                        if (product.description.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            product.description,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                  // Action buttons
                   if (onEdit != null || onDelete != null)
-                    PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_vert),
-                      onSelected: (value) {
-                        if (value == 'edit' && onEdit != null) {
-                          onEdit!();
-                        } else if (value == 'delete' && onDelete != null) {
-                          onDelete!();
-                        }
-                      },
-                      itemBuilder: (context) => [
+                    Row(
+                      children: [
                         if (onEdit != null)
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: Row(
-                              children: [
-                                Icon(Icons.edit),
-                                SizedBox(width: 8),
-                                Text('Edit'),
-                              ],
-                            ),
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined, size: 20),
+                            onPressed: onEdit,
+                            visualDensity: VisualDensity.compact,
                           ),
                         if (onDelete != null)
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Row(
-                              children: [
-                                Icon(Icons.delete),
-                                SizedBox(width: 8),
-                                Text('Delete'),
-                              ],
-                            ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 20),
+                            onPressed: onDelete,
+                            color: colorScheme.error,
+                            visualDensity: VisualDensity.compact,
                           ),
                       ],
                     ),
                 ],
               ),
-              const SizedBox(height: 16),
-              // Description
-              Text(
-                product.description,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              if (inventoryNames != null && inventoryNames!.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.inventory_2_outlined,
-                      size: 16,
-                      color: colorScheme.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'product.availableIn'.tr(
-                          namedArgs: {
-                            'inventories': inventoryNames!.join(', '),
-                          },
-                        ),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
               const SizedBox(height: 20),
-              // Status banner (Optional - TODO suggested omitting but let's keep it if it has multiple entries)
-              if (product.expiries.isNotEmpty)
+              // Status highlight
+              if (daysLeft != null || product.isExpired)
                 Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(16),
+                  margin: const EdgeInsets.only(bottom: 20),
                   decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.15),
+                    color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: statusColor.withValues(alpha: 0.5),
-                      width: 1,
+                      color: statusColor.withValues(alpha: 0.2),
                     ),
                   ),
                   child: Row(
@@ -216,10 +120,18 @@ class ProductCardDetails extends StatelessWidget {
                             if (daysLeft != null)
                               Text(
                                 daysLeft < 0
-                                    ? 'Expired ${daysLeft.abs()}d ago'
+                                    ? 'product.status_expired_days_ago'.tr(
+                                        namedArgs: {
+                                          'days': daysLeft.abs().toString(),
+                                        },
+                                      )
                                     : daysLeft == 0
-                                    ? 'Expires today'
-                                    : '${daysLeft}d remaining',
+                                    ? 'product.status_expires_today'.tr()
+                                    : 'product.status_days_remaining'.tr(
+                                        namedArgs: {
+                                          'days': daysLeft.toString(),
+                                        },
+                                      ),
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: statusColor,
                                 ),
@@ -255,13 +167,22 @@ class ProductCardDetails extends StatelessWidget {
           _buildDetailRow(
             context,
             icon: Icons.inventory_2_outlined,
-            label: 'Total Quantity',
+            label: 'product.total_quantity'.tr(),
             value: '${product.quantity}',
           ),
+          if (inventoryNames != null && inventoryNames!.isNotEmpty) ...[
+            const Divider(height: 24),
+            _buildDetailRow(
+              context,
+              icon: Icons.location_on_outlined,
+              label: 'product.locations'.tr(),
+              value: inventoryNames!.join(', '),
+            ),
+          ],
           if (product.expiries.isNotEmpty) ...[
             const Divider(height: 24),
             Text(
-              'Expirations',
+              'product.expirations'.tr(),
               style: theme.textTheme.labelMedium?.copyWith(
                 color: colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.bold,
@@ -276,10 +197,10 @@ class ProductCardDetails extends StatelessWidget {
               String expiryText;
               Color textColor = colorScheme.onSurface;
               if (isEntryExpired) {
-                expiryText = 'Expired';
+                expiryText = 'product.status_expired'.tr();
                 textColor = colorScheme.error;
               } else if (isEntryToday) {
-                expiryText = 'Today';
+                expiryText = 'product.status_today'.tr();
                 textColor = colorScheme.tertiary;
               } else {
                 expiryText = DateFormat.yMMMd().format(entry.expirationDate);
@@ -292,7 +213,7 @@ class ProductCardDetails extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '${entry.quantity} units',
+                      '${entry.quantity} ${'product.units'.tr()}',
                       style: theme.textTheme.bodyMedium,
                     ),
                     Text(
@@ -314,8 +235,8 @@ class ProductCardDetails extends StatelessWidget {
             _buildDetailRow(
               context,
               icon: Icons.public,
-              label: 'Type',
-              value: 'Global Product',
+              label: 'product.type'.tr(),
+              value: 'product.global_product'.tr(),
             ),
           ],
         ],

@@ -71,7 +71,7 @@ class ProductCardCompact extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  '×${product.quantity}',
+                  'x${product.quantity}',
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: colorScheme.onSecondaryContainer,
                     fontWeight: FontWeight.w600,
