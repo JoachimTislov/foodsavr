@@ -72,6 +72,13 @@ class CollectionRepository implements ICollectionRepository {
   }
 
   @override
+  Future<void> addProducts(String collectionId, List<int> productIds) async {
+    if (productIds.isEmpty) return;
+    final docRef = _firestore.collection(_collectionName).doc(collectionId);
+    await docRef.update({'productIds': FieldValue.arrayUnion(productIds)});
+  }
+
+  @override
   Future<void> removeProduct(String collectionId, int productId) async {
     final docRef = _firestore.collection(_collectionName).doc(collectionId);
     await docRef.update({

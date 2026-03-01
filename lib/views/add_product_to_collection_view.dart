@@ -85,12 +85,10 @@ class _AddProductSheetState extends State<_AddProductSheet> {
     if (_selectedIds.isEmpty) return;
     setState(() => _isSaving = true);
     try {
-      for (final productId in _selectedIds) {
-        await _collectionService.addProductToCollection(
-          widget.collectionId,
-          productId,
-        );
-      }
+      await _collectionService.addProductsToCollection(
+        widget.collectionId,
+        _selectedIds.toList(),
+      );
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {

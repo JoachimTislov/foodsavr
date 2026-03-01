@@ -158,6 +158,23 @@ class CollectionService {
     }
   }
 
+  /// Add multiple products to a collection in a single atomic operation.
+  Future<void> addProductsToCollection(
+    String collectionId,
+    List<int> productIds,
+  ) async {
+    _logger.i(
+      'Adding ${productIds.length} products to collection $collectionId',
+    );
+    try {
+      await _collectionRepository.addProducts(collectionId, productIds);
+      _logger.i('Successfully added products to collection');
+    } catch (e) {
+      _logger.e('Error adding products to collection: $e');
+      rethrow;
+    }
+  }
+
   /// Remove a product from a collection (update productIds list)
   Future<void> removeProductFromCollection(
     String collectionId,

@@ -237,7 +237,11 @@ class _ProductFormContentState extends State<_ProductFormContent> {
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Text(widget.product == null ? 'common.create'.tr() : 'common.save'.tr())
+                  : Text(
+                      widget.product == null
+                          ? 'common.create'.tr()
+                          : 'common.save'.tr(),
+                    ),
             ),
           ),
         ),

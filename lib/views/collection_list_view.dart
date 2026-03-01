@@ -119,6 +119,7 @@ class _CollectionListViewState extends State<CollectionListView> {
                         context,
                         type: widget.typeFilter ?? CollectionType.inventory,
                       );
+                      if (!mounted) return;
                       if (result == true) {
                         _refreshCollections();
                       }
@@ -159,6 +160,7 @@ class _CollectionListViewState extends State<CollectionListView> {
             context,
             type: widget.typeFilter ?? CollectionType.inventory,
           );
+          if (!mounted) return;
           if (result == true) {
             _refreshCollections();
           }

@@ -46,6 +46,9 @@ class _FakeCollectionRepository implements ICollectionRepository {
   Future<void> addProduct(String collectionId, int productId) async {}
 
   @override
+  Future<void> addProducts(String collectionId, List<int> productIds) async {}
+
+  @override
   Future<void> removeProduct(String collectionId, int productId) async {}
 }
 
