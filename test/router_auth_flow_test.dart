@@ -5,11 +5,11 @@ import 'dart:async';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/router.dart';
 import 'package:foodsavr/service_locator.dart';
-import 'package:foodsavr/services/auth_controller.dart';
 import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/interfaces/i_product_repository.dart';
 import 'package:foodsavr/interfaces/i_collection_repository.dart'; // Explicitly import ICollectionRepository
@@ -137,11 +137,13 @@ class _TestApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      localizationsDelegates: context.localizationDelegates,
-      supportedLocales: context.supportedLocales,
-      locale: context.locale,
-      routerConfig: router,
+    return ProviderScope(
+      child: MaterialApp.router(
+        localizationsDelegates: context.localizationDelegates,
+        supportedLocales: context.supportedLocales,
+        locale: context.locale,
+        routerConfig: router,
+      ),
     );
   }
 }
@@ -173,13 +175,6 @@ void main() {
         () => CollectionService(
           _FakeCollectionRepository(),
           Logger(level: Level.off),
-        ),
-      );
-      getIt.registerFactory<AuthController>(
-        () => AuthController(
-          getIt<IAuthService>(),
-          Logger(level: Level.off),
-          translate: (String key) => key,
         ),
       );
     });

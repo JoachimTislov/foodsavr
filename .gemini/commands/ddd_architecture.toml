@@ -5,4 +5,5 @@ prompt = """
 3. Design Aggregate Roots to maintain consistency boundaries within contexts.
 4. Implement Domain Events to communicate changes across aggregates or contexts.
 5. Ensure the domain layer remains independent of infrastructure and UI concerns.
+6. Use Riverpod providers as the default state boundary between UI and application/domain logic.
 """

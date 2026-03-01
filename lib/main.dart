@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -66,19 +67,21 @@ void main() async {
   getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
   final router = createAppRouter(getIt<IAuthService>());
   runApp(
-    EasyLocalization(
-      supportedLocales: const [enLocale, Locale('nb', 'NO')],
-      path: 'assets/translations',
-      fallbackLocale: enLocale,
-      child: MyApp(router: router),
+    ProviderScope(
+      child: EasyLocalization(
+        supportedLocales: const [enLocale, Locale('nb', 'NO')],
+        path: 'assets/translations',
+        fallbackLocale: enLocale,
+        child: MainApp(router: router),
+      ),
     ),
   );
 }
 
-class MyApp extends StatelessWidget {
+class MainApp extends StatelessWidget {
   final RouterConfig<Object> router;
 
-  const MyApp({super.key, required this.router});
+  const MainApp({super.key, required this.router});
 
   @override
   Widget build(BuildContext context) {

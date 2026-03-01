@@ -20,6 +20,7 @@ Look into
 
 - [x] injectable
 - [x] injectable_generator
+- [x] flutter_riverpod
 
 ## Testing Checklist (after #3)
 - [x] Test with Firebase emulator running

@@ -58,14 +58,15 @@ Building a seamless and intuitive food management app involves several technical
 - **Frontend:** Flutter (Dart) for cross-platform mobile and web support.
 - **Backend:** Firebase services for authentication, serverless compute, and data storage.
 - **Database:** Cloud Firestore (NoSQL) for flexible, real-time data management.
-- **Dependency injection:** `GetIt` and `injectable` for clean, testable logic.
+- **State management:** `flutter_riverpod` for UI/application state composition.
+- **Dependency injection:** `GetIt` and `injectable` for infrastructure wiring and service registration.
 - **Localization:** `easy_localization` for multi-language support.
 
 ### Layered architecture
 
 The project follows a strict separation of concerns through these layers:
 
-1.  **UI (views/ and widgets/):** Handles screen rendering and user interaction. Inject services via `getIt<Service>()`.
+1.  **UI (views/ and widgets/):** Handles screen rendering and user interaction. Consume app state via Riverpod providers (`ProviderScope`, `ref.watch`).
 2.  **Service (services/):** Orchestrates business logic and validation. Depends on repository interfaces.
 3.  **Data (interfaces/ and repositories/):** Manages data persistence and retrieval through defined contracts.
 4.  **Domain (models/):** Contains plain data classes with serialization logic and computed properties.

@@ -1,11 +1,11 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../constants/privacy_notice.dart';
 import '../constants/terms_of_service.dart';
-import '../service_locator.dart';
-import '../services/auth_controller.dart';
+import '../features/auth/auth_providers.dart';
 import '../widgets/auth/auth_form_fields.dart';
 import '../widgets/auth/auth_header.dart';
 import '../widgets/auth/auth_status_messages.dart';
@@ -14,27 +14,24 @@ import '../widgets/auth/auth_toggle_button.dart';
 import '../widgets/auth/social_auth_section.dart';
 import '../widgets/auth/terms_and_privacy_checkbox.dart';
 
-class AuthView extends StatefulWidget {
+class AuthView extends ConsumerStatefulWidget {
   const AuthView({super.key, required this.title});
 
   final String title;
 
   @override
-  State<AuthView> createState() => _AuthViewState();
+  ConsumerState<AuthView> createState() => _AuthViewState();
 }
 
-class _AuthViewState extends State<AuthView> {
+class _AuthViewState extends ConsumerState<AuthView> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   final _privacyRecognizer = TapGestureRecognizer();
   final _termsRecognizer = TapGestureRecognizer();
-  late final AuthController _controller;
-
   @override
   void initState() {
     super.initState();
-    _controller = getIt<AuthController>();
     _privacyRecognizer.onTap = _showPrivacyNotice;
     _termsRecognizer.onTap = _showTermsOfService;
   }
@@ -49,8 +46,9 @@ class _AuthViewState extends State<AuthView> {
   }
 
   void _authenticate() async {
+    final controller = ref.read(authControllerProvider);
     if (_formKey.currentState?.validate() == true) {
-      await _controller.authenticate(
+      await controller.authenticate(
         email: _emailController.text,
         password: _passwordController.text,
       );
@@ -58,11 +56,11 @@ class _AuthViewState extends State<AuthView> {
   }
 
   void _signInWithGoogle() async {
-    await _controller.signInWithGoogle();
+    await ref.read(authControllerProvider).signInWithGoogle();
   }
 
   void _signInWithFacebook() async {
-    await _controller.signInWithFacebook();
+    await ref.read(authControllerProvider).signInWithFacebook();
   }
 
   void _showPrivacyNotice() {
@@ -103,6 +101,7 @@ class _AuthViewState extends State<AuthView> {
 
   @override
   Widget build(BuildContext context) {
+    final controller = ref.watch(authControllerProvider);
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -110,19 +109,19 @@ class _AuthViewState extends State<AuthView> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 400),
             child: ListenableBuilder(
-              listenable: _controller,
+              listenable: controller,
               builder: (context, _) {
                 return Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    AuthHeader(isLogin: _controller.isLogin),
+                    AuthHeader(isLogin: controller.isLogin),
                     AuthStatusMessages(
-                      errorMessage: _controller.errorMessage,
-                      successMessage: _controller.successMessage,
+                      errorMessage: controller.errorMessage,
+                      successMessage: controller.successMessage,
                     ),
                     AbsorbPointer(
-                      absorbing: _controller.isLoading,
+                      absorbing: controller.isLoading,
                       child: Form(
                         key: _formKey,
                         child: Column(
@@ -132,21 +131,21 @@ class _AuthViewState extends State<AuthView> {
                               passwordController: _passwordController,
                             ),
                             const SizedBox(height: 16.0),
-                            if (_controller.isLogin)
+                            if (controller.isLogin)
                               _buildLoginOptions()
                             else
                               TermsAndPrivacyCheckbox(
-                                value: _controller.agreedToTerms,
+                                value: controller.agreedToTerms,
                                 onChanged: (val) =>
-                                    _controller.agreedToTerms = val ?? false,
+                                    controller.agreedToTerms = val ?? false,
                                 privacyRecognizer: _privacyRecognizer,
                                 termsRecognizer: _termsRecognizer,
                               ),
                             const SizedBox(height: 24.0),
                             AuthSubmitButton(
-                              isLogin: _controller.isLogin,
-                              isLoading: _controller.isLoading,
-                              onPressed: _controller.isLoading
+                              isLogin: controller.isLogin,
+                              isLoading: controller.isLoading,
+                              onPressed: controller.isLoading
                                   ? null
                                   : _authenticate,
                             ),
@@ -156,17 +155,17 @@ class _AuthViewState extends State<AuthView> {
                     ),
                     const SizedBox(height: 24.0),
                     SocialAuthSection(
-                      isLoading: _controller.isLoading,
+                      isLoading: controller.isLoading,
                       onGooglePressed: _signInWithGoogle,
                       onFacebookPressed: _signInWithFacebook,
                     ),
                     const SizedBox(height: 24.0),
                     AuthToggleButton(
-                      isLogin: _controller.isLogin,
-                      onPressed: _controller.isLoading
+                      isLogin: controller.isLogin,
+                      onPressed: controller.isLoading
                           ? null
                           : () {
-                              _controller.isLogin = !_controller.isLogin;
+                              controller.isLogin = !controller.isLogin;
                               _emailController.clear();
                               _passwordController.clear();
                             },
@@ -182,20 +181,21 @@ class _AuthViewState extends State<AuthView> {
   }
 
   Widget _buildLoginOptions() {
+    final controller = ref.read(authControllerProvider);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Row(
           children: [
             Checkbox(
-              value: _controller.rememberMe,
-              onChanged: (val) => _controller.rememberMe = val ?? false,
+              value: controller.rememberMe,
+              onChanged: (val) => controller.rememberMe = val ?? false,
             ),
             Text('auth.form.remember_me'.tr()),
           ],
         ),
         TextButton(
-          onPressed: () => _controller.forgotPassword(_emailController.text),
+          onPressed: () => controller.forgotPassword(_emailController.text),
           child: Text('auth.form.forgot_password'.tr()),
         ),
       ],

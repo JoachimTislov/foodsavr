@@ -26,12 +26,12 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK >=3.32.0
 When reviewing or writing code, **check [pub.dev](https://pub.dev) or the [Flutter breaking-changes doc](https://docs.flutter.dev/release/breaking-changes) if unsure** whether an API exists at the minimum Flutter version. If a newer API is used, either raise the minimum version in `pubspec.yaml` or use the older equivalent.
 
 
-- **Tech Stack**: Dart, Firebase (Auth/Firestore), GetIt (DI), logger, easy_localization.
+- **Tech Stack**: Dart, Firebase (Auth/Firestore), Riverpod (state management), GetIt/injectable (DI), logger, easy_localization.
 - **Pattern**: 3-tier Layered Architecture
 - **Core Principles**: Interface-based data access, DI for all dependencies, Emulator-driven dev.
 
 ### Layers Summary
-- **UI (`views/`, `widgets/`)**: Screens and reusable components; inject services via `getIt<Service>()`.
+- **UI (`views/`, `widgets/`)**: Screens and reusable components; consume state with Riverpod providers (`ref.watch`) and keep direct DI wiring outside widget trees.
 - **Service (`services/`)**: Business logic, validation, orchestration; depends on repository **interfaces**.
 - **Data (`interfaces/`, `repositories/`)**: Base contracts (`i_repository`, `i_service`) and feature contracts.
 - **Domain (`models/`)**: Plain data classes with `toJson`/`fromJson` and computed properties.
@@ -74,5 +74,5 @@ When reviewing or writing code, **check [pub.dev](https://pub.dev) or the [Flutt
 3. **Repository**: `@repositories/your_repository.dart` (Firestore impl).
 4. **Service**: `@services/your_service.dart` (DI via constructor).
 5. **DI**: Register in `@service_locator.dart`.
-6. **UI**: `@views/` & `@widgets/` (inject service via `getIt`).
+6. **UI**: `@views/` & `@widgets/` (consume providers via Riverpod; use `getIt` only for non-UI dependency wiring).
 7. **Test**: Use Firebase emulators (`@test/`).

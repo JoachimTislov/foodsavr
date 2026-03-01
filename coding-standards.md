@@ -15,7 +15,8 @@ The project follows a **3-tier layered architecture** with **dependency injectio
 
 ### Core Principles:
 - **Repository Pattern with Interfaces**: All data access through abstract interfaces
-- **Dependency Injection**: GetIt service locator - never instantiate dependencies directly
+- **State Management**: Riverpod providers are the default state access pattern in UI
+- **Dependency Injection**: GetIt service locator for dependency wiring - never instantiate dependencies directly
 - **Separation of Concerns**: UI → Services → Repositories → Models
 - **Emulator-Driven Development**: Uses Firebase emulators (Auth, Firestore) in development
 - **Zero hard-coded values**: Use constants or configuration files
@@ -27,7 +28,8 @@ The project follows a **3-tier layered architecture** with **dependency injectio
 
 ### Structure:
 - **Presentation Layer**: `views/` and `widgets/` - UI components
-  - Get dependencies via `getIt<Service>()` in `initState()`
+  - Consume state through Riverpod (`ProviderScope`, `ref.watch`, `ref.read`)
+  - Keep `getIt` usage in setup/provider wiring rather than direct widget-level service lookups
   - No direct instantiation of services or repositories
   - **Views**: Full-screen components that compose widgets
   - **Widgets**: Reusable UI components, one per file, organized by feature
@@ -99,4 +101,3 @@ class SomeHelper {
 ProductCategory.getIcon(category)  // ✅ Direct usage
 CollectionConfig.getColor(type, colorScheme)  // ✅ Direct usage
 ```
-

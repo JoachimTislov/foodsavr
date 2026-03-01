@@ -16,7 +16,7 @@ Follow these instructions for refactoring and maintaining the FoodSavr project.
    - Use constructor injection for all services and repositories.
    - Depend on repository interfaces (`i_product_repository.dart`) instead of concrete implementations.
    - Use `@injectable` to register classes and let the generator handle DI.
-   - Only use `getIt<T>()` at the top level of a view or in `main.dart`.
+   - Use Riverpod providers as the primary way to expose state to UI (`ref.watch` / `ref.read`), and keep `getIt<T>()` usage in provider or app setup wiring.
    - Ensure a clean separation between UI, services, and data layers.
 
 3. **Organize According to Layers:**
