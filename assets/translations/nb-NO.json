@@ -170,13 +170,11 @@
     "accountSettings": "Kontoinnstillinger",
     "acquiredProducts": "Anskaffede produkter",
     "changeEmail": "Endre e-post",
-    "deleteAccount": "Slett konto",
     "forgotPassword": "Glemt passord",
     "itemsTracked": "Vare sporet",
     "janeDoe": "Jane Doe",
     "janedoepantrypalcom": "jane.doe@pantrypal.no",
     "logOut": "Logg ut",
-    "thisActionIsPermanent": "Denne handlingen er permanent og kan ikke angres.",
     "twofactorAuthentication": "To-faktor autentisering"
   },
   "settings": {
@@ -197,6 +195,9 @@
       "light": "Lys",
       "system": "System"
     },
+    "danger_zone": "Faresone",
+    "delete_account": "Slett konto",
+    "delete_account_description": "Slett kontoen din og alle tilknyttede data permanent. Denne handlingen kan ikke angres.",
     "title": "Innstillinger"
   }
 }

@@ -83,92 +83,12 @@ class _ProfileViewState extends State<ProfileView> {
                       isDestructive: true,
                       onTap: () => _authService.signOut(),
                     ),
-                    _SettingsItem(
-                      icon: Icons.delete_outline,
-                      label: 'generated.deleteAccount'.tr(),
-                      isDestructive: true,
-                      onTap: () => _showDeleteAccountConfirmation(context),
-                    ),
                   ],
                 ),
               ]),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showDeleteAccountConfirmation(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 24),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const Icon(
-              Icons.warning_amber_rounded,
-              color: Colors.red,
-              size: 48,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'generated.deleteAccount'.tr(),
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'generated.thisActionIsPermanent'.tr(),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              // TODO(profile): Call _authService.deleteAccount() once implemented in IAuthService
-              onPressed: () async {
-                Navigator.pop(context);
-                _authService.signOut();
-              },
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size.fromHeight(56),
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              child: Text('profile.deleteAccountConfirmation'.tr()),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                minimumSize: const Size.fromHeight(56),
-              ),
-              child: Text('common.cancel'.tr()),
-            ),
-          ],
-        ),
       ),
     );
   }

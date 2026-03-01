@@ -170,13 +170,11 @@
     "accountSettings": "Account Settings",
     "acquiredProducts": "Acquired Products",
     "changeEmail": "Change Email",
-    "deleteAccount": "Delete Account",
     "forgotPassword": "Forgot Password",
     "itemsTracked": "Items Tracked",
     "janeDoe": "Jane Doe",
     "janedoepantrypalcom": "jane.doe@pantrypal.com",
     "logOut": "Log Out",
-    "thisActionIsPermanent": "This action is permanent and cannot be undone.",
     "twofactorAuthentication": "Two-factor Authentication"
   },
   "settings": {
@@ -197,6 +195,9 @@
       "light": "Light",
       "system": "System"
     },
+    "danger_zone": "Danger Zone",
+    "delete_account": "Delete Account",
+    "delete_account_description": "Permanently delete your account and all associated data. This action cannot be undone.",
     "title": "Settings"
   }
 }

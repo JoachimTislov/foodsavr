@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
 import '../services/theme_notifier.dart';
 
@@ -13,6 +14,14 @@ class SettingsView extends StatefulWidget {
 }
 
 class _SettingsViewState extends State<SettingsView> {
+  late final IAuthService _authService;
+
+  @override
+  void initState() {
+    super.initState();
+    _authService = getIt<IAuthService>();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -122,6 +131,96 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
               ],
             ),
+            const SizedBox(height: 24),
+
+            // Danger Zone Section
+            _SettingsSection(
+              title: 'settings.danger_zone'.tr(),
+              isDanger: true,
+              children: [
+                _SettingsTile(
+                  icon: Icons.delete_outline,
+                  title: 'settings.delete_account'.tr(),
+                  subtitle: 'settings.delete_account_description'.tr(),
+                  isDanger: true,
+                  onTap: () => _showDeleteAccountConfirmation(context),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteAccountConfirmation(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.red,
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'settings.delete_account'.tr(),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'settings.delete_account_description'.tr(),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton(
+              // TODO(profile): Call _authService.deleteAccount() once implemented in IAuthService
+              onPressed: () async {
+                Navigator.pop(context);
+                _authService.signOut();
+              },
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size.fromHeight(56),
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: Text('profile.deleteAccountConfirmation'.tr()),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                minimumSize: const Size.fromHeight(56),
+              ),
+              child: Text('common.cancel'.tr()),
+            ),
           ],
         ),
       ),
@@ -209,8 +308,13 @@ class _SettingsViewState extends State<SettingsView> {
 class _SettingsSection extends StatelessWidget {
   final String title;
   final List<Widget> children;
+  final bool isDanger;
 
-  const _SettingsSection({required this.title, required this.children});
+  const _SettingsSection({
+    required this.title,
+    required this.children,
+    this.isDanger = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -225,7 +329,7 @@ class _SettingsSection extends StatelessWidget {
           child: Text(
             title.toUpperCase(),
             style: textTheme.labelSmall?.copyWith(
-              color: colorScheme.onSurfaceVariant,
+              color: isDanger ? Colors.red : colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.2,
             ),
@@ -266,6 +370,7 @@ class _SettingsTile extends StatelessWidget {
   final String? subtitle;
   final Widget? trailing;
   final VoidCallback? onTap;
+  final bool isDanger;
 
   const _SettingsTile({
     this.leading,
@@ -274,6 +379,7 @@ class _SettingsTile extends StatelessWidget {
     this.subtitle,
     this.trailing,
     this.onTap,
+    this.isDanger = false,
   });
 
   @override
@@ -291,14 +397,23 @@ class _SettingsTile extends StatelessWidget {
               : Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                    color: isDanger
+                        ? Colors.red.withValues(alpha: 0.1)
+                        : colorScheme.primaryContainer.withValues(alpha: 0.5),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, size: 20, color: colorScheme.primary),
+                  child: Icon(
+                    icon,
+                    size: 20,
+                    color: isDanger ? Colors.red : colorScheme.primary,
+                  ),
                 )),
       title: Text(
         title,
-        style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+        style: textTheme.bodyLarge?.copyWith(
+          fontWeight: FontWeight.w600,
+          color: isDanger ? Colors.red : null,
+        ),
       ),
       subtitle: subtitle != null
           ? Text(
