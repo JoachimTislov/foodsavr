@@ -110,13 +110,43 @@ class _DashboardViewState extends State<DashboardView> {
                   return Text('dashboard.errorLoading'.tr());
                 }
 
-                return GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  children: [
+                final inventories = snapshot.data ?? [];
+
+                final cards = <Widget>[
+                  OverviewCard(
+                    title: 'dashboard.createProduct'.tr(),
+                    subtitle: 'dashboard.createProductSubtitle'.tr(),
+                    icon: Icons.add_box_outlined,
+                    iconColor: colorScheme.primary,
+                    onTap: () => context.push('/product-form'),
+                  ),
+                  OverviewCard(
+                    title: 'dashboard.createInventory'.tr(),
+                    subtitle: 'dashboard.createInventorySubtitle'.tr(),
+                    icon: Icons.inventory_2_outlined,
+                    iconColor: colorScheme.primary,
+                    onTap: () => context.push(
+                      '/collection-form',
+                      extra: {
+                        'type': CollectionType.inventory,
+                        'collection': null,
+                      },
+                    ),
+                  ),
+                  OverviewCard(
+                    title: 'dashboard.createShoppingList'.tr(),
+                    subtitle: 'dashboard.createShoppingListSubtitle'.tr(),
+                    icon: Icons.shopping_cart_outlined,
+                    iconColor: colorScheme.primary,
+                    onTap: () => context.push(
+                      '/collection-form',
+                      extra: {
+                        'type': CollectionType.shoppingList,
+                        'collection': null,
+                      },
+                    ),
+                  ),
+                  if (inventories.length > 1)
                     OverviewCard(
                       title: 'dashboard.transfer'.tr(),
                       subtitle: 'dashboard.moveItems'.tr(),
@@ -124,14 +154,29 @@ class _DashboardViewState extends State<DashboardView> {
                       iconColor: colorScheme.primary,
                       onTap: () => context.push('/transfer'),
                     ),
-                    OverviewCard(
-                      title: 'dashboard.globalProducts'.tr(),
-                      subtitle: 'dashboard.browseProducts'.tr(),
-                      icon: Icons.public_outlined,
-                      iconColor: colorScheme.primary,
-                      onTap: () => context.push('/global-products'),
-                    ),
-                  ],
+                  OverviewCard(
+                    title: 'dashboard.globalProducts'.tr(),
+                    subtitle: 'dashboard.browseProducts'.tr(),
+                    icon: Icons.public_outlined,
+                    iconColor: colorScheme.primary,
+                    onTap: () => context.push('/global-products'),
+                  ),
+                  OverviewCard(
+                    title: 'dashboard.statistics'.tr(),
+                    subtitle: 'dashboard.statisticsSubtitle'.tr(),
+                    icon: Icons.bar_chart_outlined,
+                    iconColor: colorScheme.primary,
+                    onTap: () {},
+                  ),
+                ];
+
+                return GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  children: cards,
                 );
               },
             ),
