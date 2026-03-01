@@ -16,34 +16,16 @@ class AddProductToCollectionView extends StatefulWidget {
   /// Shows the product picker as a modal bottom sheet.
   /// Returns `true` if products were added.
   static Future<bool?> show(BuildContext context, String collectionId) {
-    return showModalBottomSheet<bool>(
+    return showDialog<bool>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      barrierDismissible: true,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400, maxHeight: 500),
+          child: _AddProductSheet(collectionId: collectionId),
+        ),
       ),
-      builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.4,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) =>
-            AddProductToCollectionView._sheet(
-              collectionId: collectionId,
-              scrollController: scrollController,
-            ),
-      ),
-    );
-  }
-
-  static Widget _sheet({
-    required String collectionId,
-    required ScrollController scrollController,
-  }) {
-    return _AddProductSheet(
-      collectionId: collectionId,
-      scrollController: scrollController,
     );
   }
 
@@ -64,12 +46,8 @@ class _AddProductToCollectionViewState
 
 class _AddProductSheet extends StatefulWidget {
   final String collectionId;
-  final ScrollController scrollController;
 
-  const _AddProductSheet({
-    required this.collectionId,
-    required this.scrollController,
-  });
+  const _AddProductSheet({required this.collectionId});
 
   @override
   State<_AddProductSheet> createState() => _AddProductSheetState();
@@ -133,7 +111,7 @@ class _AddProductSheetState extends State<_AddProductSheet> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+          padding: const EdgeInsets.fromLTRB(24, 20, 16, 0),
           child: Row(
             children: [
               Expanded(
@@ -206,7 +184,6 @@ class _AddProductSheetState extends State<_AddProductSheet> {
                 );
               }
               return ListView.builder(
-                controller: widget.scrollController,
                 itemCount: products.length,
                 itemBuilder: (context, index) {
                   final product = products[index];

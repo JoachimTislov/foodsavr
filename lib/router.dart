@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'interfaces/i_auth_service.dart';
-import 'models/product_model.dart';
 import 'utils/collection_types.dart';
 import 'views/auth_view.dart';
 import 'views/landing_page_view.dart';
@@ -18,7 +17,6 @@ import 'views/settings_view.dart';
 import 'views/profile_view.dart';
 import 'views/main_navigation_view.dart';
 import 'views/dynamic_collection_view.dart';
-import 'views/product_form_view.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -140,17 +138,6 @@ GoRouter createAppRouter(IAuthService authService) {
       GoRoute(
         path: '/profile',
         builder: (context, state) => const ProfileView(),
-      ),
-      GoRoute(
-        path: '/product-form',
-        builder: (context, state) {
-          final product = state.extra as Product?;
-          final collectionId = state.uri.queryParameters['collectionId'];
-          return ProductFormView(
-            product: product,
-            initialCollectionId: collectionId,
-          );
-        },
       ),
     ],
   );

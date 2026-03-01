@@ -1,6 +1,5 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../models/collection_model.dart';
 import '../models/product_model.dart';
@@ -11,6 +10,7 @@ import '../interfaces/i_auth_service.dart';
 import '../widgets/collection/collection_header.dart';
 import '../widgets/common/empty_state_widget.dart';
 import 'add_product_to_collection_view.dart';
+import 'product_form_view.dart';
 import '../widgets/common/error_state_widget.dart';
 import '../widgets/product/product_card_normal.dart';
 import 'product_detail_view.dart';
@@ -78,8 +78,9 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
               widget.collection.id,
             );
           } else {
-            result = await context.push(
-              '/product-form?collectionId=${widget.collection.id}',
+            result = await ProductFormView.show(
+              context,
+              collectionId: widget.collection.id,
             );
           }
           if (!mounted) return;

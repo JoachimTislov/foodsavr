@@ -13,6 +13,7 @@ import '../views/product_detail_view.dart';
 import '../widgets/dashboard/expiring_item_card.dart';
 import '../widgets/dashboard/overview_card.dart';
 import 'collection_form_view.dart';
+import 'product_form_view.dart';
 
 class DashboardView extends StatefulWidget {
   const DashboardView({super.key});
@@ -102,7 +103,7 @@ class _DashboardViewState extends State<DashboardView> {
                   icon: Icons.add_box_outlined,
                   label: 'dashboard.createProduct'.tr(),
                   color: colorScheme.primary,
-                  onTap: () => context.push('/product-form'),
+                  onTap: () => ProductFormView.show(context),
                 ),
                 const SizedBox(width: 8),
                 _ActionChip(

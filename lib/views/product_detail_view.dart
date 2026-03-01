@@ -1,6 +1,8 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
+import 'product_form_view.dart';
 import '../constants/product_categories.dart';
 import '../models/product_model.dart';
 import '../widgets/product/product_details_card.dart';
@@ -86,9 +88,9 @@ class _ProductDetailViewState extends State<ProductDetailView> {
           IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () async {
-              final result = await context.push(
-                '/product-form',
-                extra: _currentProduct,
+              final result = await ProductFormView.show(
+                context,
+                product: _currentProduct,
               );
               if (result == true && mounted) {
                 final updatedProduct = await _productService.getProductById(

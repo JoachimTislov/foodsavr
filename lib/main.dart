@@ -39,7 +39,7 @@ void main() async {
     );
   }
   final engine = WidgetsFlutterBinding.ensureInitialized();
-  engine.performReassemble();
+  engine.performReassemble(); // TODO: I don't think this works...
 
   final serviceLocator = ServiceLocator();
   await serviceLocator.registerDependencies();

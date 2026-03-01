@@ -1,6 +1,5 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import '../models/product_model.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
@@ -10,17 +9,52 @@ import '../widgets/product/quantity_section.dart';
 import '../widgets/product/expiries_section.dart';
 import '../constants/product_categories.dart';
 
-class ProductFormView extends StatefulWidget {
-  final Product? product; // null if adding
-  final String? initialCollectionId; // optional
+class ProductFormView extends StatelessWidget {
+  final Product? product;
+  final String? initialCollectionId;
 
   const ProductFormView({super.key, this.product, this.initialCollectionId});
 
+  /// Shows the product form as a centered dialog.
+  /// Returns `true` if a product was saved.
+  static Future<bool?> show(
+    BuildContext context, {
+    Product? product,
+    String? collectionId,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 450, maxHeight: 600),
+          child: _ProductFormContent(
+            product: product,
+            initialCollectionId: collectionId,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
-  State<ProductFormView> createState() => _ProductFormViewState();
+  Widget build(BuildContext context) {
+    return const SizedBox.shrink();
+  }
 }
 
-class _ProductFormViewState extends State<ProductFormView> {
+class _ProductFormContent extends StatefulWidget {
+  final Product? product;
+  final String? initialCollectionId;
+
+  const _ProductFormContent({this.product, this.initialCollectionId});
+
+  @override
+  State<_ProductFormContent> createState() => _ProductFormContentState();
+}
+
+class _ProductFormContentState extends State<_ProductFormContent> {
   final _formKey = GlobalKey<FormState>();
   late final ProductService _productService;
   late final CollectionService _collectionService;
@@ -97,7 +131,7 @@ class _ProductFormViewState extends State<ProductFormView> {
       }
 
       if (mounted) {
-        context.pop(true);
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {
@@ -115,85 +149,100 @@ class _ProductFormViewState extends State<ProductFormView> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.product == null ? 'product.add'.tr() : 'product.edit'.tr(),
-        ),
-        actions: [
-          if (_isSaving)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: SizedBox(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 16, 0),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.product == null
+                      ? 'product.add'.tr()
+                      : 'product.edit'.tr(),
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              if (_isSaving)
+                const SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            )
-          else
-            IconButton(icon: const Icon(Icons.check), onPressed: _save),
-        ],
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            TextFormField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: 'product.name'.tr(),
-                border: const OutlineInputBorder(),
-              ),
-              validator: (value) => value == null || value.isEmpty
-                  ? 'product.name_required'.tr()
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _descriptionController,
-              decoration: InputDecoration(
-                labelText: 'product.description'.tr(),
-                border: const OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              initialValue: _selectedCategory,
-              decoration: InputDecoration(
-                labelText: 'product.category'.tr(),
-                border: const OutlineInputBorder(),
-              ),
-              items: ProductCategory.allNames.map((cat) {
-                return DropdownMenuItem(value: cat, child: Text(cat));
-              }).toList(),
-              onChanged: (val) => setState(() => _selectedCategory = val),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'product.inventory'.tr(),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            QuantitySection(
-              quantity: _nonExpiringQuantity,
-              onChanged: (val) => setState(() => _nonExpiringQuantity = val),
-            ),
-            const SizedBox(height: 24),
-            ExpiriesSection(
-              expiries: _expiries,
-              onAdd: _addExpiry,
-              onRemove: (idx) => setState(() => _expiries.removeAt(idx)),
-            ),
-          ],
+                )
+              else
+                IconButton(icon: const Icon(Icons.check), onPressed: _save),
+            ],
+          ),
         ),
-      ),
+        const Divider(),
+        Flexible(
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+              shrinkWrap: true,
+              children: [
+                TextFormField(
+                  controller: _nameController,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: 'product.name'.tr(),
+                    border: const OutlineInputBorder(),
+                  ),
+                  validator: (value) => value == null || value.isEmpty
+                      ? 'product.name_required'.tr()
+                      : null,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _descriptionController,
+                  decoration: InputDecoration(
+                    labelText: 'product.description'.tr(),
+                    border: const OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedCategory,
+                  decoration: InputDecoration(
+                    labelText: 'product.category'.tr(),
+                    border: const OutlineInputBorder(),
+                  ),
+                  items: ProductCategory.allNames.map((cat) {
+                    return DropdownMenuItem(value: cat, child: Text(cat));
+                  }).toList(),
+                  onChanged: (val) => setState(() => _selectedCategory = val),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'product.inventory'.tr(),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                QuantitySection(
+                  quantity: _nonExpiringQuantity,
+                  onChanged: (val) =>
+                      setState(() => _nonExpiringQuantity = val),
+                ),
+                const SizedBox(height: 24),
+                ExpiriesSection(
+                  expiries: _expiries,
+                  onAdd: _addExpiry,
+                  onRemove: (idx) => setState(() => _expiries.removeAt(idx)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 

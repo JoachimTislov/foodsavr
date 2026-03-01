@@ -1,6 +1,5 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../models/product_model.dart';
 import '../service_locator.dart';
@@ -8,6 +7,7 @@ import '../services/product_service.dart';
 import '../services/collection_service.dart';
 import '../interfaces/i_auth_service.dart';
 import '../widgets/product/product_card_compact.dart';
+import 'product_form_view.dart';
 import '../widgets/product/product_card_normal.dart';
 import '../widgets/product/product_card_details.dart';
 import '../utils/view_mode_helper.dart';
@@ -264,7 +264,7 @@ class _ProductListViewState extends State<ProductListView> {
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'product_list_fab',
         onPressed: () async {
-          final result = await context.push('/product-form');
+          final result = await ProductFormView.show(context);
           if (!mounted) return;
           if (result == true) {
             _refreshProducts();
@@ -294,7 +294,10 @@ class _ProductListViewState extends State<ProductListView> {
           onTap: () => _navigateToProductDetail(product),
           inventoryNames: _productInventories[product.id],
           onEdit: () async {
-            final result = await context.push('/product-form', extra: product);
+            final result = await ProductFormView.show(
+              context,
+              product: product,
+            );
             if (!mounted) return;
             if (result == true) {
               _refreshProducts();
