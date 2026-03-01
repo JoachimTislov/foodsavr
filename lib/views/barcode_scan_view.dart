@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 
 import '../widgets/product/barcode_scanner_overlay.dart';
@@ -148,7 +149,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
       if (scannedValue == null || scannedValue.isEmpty) return;
       await cameraController.stopImageStream();
       if (!mounted) return;
-      Navigator.of(context).pop(scannedValue);
+      context.pop(scannedValue);
     } finally {
       _isProcessingFrame = false;
     }

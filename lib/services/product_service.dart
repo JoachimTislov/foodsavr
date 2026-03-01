@@ -49,9 +49,9 @@ class ProductService {
     }
 
     final newProduct = Product(
-      id: DateTime.now().millisecondsSinceEpoch,
+      id: DateTime.now().microsecondsSinceEpoch,
       name: normalizedBarcode,
-      description: 'Scanned barcode: $normalizedBarcode',
+      description: '',
       userId: userId,
       nonExpiringQuantity: 1,
       barcode: normalizedBarcode,

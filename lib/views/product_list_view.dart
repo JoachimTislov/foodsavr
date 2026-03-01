@@ -1,5 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../models/product_model.dart';
 import '../service_locator.dart';
@@ -10,7 +11,6 @@ import '../widgets/product/product_card_compact.dart';
 import '../widgets/product/product_card_normal.dart';
 import '../widgets/product/product_card_details.dart';
 import '../utils/view_mode_helper.dart';
-import 'barcode_scan_view.dart';
 import 'product_detail_view.dart';
 
 class ProductListView extends StatefulWidget {
@@ -274,9 +274,7 @@ class _ProductListViewState extends State<ProductListView> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
-          final scannedBarcode = await Navigator.of(context).push<String>(
-            MaterialPageRoute(builder: (context) => const BarcodeScanView()),
-          );
+          final scannedBarcode = await context.push<String>('/barcode-scan');
           if (!mounted || scannedBarcode == null || scannedBarcode.isEmpty) {
             return;
           }
