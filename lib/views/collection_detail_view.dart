@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../models/collection_model.dart';
 import '../models/product_model.dart';
+import '../utils/collection_types.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
 import '../interfaces/i_auth_service.dart';
@@ -73,9 +74,10 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       floatingActionButton: FloatingActionButton(
         heroTag: 'collection_detail_fab_${widget.collection.id}',
         onPressed: () async {
-          final result = await context.push(
-            '/product-form?collectionId=${widget.collection.id}',
-          );
+          final route = widget.collection.type == CollectionType.shoppingList
+              ? '/add-product-to-collection?collectionId=${widget.collection.id}'
+              : '/product-form?collectionId=${widget.collection.id}';
+          final result = await context.push(route);
           if (!mounted) return;
           if (result == true) {
             _refreshProducts();

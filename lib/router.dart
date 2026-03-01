@@ -21,6 +21,7 @@ import 'views/main_navigation_view.dart';
 import 'views/dynamic_collection_view.dart';
 import 'views/product_form_view.dart';
 import 'views/collection_form_view.dart';
+import 'views/add_product_to_collection_view.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -165,6 +166,13 @@ GoRouter createAppRouter(IAuthService authService) {
           final type = extra['type'] as CollectionType;
           final collection = extra['collection'] as Collection?;
           return CollectionFormView(type: type, collection: collection);
+        },
+      ),
+      GoRoute(
+        path: '/add-product-to-collection',
+        builder: (context, state) {
+          final collectionId = state.uri.queryParameters['collectionId'] ?? '';
+          return AddProductToCollectionView(collectionId: collectionId);
         },
       ),
     ],
