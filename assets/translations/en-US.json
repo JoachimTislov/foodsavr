@@ -164,8 +164,10 @@
   "collection": {
     "errorLoadingProducts": "Error loading products",
     "noProducts": "No products in this collection",
-    "add": "Add Collection",
-    "edit": "Edit Collection",
+    "add_inventory": "Add Inventory",
+    "add_shopping_list": "Add Shopping List",
+    "edit_inventory": "Edit Inventory",
+    "edit_shopping_list": "Edit Shopping List",
     "name": "Collection Name",
     "name_required": "Please enter collection name",
     "description": "Description",

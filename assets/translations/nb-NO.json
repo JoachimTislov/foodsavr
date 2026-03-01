@@ -164,8 +164,10 @@
   "collection": {
     "errorLoadingProducts": "Feil ved lasting av produkter",
     "noProducts": "Ingen produkter i denne samlingen",
-    "add": "Legg til samling",
-    "edit": "Rediger samling",
+    "add_inventory": "Legg til lager",
+    "add_shopping_list": "Legg til handleliste",
+    "edit_inventory": "Rediger lager",
+    "edit_shopping_list": "Rediger handleliste",
     "name": "Navn på samling",
     "name_required": "Vennligst oppgi navn på samling",
     "description": "Beskrivelse",

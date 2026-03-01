@@ -88,15 +88,22 @@ class _CollectionFormViewState extends State<CollectionFormView> {
     }
   }
 
+  String _titleKey() {
+    if (widget.collection != null) {
+      return widget.type == CollectionType.inventory
+          ? 'collection.edit_inventory'.tr()
+          : 'collection.edit_shopping_list'.tr();
+    }
+    return widget.type == CollectionType.inventory
+        ? 'collection.add_inventory'.tr()
+        : 'collection.add_shopping_list'.tr();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.collection == null
-              ? 'collection.add'.tr()
-              : 'collection.edit'.tr(),
-        ),
+        title: Text(_titleKey()),
         actions: [
           if (_isSaving)
             const Center(

@@ -100,12 +100,14 @@ class _DashboardViewState extends State<DashboardView> {
                 _ActionChip(
                   icon: Icons.add_box_outlined,
                   label: 'dashboard.createProduct'.tr(),
+                  color: colorScheme.primary,
                   onTap: () => context.push('/product-form'),
                 ),
                 const SizedBox(width: 8),
                 _ActionChip(
                   icon: Icons.inventory_2_outlined,
                   label: 'dashboard.createInventory'.tr(),
+                  color: colorScheme.tertiary,
                   onTap: () => context.push(
                     '/collection-form',
                     extra: {
@@ -118,6 +120,7 @@ class _DashboardViewState extends State<DashboardView> {
                 _ActionChip(
                   icon: Icons.shopping_cart_outlined,
                   label: 'dashboard.createShoppingList'.tr(),
+                  color: colorScheme.secondary,
                   onTap: () => context.push(
                     '/collection-form',
                     extra: {
@@ -261,29 +264,45 @@ class _ActionChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final Color? color;
 
   const _ActionChip({
     required this.icon,
     required this.label,
     required this.onTap,
+    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final chipColor = color ?? colorScheme.primary;
 
     return Expanded(
-      child: ActionChip(
-        avatar: Icon(icon, size: 16, color: colorScheme.primary),
-        label: Text(
-          label,
-          style: TextStyle(fontSize: 11, color: colorScheme.onSurface),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
+      child: FilledButton.tonal(
         onPressed: onTap,
-        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.compact,
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          backgroundColor: chipColor.withValues(alpha: 0.1),
+          foregroundColor: chipColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
