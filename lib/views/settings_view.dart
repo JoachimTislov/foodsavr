@@ -1,7 +1,11 @@
 import 'package:easy_localization/easy_localization.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../constants/privacy_notice.dart';
+import '../constants/terms_of_service.dart';
+import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
 import '../services/theme_notifier.dart';
 
@@ -13,6 +17,14 @@ class SettingsView extends StatefulWidget {
 }
 
 class _SettingsViewState extends State<SettingsView> {
+  late final IAuthService _authService;
+
+  @override
+  void initState() {
+    super.initState();
+    _authService = getIt<IAuthService>();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -20,43 +32,47 @@ class _SettingsViewState extends State<SettingsView> {
     final textTheme = theme.textTheme;
 
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(
-          'settings.title'.tr(),
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: Text('settings.title'.tr()), centerTitle: true),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // User Profile Section (Mocked)
-            _SettingsSection(
-              title: 'settings.account'.tr(),
-              children: [
-                _SettingsTile(
-                  leading: CircleAvatar(
-                    radius: 20,
-                    backgroundColor: Theme.of(
-                      context,
-                    ).colorScheme.primaryContainer,
-                    child: Icon(
-                      Icons.person_outline,
-                      size: 20,
-                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+            // User Profile Section
+            StreamBuilder<User?>(
+              stream: _authService.authStateChanges,
+              initialData: _authService.currentUser,
+              builder: (context, snapshot) {
+                final user = snapshot.data;
+                final displayName =
+                    user?.displayName ?? user?.email?.split('@').first ?? '';
+                final email = user?.email ?? '';
+
+                return _SettingsSection(
+                  title: 'settings.account'.tr(),
+                  children: [
+                    _SettingsTile(
+                      leading: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: colorScheme.primaryContainer,
+                        backgroundImage: user?.photoURL != null
+                            ? NetworkImage(user!.photoURL!)
+                            : null,
+                        child: user?.photoURL == null
+                            ? Icon(
+                                Icons.person_outline,
+                                size: 20,
+                                color: colorScheme.onPrimaryContainer,
+                              )
+                            : null,
+                      ),
+                      title: displayName,
+                      subtitle: email,
+                      onTap: () => context.push('/profile'),
                     ),
-                  ),
-                  title: 'generated.janeDoe'.tr(),
-                  subtitle: 'generated.janedoepantrypalcom'.tr(),
-                  onTap: () => context.push('/profile'),
-                ),
-              ],
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 24),
 
@@ -101,12 +117,20 @@ class _SettingsViewState extends State<SettingsView> {
                 _SettingsTile(
                   icon: Icons.description_outlined,
                   title: 'settings.terms_of_service'.tr(),
-                  onTap: () {},
+                  onTap: () => _showLegalDialog(
+                    context,
+                    title: 'common.terms_of_service'.tr(),
+                    content: TermsOfService.content,
+                  ),
                 ),
                 _SettingsTile(
                   icon: Icons.privacy_tip_outlined,
                   title: 'settings.privacy_policy'.tr(),
-                  onTap: () {},
+                  onTap: () => _showLegalDialog(
+                    context,
+                    title: 'common.privacy_notice'.tr(),
+                    content: PrivacyNotice.content,
+                  ),
                 ),
                 _SettingsTile(
                   icon: Icons.info_outline,
@@ -118,6 +142,26 @@ class _SettingsViewState extends State<SettingsView> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showLegalDialog(
+    BuildContext context, {
+    required String title,
+    required String content,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: SingleChildScrollView(child: Text(content)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('common.close'.tr()),
+          ),
+        ],
       ),
     );
   }

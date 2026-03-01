@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 
 import '../models/collection_model.dart';
 import '../models/product_model.dart';
+import '../utils/collection_types.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
+import '../interfaces/i_auth_service.dart';
 import '../widgets/collection/collection_header.dart';
 import '../widgets/common/empty_state_widget.dart';
+import 'add_product_to_collection_view.dart';
+import 'product_form_view.dart';
 import '../widgets/common/error_state_widget.dart';
 import '../widgets/product/product_card_normal.dart';
 import 'product_detail_view.dart';
@@ -23,12 +27,20 @@ class CollectionDetailView extends StatefulWidget {
 class _CollectionDetailViewState extends State<CollectionDetailView> {
   late Future<List<Product>> _productsFuture;
   late final ProductService _productService;
+  late final IAuthService _authService;
 
   @override
   void initState() {
     super.initState();
     _productService = getIt<ProductService>();
+    _authService = getIt<IAuthService>();
     _productsFuture = _fetchProducts();
+  }
+
+  void _refreshProducts() {
+    setState(() {
+      _productsFuture = _fetchProducts();
+    });
   }
 
   @override
@@ -38,27 +50,12 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.collection.name),
         backgroundColor: colorScheme.surface,
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('common.search'.tr())));
-            },
-            tooltip: 'common.search'.tr(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.more_vert),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('common.more_options'.tr())),
-              );
-            },
-            tooltip: 'common.more_options'.tr(),
+            icon: const Icon(Icons.logout),
+            onPressed: () => _authService.signOut(),
           ),
         ],
       ),
@@ -66,15 +63,28 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CollectionHeader(collection: widget.collection),
-          const Divider(height: 1),
           Expanded(child: _buildProductsList(theme, colorScheme)),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('collection.addProductSoon'.tr())),
-          );
+        heroTag: 'collection_detail_fab_${widget.collection.id}',
+        onPressed: () async {
+          bool? result;
+          if (widget.collection.type == CollectionType.shoppingList) {
+            result = await AddProductToCollectionView.show(
+              context,
+              widget.collection.id,
+            );
+          } else {
+            result = await ProductFormView.show(
+              context,
+              collectionId: widget.collection.id,
+            );
+          }
+          if (!mounted) return;
+          if (result == true) {
+            _refreshProducts();
+          }
         },
         child: const Icon(Icons.add),
       ),
@@ -118,11 +128,14 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
   }
 
   Future<List<Product>> _fetchProducts() async {
-    // Fetch products by their IDs
-    final allProducts = await _productService.getAllProducts();
-    return allProducts
-        .where((p) => widget.collection.productIds.contains(p.id))
-        .toList();
+    final productIds = widget.collection.productIds;
+    if (productIds.isEmpty) return [];
+    final products = <Product>[];
+    for (final id in productIds) {
+      final product = await _productService.getProductById(id);
+      if (product != null) products.add(product);
+    }
+    return products;
   }
 
   void _navigateToProductDetail(Product product) {

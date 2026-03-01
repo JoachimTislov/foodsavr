@@ -100,9 +100,7 @@ class _LandingPageViewState extends State<LandingPageView> {
                                 context.go(
                                   Uri(
                                     path: '/auth',
-                                    queryParameters: {
-                                      'title': 'auth.landing.title'.tr(),
-                                    },
+                                    queryParameters: {'mode': 'login'},
                                   ).toString(),
                                 );
                               },
@@ -142,9 +140,7 @@ class _LandingPageViewState extends State<LandingPageView> {
                                     context.go(
                                       Uri(
                                         path: '/auth',
-                                        queryParameters: {
-                                          'title': 'auth.toggle.sign_up'.tr(),
-                                        },
+                                        queryParameters: {'mode': 'signup'},
                                       ).toString(),
                                     );
                                   },

@@ -120,6 +120,29 @@ class CollectionService {
     }
   }
 
+  Future<Collection> addCollection(Collection collection) async {
+    _logger.i('Adding collection: ${collection.name}');
+    try {
+      final added = await _collectionRepository.add(collection);
+      _logger.i('Successfully added collection');
+      return added;
+    } catch (e) {
+      _logger.e('Error adding collection: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateCollection(Collection collection) async {
+    _logger.i('Updating collection: ${collection.name}');
+    try {
+      await _collectionRepository.update(collection);
+      _logger.i('Successfully updated collection');
+    } catch (e) {
+      _logger.e('Error updating collection: $e');
+      rethrow;
+    }
+  }
+
   /// Add a product to a collection (update productIds list)
   Future<void> addProductToCollection(
     String collectionId,
@@ -131,6 +154,23 @@ class CollectionService {
       _logger.i('Successfully added product to collection');
     } catch (e) {
       _logger.e('Error adding product to collection: $e');
+      rethrow;
+    }
+  }
+
+  /// Add multiple products to a collection in a single atomic operation.
+  Future<void> addProductsToCollection(
+    String collectionId,
+    List<int> productIds,
+  ) async {
+    _logger.i(
+      'Adding ${productIds.length} products to collection $collectionId',
+    );
+    try {
+      await _collectionRepository.addProducts(collectionId, productIds);
+      _logger.i('Successfully added products to collection');
+    } catch (e) {
+      _logger.e('Error adding products to collection: $e');
       rethrow;
     }
   }

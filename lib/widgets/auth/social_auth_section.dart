@@ -33,14 +33,6 @@ class SocialAuthSection extends StatelessWidget {
           textColor: colorScheme.onSurface,
           onPressed: isLoading ? null : onGooglePressed,
         ),
-        const SizedBox(height: 16.0),
-        SocialLoginButton(
-          text: 'auth.social.continue_facebook'.tr(),
-          iconPath: 'assets/images/facebook_logo.svg',
-          color: colorScheme.surface,
-          textColor: colorScheme.onSurface,
-          onPressed: isLoading ? null : onFacebookPressed,
-        ),
         if (!showTopDivider) ...[
           const SizedBox(height: 24.0),
           _buildDivider(context),

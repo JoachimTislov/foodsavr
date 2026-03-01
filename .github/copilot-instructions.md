@@ -159,9 +159,13 @@ Services orchestrate repositories and contain validation/business rules.
 ### UI Components
 - **Views**: Full screens in `views/` (e.g., `auth_view.dart`, `product_list_view.dart`)
   - Get services via `getIt<Service>()` in `initState()`
+  - **Lightweight forms** (e.g., create collection, product picker) use `showModalBottomSheet` with a static `show()` method instead of full-screen routes
 - **Widgets**: Reusable components in `widgets/` organized by feature domain
   - `widgets/auth/` - Authentication-related widgets
   - `widgets/product/` - Product-related widgets
+
+### Tooling
+- Use **Dart scripts** in `tool/` for project tooling (e.g., localization checks). Do not use Python scripts.
 
 ### Adding New Features
 1. Define domain models in `models/` with serialization

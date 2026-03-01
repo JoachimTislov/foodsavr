@@ -18,6 +18,24 @@ class Collection {
     this.type = CollectionType.inventory,
   });
 
+  Collection copyWith({
+    String? id,
+    String? name,
+    List<int>? productIds,
+    String? userId,
+    String? description,
+    CollectionType? type,
+  }) {
+    return Collection(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      productIds: productIds ?? this.productIds,
+      userId: userId ?? this.userId,
+      description: description ?? this.description,
+      type: type ?? this.type,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

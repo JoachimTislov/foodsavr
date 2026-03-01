@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../constants/privacy_notice.dart';
 import '../constants/terms_of_service.dart';
@@ -15,9 +16,9 @@ import '../widgets/auth/social_auth_section.dart';
 import '../widgets/auth/terms_and_privacy_checkbox.dart';
 
 class AuthView extends StatefulWidget {
-  const AuthView({super.key, required this.title});
+  const AuthView({super.key, this.isLogin = true});
 
-  final String title;
+  final bool isLogin;
 
   @override
   State<AuthView> createState() => _AuthViewState();
@@ -35,6 +36,7 @@ class _AuthViewState extends State<AuthView> {
   void initState() {
     super.initState();
     _controller = getIt<AuthController>();
+    _controller.isLogin = widget.isLogin;
     _privacyRecognizer.onTap = _showPrivacyNotice;
     _termsRecognizer.onTap = _showTermsOfService;
   }
@@ -169,6 +171,10 @@ class _AuthViewState extends State<AuthView> {
                               _controller.isLogin = !_controller.isLogin;
                               _emailController.clear();
                               _passwordController.clear();
+                              final mode = _controller.isLogin
+                                  ? 'login'
+                                  : 'signup';
+                              context.go('/auth?mode=$mode');
                             },
                     ),
                   ],
