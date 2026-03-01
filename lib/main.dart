@@ -71,6 +71,7 @@ void main() async {
       supportedLocales: const [enLocale, Locale('nb', 'NO')],
       path: 'assets/translations',
       fallbackLocale: enLocale,
+      startLocale: enLocale,
       useFallbackTranslations: true,
       child: MyApp(router: router),
     ),
