@@ -166,6 +166,20 @@ class _AddProductToCollectionViewState
           );
         },
       ),
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'add_product_to_collection_fab',
+        onPressed: () async {
+          final result = await context.push(
+            '/product-form?collectionId=${widget.collectionId}',
+          );
+          if (result == true && mounted) {
+            setState(() {
+              _productsFuture = _loadProducts();
+            });
+          }
+        },
+        child: const Icon(Icons.add),
+      ),
     );
   }
 }

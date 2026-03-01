@@ -167,6 +167,22 @@ class _CollectionListViewState extends State<CollectionListView> {
           }
         },
       ),
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'collection_list_fab_${widget.typeFilter?.name ?? 'all'}',
+        onPressed: () async {
+          final result = await context.push(
+            '/collection-form',
+            extra: {
+              'type': widget.typeFilter ?? CollectionType.inventory,
+              'collection': null,
+            },
+          );
+          if (result == true) {
+            _refreshCollections();
+          }
+        },
+        child: const Icon(Icons.add),
+      ),
     );
   }
 
