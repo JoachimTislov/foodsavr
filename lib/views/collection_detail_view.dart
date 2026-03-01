@@ -6,6 +6,7 @@ import '../models/collection_model.dart';
 import '../models/product_model.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
+import '../interfaces/i_auth_service.dart';
 import '../widgets/collection/collection_header.dart';
 import '../widgets/common/empty_state_widget.dart';
 import '../widgets/common/error_state_widget.dart';
@@ -24,11 +25,13 @@ class CollectionDetailView extends StatefulWidget {
 class _CollectionDetailViewState extends State<CollectionDetailView> {
   late Future<List<Product>> _productsFuture;
   late final ProductService _productService;
+  late final IAuthService _authService;
 
   @override
   void initState() {
     super.initState();
     _productService = getIt<ProductService>();
+    _authService = getIt<IAuthService>();
     _productsFuture = _fetchProducts();
   }
 
@@ -48,6 +51,16 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         title: Text(widget.collection.name),
         backgroundColor: colorScheme.surface,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () => context.go('/settings'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => _authService.signOut(),
+          ),
+        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
