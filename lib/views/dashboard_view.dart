@@ -157,13 +157,13 @@ class _DashboardViewState extends State<DashboardView> {
                     iconColor: colorScheme.primary,
                     onTap: () => context.push('/global-products'),
                   ),
-                  // OverviewCard(
-                  //   title: 'dashboard.statistics'.tr(),
-                  //   subtitle: 'dashboard.statisticsSubtitle'.tr(),
-                  //   icon: Icons.bar_chart_outlined,
-                  //   iconColor: colorScheme.primary,
-                  //   onTap: () {},
-                  // ),
+                  OverviewCard(
+                    title: 'dashboard.statistics'.tr(),
+                    subtitle: 'dashboard.statisticsSubtitle'.tr(),
+                    icon: Icons.bar_chart_outlined,
+                    iconColor: colorScheme.primary,
+                    onTap: () {},
+                  ),
                 ];
 
                 return GridView.count(
