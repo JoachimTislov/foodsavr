@@ -23,8 +23,6 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK >=3.32.0
 | `TabBarThemeData` | Flutter 3.32.0 ✅ | Required — `ThemeData.tabBarTheme` is now typed `TabBarThemeData?` |
 
 ### Rule
-DO NOT USE "rg --g"
-
 When reviewing or writing code, **check [pub.dev](https://pub.dev) or the [Flutter breaking-changes doc](https://docs.flutter.dev/release/breaking-changes) if unsure** whether an API exists at the minimum Flutter version. If a newer API is used, either raise the minimum version in `pubspec.yaml` or use the older equivalent.
 
 

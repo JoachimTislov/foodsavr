@@ -108,11 +108,14 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
   }
 
   Future<List<Product>> _fetchProducts() async {
-    // Fetch products by their IDs
-    final allProducts = await _productService.getAllProducts();
-    return allProducts
-        .where((p) => widget.collection.productIds.contains(p.id))
-        .toList();
+    final productIds = widget.collection.productIds;
+    if (productIds.isEmpty) return [];
+    final products = <Product>[];
+    for (final id in productIds) {
+      final product = await _productService.getProductById(id);
+      if (product != null) products.add(product);
+    }
+    return products;
   }
 
   void _navigateToProductDetail(Product product) {

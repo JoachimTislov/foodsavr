@@ -153,7 +153,15 @@ GoRouter createAppRouter(IAuthService authService) {
       GoRoute(
         path: '/collection-form',
         builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>;
+          final extra = state.extra;
+          if (extra is! Map<String, dynamic> ||
+              extra['type'] is! CollectionType) {
+            return const Scaffold(
+              body: Center(
+                child: Text('Invalid route parameters for collection form.'),
+              ),
+            );
+          }
           final type = extra['type'] as CollectionType;
           final collection = extra['collection'] as Collection?;
           return CollectionFormView(type: type, collection: collection);

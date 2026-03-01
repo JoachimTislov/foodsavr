@@ -58,9 +58,7 @@ class _CollectionFormViewState extends State<CollectionFormView> {
 
     try {
       final collection = Collection(
-        id:
-            widget.collection?.id ??
-            DateTime.now().millisecondsSinceEpoch.toString(),
+        id: widget.collection?.id ?? '',
         name: _nameController.text,
         description: _descriptionController.text,
         userId: userId,
@@ -69,8 +67,6 @@ class _CollectionFormViewState extends State<CollectionFormView> {
       );
 
       if (widget.collection == null) {
-        // I need to add an 'addCollection' method to CollectionService or use the repo directly
-        // For now let's assume I'll add it.
         await _collectionService.addCollection(collection);
       } else {
         await _collectionService.updateCollection(collection);

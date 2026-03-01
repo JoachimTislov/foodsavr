@@ -31,6 +31,12 @@ class _DynamicCollectionViewState extends State<DynamicCollectionView> {
     _collectionsFuture = _fetchCollections();
   }
 
+  void refresh() {
+    setState(() {
+      _collectionsFuture = _fetchCollections();
+    });
+  }
+
   Future<List<Collection>> _fetchCollections() async {
     final userId = _authService.getUserId();
     if (userId == null) return [];
@@ -62,7 +68,6 @@ class _DynamicCollectionViewState extends State<DynamicCollectionView> {
           if (collections.length == 1) {
             return CollectionDetailView(collection: collections.first);
           } else {
-            // Includes 0 collections or >1 collections
             return CollectionListView(typeFilter: widget.type);
           }
         }

@@ -68,17 +68,14 @@ class _ProfileViewState extends State<ProfileView> {
                     _SettingsItem(
                       icon: Icons.lock_reset,
                       label: 'generated.forgotPassword'.tr(),
-                      onTap: () {},
                     ),
                     _SettingsItem(
                       icon: Icons.mail_outline,
                       label: 'generated.changeEmail'.tr(),
-                      onTap: () {},
                     ),
                     _SettingsItem(
                       icon: Icons.security,
                       label: 'generated.twofactorAuthentication'.tr(),
-                      onTap: () {},
                     ),
                     _SettingsItem(
                       icon: Icons.logout,
@@ -375,13 +372,13 @@ class _SettingsGroup extends StatelessWidget {
 class _SettingsItem extends StatelessWidget {
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final bool isDestructive;
 
   const _SettingsItem({
     required this.icon,
     required this.label,
-    required this.onTap,
+    this.onTap,
     this.isDestructive = false,
   });
 

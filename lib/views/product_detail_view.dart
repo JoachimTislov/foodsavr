@@ -271,12 +271,14 @@ class _ProductDetailViewState extends State<ProductDetailView> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete Product'),
-        content: Text('Are you sure you want to delete "${product.name}"?'),
+        title: Text('product.delete'.tr()),
+        content: Text(
+          'product.deleteConfirmMessage'.tr(namedArgs: {'name': product.name}),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
+            child: Text('common.cancel'.tr()),
           ),
           FilledButton(
             onPressed: () async {
@@ -285,17 +287,25 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                 await _productService.deleteProduct(product.id);
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('${product.name} deleted')),
+                  SnackBar(
+                    content: Text(
+                      'product.deleted'.tr(namedArgs: {'name': product.name}),
+                    ),
+                  ),
                 );
                 context.pop(true);
               } catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to delete product: $e')),
+                  SnackBar(
+                    content: Text(
+                      'product.deleteError'.tr(namedArgs: {'error': '$e'}),
+                    ),
+                  ),
                 );
               }
             },
-            child: const Text('Delete'),
+            child: Text('common.delete'.tr()),
           ),
         ],
       ),

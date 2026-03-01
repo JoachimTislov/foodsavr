@@ -6,6 +6,8 @@ import '../service_locator.dart';
 import '../services/product_service.dart';
 import '../services/collection_service.dart';
 import '../interfaces/i_auth_service.dart';
+import '../widgets/product/quantity_section.dart';
+import '../widgets/product/expiries_section.dart';
 import '../constants/product_categories.dart';
 
 class ProductFormView extends StatefulWidget {
@@ -21,6 +23,7 @@ class ProductFormView extends StatefulWidget {
 class _ProductFormViewState extends State<ProductFormView> {
   final _formKey = GlobalKey<FormState>();
   late final ProductService _productService;
+  late final CollectionService _collectionService;
   late final IAuthService _authService;
 
   late TextEditingController _nameController;
@@ -35,6 +38,7 @@ class _ProductFormViewState extends State<ProductFormView> {
   void initState() {
     super.initState();
     _productService = getIt<ProductService>();
+    _collectionService = getIt<CollectionService>();
     _authService = getIt<IAuthService>();
 
     _nameController = TextEditingController(text: widget.product?.name ?? '');
@@ -78,11 +82,15 @@ class _ProductFormViewState extends State<ProductFormView> {
       if (widget.product == null) {
         await _productService.addProduct(product);
         if (widget.initialCollectionId != null) {
-          final collectionService = getIt<CollectionService>();
-          await collectionService.addProductToCollection(
+          final collection = await _collectionService.getCollection(
             widget.initialCollectionId!,
-            productId,
           );
+          if (collection != null && collection.userId == userId) {
+            await _collectionService.addProductToCollection(
+              widget.initialCollectionId!,
+              productId,
+            );
+          }
         }
       } else {
         await _productService.updateProduct(product);
@@ -173,70 +181,19 @@ class _ProductFormViewState extends State<ProductFormView> {
               ),
             ),
             const SizedBox(height: 8),
-            _buildQuantitySection(),
+            QuantitySection(
+              quantity: _nonExpiringQuantity,
+              onChanged: (val) => setState(() => _nonExpiringQuantity = val),
+            ),
             const SizedBox(height: 24),
-            _buildExpiriesSection(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuantitySection() {
-    return ListTile(
-      title: Text('product.non_expiring_quantity'.tr()),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.remove),
-            onPressed: _nonExpiringQuantity > 0
-                ? () => setState(() => _nonExpiringQuantity--)
-                : null,
-          ),
-          Text(_nonExpiringQuantity.toString()),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => setState(() => _nonExpiringQuantity++),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildExpiriesSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'product.expiries'.tr(),
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            TextButton.icon(
-              icon: const Icon(Icons.add),
-              label: Text('product.add_expiry'.tr()),
-              onPressed: _addExpiry,
+            ExpiriesSection(
+              expiries: _expiries,
+              onAdd: _addExpiry,
+              onRemove: (idx) => setState(() => _expiries.removeAt(idx)),
             ),
           ],
         ),
-        ..._expiries.asMap().entries.map((entry) {
-          final idx = entry.key;
-          final expiry = entry.value;
-          return ListTile(
-            title: Text(DateFormat.yMMMd().format(expiry.expirationDate)),
-            subtitle: Text(
-              'product.quantity_units'.tr(args: [expiry.quantity.toString()]),
-            ),
-            trailing: IconButton(
-              icon: const Icon(Icons.delete_outline),
-              onPressed: () => setState(() => _expiries.removeAt(idx)),
-            ),
-          );
-        }),
-      ],
+      ),
     );
   }
 

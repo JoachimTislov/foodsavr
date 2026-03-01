@@ -186,9 +186,7 @@ class _ProductListViewState extends State<ProductListView> {
           ),
           IconButton(
             icon: const Icon(Icons.settings),
-            onPressed: () {
-              // Settings functionality
-            },
+            onPressed: () => context.go('/settings'),
           ),
           IconButton(
             icon: const Icon(Icons.logout),

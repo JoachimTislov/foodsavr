@@ -14,11 +14,14 @@ class CollectionRepository implements ICollectionRepository {
 
   @override
   Future<Collection> add(Collection collection) async {
-    await _firestore
-        .collection(_collectionName)
-        .doc(collection.id)
-        .set(collection.toJson());
-    return collection;
+    final docRef = collection.id.isEmpty
+        ? _firestore.collection(_collectionName).doc()
+        : _firestore.collection(_collectionName).doc(collection.id);
+    final savedCollection = collection.id.isEmpty
+        ? collection.copyWith(id: docRef.id)
+        : collection;
+    await docRef.set(savedCollection.toJson());
+    return savedCollection;
   }
 
   @override
