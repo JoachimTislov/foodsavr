@@ -9,8 +9,6 @@ import 'package:mocktail/mocktail.dart';
 
 class _MockAuthService extends Mock implements IAuthService {}
 
-class _MockLogger extends Mock implements Logger {}
-
 class _MockUserCredential extends Mock implements UserCredential {}
 
 void main() {
@@ -20,7 +18,7 @@ void main() {
     await getIt.reset();
     authService = _MockAuthService();
     getIt.registerLazySingleton<IAuthService>(() => authService);
-    getIt.registerLazySingleton<Logger>(_MockLogger.new);
+    getIt.registerLazySingleton<Logger>(() => Logger(level: Level.off));
   });
 
   tearDown(() async {

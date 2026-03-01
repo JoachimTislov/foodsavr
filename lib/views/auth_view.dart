@@ -109,71 +109,64 @@ class _AuthViewState extends ConsumerState<AuthView> {
           padding: const EdgeInsets.all(24.0),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 400),
-            child: ListenableBuilder(
-              listenable: controller,
-              builder: (context, _) {
-                return Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AuthHeader(isLogin: controller.isLogin),
-                    AuthStatusMessages(
-                      errorMessage: controller.errorMessage,
-                      successMessage: controller.successMessage,
-                    ),
-                    AbsorbPointer(
-                      absorbing: controller.isLoading,
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          children: [
-                            AuthFormFields(
-                              emailController: _emailController,
-                              passwordController: _passwordController,
-                            ),
-                            const SizedBox(height: 16.0),
-                            if (controller.isLogin)
-                              _buildLoginOptions(controller)
-                            else
-                              TermsAndPrivacyCheckbox(
-                                value: controller.agreedToTerms,
-                                onChanged: (val) =>
-                                    controller.agreedToTerms = val ?? false,
-                                privacyRecognizer: _privacyRecognizer,
-                                termsRecognizer: _termsRecognizer,
-                              ),
-                            const SizedBox(height: 24.0),
-                            AuthSubmitButton(
-                              isLogin: controller.isLogin,
-                              isLoading: controller.isLoading,
-                              onPressed: controller.isLoading
-                                  ? null
-                                  : _authenticate,
-                            ),
-                          ],
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AuthHeader(isLogin: controller.isLogin),
+                AuthStatusMessages(
+                  errorMessage: controller.errorMessage,
+                  successMessage: controller.successMessage,
+                ),
+                AbsorbPointer(
+                  absorbing: controller.isLoading,
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        AuthFormFields(
+                          emailController: _emailController,
+                          passwordController: _passwordController,
                         ),
-                      ),
+                        const SizedBox(height: 16.0),
+                        if (controller.isLogin)
+                          _buildLoginOptions(controller)
+                        else
+                          TermsAndPrivacyCheckbox(
+                            value: controller.agreedToTerms,
+                            onChanged: (val) =>
+                                controller.agreedToTerms = val ?? false,
+                            privacyRecognizer: _privacyRecognizer,
+                            termsRecognizer: _termsRecognizer,
+                          ),
+                        const SizedBox(height: 24.0),
+                        AuthSubmitButton(
+                          isLogin: controller.isLogin,
+                          isLoading: controller.isLoading,
+                          onPressed: controller.isLoading ? null : _authenticate,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 24.0),
-                    SocialAuthSection(
-                      isLoading: controller.isLoading,
-                      onGooglePressed: _signInWithGoogle,
-                      onFacebookPressed: _signInWithFacebook,
-                    ),
-                    const SizedBox(height: 24.0),
-                    AuthToggleButton(
-                      isLogin: controller.isLogin,
-                      onPressed: controller.isLoading
-                          ? null
-                          : () {
-                              controller.isLogin = !controller.isLogin;
-                              _emailController.clear();
-                              _passwordController.clear();
-                            },
-                    ),
-                  ],
-                );
-              },
+                  ),
+                ),
+                const SizedBox(height: 24.0),
+                SocialAuthSection(
+                  isLoading: controller.isLoading,
+                  onGooglePressed: _signInWithGoogle,
+                  onFacebookPressed: _signInWithFacebook,
+                ),
+                const SizedBox(height: 24.0),
+                AuthToggleButton(
+                  isLogin: controller.isLogin,
+                  onPressed: controller.isLoading
+                      ? null
+                      : () {
+                          controller.isLogin = !controller.isLogin;
+                          _emailController.clear();
+                          _passwordController.clear();
+                        },
+                ),
+              ],
             ),
           ),
         ),
