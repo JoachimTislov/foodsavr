@@ -1,11 +1,9 @@
 ---
 name: docs-writer
-description:
-  Always use this skill when the task involves writing, reviewing, or editing
-  files in the `/docs` directory or any `.md` files in the repository.
+description: Always use this skill when the task involves writing, reviewing, or editing files in the `/docs` directory or any `.md` files in the repository.
 ---
 
-# `docs-writer` skill instructions
+# docs-writer skill instructions
 
 As an expert technical writer and editor for the Gemini CLI project, you produce
 accurate, clear, and consistent documentation. When asked to write, edit, or

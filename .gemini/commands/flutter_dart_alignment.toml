@@ -2,7 +2,8 @@ description = "Aligns the project with Effective Dart, SOLID principles, and Flu
 prompt = """
 1. Follow 'Effective Dart' guidelines for clean and idiomatic Dart code.
 2. Apply 'SOLID Principles' to ensure maintainability, scalability, and testability.
-3. Use a consistent State Management solution (e.g., StatefulWidget, Provider, or Riverpod).
+3. Use 'Riverpod' for state management, leveraging 'AsyncNotifier' and 'Notifier' with code generation.
 4. Maintain high 'Code Quality' through linting, formatting, and static analysis.
-5. Use proper error handling and logging to ensure system reliability and observability.
+5. Use proper error handling and logging (using the `logger` package) to ensure system reliability and observability.
+6. For dependencies, use constructor injection with '@injectable' where appropriate, or Riverpod providers.
 """

@@ -1,38 +1,19 @@
 ---
 name: pr-creator
-description:
-  Use this skill when asked to create a pull request (PR). It ensures all PRs
-  follow the repository's established templates and standards.
+description: Use this skill when asked to create a pull request (PR). It ensures all PRs follow the repository's established templates and standards.
 ---
 
-# Pull Request Creator
+This skill guides the creation of high-quality Pull Requests that adhere to the repository's standards.
 
-This skill guides the creation of high-quality Pull Requests that adhere to the
-repository's standards.
-
-## Workflow
+# Workflow
 
 Follow these steps to create a Pull Request:
 
-1.  **Branch Management**: **CRITICAL:** Ensure you are NOT working on the
-    `main` branch.
-    - Run `git branch --show-current`.
-    - If the current branch is `main`, you MUST create and switch to a new
-      descriptive branch:
-      ```bash
-      git checkout -b <new-branch-name>
-      ```
-
-2.  **Commit Changes**: Verify that all intended changes are committed.
+1.  **Commit Changes**: Verify that all intended changes are committed.
     - Run `git status` to check for unstaged or uncommitted changes.
-    - If there are uncommitted changes, stage and commit them with a descriptive
-      message before proceeding. NEVER commit directly to `main`.
-      ```bash
-      git add .
-      git commit -m "type(scope): description"
-      ```
+    - If there are uncommitted changes, stage and commit them with 'commit' skill.
 
-5.  **Draft Description**: Create a PR description that strictly follows the
+2.  **Draft Description**: Create a PR description that strictly follows the
     template's structure.
     - **Headings**: Keep all headings from the template.
     - **Checklists**: Review each item. Mark with `[x]` if completed. If an item
@@ -44,24 +25,17 @@ Follow these steps to create a Pull Request:
     - **Related Issues**: Link any issues fixed or related to this PR (e.g.,
       "Fixes #123").
 
-6.  **Preflight Check**: Before creating the PR, run the workspace preflight
-    script to ensure all build, lint, and test checks pass.
-    ```bash
-    make check
-    ```
-    If any checks fail, address the issues before proceeding to create the PR.
-
-7.  **Push Branch**: Push the current branch to the remote repository.
+3.  **Push Branch**: Push the current branch to the remote repository.
     **CRITICAL SAFETY RAIL:** Double-check your branch name before pushing.
     NEVER push if the current branch is `main`.
     ```bash
     # Verify current branch is NOT main
     git branch --show-current
-    # Push non-interactively
-    git push -u origin HEAD
+
+    make push
     ```
 
-8.  **Create PR**: Use the `gh` CLI to create the PR. To avoid shell escaping
+4.  **Create PR**: Use the `gh` CLI to create the PR. To avoid shell escaping
     issues with multi-line Markdown, write the description to a temporary file
     first.
     ```bash

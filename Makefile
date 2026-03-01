@@ -1,4 +1,4 @@
-.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test test-auth-flow clean locales check check-full deps locale-check generate-di preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated pr-comments-resolve-all pr-comments-resolve-thread pr-comments-list pr-comment-get
+.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps codegen locale-check generate-di preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated pr-comments-resolve-all pr-comments-resolve-thread pr-comments-list pr-comment-get
 
 dev-chrome-prod: deps
 	@flutter run -d chrome --no-pub --flavor production
@@ -32,10 +32,11 @@ deps: .deps-stamp
 	@flutter pub get > /dev/null
 	@touch .deps-stamp
 
-# Code quality commands
-check: deps analyze test locale-check
+codegen:
+	@dart run build_runner build --delete-conflicting-outputs
 
-check-full: check fix fmt
+# Code quality commands
+check: deps analyze test locale-check fix fmt
 
 analyze: deps
 	@echo "Running Flutter analyze..."
@@ -58,10 +59,6 @@ test: deps
 	else \
 		echo "No Dart changes detected in local commits or staged changes. Skipping tests."; \
 	fi
-
-test-auth-flow: deps
-	@echo "Running auth flow regression test..."
-	@flutter test --no-pub test/router_auth_flow_test.dart
 
 clean:
 	@echo "Cleaning build artifacts..."
@@ -108,17 +105,13 @@ preflight:
 	fi
 
 push: deps preflight
-	@DI_FILES=$$(/usr/bin/ls lib/services/* lib/interfaces/* lib/repositories/* lib/di/*; echo lib/service_locator.dart lib/injection.dart); \
-	if git rev-parse --verify @{upstream} >/dev/null 2>&1; then \
-		CHANGED=$$(git --no-pager diff --name-only @{upstream}..HEAD); \
-	else \
-		CHANGED=""; \
-	fi; \
-	if echo "$$CHANGED" | grep -qF "$$DI_FILES"; then \
+	@CHANGED=$$(git --no-pager diff --name-only @{upstream}..HEAD); \
+	DI_PATTERN='^lib/(services|interfaces|repositories|di)/|^lib/(service_locator|injection)\.dart$$'; \
+	if echo "$$CHANGED" | grep -qE "$$DI_PATTERN"; then \
 		echo "Upstream DI changes detected, running generate-di..."; \
 		$(MAKE) generate-di || { echo "generate-di failed, aborting push."; exit 1; }; \
 	fi
-	@$(MAKE) check-full
+	@$(MAKE) check
 	@if [ -n "$$(git status --short)" ]; then \
 		git add .; \
 		git commit -m "format with dart"; \

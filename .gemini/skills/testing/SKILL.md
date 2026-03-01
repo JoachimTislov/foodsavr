@@ -1,6 +1,6 @@
 ---
 name: testing
-description: Guide for writing and running tests for the project's source code.
+description: Use this skill when asked to write or run tests
 ---
 
 # Source Code Testing Guide
