@@ -38,7 +38,13 @@ void main() async {
       'Invalid app flavor: $appFlavor. Supported flavors: ${supportedFlavors.join(', ')}',
     );
   }
-  WidgetsFlutterBinding.ensureInitialized();
+  final engine = WidgetsFlutterBinding.ensureInitialized();
+  engine.performReassemble();
+
+  // Reset GetIt on full restart to avoid duplicate registration errors
+  if (getIt.isRegistered<Logger>()) {
+    await getIt.reset();
+  }
 
   final serviceLocator = ServiceLocator();
   await serviceLocator.registerDependencies();
@@ -63,13 +69,16 @@ void main() async {
   const enLocale = Locale('en', 'US');
   await EasyLocalization.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
-  getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
+  if (!getIt.isRegistered<ThemeNotifier>()) {
+    getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
+  }
   final router = createAppRouter(getIt<IAuthService>());
   runApp(
     EasyLocalization(
       supportedLocales: const [enLocale, Locale('nb', 'NO')],
       path: 'assets/translations',
       fallbackLocale: enLocale,
+      useFallbackTranslations: true,
       child: MyApp(router: router),
     ),
   );
