@@ -158,7 +158,10 @@
     "forgot_password": "Forgot Password",
     "change_email": "Change Email",
     "two_factor_auth": "Two-factor Authentication",
-    "log_out": "Log Out"
+    "log_out": "Log Out",
+    "danger_zone": "Danger Zone",
+    "delete_account": "Delete Account",
+    "delete_account_description": "Permanently delete your account and all associated data. This action cannot be undone."
   },
   "collection": {
     "errorLoadingProducts": "Error loading products",
@@ -198,9 +201,6 @@
       "light": "Light",
       "system": "System"
     },
-    "danger_zone": "Danger Zone",
-    "delete_account": "Delete Account",
-    "delete_account_description": "Permanently delete your account and all associated data. This action cannot be undone.",
     "title": "Settings"
   }
 }
