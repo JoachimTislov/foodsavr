@@ -1,10 +1,15 @@
-import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:get_it/get_it.dart';
-import '../../models/product_model.dart';
-import '../../interfaces/i_auth_service.dart';
-import '../../services/collection_service.dart';
-import '../../widgets/product/product_details_card.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import 'product_form_view.dart';
+import '../constants/product_categories.dart';
+import '../models/product_model.dart';
+import '../widgets/product/product_details_card.dart';
+import '../service_locator.dart';
+import '../services/collection_service.dart';
+import '../services/product_service.dart';
+import '../interfaces/i_auth_service.dart';
 
 class ProductDetailView extends StatefulWidget {
   final Product product;
@@ -16,44 +21,47 @@ class ProductDetailView extends StatefulWidget {
 }
 
 class _ProductDetailViewState extends State<ProductDetailView> {
-  final _collectionService = GetIt.I<CollectionService>();
-  final _authService = GetIt.I<IAuthService>();
+  late final CollectionService _collectionService;
+  late final ProductService _productService;
+  late final IAuthService _authService;
   List<String>? _inventoryNames;
-  bool _isLoadingInventories = true;
+  bool _isLoadingInventories = false;
+  late Product _currentProduct;
 
   @override
   void initState() {
     super.initState();
+    _collectionService = getIt<CollectionService>();
+    _productService = getIt<ProductService>();
+    _authService = getIt<IAuthService>();
+    _currentProduct = widget.product;
     _loadInventories();
   }
 
   Future<void> _loadInventories() async {
-    try {
-      final userId = _authService.getUserId();
-      if (userId == null) return;
+    final userId = _authService.getUserId();
+    if (userId == null) return;
 
+    setState(() => _isLoadingInventories = true);
+    try {
       final inventories = await _collectionService.getInventoriesByProductId(
         userId,
-        widget.product.id,
+        _currentProduct.id,
       );
-
       if (mounted) {
         setState(() {
-          _inventoryNames = inventories.map((i) => i.name).toList();
+          _inventoryNames = inventories.map((c) => c.name).toList();
           _isLoadingInventories = false;
         });
       }
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('Failed to load inventories: $e\n$stack');
       if (mounted) {
-        setState(() {
-          _isLoadingInventories = false;
-        });
+        setState(() => _isLoadingInventories = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'product.inventoryLoadError'.tr(
-                namedArgs: {'error': e.toString()},
-              ),
+              'product.inventoryLoadError'.tr(namedArgs: {'error': '$e'}),
             ),
           ),
         );
@@ -63,51 +71,104 @@ class _ProductDetailViewState extends State<ProductDetailView> {
 
   @override
   Widget build(BuildContext context) {
-    final product = widget.product;
+    final product = _currentProduct;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+
+    // Get status from product model
     final status = product.status;
     final statusColor = status.getColor(colorScheme);
-    final statusIcon = status.getIcon();
     final statusMessage = status.getMessage();
+    final statusIcon = status.getIcon();
 
     return Scaffold(
-      body: SafeArea(
-        top: false,
-        child: CustomScrollView(
-          slivers: [
-            SliverAppBar.large(
-              title: Text(product.name),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('product.editSoon'.tr())),
-                    );
-                  },
+      appBar: AppBar(),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Hero image section
+            Container(
+              width: double.infinity,
+              height: 200,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(24),
+                  bottomRight: Radius.circular(24),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('product.delete'.tr())),
-                    );
-                  },
+              ),
+              child: Center(
+                child: Icon(
+                  ProductCategory.getIcon(product.category),
+                  size: 100,
+                  color: colorScheme.onPrimaryContainer,
                 ),
-              ],
+              ),
             ),
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
+            const SizedBox(height: 24),
+            // Content
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title and actions
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          product.name,
+                          style: theme.textTheme.displaySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit),
+                        onPressed: () async {
+                          final result = await ProductFormView.show(
+                            context,
+                            product: _currentProduct,
+                          );
+                          if (result == true && mounted) {
+                            final updatedProduct = await _productService
+                                .getProductById(_currentProduct.id);
+                            if (updatedProduct != null) {
+                              setState(() {
+                                _currentProduct = updatedProduct;
+                              });
+                              _loadInventories();
+                            }
+                          }
+                        },
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.delete, color: colorScheme.error),
+                        onPressed: () => _showDeleteConfirmation(product),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 8),
-                  // Expiration Highlight
+                  if (product.category != null)
+                    Chip(
+                      label: Text(product.category!),
+                      labelStyle: theme.textTheme.labelLarge,
+                      backgroundColor: colorScheme.secondaryContainer,
+                      avatar: Icon(
+                        ProductCategory.getIcon(product.category),
+                        size: 20,
+                        color: colorScheme.onSecondaryContainer,
+                      ),
+                    ),
+                  const SizedBox(height: 24),
+                  // Status banner
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
                     margin: const EdgeInsets.only(bottom: 24),
                     decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.1),
+                      color: statusColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: statusColor.withValues(alpha: 0.5),
@@ -132,17 +193,16 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                               if (product.daysUntilExpiration != null)
                                 Text(
                                   product.daysUntilExpiration! < 0
-                                      ? 'product.status_expired_days_ago'.tr(
+                                      ? 'product.expiredDaysAgo'.tr(
                                           namedArgs: {
-                                            'days': product.daysUntilExpiration!
-                                                .abs()
-                                                .toString(),
+                                            'days':
+                                                '${product.daysUntilExpiration!.abs()}',
                                           },
                                         )
-                                      : 'product.status_days_remaining'.tr(
+                                      : 'product.daysRemaining'.tr(
                                           namedArgs: {
-                                            'days': product.daysUntilExpiration
-                                                .toString(),
+                                            'days':
+                                                '${product.daysUntilExpiration}',
                                           },
                                         ),
                                   style: theme.textTheme.bodyMedium?.copyWith(
@@ -205,7 +265,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                   const SizedBox(height: 32),
                   // Details section
                   Text(
-                    'product.details_section'.tr(),
+                    'product.details'.tr(),
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -213,11 +273,56 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                   const SizedBox(height: 16),
                   ProductDetailsCard(product: product),
                   const SizedBox(height: 32),
-                ]),
+                ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(Product product) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('product.delete'.tr()),
+        content: Text(
+          'product.deleteConfirmMessage'.tr(namedArgs: {'name': product.name}),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text('common.cancel'.tr()),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(dialogContext).pop();
+              try {
+                await _productService.deleteProduct(product.id);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'product.deleted'.tr(namedArgs: {'name': product.name}),
+                    ),
+                  ),
+                );
+                context.pop(true);
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'product.deleteError'.tr(namedArgs: {'error': '$e'}),
+                    ),
+                  ),
+                );
+              }
+            },
+            child: Text('common.delete'.tr()),
+          ),
+        ],
       ),
     );
   }

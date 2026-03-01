@@ -29,8 +29,10 @@ class _FakeAuthService implements IAuthService {
   Stream<User?> get authStateChanges => _controller.stream;
 
   @override
-  String? getUserId() => _userId;
+  User? get currentUser => null;
 
+  @override
+  String? getUserId() => _userId;
   @override
   Future<UserCredential> signIn({
     required String email,

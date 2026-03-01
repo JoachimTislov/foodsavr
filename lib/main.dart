@@ -38,7 +38,8 @@ void main() async {
       'Invalid app flavor: $appFlavor. Supported flavors: ${supportedFlavors.join(', ')}',
     );
   }
-  WidgetsFlutterBinding.ensureInitialized();
+  final engine = WidgetsFlutterBinding.ensureInitialized();
+  engine.performReassemble(); // TODO: I don't think this works...
 
   final serviceLocator = ServiceLocator();
   await serviceLocator.registerDependencies();
@@ -70,6 +71,8 @@ void main() async {
       supportedLocales: const [enLocale, Locale('nb', 'NO')],
       path: 'assets/translations',
       fallbackLocale: enLocale,
+      startLocale: enLocale,
+      useFallbackTranslations: true,
       child: MyApp(router: router),
     ),
   );

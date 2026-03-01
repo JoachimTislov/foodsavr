@@ -9,8 +9,11 @@ import '../service_locator.dart';
 import '../services/product_service.dart';
 import '../services/collection_service.dart';
 import '../utils/collection_types.dart'; // Import CollectionType
+import '../views/product_detail_view.dart';
 import '../widgets/dashboard/expiring_item_card.dart';
 import '../widgets/dashboard/overview_card.dart';
+import 'collection_form_view.dart';
+import 'product_form_view.dart';
 
 class DashboardView extends StatefulWidget {
   const DashboardView({super.key});
@@ -59,10 +62,7 @@ class _DashboardViewState extends State<DashboardView> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'dashboard.title'.tr(),
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
+            Text('dashboard.title'.tr()),
             Text(
               today,
               style: textTheme.bodySmall?.copyWith(
@@ -75,14 +75,8 @@ class _DashboardViewState extends State<DashboardView> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () => context.push('/settings'),
-            tooltip: 'common.settings'.tr(),
-          ),
-          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => _authService.signOut(),
-            tooltip: 'common.signOut'.tr(),
           ),
         ],
       ),
@@ -92,14 +86,52 @@ class _DashboardViewState extends State<DashboardView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _ExpiringSoonSection(expiringSoonFuture: _expiringSoonFuture),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
             Text(
-              'dashboard.overview'.tr(),
-              style: textTheme.titleLarge?.copyWith(
+              'dashboard.actions'.tr(),
+              style: textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _ActionChip(
+                  icon: Icons.add_box_outlined,
+                  label: 'dashboard.createProduct'.tr(),
+                  color: colorScheme.primary,
+                  onTap: () => ProductFormView.show(context),
+                ),
+                const SizedBox(width: 8),
+                _ActionChip(
+                  icon: Icons.inventory_2_outlined,
+                  label: 'dashboard.createInventory'.tr(),
+                  color: colorScheme.tertiary,
+                  onTap: () => CollectionFormView.show(
+                    context,
+                    type: CollectionType.inventory,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _ActionChip(
+                  icon: Icons.shopping_cart_outlined,
+                  label: 'dashboard.createShoppingList'.tr(),
+                  color: colorScheme.secondary,
+                  onTap: () => CollectionFormView.show(
+                    context,
+                    type: CollectionType.shoppingList,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'dashboard.overview'.tr(),
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
             FutureBuilder<List<Collection>>(
               future: _inventoriesFuture,
               builder: (context, snapshot) {
@@ -113,13 +145,8 @@ class _DashboardViewState extends State<DashboardView> {
 
                 final inventories = snapshot.data ?? [];
 
-                return GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  children: [
+                final cards = <Widget>[
+                  if (inventories.length > 1)
                     OverviewCard(
                       title: 'dashboard.transfer'.tr(),
                       subtitle: 'dashboard.moveItems'.tr(),
@@ -127,32 +154,30 @@ class _DashboardViewState extends State<DashboardView> {
                       iconColor: colorScheme.primary,
                       onTap: () => context.push('/transfer'),
                     ),
-                    OverviewCard(
-                      title: inventories.length == 1
-                          ? 'dashboard.myInventory'.tr()
-                          : 'dashboard.myInventories'.tr(),
-                      subtitle: 'dashboard.manageProducts'.tr(),
-                      icon: Icons.inventory_2_outlined,
-                      iconColor: colorScheme.secondary,
-                      onTap: () =>
-                          context.push('/collection-list?type=inventory'),
-                    ),
-                    OverviewCard(
-                      title: 'dashboard.shoppingList'.tr(),
-                      subtitle: 'dashboard.manageLists'.tr(),
-                      icon: Icons.shopping_cart_outlined,
-                      iconColor: colorScheme.tertiary,
-                      onTap: () =>
-                          context.push('/collection-list?type=shopping'),
-                    ),
-                    OverviewCard(
-                      title: 'dashboard.globalProducts'.tr(),
-                      subtitle: 'dashboard.browseProducts'.tr(),
-                      icon: Icons.public_outlined,
-                      iconColor: colorScheme.primary,
-                      onTap: () => context.push('/global-products'),
-                    ),
-                  ],
+                  OverviewCard(
+                    title: 'dashboard.globalProducts'.tr(),
+                    subtitle: 'dashboard.browseProducts'.tr(),
+                    icon: Icons.public_outlined,
+                    iconColor: colorScheme.primary,
+                    onTap: () => context.push('/global-products'),
+                  ),
+                  OverviewCard(
+                    title: 'dashboard.statistics'.tr(),
+                    subtitle: 'dashboard.statisticsSubtitle'.tr(),
+                    icon: Icons.bar_chart_outlined,
+                    iconColor: colorScheme.primary,
+                    onTap: () {},
+                  ),
+                ];
+
+                return GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 1.3,
+                  children: cards,
                 );
               },
             ),
@@ -210,13 +235,68 @@ class _ExpiringSoonSection extends StatelessWidget {
               children: [
                 for (int i = 0; i < products.length; i++) ...[
                   if (i > 0) const SizedBox(height: 12),
-                  ExpiringItemCard(product: products[i]),
+                  ExpiringItemCard(
+                    product: products[i],
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ProductDetailView(product: products[i]),
+                      ),
+                    ),
+                  ),
                 ],
               ],
             );
           },
         ),
       ],
+    );
+  }
+}
+
+class _ActionChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color? color;
+
+  const _ActionChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final chipColor = color ?? colorScheme.primary;
+
+    return Expanded(
+      child: FilledButton.tonal(
+        onPressed: onTap,
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          backgroundColor: chipColor.withValues(alpha: 0.1),
+          foregroundColor: chipColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

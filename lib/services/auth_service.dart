@@ -112,6 +112,9 @@ class AuthService implements IAuthService {
   }
 
   @override
+  User? get currentUser => _firebaseAuth.currentUser;
+
+  @override
   String? getUserId() {
     return _firebaseAuth.currentUser?.uid;
   }

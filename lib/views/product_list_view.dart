@@ -7,6 +7,7 @@ import '../services/product_service.dart';
 import '../services/collection_service.dart';
 import '../interfaces/i_auth_service.dart';
 import '../widgets/product/product_card_compact.dart';
+import 'product_form_view.dart';
 import '../widgets/product/product_card_normal.dart';
 import '../widgets/product/product_card_details.dart';
 import '../utils/view_mode_helper.dart';
@@ -95,11 +96,6 @@ class _ProductListViewState extends State<ProductListView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.showGlobalProducts
-              ? 'dashboard.globalProducts'.tr()
-              : 'product.title'.tr(),
-        ),
         backgroundColor: colorScheme.surface,
         elevation: 0,
         actions: [
@@ -109,7 +105,6 @@ class _ProductListViewState extends State<ProductListView> {
               ViewModeHelper.getViewModeIcon(_viewMode),
               color: colorScheme.primary,
             ),
-            tooltip: 'product.changeViewMode'.tr(),
             onSelected: (mode) {
               setState(() {
                 _viewMode = mode;
@@ -185,18 +180,8 @@ class _ProductListViewState extends State<ProductListView> {
             ],
           ),
           IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('product.settingsSoon'.tr())),
-              );
-            },
-            tooltip: 'common.settings'.tr(),
-          ),
-          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _isSigningOut ? null : _handleSignOut,
-            tooltip: 'common.signOut'.tr(),
           ),
         ],
       ),
@@ -272,11 +257,13 @@ class _ProductListViewState extends State<ProductListView> {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // TODO: Navigate to add product screen
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('product.addSoon'.tr())));
+        heroTag: 'product_list_fab',
+        onPressed: () async {
+          final result = await ProductFormView.show(context);
+          if (!mounted) return;
+          if (result == true) {
+            _refreshProducts();
+          }
         },
         icon: const Icon(Icons.add),
         label: Text('product.add'.tr()),
@@ -301,11 +288,15 @@ class _ProductListViewState extends State<ProductListView> {
           product: product,
           onTap: () => _navigateToProductDetail(product),
           inventoryNames: _productInventories[product.id],
-          onEdit: () {
-            // TODO: Navigate to edit screen
-            ScaffoldMessenger.of(
+          onEdit: () async {
+            final result = await ProductFormView.show(
               context,
-            ).showSnackBar(SnackBar(content: Text('product.editSoon'.tr())));
+              product: product,
+            );
+            if (!mounted) return;
+            if (result == true) {
+              _refreshProducts();
+            }
           },
           onDelete: () {
             // TODO: Show delete confirmation
