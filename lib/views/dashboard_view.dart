@@ -87,14 +87,55 @@ class _DashboardViewState extends State<DashboardView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _ExpiringSoonSection(expiringSoonFuture: _expiringSoonFuture),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
             Text(
-              'dashboard.overview'.tr(),
-              style: textTheme.titleLarge?.copyWith(
+              'dashboard.actions'.tr(),
+              style: textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _ActionChip(
+                  icon: Icons.add_box_outlined,
+                  label: 'dashboard.createProduct'.tr(),
+                  onTap: () => context.push('/product-form'),
+                ),
+                const SizedBox(width: 8),
+                _ActionChip(
+                  icon: Icons.inventory_2_outlined,
+                  label: 'dashboard.createInventory'.tr(),
+                  onTap: () => context.push(
+                    '/collection-form',
+                    extra: {
+                      'type': CollectionType.inventory,
+                      'collection': null,
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _ActionChip(
+                  icon: Icons.shopping_cart_outlined,
+                  label: 'dashboard.createShoppingList'.tr(),
+                  onTap: () => context.push(
+                    '/collection-form',
+                    extra: {
+                      'type': CollectionType.shoppingList,
+                      'collection': null,
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'dashboard.overview'.tr(),
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
             FutureBuilder<List<Collection>>(
               future: _inventoriesFuture,
               builder: (context, snapshot) {
@@ -109,39 +150,6 @@ class _DashboardViewState extends State<DashboardView> {
                 final inventories = snapshot.data ?? [];
 
                 final cards = <Widget>[
-                  OverviewCard(
-                    title: 'dashboard.createProduct'.tr(),
-                    subtitle: 'dashboard.createProductSubtitle'.tr(),
-                    icon: Icons.add_box_outlined,
-                    iconColor: colorScheme.primary,
-                    onTap: () => context.push('/product-form'),
-                  ),
-                  OverviewCard(
-                    title: 'dashboard.createInventory'.tr(),
-                    subtitle: 'dashboard.createInventorySubtitle'.tr(),
-                    icon: Icons.inventory_2_outlined,
-                    iconColor: colorScheme.primary,
-                    onTap: () => context.push(
-                      '/collection-form',
-                      extra: {
-                        'type': CollectionType.inventory,
-                        'collection': null,
-                      },
-                    ),
-                  ),
-                  OverviewCard(
-                    title: 'dashboard.createShoppingList'.tr(),
-                    subtitle: 'dashboard.createShoppingListSubtitle'.tr(),
-                    icon: Icons.shopping_cart_outlined,
-                    iconColor: colorScheme.primary,
-                    onTap: () => context.push(
-                      '/collection-form',
-                      extra: {
-                        'type': CollectionType.shoppingList,
-                        'collection': null,
-                      },
-                    ),
-                  ),
                   if (inventories.length > 1)
                     OverviewCard(
                       title: 'dashboard.transfer'.tr(),
@@ -170,8 +178,9 @@ class _DashboardViewState extends State<DashboardView> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   crossAxisCount: 2,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 1.3,
                   children: cards,
                 );
               },
@@ -244,6 +253,38 @@ class _ExpiringSoonSection extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+class _ActionChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ActionChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Expanded(
+      child: ActionChip(
+        avatar: Icon(icon, size: 16, color: colorScheme.primary),
+        label: Text(
+          label,
+          style: TextStyle(fontSize: 11, color: colorScheme.onSurface),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        onPressed: onTap,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+      ),
     );
   }
 }
