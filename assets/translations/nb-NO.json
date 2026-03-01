@@ -165,7 +165,9 @@
     "emptySubtitle": "Opprett din første samling for å komme i gang",
     "items_count": "{count} varer",
     "type_inventory": "Beholdning",
-    "type_shopping": "Handleliste"
+    "type_shopping": "Handleliste",
+    "create_inventory": "Opprett beholdning",
+    "create_shopping_list": "Opprett handleliste"
   },
   "generated": {
     "100_42": "1.0.0 (42)"

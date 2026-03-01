@@ -165,7 +165,9 @@
     "emptySubtitle": "Create your first collection to get started",
     "items_count": "{count} items",
     "type_inventory": "Inventory",
-    "type_shopping": "Shopping"
+    "type_shopping": "Shopping",
+    "create_inventory": "Create Inventory",
+    "create_shopping_list": "Create Shopping List"
   },
   "generated": {
     "100_42": "1.0.0 (42)"

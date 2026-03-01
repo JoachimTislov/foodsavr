@@ -124,6 +124,27 @@ class _CollectionListViewState extends State<CollectionListView> {
                     ),
                     textAlign: TextAlign.center,
                   ),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: () async {
+                      final result = await context.push(
+                        '/collection-form',
+                        extra: {
+                          'type': widget.typeFilter ?? CollectionType.inventory,
+                          'collection': null,
+                        },
+                      );
+                      if (result == true) {
+                        _refreshCollections();
+                      }
+                    },
+                    icon: const Icon(Icons.add),
+                    label: Text(
+                      widget.typeFilter == CollectionType.shoppingList
+                          ? 'collection.create_shopping_list'.tr()
+                          : 'collection.create_inventory'.tr(),
+                    ),
+                  ),
                 ],
               ),
             );
