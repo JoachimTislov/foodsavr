@@ -1,6 +1,5 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../interfaces/i_auth_service.dart';
 import '../models/product_model.dart';
@@ -14,6 +13,40 @@ class AddProductToCollectionView extends StatefulWidget {
 
   const AddProductToCollectionView({super.key, required this.collectionId});
 
+  /// Shows the product picker as a modal bottom sheet.
+  /// Returns `true` if products were added.
+  static Future<bool?> show(BuildContext context, String collectionId) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.4,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) =>
+            AddProductToCollectionView._sheet(
+              collectionId: collectionId,
+              scrollController: scrollController,
+            ),
+      ),
+    );
+  }
+
+  static Widget _sheet({
+    required String collectionId,
+    required ScrollController scrollController,
+  }) {
+    return _AddProductSheet(
+      collectionId: collectionId,
+      scrollController: scrollController,
+    );
+  }
+
   @override
   State<AddProductToCollectionView> createState() =>
       _AddProductToCollectionViewState();
@@ -21,6 +54,28 @@ class AddProductToCollectionView extends StatefulWidget {
 
 class _AddProductToCollectionViewState
     extends State<AddProductToCollectionView> {
+  @override
+  Widget build(BuildContext context) {
+    // This widget exists only for its static show() method.
+    // It should not be used directly in the widget tree.
+    return const SizedBox.shrink();
+  }
+}
+
+class _AddProductSheet extends StatefulWidget {
+  final String collectionId;
+  final ScrollController scrollController;
+
+  const _AddProductSheet({
+    required this.collectionId,
+    required this.scrollController,
+  });
+
+  @override
+  State<_AddProductSheet> createState() => _AddProductSheetState();
+}
+
+class _AddProductSheetState extends State<_AddProductSheet> {
   late final ProductService _productService;
   late final CollectionService _collectionService;
   late final IAuthService _authService;
@@ -58,7 +113,7 @@ class _AddProductToCollectionViewState
           productId,
         );
       }
-      if (mounted) context.pop(true);
+      if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -73,113 +128,114 @@ class _AddProductToCollectionViewState
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('product.select'.tr()),
-        actions: [
-          if (_isSaving)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'product.select'.tr(),
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            )
-          else
-            TextButton(
-              onPressed: _selectedIds.isEmpty ? null : _addSelected,
-              child: Text(
-                'common.add'.tr(),
-                style: TextStyle(
-                  color: _selectedIds.isEmpty ? null : colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-        ],
-      ),
-      body: FutureBuilder<List<Product>>(
-        future: _productsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('common.error_loading_data'.tr()));
-          }
-          final products = snapshot.data ?? [];
-          if (products.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.inventory_2_outlined,
-                    size: 64,
-                    color: colorScheme.onSurfaceVariant,
+              if (_isSaving)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'product.noProductsFound'.tr(),
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'product.addFirst'.tr(),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
+                )
+              else
+                TextButton(
+                  onPressed: _selectedIds.isEmpty ? null : _addSelected,
+                  child: Text(
+                    'common.add'.tr(),
+                    style: TextStyle(
+                      color: _selectedIds.isEmpty ? null : colorScheme.primary,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ],
-              ),
-            );
-          }
-          return ListView.builder(
-            itemCount: products.length,
-            itemBuilder: (context, index) {
-              final product = products[index];
-              final isSelected = _selectedIds.contains(product.id);
-              return ListTile(
-                onTap: () {
-                  setState(() {
-                    if (isSelected) {
-                      _selectedIds.remove(product.id);
-                    } else {
-                      _selectedIds.add(product.id);
-                    }
-                  });
-                },
-                leading: Icon(
-                  isSelected ? Icons.check_circle : Icons.circle_outlined,
-                  color: isSelected ? colorScheme.primary : null,
                 ),
-                title: Text(product.name),
-                subtitle: product.category != null
-                    ? Text(product.category!)
-                    : null,
+            ],
+          ),
+        ),
+        const Divider(),
+        Expanded(
+          child: FutureBuilder<List<Product>>(
+            future: _productsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text('common.error_loading_data'.tr()));
+              }
+              final products = snapshot.data ?? [];
+              if (products.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.inventory_2_outlined,
+                        size: 64,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'product.noProductsFound'.tr(),
+                        style: textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'product.addFirst'.tr(),
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return ListView.builder(
+                controller: widget.scrollController,
+                itemCount: products.length,
+                itemBuilder: (context, index) {
+                  final product = products[index];
+                  final isSelected = _selectedIds.contains(product.id);
+                  return ListTile(
+                    onTap: () {
+                      setState(() {
+                        if (isSelected) {
+                          _selectedIds.remove(product.id);
+                        } else {
+                          _selectedIds.add(product.id);
+                        }
+                      });
+                    },
+                    leading: Icon(
+                      isSelected ? Icons.check_circle : Icons.circle_outlined,
+                      color: isSelected ? colorScheme.primary : null,
+                    ),
+                    title: Text(product.name),
+                    subtitle: product.category != null
+                        ? Text(product.category!)
+                        : null,
+                  );
+                },
               );
             },
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'add_product_to_collection_fab',
-        onPressed: () async {
-          final result = await context.push(
-            '/product-form?collectionId=${widget.collectionId}',
-          );
-          if (result == true && mounted) {
-            setState(() {
-              _productsFuture = _loadProducts();
-            });
-          }
-        },
-        child: const Icon(Icons.add),
-      ),
+          ),
+        ),
+      ],
     );
   }
 }

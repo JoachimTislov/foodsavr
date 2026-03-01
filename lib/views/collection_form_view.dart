@@ -1,23 +1,56 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import '../models/collection_model.dart';
 import '../service_locator.dart';
 import '../services/collection_service.dart';
 import '../interfaces/i_auth_service.dart';
 import '../utils/collection_types.dart';
 
-class CollectionFormView extends StatefulWidget {
+class CollectionFormView extends StatelessWidget {
   final CollectionType type;
-  final Collection? collection; // null if adding
+  final Collection? collection;
 
   const CollectionFormView({super.key, required this.type, this.collection});
 
+  /// Shows the collection form as a modal bottom sheet.
+  /// Returns `true` if a collection was saved.
+  static Future<bool?> show(
+    BuildContext context, {
+    required CollectionType type,
+    Collection? collection,
+  }) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: _CollectionFormSheet(type: type, collection: collection),
+      ),
+    );
+  }
+
   @override
-  State<CollectionFormView> createState() => _CollectionFormViewState();
+  Widget build(BuildContext context) {
+    return const SizedBox.shrink();
+  }
 }
 
-class _CollectionFormViewState extends State<CollectionFormView> {
+class _CollectionFormSheet extends StatefulWidget {
+  final CollectionType type;
+  final Collection? collection;
+
+  const _CollectionFormSheet({required this.type, this.collection});
+
+  @override
+  State<_CollectionFormSheet> createState() => _CollectionFormSheetState();
+}
+
+class _CollectionFormSheetState extends State<_CollectionFormSheet> {
   final _formKey = GlobalKey<FormState>();
   late final CollectionService _collectionService;
   late final IAuthService _authService;
@@ -48,6 +81,17 @@ class _CollectionFormViewState extends State<CollectionFormView> {
     super.dispose();
   }
 
+  String _title() {
+    if (widget.collection != null) {
+      return widget.type == CollectionType.inventory
+          ? 'collection.edit_inventory'.tr()
+          : 'collection.edit_shopping_list'.tr();
+    }
+    return widget.type == CollectionType.inventory
+        ? 'collection.add_inventory'.tr()
+        : 'collection.add_shopping_list'.tr();
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -73,7 +117,7 @@ class _CollectionFormViewState extends State<CollectionFormView> {
       }
 
       if (mounted) {
-        context.pop(true);
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {
@@ -88,45 +132,39 @@ class _CollectionFormViewState extends State<CollectionFormView> {
     }
   }
 
-  String _titleKey() {
-    if (widget.collection != null) {
-      return widget.type == CollectionType.inventory
-          ? 'collection.edit_inventory'.tr()
-          : 'collection.edit_shopping_list'.tr();
-    }
-    return widget.type == CollectionType.inventory
-        ? 'collection.add_inventory'.tr()
-        : 'collection.add_shopping_list'.tr();
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_titleKey()),
-        actions: [
-          if (_isSaving)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 32,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-            )
-          else
-            IconButton(icon: const Icon(Icons.check), onPressed: _save),
-        ],
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _title(),
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
             TextFormField(
               controller: _nameController,
+              autofocus: true,
               decoration: InputDecoration(
                 labelText: 'collection.name'.tr(),
                 border: const OutlineInputBorder(),
@@ -135,14 +173,25 @@ class _CollectionFormViewState extends State<CollectionFormView> {
                   ? 'collection.name_required'.tr()
                   : null,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             TextFormField(
               controller: _descriptionController,
               decoration: InputDecoration(
                 labelText: 'collection.description'.tr(),
                 border: const OutlineInputBorder(),
               ),
-              maxLines: 3,
+              maxLines: 2,
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: _isSaving ? null : _save,
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text('common.save'.tr()),
             ),
           ],
         ),

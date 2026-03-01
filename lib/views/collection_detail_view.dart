@@ -10,6 +10,7 @@ import '../services/product_service.dart';
 import '../interfaces/i_auth_service.dart';
 import '../widgets/collection/collection_header.dart';
 import '../widgets/common/empty_state_widget.dart';
+import 'add_product_to_collection_view.dart';
 import '../widgets/common/error_state_widget.dart';
 import '../widgets/product/product_card_normal.dart';
 import 'product_detail_view.dart';
@@ -70,10 +71,17 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       floatingActionButton: FloatingActionButton(
         heroTag: 'collection_detail_fab_${widget.collection.id}',
         onPressed: () async {
-          final route = widget.collection.type == CollectionType.shoppingList
-              ? '/add-product-to-collection?collectionId=${widget.collection.id}'
-              : '/product-form?collectionId=${widget.collection.id}';
-          final result = await context.push(route);
+          bool? result;
+          if (widget.collection.type == CollectionType.shoppingList) {
+            result = await AddProductToCollectionView.show(
+              context,
+              widget.collection.id,
+            );
+          } else {
+            result = await context.push(
+              '/product-form?collectionId=${widget.collection.id}',
+            );
+          }
           if (!mounted) return;
           if (result == true) {
             _refreshProducts();

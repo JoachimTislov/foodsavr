@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:go_router/go_router.dart';
 
 import '../models/collection_model.dart';
 import '../service_locator.dart';
@@ -9,6 +8,7 @@ import '../interfaces/i_auth_service.dart';
 import '../utils/collection_types.dart';
 import '../widgets/collection/collection_card.dart';
 import 'collection_detail_view.dart';
+import 'collection_form_view.dart';
 
 class CollectionListView extends StatefulWidget {
   final CollectionType? typeFilter;
@@ -50,12 +50,9 @@ class _CollectionListViewState extends State<CollectionListView> {
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
             onPressed: () async {
-              final result = await context.push(
-                '/collection-form',
-                extra: {
-                  'type': widget.typeFilter ?? CollectionType.inventory,
-                  'collection': null,
-                },
+              final result = await CollectionFormView.show(
+                context,
+                type: widget.typeFilter ?? CollectionType.inventory,
               );
               if (result == true) {
                 _refreshCollections();
@@ -123,12 +120,9 @@ class _CollectionListViewState extends State<CollectionListView> {
                   const SizedBox(height: 24),
                   FilledButton.icon(
                     onPressed: () async {
-                      final result = await context.push(
-                        '/collection-form',
-                        extra: {
-                          'type': widget.typeFilter ?? CollectionType.inventory,
-                          'collection': null,
-                        },
+                      final result = await CollectionFormView.show(
+                        context,
+                        type: widget.typeFilter ?? CollectionType.inventory,
                       );
                       if (result == true) {
                         _refreshCollections();
@@ -166,12 +160,9 @@ class _CollectionListViewState extends State<CollectionListView> {
       floatingActionButton: FloatingActionButton(
         heroTag: 'collection_list_fab_${widget.typeFilter?.name ?? 'all'}',
         onPressed: () async {
-          final result = await context.push(
-            '/collection-form',
-            extra: {
-              'type': widget.typeFilter ?? CollectionType.inventory,
-              'collection': null,
-            },
+          final result = await CollectionFormView.show(
+            context,
+            type: widget.typeFilter ?? CollectionType.inventory,
           );
           if (result == true) {
             _refreshCollections();

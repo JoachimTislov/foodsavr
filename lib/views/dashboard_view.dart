@@ -12,6 +12,7 @@ import '../utils/collection_types.dart'; // Import CollectionType
 import '../views/product_detail_view.dart';
 import '../widgets/dashboard/expiring_item_card.dart';
 import '../widgets/dashboard/overview_card.dart';
+import 'collection_form_view.dart';
 
 class DashboardView extends StatefulWidget {
   const DashboardView({super.key});
@@ -108,12 +109,9 @@ class _DashboardViewState extends State<DashboardView> {
                   icon: Icons.inventory_2_outlined,
                   label: 'dashboard.createInventory'.tr(),
                   color: colorScheme.tertiary,
-                  onTap: () => context.push(
-                    '/collection-form',
-                    extra: {
-                      'type': CollectionType.inventory,
-                      'collection': null,
-                    },
+                  onTap: () => CollectionFormView.show(
+                    context,
+                    type: CollectionType.inventory,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -121,12 +119,9 @@ class _DashboardViewState extends State<DashboardView> {
                   icon: Icons.shopping_cart_outlined,
                   label: 'dashboard.createShoppingList'.tr(),
                   color: colorScheme.secondary,
-                  onTap: () => context.push(
-                    '/collection-form',
-                    extra: {
-                      'type': CollectionType.shoppingList,
-                      'collection': null,
-                    },
+                  onTap: () => CollectionFormView.show(
+                    context,
+                    type: CollectionType.shoppingList,
                   ),
                 ),
               ],

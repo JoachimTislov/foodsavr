@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 
 import 'interfaces/i_auth_service.dart';
 import 'models/product_model.dart';
-import 'models/collection_model.dart';
 import 'utils/collection_types.dart';
 import 'views/auth_view.dart';
 import 'views/landing_page_view.dart';
@@ -20,8 +19,6 @@ import 'views/profile_view.dart';
 import 'views/main_navigation_view.dart';
 import 'views/dynamic_collection_view.dart';
 import 'views/product_form_view.dart';
-import 'views/collection_form_view.dart';
-import 'views/add_product_to_collection_view.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -153,30 +150,6 @@ GoRouter createAppRouter(IAuthService authService) {
             product: product,
             initialCollectionId: collectionId,
           );
-        },
-      ),
-      GoRoute(
-        path: '/collection-form',
-        builder: (context, state) {
-          final extra = state.extra;
-          if (extra is! Map<String, dynamic> ||
-              extra['type'] is! CollectionType) {
-            return const Scaffold(
-              body: Center(
-                child: Text('Invalid route parameters for collection form.'),
-              ),
-            );
-          }
-          final type = extra['type'] as CollectionType;
-          final collection = extra['collection'] as Collection?;
-          return CollectionFormView(type: type, collection: collection);
-        },
-      ),
-      GoRoute(
-        path: '/add-product-to-collection',
-        builder: (context, state) {
-          final collectionId = state.uri.queryParameters['collectionId'] ?? '';
-          return AddProductToCollectionView(collectionId: collectionId);
         },
       ),
     ],
