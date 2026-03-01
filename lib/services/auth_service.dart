@@ -12,16 +12,18 @@ class AuthService implements IAuthService {
   final GoogleSignIn _googleSignIn;
   final FacebookAuth _facebookAuth;
   final bool _supportsPersistence;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
 
   AuthService(
     this._firebaseAuth, {
     required GoogleSignIn googleSignIn,
     required FacebookAuth facebookAuth,
     @Named('supportsPersistence') required bool supportsPersistence,
+    FirebaseFirestore? firestore,
   }) : _googleSignIn = googleSignIn,
-       _facebookAuth = facebookAuth,
-       _supportsPersistence = supportsPersistence;
+        _facebookAuth = facebookAuth,
+        _supportsPersistence = supportsPersistence,
+        _firestore = firestore ?? FirebaseFirestore.instance;
 
   @override
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
@@ -139,13 +141,27 @@ class AuthService implements IAuthService {
   }
 
   Future<void> _cleanupAndSignOutAnonymousUser(User user) async {
-    await _deleteDocumentsForUser(collectionName: 'products', userId: user.uid);
-    await _deleteDocumentsForUser(
-      collectionName: 'collections',
-      userId: user.uid,
-    );
-    await user.delete();
-    await _firebaseAuth.signOut();
+    Object? cleanupError;
+    StackTrace? cleanupStackTrace;
+    try {
+      await _deleteDocumentsForUser(
+        collectionName: 'products',
+        userId: user.uid,
+      );
+      await _deleteDocumentsForUser(
+        collectionName: 'collections',
+        userId: user.uid,
+      );
+      await user.delete();
+    } catch (e, st) {
+      cleanupError = e;
+      cleanupStackTrace = st;
+    } finally {
+      await _firebaseAuth.signOut();
+    }
+    if (cleanupError != null) {
+      Error.throwWithStackTrace(cleanupError, cleanupStackTrace!);
+    }
   }
 
   Future<void> _deleteDocumentsForUser({
