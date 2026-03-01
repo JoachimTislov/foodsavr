@@ -100,6 +100,11 @@ class ExpiryEntry {
 }
 
 class Product {
+  /// Scope in the shared `products` collection.
+  /// - global: globally shared registry products
+  /// - personal: user-owned registry products (templates)
+  /// - current: concrete products used in inventories/shopping lists
+  final String registryType;
   final int id;
   final String name;
   final String description;
@@ -109,6 +114,7 @@ class Product {
   final String? category; // Category (e.g., 'Dairy', 'Fruits', 'Vegetables')
   final String? imageUrl; // Optional image URL
   final bool isGlobal; // True if product is in global catalog
+  final int? mappedFromProductId;
 
   Product({
     required this.id,
@@ -120,6 +126,8 @@ class Product {
     this.category,
     this.imageUrl,
     this.isGlobal = false,
+    this.registryType = 'current',
+    this.mappedFromProductId,
   });
 
   Map<String, dynamic> toJson() {
@@ -133,6 +141,8 @@ class Product {
       'category': category,
       'imageUrl': imageUrl,
       'isGlobal': isGlobal,
+      'registryType': registryType,
+      'mappedFromProductId': mappedFromProductId,
     };
   }
 
@@ -168,6 +178,10 @@ class Product {
       category: json['category'] as String?,
       imageUrl: json['imageUrl'] as String?,
       isGlobal: json['isGlobal'] as bool? ?? false,
+      registryType:
+          json['registryType'] as String? ??
+          ((json['isGlobal'] as bool? ?? false) ? 'global' : 'current'),
+      mappedFromProductId: json['mappedFromProductId'] as int?,
     );
   }
 

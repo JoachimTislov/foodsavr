@@ -29,6 +29,26 @@ class ProductService {
     }
   }
 
+  /// Fetches personal registry products for a specific user.
+  Future<List<Product>> getPersonalProducts(String? userId) async {
+    if (userId == null) {
+      _logger.w('No user logged in, returning empty personal product list.');
+      return [];
+    }
+
+    _logger.i('Fetching personal registry products for user: $userId');
+    try {
+      final products = await _productRepository.getPersonalProducts(userId);
+      _logger.i(
+        'Successfully fetched ${products.length} personal registry products for user.',
+      );
+      return products;
+    } catch (e) {
+      _logger.e('Error fetching personal registry products: $e');
+      rethrow;
+    }
+  }
+
   /// Returns products for [userId] that are expiring soon (within 6 days) or today.
   Future<List<Product>> getExpiringSoon(String? userId) async {
     final products = await getProducts(userId);
