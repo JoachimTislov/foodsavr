@@ -64,7 +64,6 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CollectionHeader(collection: widget.collection),
-          const Divider(height: 1),
           Expanded(child: _buildProductsList(theme, colorScheme)),
         ],
       ),

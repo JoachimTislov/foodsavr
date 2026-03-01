@@ -96,11 +96,6 @@ class _ProductListViewState extends State<ProductListView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.showGlobalProducts
-              ? 'dashboard.globalProducts'.tr()
-              : 'product.title'.tr(),
-        ),
         backgroundColor: colorScheme.surface,
         elevation: 0,
         actions: [

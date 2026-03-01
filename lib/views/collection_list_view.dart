@@ -37,13 +37,8 @@ class _CollectionListViewState extends State<CollectionListView> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final titleText = widget.typeFilter == CollectionType.shoppingList
-        ? 'dashboard.shoppingList'.tr()
-        : 'dashboard.myInventories'.tr();
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(titleText),
         backgroundColor: colorScheme.surface,
         elevation: 0,
         actions: [

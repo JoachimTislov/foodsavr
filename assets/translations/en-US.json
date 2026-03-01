@@ -65,7 +65,7 @@
     "viewAll": "View All",
     "cancel": "Cancel",
     "add": "Add",
-    "save": "Save",
+    "create": "Create",
     "delete": "Delete",
     "from": "From",
     "to": "To",
@@ -84,7 +84,6 @@
     "statistics": "Statistics",
     "statisticsSubtitle": "Product insights",
     "myInventory": "My Inventory",
-    "myInventories": "My Inventories",
     "shoppingList": "Shopping List",
     "globalProducts": "Global Products",
     "browseProducts": "Browse products",
@@ -93,7 +92,6 @@
     "errorLoading": "Error loading data"
   },
   "product": {
-    "title": "My Products",
     "compact": "Compact",
     "normal": "Normal",
     "details": "Product Details",

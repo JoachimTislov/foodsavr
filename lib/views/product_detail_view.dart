@@ -82,35 +82,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
     final statusIcon = status.getIcon();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Product Details'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () async {
-              final result = await ProductFormView.show(
-                context,
-                product: _currentProduct,
-              );
-              if (result == true && mounted) {
-                final updatedProduct = await _productService.getProductById(
-                  _currentProduct.id,
-                );
-                if (updatedProduct != null) {
-                  setState(() {
-                    _currentProduct = updatedProduct;
-                  });
-                  _loadInventories();
-                }
-              }
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete),
-            onPressed: () => _showDeleteConfirmation(product),
-          ),
-        ],
-      ),
+      appBar: AppBar(),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -141,12 +113,41 @@ class _ProductDetailViewState extends State<ProductDetailView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title and category
-                  Text(
-                    product.name,
-                    style: theme.textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                  // Title and actions
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          product.name,
+                          style: theme.textTheme.displaySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit),
+                        onPressed: () async {
+                          final result = await ProductFormView.show(
+                            context,
+                            product: _currentProduct,
+                          );
+                          if (result == true && mounted) {
+                            final updatedProduct = await _productService
+                                .getProductById(_currentProduct.id);
+                            if (updatedProduct != null) {
+                              setState(() {
+                                _currentProduct = updatedProduct;
+                              });
+                              _loadInventories();
+                            }
+                          }
+                        },
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.delete, color: colorScheme.error),
+                        onPressed: () => _showDeleteConfirmation(product),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   if (product.category != null)

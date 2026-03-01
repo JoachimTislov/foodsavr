@@ -92,9 +92,6 @@ void main() {
         await tester.tap(find.text('Norwegian'));
         await tester.pumpAndSettle();
 
-        // Title should now be 'Innstillinger' (Norwegian for Settings)
-        expect(find.text('Innstillinger'), findsOneWidget);
-
         // Sections should be translated
         expect(find.text('KONTO'), findsOneWidget);
         expect(find.text('UTSEENDE'), findsOneWidget);

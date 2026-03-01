@@ -65,7 +65,7 @@
     "viewAll": "Se alle",
     "cancel": "Avbryt",
     "add": "Legg til",
-    "save": "Lagre",
+    "create": "Opprett",
     "delete": "Slett",
     "from": "Fra",
     "to": "Til",
@@ -84,7 +84,6 @@
     "statistics": "Statistikk",
     "statisticsSubtitle": "Produktinnsikt",
     "myInventory": "Mitt lager",
-    "myInventories": "Mine lagre",
     "shoppingList": "Handleliste",
     "globalProducts": "Globale produkter",
     "browseProducts": "Bla gjennom produkter",
@@ -93,7 +92,6 @@
     "errorLoading": "Feil ved lasting av data"
   },
   "product": {
-    "title": "Mine produkter",
     "compact": "Kompakt",
     "normal": "Normal",
     "details": "Produktdetaljer",
