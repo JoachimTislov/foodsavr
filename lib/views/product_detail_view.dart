@@ -72,9 +72,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
     // Get status from product model
     final status = product.status;
     final statusColor = status.getColor(colorScheme);
-    final statusMessage = status == ProductStatus.expired
-        ? 'This product has expired'
-        : 'This product expires soon';
+    final statusMessage = status.getMessage();
     final statusIcon = status.getIcon();
 
     return Scaffold(

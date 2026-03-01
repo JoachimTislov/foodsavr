@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 
-final _trMethodRegex = RegExp(r'''['"]([^'"]+)['"]\.tr\(''');
+final _trMethodRegex = RegExp(r'''['"]([^'"]+)['"]['"]?\.tr\(''');
 final _trFunctionRegex = RegExp(r'''\b_?tr\(\s*['"]([^'"]+)['"]''');
 
 Set<String> _flattenKeys(Map<String, dynamic> map, [String prefix = '']) {

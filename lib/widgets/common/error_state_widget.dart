@@ -1,20 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 /// Reusable error state widget
 class ErrorStateWidget extends StatelessWidget {
-  final String message;
+  final String? message;
   final String? details;
 
-  const ErrorStateWidget({
-    super.key,
-    this.message = 'Error loading data',
-    this.details,
-  });
+  const ErrorStateWidget({super.key, this.message, this.details});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final displayMessage = message ?? 'common.error_loading_data'.tr();
 
     return Center(
       child: Column(
@@ -22,7 +20,7 @@ class ErrorStateWidget extends StatelessWidget {
         children: [
           Icon(Icons.error_outline, size: 64, color: colorScheme.error),
           const SizedBox(height: 16),
-          Text(message, style: theme.textTheme.titleLarge),
+          Text(displayMessage, style: theme.textTheme.titleLarge),
           if (details != null) ...[
             const SizedBox(height: 8),
             Padding(
