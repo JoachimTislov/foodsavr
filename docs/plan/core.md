@@ -51,7 +51,7 @@ Building a seamless and intuitive food management app involves several technical
 
 ## Technical architecture
 
-`foodsavr` is built using a modern, scalable stack and follows a 4-tier layered architecture to ensure maintainability and flexibility.
+`foodsavr` is built using a modern, scalable stack and follows a 3-tier layered architecture to ensure maintainability and flexibility.
 
 ### Tech stack
 

@@ -14,7 +14,6 @@ Follow these instructions for implementing new features, widgets, and business l
 
 2. **Define the Domain Model:**
    - Create models in `lib/models/` using `toJson()` and `fromJson()` for Firestore serialization.
-   - Always run `make codegen` after modifying models.
 
 3. **Establish Repository Contracts:**
    - Define abstract repository interfaces in `lib/interfaces/`.

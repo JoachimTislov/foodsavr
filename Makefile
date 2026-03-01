@@ -105,13 +105,9 @@ preflight:
 	fi
 
 push: deps preflight
-	@DI_FILES=$$(/usr/bin/ls lib/services/* lib/interfaces/* lib/repositories/* lib/di/*; echo lib/service_locator.dart lib/injection.dart); \
-	if git rev-parse --verify @{upstream} >/dev/null 2>&1; then \
-		CHANGED=$$(git --no-pager diff --name-only @{upstream}..HEAD); \
-	else \
-		CHANGED=""; \
-	fi; \
-	if echo "$$CHANGED" | grep -qF "$$DI_FILES"; then \
+	@CHANGED=$$(git --no-pager diff --name-only @{upstream}..HEAD); \
+	DI_PATTERN='^lib/(services|interfaces|repositories|di)/|^lib/(service_locator|injection)\.dart$$'; \
+	if echo "$$CHANGED" | grep -qE "$$DI_PATTERN"; then \
 		echo "Upstream DI changes detected, running generate-di..."; \
 		$(MAKE) generate-di || { echo "generate-di failed, aborting push."; exit 1; }; \
 	fi

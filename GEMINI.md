@@ -27,7 +27,7 @@ When reviewing or writing code, **check [pub.dev](https://pub.dev) or the [Flutt
 
 
 - **Tech Stack**: Dart, Firebase (Auth/Firestore), GetIt (DI), logger, easy_localization.
-- **Pattern**: 4-tier Layered Architecture (UI → Services → Repositories → Models).
+- **Pattern**: 3-tier Layered Architecture
 - **Core Principles**: Interface-based data access, DI for all dependencies, Emulator-driven dev.
 
 ### Layers Summary

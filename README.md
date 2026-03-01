@@ -64,8 +64,7 @@ unnecessary cloud costs and ensure a consistent environment.
 
 ## Technical architecture
 
-`foodsavr` is built using a modern, scalable stack and follows a 4-tier
-layered architecture.
+`foodsavr` is built using a modern, scalable stack and follows a 3-tier layered architecture.
 
 - **Frontend:** Flutter and Dart using Material 3 design principles.
 - **Backend:** Firebase Authentication and Cloud Firestore for real-time data.
