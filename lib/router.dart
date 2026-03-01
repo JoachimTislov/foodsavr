@@ -56,8 +56,8 @@ GoRouter createAppRouter(IAuthService authService) {
           GoRoute(
             path: 'auth',
             builder: (BuildContext context, GoRouterState state) {
-              final title = state.uri.queryParameters['title'] ?? 'Auth';
-              return AuthView(title: title);
+              final mode = state.uri.queryParameters['mode'] ?? 'login';
+              return AuthView(isLogin: mode == 'login');
             },
           ),
         ],
