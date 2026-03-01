@@ -68,10 +68,7 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
   if (!getIt.isRegistered<BarcodeScannerService>()) {
-    getIt.registerLazySingleton<BarcodeScannerService>(
-      () => BarcodeScannerService(),
-      dispose: (service) => service.close(),
-    );
+    getIt.registerFactory<BarcodeScannerService>(BarcodeScannerService.new);
   }
   final router = createAppRouter(getIt<IAuthService>());
   runApp(

@@ -54,7 +54,7 @@ class ProductService {
 
     final randomSuffix = Random().nextInt(1000);
     final newProduct = Product(
-      id: DateTime.now().microsecondsSinceEpoch + randomSuffix,
+      id: DateTime.now().microsecondsSinceEpoch * 1000 + randomSuffix,
       name: normalizedBarcode,
       description: '',
       userId: userId,
