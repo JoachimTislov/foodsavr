@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'interfaces/i_auth_service.dart';
+import 'utils/collection_types.dart';
 import 'views/auth_view.dart';
 import 'views/landing_page_view.dart';
 import 'views/dashboard_view.dart';
@@ -15,6 +16,8 @@ import 'views/select_products_view.dart';
 import 'views/settings_view.dart';
 import 'views/profile_view.dart';
 import 'views/barcode_scan_view.dart';
+import 'views/main_navigation_view.dart';
+import 'views/dynamic_collection_view.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -31,13 +34,11 @@ GoRouter createAppRouter(IAuthService authService) {
       final isLandingRoute = state.uri.path == '/';
 
       if (!isLoggedIn) {
-        // If not logged in and not on landing or auth, redirect to landing
         if (!isLandingRoute && !isAuthRoute) {
           return '/';
         }
         return null;
       } else {
-        // If logged in and on landing or auth, redirect to home (products)
         if (isLandingRoute || isAuthRoute) {
           return '/products';
         }
@@ -54,26 +55,67 @@ GoRouter createAppRouter(IAuthService authService) {
           GoRoute(
             path: 'auth',
             builder: (BuildContext context, GoRouterState state) {
-              final title = state.uri.queryParameters['title'] ?? 'Auth';
-              return AuthView(title: title);
+              final mode = state.uri.queryParameters['mode'] ?? 'login';
+              return AuthView(isLogin: mode == 'login');
             },
           ),
         ],
       ),
-      GoRoute(
-        path: '/products',
-        builder: (BuildContext context, GoRouterState state) {
-          return const DashboardView();
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
+          return MainNavigationView(navigationShell: navigationShell);
         },
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/products',
+                builder: (context, state) => const DashboardView(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/my-inventory',
+                builder: (context, state) =>
+                    const DynamicCollectionView(type: CollectionType.inventory),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/shopping-lists',
+                builder: (context, state) => const DynamicCollectionView(
+                  type: CollectionType.shoppingList,
+                ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/settings',
+                builder: (context, state) => const SettingsView(),
+              ),
+            ],
+          ),
+        ],
       ),
-      // Define other routes here as needed to replace imperative navigation
       GoRoute(
         path: '/product-list',
         builder: (context, state) => const ProductListView(),
       ),
       GoRoute(
         path: '/collection-list',
-        builder: (context, state) => const CollectionListView(),
+        builder: (context, state) {
+          final typeParam = state.uri.queryParameters['type'];
+          CollectionType? typeFilter;
+          if (typeParam == 'inventory') typeFilter = CollectionType.inventory;
+          if (typeParam == 'shopping') typeFilter = CollectionType.shoppingList;
+          return CollectionListView(typeFilter: typeFilter);
+        },
       ),
       GoRoute(
         path: '/global-products',
@@ -93,10 +135,6 @@ GoRouter createAppRouter(IAuthService authService) {
             toLocationId: extra['toLocationId'] ?? '',
           );
         },
-      ),
-      GoRoute(
-        path: '/settings',
-        builder: (context, state) => const SettingsView(),
       ),
       GoRoute(
         path: '/profile',

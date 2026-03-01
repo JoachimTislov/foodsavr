@@ -1,4 +1,5 @@
 import 'package:easy_localization/easy_localization.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../interfaces/i_auth_service.dart';
@@ -30,7 +31,13 @@ class _ProfileViewState extends State<ProfileView> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/products');
+            }
+          },
         ),
         title: Text(
           'profile.title'.tr(),
@@ -38,74 +45,89 @@ class _ProfileViewState extends State<ProfileView> {
         ),
         centerTitle: true,
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: _ProfileHeader(
-              name: 'generated.janeDoe'.tr(),
-              email: 'generated.janedoepantrypalcom'.tr(),
-              // TODO(profile): pass real user.avatarUrl once user profile is loaded
-              avatarUrl: null,
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.all(24),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                const _StatsSection(),
-                const SizedBox(height: 32),
-                Text(
-                  'generated.accountSettings'.tr(),
-                  style: textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+      body: StreamBuilder<User?>(
+        stream: _authService.authStateChanges,
+        initialData: _authService.currentUser,
+        builder: (context, snapshot) {
+          final user = snapshot.data;
+          final displayName =
+              user?.displayName ?? user?.email?.split('@').first ?? '';
+          final email = user?.email ?? '';
+          final photoUrl = user?.photoURL;
+
+          return CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: _ProfileHeader(
+                  name: displayName,
+                  email: email,
+                  avatarUrl: photoUrl,
                 ),
-                const SizedBox(height: 16),
-                _SettingsGroup(
-                  items: [
-                    _SettingsItem(
-                      icon: Icons.lock_reset,
-                      label: 'generated.forgotPassword'.tr(),
-                      onTap: () => _showNotImplemented(context),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.all(24),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    const SizedBox(height: 32),
+                    Text(
+                      'profile.account_settings'.tr(),
+                      style: textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     ),
-                    _SettingsItem(
-                      icon: Icons.mail_outline,
-                      label: 'generated.changeEmail'.tr(),
-                      onTap: () => _showNotImplemented(context),
+                    const SizedBox(height: 16),
+                    _SettingsGroup(
+                      items: [
+                        _SettingsItem(
+                          icon: Icons.lock_reset,
+                          label: 'profile.forgot_password'.tr(),
+                        ),
+                        _SettingsItem(
+                          icon: Icons.mail_outline,
+                          label: 'profile.change_email'.tr(),
+                        ),
+                        _SettingsItem(
+                          icon: Icons.security,
+                          label: 'profile.two_factor_auth'.tr(),
+                        ),
+                        _SettingsItem(
+                          icon: Icons.logout,
+                          label: 'profile.log_out'.tr(),
+                          isDestructive: true,
+                          onTap: () => _authService.signOut(),
+                        ),
+                      ],
                     ),
-                    _SettingsItem(
-                      icon: Icons.security,
-                      label: 'generated.twofactorAuthentication'.tr(),
-                      onTap: () {},
+                    const SizedBox(height: 32),
+                    Text(
+                      'profile.danger_zone'.tr(),
+                      style: textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                        color: Colors.red,
+                      ),
                     ),
-                    _SettingsItem(
-                      icon: Icons.logout,
-                      label: 'generated.logOut'.tr(),
-                      isDestructive: true,
-                      onTap: () => _authService.signOut(),
+                    const SizedBox(height: 16),
+                    _SettingsGroup(
+                      items: [
+                        _SettingsItem(
+                          icon: Icons.delete_outline,
+                          label: 'profile.delete_account'.tr(),
+                          isDestructive: true,
+                          onTap: () => _showDeleteAccountConfirmation(context),
+                        ),
+                      ],
                     ),
-                    _SettingsItem(
-                      icon: Icons.delete_outline,
-                      label: 'generated.deleteAccount'.tr(),
-                      isDestructive: true,
-                      onTap: () => _showDeleteAccountConfirmation(context),
-                    ),
-                  ],
+                  ]),
                 ),
-              ]),
-            ),
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
-  }
-
-  void _showNotImplemented(BuildContext context) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('settings.notImplemented'.tr())));
   }
 
   void _showDeleteAccountConfirmation(BuildContext context) {
@@ -138,14 +160,14 @@ class _ProfileViewState extends State<ProfileView> {
             ),
             const SizedBox(height: 16),
             Text(
-              'generated.deleteAccount'.tr(),
+              'profile.delete_account'.tr(),
               style: Theme.of(
                 context,
               ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Text(
-              'generated.thisActionIsPermanent'.tr(),
+              'profile.delete_account_description'.tr(),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -153,7 +175,7 @@ class _ProfileViewState extends State<ProfileView> {
             ),
             const SizedBox(height: 32),
             ElevatedButton(
-              // TODO(profile): Call _authService.deleteAccount() once implemented in IAuthService
+              // TODO(profile): Call _authService.deleteAccount() once implemented
               onPressed: () async {
                 Navigator.pop(context);
                 _authService.signOut();
@@ -262,87 +284,6 @@ class _ProfileHeader extends StatelessWidget {
   }
 }
 
-class _StatsSection extends StatelessWidget {
-  const _StatsSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _StatCard(
-            icon: Icons.inventory_2_outlined,
-            value: 'generated.42'.tr(),
-            label: 'generated.itemsTracked'.tr(),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _StatCard(
-            icon: Icons.shopping_bag_outlined,
-            value: 'generated.128'.tr(),
-            label: 'generated.acquiredProducts'.tr(),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String value;
-  final String label;
-
-  const _StatCard({
-    required this.icon,
-    required this.value,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.1),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: colorScheme.primaryContainer,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 20, color: colorScheme.primary),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          Text(
-            label.toUpperCase(),
-            style: textTheme.labelSmall?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _SettingsGroup extends StatelessWidget {
   final List<_SettingsItem> items;
 
@@ -381,13 +322,13 @@ class _SettingsGroup extends StatelessWidget {
 class _SettingsItem extends StatelessWidget {
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final bool isDestructive;
 
   const _SettingsItem({
     required this.icon,
     required this.label,
-    required this.onTap,
+    this.onTap,
     this.isDestructive = false,
   });
 

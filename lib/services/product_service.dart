@@ -108,6 +108,16 @@ class ProductService {
     }
   }
 
+  Future<Product?> getProductById(int id) async {
+    _logger.i('Fetching product by ID: $id');
+    try {
+      return await _productRepository.get(id);
+    } catch (e) {
+      _logger.e('Error fetching product: $e');
+      rethrow;
+    }
+  }
+
   Future<Product> addProduct(Product product) async {
     _logger.i('Adding product: ${product.name}');
     try {

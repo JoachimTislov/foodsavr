@@ -118,9 +118,13 @@ actions:
     - [ ] Reset / forgot password flow (via email or phone?)
     - [ ] Implement email verification flow after registration.
     - [ ] support guest users (optional, for trying out the app without registration)
-    - [ ] Implement user profile management (view/edit profile, change password, etc.)
-- [ ] Support max 3 different inventories (e.g., home, cabin, etc.) and allow users to switch between them.
+    - [ ] Implement user profile management (view/edit profile, change password, pass real user.avatarUrl once profile is loaded, implement deleteAccount)
 - [ ] UI to list/add/edit products from the global catalog and user inventory.
+    - [ ] Navigate to add product screen from product list
+    - [ ] Navigate to edit screen from product list and product details
+    - [ ] Show delete confirmation in product list and product details
+- [ ] Implement LocationService for transfer management view (replace mock locations)
+- [ ] Support max 3 different inventories (e.g., home, cabin, etc.) and allow users to switch between them.
 - [ ] meal plan creation/editing UI that consumes meals/recipes and surfaces upcoming expirations.
 - [ ] Settings page
     - [ ] Multi-language support and language switcher UI.

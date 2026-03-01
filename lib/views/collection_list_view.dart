@@ -8,9 +8,12 @@ import '../interfaces/i_auth_service.dart';
 import '../utils/collection_types.dart';
 import '../widgets/collection/collection_card.dart';
 import 'collection_detail_view.dart';
+import 'collection_form_view.dart';
 
 class CollectionListView extends StatefulWidget {
-  const CollectionListView({super.key});
+  final CollectionType? typeFilter;
+
+  const CollectionListView({super.key, this.typeFilter});
 
   @override
   State<CollectionListView> createState() => _CollectionListViewState();
@@ -36,17 +39,24 @@ class _CollectionListViewState extends State<CollectionListView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('dashboard.myInventories'.tr()),
         backgroundColor: colorScheme.surface,
         elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('collection.addSoon'.tr())),
+            onPressed: () async {
+              final result = await CollectionFormView.show(
+                context,
+                type: widget.typeFilter ?? CollectionType.inventory,
               );
+              if (result == true) {
+                _refreshCollections();
+              }
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => _authService.signOut(),
           ),
         ],
       ),
@@ -83,7 +93,9 @@ class _CollectionListViewState extends State<CollectionListView> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.inventory_2_outlined,
+                    widget.typeFilter == CollectionType.shoppingList
+                        ? Icons.shopping_cart_outlined
+                        : Icons.inventory_2_outlined,
                     size: 64,
                     color: colorScheme.onSurfaceVariant,
                   ),
@@ -99,6 +111,25 @@ class _CollectionListViewState extends State<CollectionListView> {
                       color: colorScheme.onSurfaceVariant,
                     ),
                     textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: () async {
+                      final result = await CollectionFormView.show(
+                        context,
+                        type: widget.typeFilter ?? CollectionType.inventory,
+                      );
+                      if (!mounted) return;
+                      if (result == true) {
+                        _refreshCollections();
+                      }
+                    },
+                    icon: const Icon(Icons.add),
+                    label: Text(
+                      widget.typeFilter == CollectionType.shoppingList
+                          ? 'collection.create_shopping_list'.tr()
+                          : 'collection.create_inventory'.tr(),
+                    ),
                   ),
                 ],
               ),
@@ -122,6 +153,20 @@ class _CollectionListViewState extends State<CollectionListView> {
           }
         },
       ),
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'collection_list_fab_${widget.typeFilter?.name ?? 'all'}',
+        onPressed: () async {
+          final result = await CollectionFormView.show(
+            context,
+            type: widget.typeFilter ?? CollectionType.inventory,
+          );
+          if (!mounted) return;
+          if (result == true) {
+            _refreshCollections();
+          }
+        },
+        child: const Icon(Icons.add),
+      ),
     );
   }
 
@@ -129,6 +174,9 @@ class _CollectionListViewState extends State<CollectionListView> {
     final userId = _authService.getUserId();
     if (userId == null) return [];
     final all = await _collectionService.getCollectionsForUser(userId);
+    if (widget.typeFilter != null) {
+      return all.where((c) => c.type == widget.typeFilter).toList();
+    }
     return all.where((c) => c.type == CollectionType.inventory).toList();
   }
 

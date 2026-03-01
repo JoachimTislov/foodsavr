@@ -46,6 +46,9 @@ class _FakeCollectionRepository implements ICollectionRepository {
   Future<void> addProduct(String collectionId, int productId) async {}
 
   @override
+  Future<void> addProducts(String collectionId, List<int> productIds) async {}
+
+  @override
   Future<void> removeProduct(String collectionId, int productId) async {}
 }
 
@@ -83,8 +86,10 @@ class _FakeAuthService implements IAuthService {
   Stream<User?> get authStateChanges => _controller.stream;
 
   @override
-  String? getUserId() => _userId;
+  User? get currentUser => null;
 
+  @override
+  String? getUserId() => _userId;
   @override
   Future<UserCredential> signIn({
     required String email,
