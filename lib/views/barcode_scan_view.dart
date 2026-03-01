@@ -46,12 +46,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.inactive) {
-      setState(() {
-        _cameraController?.stopImageStream();
-        _cameraController?.dispose();
-        _cameraController = null;
-        _isCameraReady = false;
-      });
+      _tearDownCamera();
     } else if (state == AppLifecycleState.resumed && mounted) {
       _initializeCamera();
     }
@@ -95,6 +90,15 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
       ),
       body: body,
     );
+  }
+
+  Future<void> _tearDownCamera() async {
+    await _cameraController?.stopImageStream();
+    await _cameraController?.dispose();
+    setState(() {
+      _cameraController = null;
+      _isCameraReady = false;
+    });
   }
 
   Future<void> _initializeCamera() async {
@@ -176,10 +180,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
     }
   }
 
-  InputImage? _toInputImage(
-    CameraImage image,
-    CameraDescription description,
-  ) {
+  InputImage? _toInputImage(CameraImage image, CameraDescription description) {
     if (image.planes.isEmpty) return null;
 
     final plane = image.planes.first;
@@ -189,8 +190,9 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
     );
     if (inputImageFormat == null) return null;
 
-    final rotation =
-        InputImageRotationValue.fromRawValue(description.sensorOrientation);
+    final rotation = InputImageRotationValue.fromRawValue(
+      description.sensorOrientation,
+    );
     if (rotation == null) return null;
 
     return InputImage.fromBytes(

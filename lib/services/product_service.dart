@@ -16,6 +16,7 @@ class ProductService {
     required String userId,
     required String barcode,
   }) async {
+    _logger.i('addOrIncrementByBarcode: processing barcode for user $userId');
     final normalizedBarcode = barcode.trim();
     if (normalizedBarcode.isEmpty) {
       throw ArgumentError('Barcode cannot be empty');
@@ -31,6 +32,7 @@ class ProductService {
     }
 
     if (existingProduct != null) {
+      _logger.i('Barcode matched existing product: ${existingProduct.name}');
       final updatedProduct = Product(
         id: existingProduct.id,
         name: existingProduct.name,
@@ -52,7 +54,7 @@ class ProductService {
 
     final randomSuffix = Random().nextInt(1000);
     final newProduct = Product(
-      id: DateTime.now().microsecondsSinceEpoch * 1000 + randomSuffix,
+      id: DateTime.now().microsecondsSinceEpoch + randomSuffix,
       name: normalizedBarcode,
       description: '',
       userId: userId,
@@ -60,6 +62,7 @@ class ProductService {
       barcode: normalizedBarcode,
     );
     final addedProduct = await _productRepository.add(newProduct);
+    _logger.i('Created new product from barcode: $normalizedBarcode');
     return ScanAddProductResult(product: addedProduct, matchedExisting: false);
   }
 

@@ -91,5 +91,21 @@ void main() {
       expect(repository.addedProduct, isNotNull);
       expect(repository.updatedProduct, isNull);
     });
+
+    test('throws ArgumentError for empty or whitespace barcode', () async {
+      final repository = _FakeProductRepository([]);
+      final service = ProductService(repository, Logger(level: Level.off));
+
+      await expectLater(
+        service.addOrIncrementByBarcode(userId: 'user-1', barcode: '   '),
+        throwsA(
+          isA<ArgumentError>().having(
+            (e) => e.message,
+            'message',
+            'Barcode cannot be empty',
+          ),
+        ),
+      );
+    });
   });
 }
