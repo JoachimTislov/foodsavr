@@ -143,25 +143,24 @@ class _AddProductToCollectionViewState
             itemBuilder: (context, index) {
               final product = products[index];
               final isSelected = _selectedIds.contains(product.id);
-              return CheckboxListTile(
-                value: isSelected,
-                onChanged: (val) {
+              return ListTile(
+                onTap: () {
                   setState(() {
-                    if (val == true) {
-                      _selectedIds.add(product.id);
-                    } else {
+                    if (isSelected) {
                       _selectedIds.remove(product.id);
+                    } else {
+                      _selectedIds.add(product.id);
                     }
                   });
                 },
+                leading: Icon(
+                  isSelected ? Icons.check_circle : Icons.circle_outlined,
+                  color: isSelected ? colorScheme.primary : null,
+                ),
                 title: Text(product.name),
                 subtitle: product.category != null
                     ? Text(product.category!)
                     : null,
-                secondary: Icon(
-                  isSelected ? Icons.check_circle : Icons.circle_outlined,
-                  color: isSelected ? colorScheme.primary : null,
-                ),
               );
             },
           );
