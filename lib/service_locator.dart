@@ -13,8 +13,10 @@ class ServiceLocator {
   Future<void> registerDependencies() async => await configureDependencies();
 
   Future<void> setupDevelopment() async {
-    await getIt<FirebaseAuth>().useAuthEmulator('localhost', 9099);
-    getIt<FirebaseFirestore>().useFirestoreEmulator('localhost', 8080);
+    var ip = '192.168.0.253';
+
+    await getIt<FirebaseAuth>().useAuthEmulator(ip, 9099);
+    getIt<FirebaseFirestore>().useFirestoreEmulator(ip, 8080);
 
     // Pre-check if user is already signed in to avoid redundant seeding on hot reload or full restart during development.
     final logger = getIt<Logger>();

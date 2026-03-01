@@ -49,20 +49,21 @@ void main() async {
   logger.i('Running in ${Config.environment} mode');
 
   // init Firebase app if not already initialized
-  // prevent multiple initializations when restarting app in development mode
-  if (Firebase.apps.isEmpty) {
-    logger.i('Firebase app not initialized, initializing now...');
+  try {
     await Firebase.initializeApp(
       options: Config.isDevelopment
           ? dummyOptions
           : DefaultFirebaseOptions.currentPlatform,
     );
+  } on FirebaseException catch (e) {
+    if (e.code != 'duplicate-app') rethrow;
+    logger.i('Firebase app already initialized, skipping...');
   }
   if (Config.isDevelopment) {
     await serviceLocator.setupDevelopment();
   }
 
-  const enLocale = Locale('en', 'US');
+  const enLocale = Locale('en');
   await EasyLocalization.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
@@ -75,7 +76,7 @@ void main() async {
   final router = createAppRouter(getIt<IAuthService>());
   runApp(
     EasyLocalization(
-      supportedLocales: const [enLocale, Locale('nb', 'NO')],
+      supportedLocales: const [enLocale, Locale('no')],
       path: 'assets/translations',
       fallbackLocale: enLocale,
       startLocale: enLocale,
