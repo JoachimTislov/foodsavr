@@ -32,7 +32,7 @@ class _SettingsViewState extends State<SettingsView> {
     final textTheme = theme.textTheme;
 
     return Scaffold(
-      appBar: AppBar(centerTitle: true),
+      appBar: AppBar(title: Text('settings.title'.tr()), centerTitle: true),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(

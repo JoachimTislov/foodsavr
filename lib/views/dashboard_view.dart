@@ -59,11 +59,17 @@ class _DashboardViewState extends State<DashboardView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          today,
-          style: textTheme.bodySmall?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('dashboard.title'.tr()),
+            Text(
+              today,
+              style: textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ),
         backgroundColor: colorScheme.surface,
         elevation: 0,

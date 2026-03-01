@@ -54,21 +54,15 @@ class _DynamicCollectionViewState extends State<DynamicCollectionView> {
 
   @override
   Widget build(BuildContext context) {
-    final titleKey = widget.type == CollectionType.shoppingList
-        ? 'dashboard.shoppingList'
-        : 'dashboard.myInventory';
-
     return FutureBuilder<List<Collection>>(
       future: _collectionsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
-            appBar: AppBar(title: Text(titleKey.tr())),
             body: const Center(child: CircularProgressIndicator()),
           );
         } else if (snapshot.hasError) {
           return Scaffold(
-            appBar: AppBar(title: Text(titleKey.tr())),
             body: Center(child: Text('collection.loadError'.tr())),
           );
         } else {
