@@ -43,14 +43,17 @@ class ProductDetailsCard extends StatelessWidget {
               value: product.daysUntilExpiration != null
                   ? product.daysUntilExpiration! < 0
                         ? 'product.status_expired_days_ago'.tr(
-                            args: [
-                              product.daysUntilExpiration!.abs().toString(),
-                            ],
+                            namedArgs: {
+                              'days':
+                                  product.daysUntilExpiration!.abs().toString(),
+                            },
                           )
                         : product.daysUntilExpiration! == 0
                         ? 'product.status_today'.tr()
                         : 'product.status_days'.tr(
-                            args: [product.daysUntilExpiration.toString()],
+                            namedArgs: {
+                              'days': product.daysUntilExpiration.toString(),
+                            },
                           )
                   : 'product.na'.tr(),
             ),

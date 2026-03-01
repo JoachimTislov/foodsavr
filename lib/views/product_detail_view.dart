@@ -48,6 +48,15 @@ class _ProductDetailViewState extends State<ProductDetailView> {
         setState(() {
           _isLoadingInventories = false;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'product.inventoryLoadError'.tr(
+                namedArgs: {'error': e.toString()},
+              ),
+            ),
+          ),
+        );
       }
     }
   }
@@ -124,17 +133,18 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                                 Text(
                                   product.daysUntilExpiration! < 0
                                       ? 'product.status_expired_days_ago'.tr(
-                                          args: [
-                                            product.daysUntilExpiration!
+                                          namedArgs: {
+                                            'days': product
+                                                .daysUntilExpiration!
                                                 .abs()
                                                 .toString(),
-                                          ],
+                                          },
                                         )
                                       : 'product.status_days_remaining'.tr(
-                                          args: [
-                                            product.daysUntilExpiration
+                                          namedArgs: {
+                                            'days': product.daysUntilExpiration
                                                 .toString(),
-                                          ],
+                                          },
                                         ),
                                   style: theme.textTheme.bodyMedium?.copyWith(
                                     color: statusColor,

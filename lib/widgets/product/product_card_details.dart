@@ -121,12 +121,16 @@ class ProductCardDetails extends StatelessWidget {
                               Text(
                                 daysLeft < 0
                                     ? 'product.status_expired_days_ago'.tr(
-                                        args: [daysLeft.abs().toString()],
+                                        namedArgs: {
+                                          'days': daysLeft.abs().toString(),
+                                        },
                                       )
                                     : daysLeft == 0
                                     ? 'product.status_expires_today'.tr()
                                     : 'product.status_days_remaining'.tr(
-                                        args: [daysLeft.toString()],
+                                        namedArgs: {
+                                          'days': daysLeft.toString(),
+                                        },
                                       ),
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: statusColor,
@@ -171,7 +175,7 @@ class ProductCardDetails extends StatelessWidget {
             _buildDetailRow(
               context,
               icon: Icons.location_on_outlined,
-              label: 'product.status'.tr(), // Or 'Locations' if we had a key
+              label: 'product.locations'.tr(),
               value: inventoryNames!.join(', '),
             ),
           ],

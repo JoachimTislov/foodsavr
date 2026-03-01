@@ -31,7 +31,7 @@ class ProductCardNormal extends StatelessWidget {
     } else if (product.isExpiringSoon) {
       statusColor = colorScheme.tertiary;
       statusMessage = 'product.status_days_left'.tr(
-        args: [daysLeft.toString()],
+        namedArgs: {'days': daysLeft.toString()},
       );
       statusIcon = Icons.warning_amber_rounded;
     }
@@ -156,7 +156,7 @@ class ProductCardNormal extends StatelessWidget {
                           const SizedBox(width: 4),
                           Text(
                             'product.status_days_left'.tr(
-                              args: [daysLeft.toString()],
+                              namedArgs: {'days': daysLeft.toString()},
                             ),
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: colorScheme.onSurfaceVariant,

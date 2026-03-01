@@ -103,10 +103,11 @@ class CollectionCard extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           'collection.items_count'.tr(
-                            args: [
-                              (productCount ?? collection.productIds.length)
-                                  .toString(),
-                            ],
+                            namedArgs: {
+                              'count':
+                                  (productCount ?? collection.productIds.length)
+                                      .toString(),
+                            },
                           ),
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: colorScheme.onSurfaceVariant,

@@ -110,6 +110,7 @@
     "search_hint": "Søk i matskapet ditt...",
     "available_stock": "TILGJENGELIG LAGER",
     "status": "Status",
+    "locations": "Plasseringer",
     "deleteConfirmMessage": "Er du sikker på at du vil slette \"{name}\"?",
     "deleted": "{name} slettet",
     "deleteError": "Feil ved sletting av produkt: {error}",

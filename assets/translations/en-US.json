@@ -110,6 +110,7 @@
     "search_hint": "Search your pantry...",
     "available_stock": "AVAILABLE STOCK",
     "status": "Status",
+    "locations": "Locations",
     "deleteConfirmMessage": "Are you sure you want to delete \"{name}\"?",
     "deleted": "{name} deleted",
     "deleteError": "Error deleting product: {error}",

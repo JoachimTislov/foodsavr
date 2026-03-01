@@ -76,7 +76,7 @@ class CollectionHeader extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   'collection.items_count'.tr(
-                    args: [collection.productIds.length.toString()],
+                    namedArgs: {'count': collection.productIds.length.toString()},
                   ),
                   style: theme.textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.w600,
