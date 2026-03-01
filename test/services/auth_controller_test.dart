@@ -104,5 +104,17 @@ void main() {
         );
       },
     );
+
+    test('signInAsGuest calls auth service guest sign-in', () async {
+      when(
+        () => mockAuthService.signInAsGuest(),
+      ).thenAnswer((_) async => MockUserCredential());
+
+      await authController.signInAsGuest();
+
+      verify(() => mockAuthService.signInAsGuest()).called(1);
+      expect(authController.isLoading, false);
+      expect(authController.errorMessage, null);
+    });
   });
 }

@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -11,6 +12,7 @@ class AuthService implements IAuthService {
   final GoogleSignIn _googleSignIn;
   final FacebookAuth _facebookAuth;
   final bool _supportsPersistence;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   AuthService(
     this._firebaseAuth, {
@@ -56,6 +58,14 @@ class AuthService implements IAuthService {
     required String email,
     required String password,
   }) {
+    final currentUser = _firebaseAuth.currentUser;
+    if (currentUser?.isAnonymous == true) {
+      final credential = EmailAuthProvider.credential(
+        email: email,
+        password: password,
+      );
+      return currentUser!.linkWithCredential(credential);
+    }
     return _firebaseAuth.createUserWithEmailAndPassword(
       email: email,
       password: password,
@@ -102,12 +112,21 @@ class AuthService implements IAuthService {
   }
 
   @override
+  Future<UserCredential> signInAsGuest() {
+    return _firebaseAuth.signInAnonymously();
+  }
+
+  @override
   Future<void> sendPasswordResetEmail(String email) async {
     await _firebaseAuth.sendPasswordResetEmail(email: email);
   }
 
   @override
   Future<void> signOut() {
+    final currentUser = _firebaseAuth.currentUser;
+    if (currentUser?.isAnonymous == true) {
+      return _cleanupAndSignOutAnonymousUser(currentUser!);
+    }
     return _firebaseAuth.signOut();
   }
 
@@ -117,5 +136,33 @@ class AuthService implements IAuthService {
   @override
   String? getUserId() {
     return _firebaseAuth.currentUser?.uid;
+  }
+
+  Future<void> _cleanupAndSignOutAnonymousUser(User user) async {
+    await _deleteDocumentsForUser(collectionName: 'products', userId: user.uid);
+    await _deleteDocumentsForUser(
+      collectionName: 'collections',
+      userId: user.uid,
+    );
+    await user.delete();
+    await _firebaseAuth.signOut();
+  }
+
+  Future<void> _deleteDocumentsForUser({
+    required String collectionName,
+    required String userId,
+  }) async {
+    final snapshot = await _firestore
+        .collection(collectionName)
+        .where('userId', isEqualTo: userId)
+        .get();
+    if (snapshot.docs.isEmpty) {
+      return;
+    }
+    final batch = _firestore.batch();
+    for (final doc in snapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
   }
 }

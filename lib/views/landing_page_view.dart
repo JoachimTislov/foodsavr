@@ -120,6 +120,15 @@ class _LandingPageViewState extends State<LandingPageView> {
                         ),
                       ),
 
+                      const SizedBox(height: 12),
+
+                      OutlinedButton(
+                        onPressed: _controller.isLoading
+                            ? null
+                            : _controller.signInAsGuest,
+                        child: Text('auth.social.continue_guest'.tr()),
+                      ),
+
                       const SizedBox(height: 32),
 
                       // Footer

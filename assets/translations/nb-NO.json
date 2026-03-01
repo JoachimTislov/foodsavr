@@ -30,7 +30,8 @@
     },
     "social": {
       "continue_google": "Fortsett med Google",
-      "continue_email": "Fortsett med e-post"
+      "continue_email": "Fortsett med e-post",
+      "continue_guest": "Fortsett som gjest"
     },
     "landing": {
       "title": "Lagerinnlogging",
@@ -153,6 +154,7 @@
   },
   "profile": {
     "title": "Profil",
+    "create_account": "Opprett konto",
     "deleteAccountConfirmation": "Ja, slett konto",
     "account_settings": "Kontoinnstillinger",
     "forgot_password": "Glemt passord",

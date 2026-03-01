@@ -29,6 +29,7 @@ GoRouter createAppRouter(IAuthService authService) {
     refreshListenable: _AuthStreamListenable(authService),
     redirect: (BuildContext context, GoRouterState state) {
       final isLoggedIn = authService.getUserId() != null;
+      final isAnonymousUser = authService.currentUser?.isAnonymous ?? false;
       final isAuthRoute = state.uri.path == '/auth';
       final isLandingRoute = state.uri.path == '/';
 
@@ -38,7 +39,7 @@ GoRouter createAppRouter(IAuthService authService) {
         }
         return null;
       } else {
-        if (isLandingRoute || isAuthRoute) {
+        if (isLandingRoute || (isAuthRoute && !isAnonymousUser)) {
           return '/products';
         }
         return null;

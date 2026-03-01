@@ -130,6 +130,12 @@ class _FakeAuthService implements IAuthService {
   }
 
   @override
+  Future<UserCredential> signInAsGuest() {
+    signInForTest('test-user');
+    return Future.value(_MockUserCredential());
+  }
+
+  @override
   Future<void> sendPasswordResetEmail(String email) {
     throw UnimplementedError();
   }
@@ -226,6 +232,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byType(LandingPageView), findsOneWidget);
+        expect(find.text('Continue as guest'), findsOneWidget);
 
         authService.signInForTest('uid-123');
         await tester.pumpAndSettle();
