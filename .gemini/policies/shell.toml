@@ -13,6 +13,12 @@ priority = 999
 
 [[rule]]
 toolName = "run_shell_command"
+commandRegex = "[;&|`$><]"
+decision = "ask_user"
+priority = 998
+
+[[rule]]
+toolName = "run_shell_command"
 commandPrefix = ["rg ", "cat ", "touch "]
 decision = "allow"
 priority = 200
