@@ -57,7 +57,11 @@ class _ProductDetailViewState extends State<ProductDetailView> {
       if (mounted) {
         setState(() => _isLoadingInventories = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to load inventory info')),
+          SnackBar(
+            content: Text(
+              'product.inventoryLoadError'.tr(namedArgs: {'error': '$e'}),
+            ),
+          ),
         );
       }
     }

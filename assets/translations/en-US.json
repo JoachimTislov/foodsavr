@@ -130,7 +130,6 @@
     "type": "Type",
     "status_fresh": "Fresh",
     "status_expires_soon": "Expires Soon",
-    "description": "Description",
     "soonest_expiration": "Soonest Expiration",
     "days_until_soonest_expiry": "Days Until Soonest Expiry",
     "expiration_breakdown": "Expiration Breakdown",

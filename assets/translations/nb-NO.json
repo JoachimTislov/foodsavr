@@ -130,7 +130,6 @@
     "type": "Type",
     "status_fresh": "Frisk",
     "status_expires_soon": "Utløper snart",
-    "description": "Beskrivelse",
     "soonest_expiration": "Nærmeste utløpsdato",
     "days_until_soonest_expiry": "Dager til nærmeste utløp",
     "expiration_breakdown": "Utløpsoversikt",
