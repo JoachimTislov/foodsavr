@@ -50,7 +50,6 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.collection.name),
         backgroundColor: colorScheme.surface,
         elevation: 0,
         actions: [
