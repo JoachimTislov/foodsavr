@@ -256,11 +256,11 @@ class _ProductDetailViewState extends State<ProductDetailView>
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                              'product.availableIn'.tr(
-                                namedArgs: {
-                                  'inventories': inventoryNames.join(', '),
-                                },
-                              ),
+                            'product.availableIn'.tr(
+                              namedArgs: {
+                                'inventories': inventoryNames.join(', '),
+                              },
+                            ),
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: colorScheme.primary,
                               fontWeight: FontWeight.w600,

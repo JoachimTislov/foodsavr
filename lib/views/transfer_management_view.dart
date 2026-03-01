@@ -120,11 +120,11 @@ class _TransferManagementViewState extends State<TransferManagementView>
                   for (final loc in _fromOptions) ...[
                     LocationCard(
                       title: loc.name,
-                       subtitle: loc.detail,
-                       icon: loc.icon,
-                       isSelected: selectedFromId == loc.id,
-                       onTap: () => _selectedFromId.value = loc.id,
-                     ),
+                      subtitle: loc.detail,
+                      icon: loc.icon,
+                      isSelected: selectedFromId == loc.id,
+                      onTap: () => _selectedFromId.value = loc.id,
+                    ),
                     const SizedBox(height: 12),
                   ],
                   Padding(
@@ -166,11 +166,11 @@ class _TransferManagementViewState extends State<TransferManagementView>
                   for (final loc in _toOptions) ...[
                     LocationCard(
                       title: loc.name,
-                       subtitle: loc.detail,
-                       icon: loc.icon,
-                       isSelected: selectedToId == loc.id,
-                       onTap: () => _selectedToId.value = loc.id,
-                     ),
+                      subtitle: loc.detail,
+                      icon: loc.icon,
+                      isSelected: selectedToId == loc.id,
+                      onTap: () => _selectedToId.value = loc.id,
+                    ),
                     const SizedBox(height: 12),
                   ],
                 ],

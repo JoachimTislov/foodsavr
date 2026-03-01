@@ -9,7 +9,7 @@ import '../services/collection_service.dart';
 import '../services/product_service.dart';
 
 /// Displays user's registered products for adding to a collection.
-class AddProductToCollectionView extends StatelessWidget {
+class AddProductToCollectionView extends StatefulWidget {
   final String collectionId;
 
   const AddProductToCollectionView({super.key, required this.collectionId});
@@ -30,6 +30,13 @@ class AddProductToCollectionView extends StatelessWidget {
     );
   }
 
+  @override
+  State<AddProductToCollectionView> createState() =>
+      _AddProductToCollectionViewState();
+}
+
+class _AddProductToCollectionViewState
+    extends State<AddProductToCollectionView> {
   @override
   Widget build(BuildContext context) {
     // This widget exists only for its static show() method.
