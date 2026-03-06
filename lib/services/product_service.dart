@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:math';
 
+import 'package:http/http.dart' as http;
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import '../models/product_model.dart';
@@ -12,20 +14,30 @@ class ProductService {
 
   ProductService(this._productRepository, this._logger);
 
+  String _normalizeBarcode(String barcode) {
+    var normalized = barcode.trim();
+    if (normalized.length < 13) {
+      normalized = normalized.padLeft(13, '0');
+    }
+    return normalized;
+  }
+
   Future<ScanAddProductResult> addOrIncrementByBarcode({
     required String userId,
     required String barcode,
   }) async {
     _logger.i('addOrIncrementByBarcode: processing barcode for user $userId');
-    final normalizedBarcode = barcode.trim();
-    if (normalizedBarcode.isEmpty) {
+    final trimmedBarcode = barcode.trim();
+    if (trimmedBarcode.isEmpty) {
       throw ArgumentError('Barcode cannot be empty');
     }
+
+    final normalizedBarcode = _normalizeBarcode(trimmedBarcode);
 
     final products = await _productRepository.getProducts(userId);
     Product? existingProduct;
     for (final product in products) {
-      if (product.barcode == normalizedBarcode) {
+      if (product.barcode == normalizedBarcode || product.barcode == barcode) {
         existingProduct = product;
         break;
       }
@@ -52,18 +64,61 @@ class ProductService {
       );
     }
 
-    final randomSuffix = Random().nextInt(1000);
-    final newProduct = Product(
-      id: DateTime.now().microsecondsSinceEpoch + randomSuffix,
-      name: normalizedBarcode,
-      description: '',
-      userId: userId,
-      nonExpiringQuantity: 1,
-      barcode: normalizedBarcode,
+    // Attempt to fetch from Open Food Facts API
+    try {
+      final response = await http.get(
+        Uri.parse(
+          'https://world.openfoodfacts.org/api/v2/product/$normalizedBarcode.json',
+        ),
+        headers: {
+          'User-Agent':
+              'FoodSavr - Android/iOS - Version 1.0.0 - https://github.com/JoachimTislov/foodsavr - scan',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['status'] == 1) {
+          final productData = data['product'];
+          final productName = productData['product_name'] ?? normalizedBarcode;
+          final imageUrl = productData['image_front_url'];
+
+          final randomSuffix = Random().nextInt(1000);
+          final newProduct = Product(
+            id: DateTime.now().microsecondsSinceEpoch + randomSuffix,
+            name: productName,
+            description: '',
+            userId: userId,
+            nonExpiringQuantity: 1,
+            barcode: normalizedBarcode,
+            imageUrl: imageUrl,
+          );
+          final addedProduct = await _productRepository.add(newProduct);
+          _logger.i('Created new product from OFF API: $normalizedBarcode');
+          return ScanAddProductResult(
+            product: addedProduct,
+            matchedExisting: false,
+          );
+        }
+      }
+    } catch (e) {
+      _logger.e('Error fetching from Open Food Facts API: $e');
+    }
+
+    // Not found locally or on OFF API. Return special result to prompt user.
+    _logger.i('Barcode not found on OFF API: $normalizedBarcode');
+    return ScanAddProductResult(
+      product: Product(
+        id: 0,
+        name: '',
+        description: '',
+        userId: userId,
+        nonExpiringQuantity: 1,
+        barcode: normalizedBarcode,
+      ),
+      matchedExisting: false,
+      notFound: true,
     );
-    final addedProduct = await _productRepository.add(newProduct);
-    _logger.i('Created new product from barcode: $normalizedBarcode');
-    return ScanAddProductResult(product: addedProduct, matchedExisting: false);
   }
 
   /// Fetches all products for a specific user
@@ -156,9 +211,11 @@ class ProductService {
 class ScanAddProductResult {
   final Product product;
   final bool matchedExisting;
+  final bool notFound;
 
   const ScanAddProductResult({
     required this.product,
     required this.matchedExisting,
+    this.notFound = false,
   });
 }

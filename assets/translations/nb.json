@@ -120,6 +120,8 @@
     "barcodeMatched": "Oppdaterte eksisterende produkt \"{name}\"",
     "barcodeCreated": "Opprettet nytt produkt \"{name}\"",
     "barcodeAddError": "Kunne ikke legge til skannet strekkode: {error}",
+    "enterBarcodeManually": "Skriv inn strekkode manuelt",
+    "barcodeNotFound": "Produktet ble ikke funnet. Vær den første til å legge det til!",
     "availableIn": "Tilgjengelig i {inventories}",
     "delete": "Slett produkt",
     "search_hint": "Søk i matskapet ditt...",

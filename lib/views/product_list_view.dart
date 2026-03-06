@@ -1,6 +1,5 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../models/product_model.dart';
 import '../service_locator.dart';
@@ -11,6 +10,7 @@ import '../widgets/product/product_card_compact.dart';
 import 'product_form_view.dart';
 import '../widgets/product/product_card_normal.dart';
 import '../widgets/product/product_card_details.dart';
+import '../utils/product_add_helper.dart';
 import '../utils/view_mode_helper.dart';
 import 'product_detail_view.dart';
 
@@ -260,42 +260,9 @@ class _ProductListViewState extends State<ProductListView> {
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'product_list_fab',
         onPressed: () async {
-          final messenger = ScaffoldMessenger.of(context);
-          final scannedBarcode = await context.push<String>('/barcode-scan');
-          if (!mounted || scannedBarcode == null || scannedBarcode.isEmpty) {
-            return;
-          }
-          final userId = _authService.getUserId();
-          if (userId == null) return;
-          try {
-            final result = await _productService.addOrIncrementByBarcode(
-              userId: userId,
-              barcode: scannedBarcode,
-            );
-            if (!mounted) return;
-            messenger.showSnackBar(
-              SnackBar(
-                content: Text(
-                  result.matchedExisting
-                      ? 'product.barcodeMatched'.tr(
-                          namedArgs: {'name': result.product.name},
-                        )
-                      : 'product.barcodeCreated'.tr(
-                          namedArgs: {'name': result.product.name},
-                        ),
-                ),
-              ),
-            );
+          final result = await ProductAddHelper.startAddProductFlow(context);
+          if (result == true && mounted) {
             await _refreshProducts();
-          } catch (e) {
-            if (!mounted) return;
-            messenger.showSnackBar(
-              SnackBar(
-                content: Text(
-                  'product.barcodeAddError'.tr(namedArgs: {'error': '$e'}),
-                ),
-              ),
-            );
           }
         },
         icon: const Icon(Icons.qr_code_scanner),

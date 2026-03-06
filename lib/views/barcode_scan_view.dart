@@ -1,9 +1,9 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 
@@ -25,6 +25,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
   bool _isCameraReady = false;
   bool _isProcessingFrame = false;
   bool _multipleBarcodesDetected = false;
+  bool _isFlashOn = false;
   String? _errorMessage;
 
   @override
@@ -33,6 +34,21 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
     WidgetsBinding.instance.addObserver(this);
     _barcodeScannerService = getIt<BarcodeScannerService>();
     _initializeCamera();
+  }
+
+  Future<void> _toggleFlash() async {
+    if (_cameraController == null || !_isCameraReady) return;
+    try {
+      if (_isFlashOn) {
+        await _cameraController!.setFlashMode(FlashMode.off);
+        setState(() => _isFlashOn = false);
+      } else {
+        await _cameraController!.setFlashMode(FlashMode.torch);
+        setState(() => _isFlashOn = true);
+      }
+    } catch (e) {
+      debugPrint('Error toggling flash: $e');
+    }
   }
 
   @override
@@ -64,7 +80,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
           CameraPreview(_cameraController!),
           const BarcodeScannerOverlay(),
           Positioned(
-            bottom: 32,
+            bottom: 96,
             left: 24,
             right: 24,
             child: Text(
@@ -78,6 +94,20 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
               ),
             ),
           ),
+          Positioned(
+            bottom: 32,
+            left: 24,
+            right: 24,
+            child: FilledButton.icon(
+              onPressed: () => context.pop('MANUAL_ENTRY'),
+              icon: const Icon(Icons.edit),
+              label: Text('product.enterBarcodeManually'.tr()),
+              style: FilledButton.styleFrom(
+                backgroundColor: colorScheme.surface,
+                foregroundColor: colorScheme.onSurface,
+              ),
+            ),
+          ),
         ],
       );
     }
@@ -86,6 +116,13 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
       appBar: AppBar(
         title: Text('product.scanBarcode'.tr()),
         backgroundColor: colorScheme.surface,
+        actions: [
+          if (_isCameraReady)
+            IconButton(
+              icon: Icon(_isFlashOn ? Icons.flash_on : Icons.flash_off),
+              onPressed: _toggleFlash,
+            ),
+        ],
       ),
       body: body,
     );
@@ -171,6 +208,10 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
       if (barcodes.isEmpty) return;
       final scannedValue = barcodes.first.rawValue;
       if (scannedValue == null || scannedValue.isEmpty) return;
+
+      HapticFeedback.vibrate();
+      SystemSound.play(SystemSoundType.click);
+
       await cameraController.stopImageStream();
       if (!mounted) return;
       context.pop(scannedValue);

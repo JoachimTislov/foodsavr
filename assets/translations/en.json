@@ -120,6 +120,8 @@
     "barcodeMatched": "Updated existing product \"{name}\"",
     "barcodeCreated": "Created new product \"{name}\"",
     "barcodeAddError": "Could not add scanned barcode: {error}",
+    "enterBarcodeManually": "Enter barcode manually",
+    "barcodeNotFound": "Product not found. Be the first to add it!",
     "availableIn": "Available in: {inventories}",
     "delete": "Delete Product",
     "search_hint": "Search your pantry...",

@@ -86,9 +86,9 @@ void main() {
       );
 
       expect(result.matchedExisting, isFalse);
-      expect(result.product.barcode, '999001');
-      expect(result.product.nonExpiringQuantity, 1);
-      expect(repository.addedProduct, isNotNull);
+      expect(result.notFound, isTrue);
+      expect(result.product.barcode, '0000000999001');
+      expect(repository.addedProduct, isNull);
       expect(repository.updatedProduct, isNull);
     });
 
