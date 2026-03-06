@@ -9,6 +9,7 @@ import 'firebase_options.dart';
 import 'interfaces/i_auth_service.dart';
 import 'router.dart';
 import 'service_locator.dart';
+import 'services/barcode_scanner_service.dart';
 import 'services/theme_notifier.dart';
 import 'utils/app_theme.dart';
 import 'utils/config.dart';
@@ -48,27 +49,34 @@ void main() async {
   logger.i('Running in ${Config.environment} mode');
 
   // init Firebase app if not already initialized
-  // prevent multiple initializations when restarting app in development mode
-  if (Firebase.apps.isEmpty) {
-    logger.i('Firebase app not initialized, initializing now...');
+  try {
     await Firebase.initializeApp(
       options: Config.isDevelopment
           ? dummyOptions
           : DefaultFirebaseOptions.currentPlatform,
     );
+  } on FirebaseException catch (e) {
+    if (e.code != 'duplicate-app') rethrow;
+    logger.i('Firebase app already initialized, skipping...');
   }
   if (Config.isDevelopment) {
     await serviceLocator.setupDevelopment();
   }
 
-  const enLocale = Locale('en', 'US');
+  const enLocale = Locale('en');
   await EasyLocalization.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
+  if (!getIt.isRegistered<BarcodeScannerService>()) {
+    getIt.registerLazySingleton<BarcodeScannerService>(
+      () => BarcodeScannerService(),
+      dispose: (service) => service.close(),
+    );
+  }
   final router = createAppRouter(getIt<IAuthService>());
   runApp(
     EasyLocalization(
-      supportedLocales: const [enLocale, Locale('nb', 'NO')],
+      supportedLocales: const [enLocale, Locale('no')],
       path: 'assets/translations',
       fallbackLocale: enLocale,
       startLocale: enLocale,

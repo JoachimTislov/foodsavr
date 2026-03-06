@@ -1,13 +1,15 @@
 .PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps codegen locale-check generate-di preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated pr-comments-resolve-all pr-comments-resolve-thread pr-comments-list pr-comment-get
 
+DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
+
 dev-chrome-prod: deps
-	@flutter run -d chrome --no-pub --flavor production
+	@flutter run -d chrome --no-pub --flavor production $(DOTENV_FLAGS)
 
 dev-chrome: deps start-firebase-emulators
-	@flutter run -d chrome --no-pub
+	@flutter run -d chrome --no-pub $(DOTENV_FLAGS)
 
 dev-android: deps start-firebase-emulators
-	@flutter run -d android --no-pub
+	@flutter run -d android --no-pub $(DOTENV_FLAGS)
 
 start-firebase-emulators:
 	@if ! lsof -ti :9099 -sTCP:LISTEN > /dev/null; then \
@@ -55,7 +57,7 @@ test: deps
 	@FILES=$$(git --no-pager diff --name-only @{upstream}..HEAD;git --no-pager diff --name-only --staged; git --no-pager diff); \
 	if echo "$$FILES" | grep -E '\.dart$$' > /dev/null; then \
 		echo "Running tests..."; \
-		flutter test --no-pub; \
+		flutter test --no-pub $(DOTENV_FLAGS); \
 	else \
 		echo "No Dart changes detected in local commits or staged changes. Skipping tests."; \
 	fi

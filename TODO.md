@@ -95,7 +95,7 @@ actions:
 
 ## Features & Functionality
 - [ ] Scanning products to ease the process of adding items to the inventory.
-    - [ ] Barcode
+    - [x] Barcode
     - [ ] QR code
     - [ ] Picture ? (need to explore ML options for this)
 - [ ] Add support for push/app/internal notifications (e.g., expiring products, meal plan reminders).
