@@ -70,6 +70,12 @@ When reviewing or writing code, **check [pub.dev](https://pub.dev) or the [Flutt
 - **Resolved Comment Cleanup Rule**: Remove stale comment references once high-quality, Effective Dart-aligned, non-fragile solutions are fully implemented.
 - **Style**: `snake_case` (files), `camelCase` (members), `_private`. Follow [Effective Dart](https://dart.dev/effective-dart/design).
 
+## 5. Environment Configuration
+- **Host IP**: For local development (Firebase emulators), use `Config.emulatorHost` in `lib/utils/config.dart`.
+- **Android Sync**: If you change the host IP, ensure you also update `android/app/src/main/res/xml/network_security_config.xml` to allow cleartext traffic to that IP.
+- **Emulator UI**: Access the Firebase Emulator UI at `http://localhost:8081`.
+- **Physical Devices**: When testing on physical Android devices, use the host machine's local IP (e.g., `192.168.1.10`) instead of `10.0.2.2`.
+
 ## Implementation Pattern (New Features)
 1. **Model**: `@models/` (JSON logic + computed properties).
 2. **Interface**: `@interfaces/i_your_repository.dart`.
