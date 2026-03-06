@@ -217,9 +217,9 @@ void main() {
 
         await tester.pumpWidget(
           EasyLocalization(
-            supportedLocales: const [Locale('en', 'US'), Locale('nb', 'NO')],
+            supportedLocales: const [Locale('en'), Locale('nb')],
             path: 'assets/translations',
-            fallbackLocale: const Locale('en', 'US'),
+            fallbackLocale: const Locale('en'),
             child: _TestApp(router: router),
           ),
         );
