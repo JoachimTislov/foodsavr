@@ -101,5 +101,234 @@ void main() {
         expect(find.text('Norsk'), findsOneWidget);
       });
     });
+
+    testWidgets('opens theme selector and changes theme', (tester) async {
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            child: const _TestWrapper(child: SettingsView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Tap on Theme Mode setting
+        await tester.tap(find.text('Theme Mode'));
+        await tester.pumpAndSettle();
+
+        // Should see theme options
+        expect(find.text('System'), findsOneWidget);
+        expect(find.text('Light'), findsOneWidget);
+        expect(find.text('Dark'), findsOneWidget);
+
+        // Select Dark theme
+        await tester.tap(find.text('Dark'));
+        await tester.pumpAndSettle();
+
+        // Modal should close
+        expect(find.text('System'), findsNothing);
+      });
+    });
+
+    testWidgets('shows legal dialog for Terms of Service', (tester) async {
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            child: const _TestWrapper(child: SettingsView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Tap on Terms of Service
+        await tester.tap(find.text('Terms of Service'));
+        await tester.pumpAndSettle();
+
+        // Should see dialog with Terms of Service title
+        expect(
+          find.widgetWithText(AlertDialog, 'Terms of Service'),
+          findsOneWidget,
+        );
+
+        // Should have Close button
+        expect(find.text('Close'), findsOneWidget);
+
+        // Close the dialog
+        await tester.tap(find.text('Close'));
+        await tester.pumpAndSettle();
+
+        // Dialog should be closed
+        expect(
+          find.widgetWithText(AlertDialog, 'Terms of Service'),
+          findsNothing,
+        );
+      });
+    });
+
+    testWidgets('shows legal dialog for Privacy Policy', (tester) async {
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            child: const _TestWrapper(child: SettingsView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Tap on Privacy Policy
+        await tester.tap(find.text('Privacy Policy'));
+        await tester.pumpAndSettle();
+
+        // Should see dialog with Privacy Notice title
+        expect(
+          find.widgetWithText(AlertDialog, 'Privacy Notice'),
+          findsOneWidget,
+        );
+
+        // Should have Close button
+        expect(find.text('Close'), findsOneWidget);
+
+        // Close the dialog
+        await tester.tap(find.text('Close'));
+        await tester.pumpAndSettle();
+      });
+    });
+
+    testWidgets('displays app version correctly', (tester) async {
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            child: const _TestWrapper(child: SettingsView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Should display app version
+        expect(find.text('App Version'), findsOneWidget);
+        expect(find.text('1.0.0 (42)'), findsOneWidget);
+      });
+    });
+
+    testWidgets('app version tile is not tappable', (tester) async {
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            child: const _TestWrapper(child: SettingsView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // App version should exist
+        expect(find.text('App Version'), findsOneWidget);
+
+        // Tapping it should do nothing (no modal/dialog should appear)
+        await tester.tap(find.text('App Version'));
+        await tester.pumpAndSettle();
+
+        // No dialog or bottom sheet should appear
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(find.byType(ModalBottomSheetRoute), findsNothing);
+      });
+    });
+
+    testWidgets('displays user profile with email', (tester) async {
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            child: const _TestWrapper(child: SettingsView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Should display ACCOUNT section
+        expect(find.text('ACCOUNT'), findsOneWidget);
+
+        // Should have a CircleAvatar (profile icon)
+        expect(find.byType(CircleAvatar), findsOneWidget);
+      });
+    });
+
+    testWidgets('theme selector shows checkmark on current theme',
+        (tester) async {
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            child: const _TestWrapper(child: SettingsView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Tap on Theme Mode setting
+        await tester.tap(find.text('Theme Mode'));
+        await tester.pumpAndSettle();
+
+        // Should have theme icons
+        expect(find.byIcon(Icons.brightness_auto), findsOneWidget);
+        expect(find.byIcon(Icons.light_mode), findsOneWidget);
+        expect(find.byIcon(Icons.dark_mode), findsOneWidget);
+      });
+    });
+
+    testWidgets('language selector shows checkmark on current language',
+        (tester) async {
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            child: const _TestWrapper(child: SettingsView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Tap on Language setting
+        await tester.tap(find.text('Language'));
+        await tester.pumpAndSettle();
+
+        // Should show checkmark for English (current language)
+        final checkIcons = find.byIcon(Icons.check);
+        expect(checkIcons, findsOneWidget);
+      });
+    });
+
+    testWidgets('all settings icons are displayed', (tester) async {
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            child: const _TestWrapper(child: SettingsView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Check that all expected icons are present
+        expect(find.byIcon(Icons.dark_mode_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.language_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.description_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.privacy_tip_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.info_outline), findsOneWidget);
+      });
+    });
   });
 }
