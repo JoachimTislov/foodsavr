@@ -2,8 +2,8 @@
 
 This file provides a rational structure and links to processed research data. Redundant information has been filtered out.
 
-### api_v3_and_flutter
-- **Source:** [api_v3_and_flutter.md](processed/api_v3_and_flutter.md)
+### info
+- **Source:** [info.md](info.md)
 - **Summary:** ### Open Food Facts API v3 & Flutter Package Research
 
 1. API v3 Overview

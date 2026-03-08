@@ -125,11 +125,11 @@ function filterRedundancy(content) {
 /**
  * Overview Generator: Updates or creates an overview.md for the research session.
  */
-function updateOverview(outputDir, fileName, summary, researchName) {
+function updateOverview(outputDir, fileName, summary, researchName, isFirstPart) {
   const overviewPath = path.join(outputDir, 'overview.md');
   const entry = `\n### ${path.basename(fileName, '.md')}\n- **Source:** [${fileName}](${fileName})\n- **Summary:** ${summary.substring(0, 200)}...\n`;
 
-  if (!fs.existsSync(overviewPath)) {
+  if (isFirstPart || !fs.existsSync(overviewPath)) {
     const header = `# Research Overview: ${researchName}\n\nThis file provides a rational structure and links to processed research data. Redundant information has been filtered out.\n`;
     fs.writeFileSync(overviewPath, header + entry);
   } else {
@@ -217,11 +217,11 @@ const chunks = splitIntoChunks(filtered);
 chunks.forEach((chunk, index) => {
   const sanitized = sanitize(chunk);
   const partSuffix = chunks.length > 1 ? `_part${index + 1}` : '';
-  const outputFileName = `${baseFileName}${partSuffix}.md`;
+  const outputFileName = `info${partSuffix}.md`;
   const finalPath = path.join(outputDir, outputFileName);
 
   fs.writeFileSync(finalPath, sanitized);
-  updateOverview(outputDir, outputFileName, sanitized.substring(0, 500), researchName);
+  updateOverview(outputDir, outputFileName, sanitized.substring(0, 500), researchName, index === 0);
 
   console.log(`Processed part ${index + 1}/${chunks.length}: ${outputFileName}`);
 });

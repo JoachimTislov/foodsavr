@@ -26,3 +26,6 @@ This document provides a collection of external resources, documentation, and to
 - [Open food facts](https://world.openfoodfacts.org/)
     - [data](https://world.openfoodfacts.org/data)
     - [docs](https://openfoodfacts.github.io/documentation/docs/)
+- [Rema 1000 vendor guide](https://www.rema.no/wordpress/wp-content/uploads/2023/11/Vendor-guide.pdf)
+- [GS1 Norway](https://www.gs1.no/)
+    - [All informasjon i en strekkode](https://gs1.no/all-informasjonen-i-en-strekkode/)
