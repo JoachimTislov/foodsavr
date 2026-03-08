@@ -110,6 +110,7 @@ class Product {
   final String? imageUrl; // Optional image URL
   final String? barcode; // Optional product barcode
   final bool isGlobal; // True if product is in global catalog
+  final List<String> tags; // Labels and tags from APIs like OpenFoodFacts
 
   Product({
     required this.id,
@@ -122,6 +123,7 @@ class Product {
     this.imageUrl,
     this.barcode,
     this.isGlobal = false,
+    this.tags = const [],
   });
 
   Map<String, dynamic> toJson() {
@@ -136,6 +138,7 @@ class Product {
       'imageUrl': imageUrl,
       'barcode': barcode,
       'isGlobal': isGlobal,
+      'tags': tags,
     };
   }
 
@@ -172,6 +175,7 @@ class Product {
       imageUrl: json['imageUrl'] as String?,
       barcode: json['barcode'] as String?,
       isGlobal: json['isGlobal'] as bool? ?? false,
+      tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? const [],
     );
   }
 

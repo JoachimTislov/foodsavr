@@ -1,9 +1,8 @@
-import 'dart:convert';
 import 'dart:math';
 
-import 'package:http/http.dart' as http;
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
+import 'package:openfoodfacts/openfoodfacts.dart' as off;
 import '../models/product_model.dart';
 import '../interfaces/i_product_repository.dart';
 
@@ -56,6 +55,7 @@ class ProductService {
         imageUrl: existingProduct.imageUrl,
         barcode: existingProduct.barcode,
         isGlobal: existingProduct.isGlobal,
+        tags: existingProduct.tags,
       );
       await _productRepository.update(updatedProduct);
       return ScanAddProductResult(
@@ -66,40 +66,42 @@ class ProductService {
 
     // Attempt to fetch from Open Food Facts API
     try {
-      final response = await http.get(
-        Uri.parse(
-          'https://world.openfoodfacts.org/api/v2/product/$normalizedBarcode.json',
-        ),
-        headers: {
-          'User-Agent':
-              'FoodSavr - Android/iOS - Version 1.0.0 - https://github.com/JoachimTislov/foodsavr - scan',
-        },
+      final configuration = off.ProductQueryConfiguration(
+        normalizedBarcode,
+        version: off.ProductQueryVersion.v3,
+        fields: [
+          off.ProductField.NAME,
+          off.ProductField.IMAGE_FRONT_URL,
+          off.ProductField.LABELS_TAGS,
+        ],
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['status'] == 1) {
-          final productData = data['product'];
-          final productName = productData['product_name'] ?? normalizedBarcode;
-          final imageUrl = productData['image_front_url'];
+      final result = await off.OpenFoodAPIClient.getProductV3(configuration);
 
-          final randomSuffix = Random().nextInt(1000);
-          final newProduct = Product(
-            id: DateTime.now().microsecondsSinceEpoch + randomSuffix,
-            name: productName,
-            description: '',
-            userId: userId,
-            nonExpiringQuantity: 1,
-            barcode: normalizedBarcode,
-            imageUrl: imageUrl,
-          );
-          final addedProduct = await _productRepository.add(newProduct);
-          _logger.i('Created new product from OFF API: $normalizedBarcode');
-          return ScanAddProductResult(
-            product: addedProduct,
-            matchedExisting: false,
-          );
-        }
+      if (result.status == off.ProductResultV3.statusSuccess &&
+          result.product != null) {
+        final productData = result.product!;
+        final productName = productData.productName ?? normalizedBarcode;
+        final imageUrl = productData.imageFrontUrl;
+        final tags = productData.labelsTags ?? [];
+
+        final randomSuffix = Random().nextInt(1000);
+        final newProduct = Product(
+          id: DateTime.now().microsecondsSinceEpoch + randomSuffix,
+          name: productName,
+          description: '',
+          userId: userId,
+          nonExpiringQuantity: 1,
+          barcode: normalizedBarcode,
+          imageUrl: imageUrl,
+          tags: tags,
+        );
+        final addedProduct = await _productRepository.add(newProduct);
+        _logger.i('Created new product from OFF API: $normalizedBarcode');
+        return ScanAddProductResult(
+          product: addedProduct,
+          matchedExisting: false,
+        );
       }
     } catch (e) {
       _logger.e('Error fetching from Open Food Facts API: $e');
