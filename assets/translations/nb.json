@@ -68,6 +68,7 @@
     "name": "Navn",
     "name_required": "Vennligst oppgi et navn",
     "add": "Legg til",
+    "ok": "OK",
     "create": "Opprett",
     "save": "Lagre",
     "delete": "Slett",
@@ -199,6 +200,10 @@
     "account": "Konto",
     "app_version": "App-versjon",
     "appearance": "Utseende",
+    "developer_tools": "Utviklerverktøy",
+    "use_emulators": "Bruk lokale emulatorer",
+    "restart_required": "Restart påkrevd",
+    "restart_message": "En manuell omstart av appen kreves for å bytte mellom lokale og eksterne miljøer.",
     "language": "Språk",
     "languages": {
       "en": "Engelsk",
