@@ -61,6 +61,49 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     }
   }
 
+  Future<void> _deleteCollection() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('common.delete'.tr()),
+        content: Text(
+          'product.deleteConfirmMessage'.tr(
+            namedArgs: {'name': _currentCollection.name},
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('common.cancel'.tr()),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('common.delete'.tr()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await _collectionService.deleteCollection(_currentCollection.id);
+        if (mounted) {
+          Navigator.of(context).pop(true);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -83,7 +126,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
                   _refreshCollection();
                 }
               } else if (value == 'delete') {
-                // _deleteCollection(); // Commented out to avoid build errors if missing in service
+                _deleteCollection();
               }
             },
             itemBuilder: (BuildContext context) {
@@ -94,13 +137,27 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
                     children: [
                       const Icon(Icons.edit, size: 20),
                       const SizedBox(width: 8),
-                      Text(
-                        'common.edit'.tr(),
-                      ), // Assuming this key exists, fallback is fine
+                      Text('common.edit'.tr()),
                     ],
                   ),
                 ),
-                // Delete can be added fully once the service is confirmed
+                PopupMenuItem<String>(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline,
+                        size: 20,
+                        color: colorScheme.error,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'common.delete'.tr(),
+                        style: TextStyle(color: colorScheme.error),
+                      ),
+                    ],
+                  ),
+                ),
               ];
             },
           ),
