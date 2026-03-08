@@ -25,8 +25,8 @@ void main() {
     ).create(recursive: true);
     libDir = await Directory('${tempDir.path}/lib').create(recursive: true);
 
-    enJson = File('${assetsDir.path}/en-US.json');
-    nbJson = File('${assetsDir.path}/nb-NO.json');
+    enJson = File('${assetsDir.path}/en.json');
+    nbJson = File('${assetsDir.path}/nb.json');
     mainDart = File('${libDir.path}/main.dart');
 
     await enJson.writeAsString(

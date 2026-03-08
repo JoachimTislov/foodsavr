@@ -75,17 +75,18 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i974.Logger>(),
       ),
     );
-    gh.factoryParam<_i882.AuthController, _i882.Translator?, dynamic>(
-      (translate, _) => _i882.AuthController(
-        gh<_i794.IAuthService>(),
-        gh<_i974.Logger>(),
-        translate: translate,
-      ),
-    );
     gh.lazySingleton<_i898.ProductService>(
       () => _i898.ProductService(
         gh<_i424.IProductRepository>(),
         gh<_i974.Logger>(),
+      ),
+    );
+    gh.factoryParam<_i882.AuthController, _i882.Translator?, dynamic>(
+      (translate, _) => _i882.AuthController(
+        gh<_i794.IAuthService>(),
+        gh<_i122.CollectionService>(),
+        gh<_i974.Logger>(),
+        translate: translate,
       ),
     );
     return this;
