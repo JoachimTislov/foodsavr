@@ -1,9 +1,13 @@
-.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps codegen locale-check generate-di preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated pr-comments-resolve-all pr-comments-resolve-thread pr-comments-list pr-comment-get
+.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps codegen locale-check generate-di preflight push pr-comments-active pr-comments-resolve-active pr-comments-resolve-outdated pr-comments-resolve-all pr-comments-resolve-thread pr-comments-list pr-comment-get seed
 
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
 
 build-android: deps
 	@flutter build apk --no-pub $(DOTENV_FLAGS)
+
+seed: deps
+	@echo "Seeding local Firebase emulators..."
+	@dart run tool/seed_database.dart
 
 dev-chrome-prod: deps
 	@flutter run -d chrome --no-pub --flavor production $(DOTENV_FLAGS)
