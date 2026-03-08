@@ -43,18 +43,6 @@ class _CollectionListViewState extends State<CollectionListView> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            onPressed: () async {
-              final result = await CollectionFormView.show(
-                context,
-                type: widget.typeFilter ?? CollectionType.inventory,
-              );
-              if (result == true) {
-                _refreshCollections();
-              }
-            },
-          ),
-          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => _authService.signOut(),
           ),
@@ -153,19 +141,27 @@ class _CollectionListViewState extends State<CollectionListView> {
           }
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'collection_list_fab_${widget.typeFilter?.name ?? 'all'}',
-        onPressed: () async {
-          final result = await CollectionFormView.show(
-            context,
-            type: widget.typeFilter ?? CollectionType.inventory,
-          );
-          if (!mounted) return;
-          if (result == true) {
-            _refreshCollections();
+      floatingActionButton: FutureBuilder<List<Collection>>(
+        future: _collectionsFuture,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const SizedBox.shrink();
           }
+          return FloatingActionButton(
+            heroTag: 'collection_list_fab_${widget.typeFilter?.name ?? 'all'}',
+            onPressed: () async {
+              final result = await CollectionFormView.show(
+                context,
+                type: widget.typeFilter ?? CollectionType.inventory,
+              );
+              if (!mounted) return;
+              if (result == true) {
+                _refreshCollections();
+              }
+            },
+            child: const Icon(Icons.add),
+          );
         },
-        child: const Icon(Icons.add),
       ),
     );
   }

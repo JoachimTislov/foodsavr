@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
+import '../services/collection_service.dart';
 import '../views/product_form_view.dart';
+import '../views/product_detail_view.dart';
 
 class ProductAddHelper {
   static Future<bool?> startAddProductFlow(
@@ -24,6 +26,7 @@ class ProductAddHelper {
 
     final authService = getIt<IAuthService>();
     final productService = getIt<ProductService>();
+    final collectionService = getIt<CollectionService>();
     final userId = authService.getUserId();
     if (userId == null) return false;
 
@@ -42,7 +45,10 @@ class ProductAddHelper {
       );
 
       if (!context.mounted) return false;
-      Navigator.of(context).pop(); // Dismiss loading indicator
+      Navigator.of(
+        context,
+        rootNavigator: true,
+      ).pop(); // Dismiss loading indicator
 
       if (result.notFound) {
         messenger.showSnackBar(
@@ -54,6 +60,15 @@ class ProductAddHelper {
           collectionId: collectionId,
         );
       } else {
+        if (collectionId != null) {
+          await collectionService.addProductToCollection(
+            collectionId,
+            result.product.id,
+          );
+        }
+
+        if (!context.mounted) return false;
+
         messenger.showSnackBar(
           SnackBar(
             content: Text(
@@ -67,11 +82,22 @@ class ProductAddHelper {
             ),
           ),
         );
+
+        // Show the product after adding it
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => ProductDetailView(product: result.product),
+          ),
+        );
+
         return true;
       }
     } catch (e) {
       if (!context.mounted) return false;
-      Navigator.of(context).pop(); // Dismiss loading indicator
+      Navigator.of(
+        context,
+        rootNavigator: true,
+      ).pop(); // Dismiss loading indicator
       messenger.showSnackBar(
         SnackBar(
           content: Text(
