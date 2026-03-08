@@ -38,7 +38,7 @@ codegen:
 	@dart run build_runner build --delete-conflicting-outputs
 
 # Code quality commands
-check: deps analyze test locale-check fix fmt
+check: analyze test locale-check fix fmt
 
 analyze: deps
 	@echo "Running Flutter analyze..."

@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -6,6 +9,13 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+val envProperties = Properties().apply {
+    val envFile = rootProject.file("../../.env")
+    if (envFile.exists()) {
+        load(FileInputStream(envFile))
+    }
 }
 
 android {
@@ -31,6 +41,19 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Expose all .env variables to the manifest and code
+        envProperties.forEach { key, value ->
+            val k = key.toString()
+            val v = value.toString()
+            manifestPlaceholders[k] = v
+            resValue("string", k, v)
+        }
+        // Ensure EMULATOR_HOST has a default for the build to succeed if .env is missing
+        if (!envProperties.containsKey("EMULATOR_HOST")) {
+            manifestPlaceholders["EMULATOR_HOST"] = "10.0.2.2"
+            resValue("string", "EMULATOR_HOST", "10.0.2.2")
+        }
     }
 
     buildTypes {
