@@ -40,7 +40,7 @@ Future<void> main() async {
     print('✅ Seeded global products.');
 
     print('📦 Seeding collections...');
-    await seedCollections(userId, addedProducts);
+    await seedCollections(userId);
     print('✅ Seeded collections.');
 
     print('\n✨ Database seeding completed successfully!');
@@ -76,22 +76,25 @@ Future<String> createTestUser() async {
     final data = jsonDecode(response.body);
     return data['localId'];
   } else {
-    // If user already exists, we might get an error. Let's try to sign in instead.
-    final signInUrl =
-        'http://$host:$authPort/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake-key';
-    final signInResponse = await http.post(
-      Uri.parse(signInUrl),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': testUserEmail,
-        'password': testUserPassword,
-        'returnSecureToken': true,
-      }),
-    );
+    final error = jsonDecode(response.body)['error'];
+    if (error != null && error['message'] == 'EMAIL_EXISTS') {
+      print('ℹ️  User already exists, signing in...');
+      final signInUrl =
+          'http://$host:$authPort/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake-key';
+      final signInResponse = await http.post(
+        Uri.parse(signInUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': testUserEmail,
+          'password': testUserPassword,
+          'returnSecureToken': true,
+        }),
+      );
 
-    if (signInResponse.statusCode == 200) {
-      final data = jsonDecode(signInResponse.body);
-      return data['localId'];
+      if (signInResponse.statusCode == 200) {
+        final data = jsonDecode(signInResponse.body);
+        return data['localId'];
+      }
     }
     throw Exception('Failed to create or sign in test user: ${response.body}');
   }
@@ -173,17 +176,12 @@ Future<void> seedGlobalProducts() async {
   }
 }
 
-Future<void> seedCollections(String userId, List<int> addedProductIds) async {
+Future<void> seedCollections(String userId) async {
   final collectionsData = CollectionsData.getCollections();
 
   for (var data in collectionsData) {
     final id = data['id'] as String;
     final mockProductIds = List<int>.from(data['productIds'] as List);
-
-    // Simplification: just use the mock IDs if they exist in our seeded list
-    final actualProductIds = mockProductIds
-        .where((mid) => addedProductIds.contains(mid))
-        .toList();
 
     final collectionMap = {
       'id': {'stringValue': id},
@@ -193,7 +191,7 @@ Future<void> seedCollections(String userId, List<int> addedProductIds) async {
       'description': {'stringValue': data['description'] ?? ''},
       'productIds': {
         'arrayValue': {
-          'values': actualProductIds
+          'values': mockProductIds
               .map((pid) => {'integerValue': pid.toString()})
               .toList(),
         },
