@@ -1,0 +1,32 @@
+==================== BEGIN FETCHED DATA ====================
+### Gemini CLI Sub-agents Workflow Documentation
+
+1. How Sub-agents Work
+Sub-agents are specialists designed to handle complex, domain-specific tasks without cluttering the main agent's context. They operate in independent conversation loops, saving tokens and providing specialized toolsets.
+
+2. Delegation Patterns
+- Optimize Descriptions: Use explicit descriptions and usage scenarios in the YAML frontmatter.
+- Focused Persona: Define a strong persona and grant only necessary tools.
+- Execution Limits: Configure 'max_turns' and 'timeout_mins' to prevent loops.
+
+3. Coordination Best Practices
+- Main Agent as Orchestrator: The main agent synthesizes specialist reports.
+- YOLO Mode: Sub-agents may execute tools without individual confirmation.
+- Manual Management: Use '/agents' commands to list, refresh, and enable/disable agents.
+
+4. Built-in Agents
+- codebase_investigator: Deep repository analysis.
+- cli_help: Documentation lookup.
+- generalist_agent: Internal task routing.
+
+5. Custom Agent Definition
+Custom agents are defined in '.gemini/agents/' using Markdown with YAML frontmatter.
+Example:
+---
+name: security-expert
+description: Expert at finding vulnerabilities.
+tools: [read_file, grep_search]
+max_turns: 10
+You are a security expert...
+
+==================== END FETCHED DATA ====================
