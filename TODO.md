@@ -2,6 +2,8 @@
 
 Look into
 
+- [ ] Seed database when using Firebase emulator for testing and development.
+    - run script through make start-emulator target or similar
 - [ ] "Cloud Firestore emulator" Flutter integration test
 - [ ] "flutter test" "firebase emulator" CI GitHub Actions
 - [ ] "firestore.rules" best practices Flutter app
@@ -61,6 +63,7 @@ actions:
 - [x] Create .gemini/commands folder with .toml files for custom commands and templates
     - [x] Iteration command for fixing issues in flutter analyze until no issues remain
         - [x] Also one for Test, should be template
+    - [x] Research command for fetching and presenting data from the internet safely
     - [ ] Screenshot of page for reference to give better context to the LLM when adjusting UI
         - [ ] UI healing, grading in terms of user feeling, accessibility, material 3 compliance, etc.
     - [ ] Locales command

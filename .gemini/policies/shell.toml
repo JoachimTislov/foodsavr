@@ -1,5 +1,11 @@
 [[rule]]
 toolName = "run_shell_command"
+commandPrefix = "node .gemini/skills/research/scripts/process_data.js"
+decision = "allow"
+priority = 200
+
+[[rule]]
+toolName = "run_shell_command"
 decision = "deny"
 priority = 100
 

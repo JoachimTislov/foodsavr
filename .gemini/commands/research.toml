@@ -1,0 +1,10 @@
+description = "Structured research command for fetching and presenting data safely using the project's research data standard."
+prompt = """
+1. Activate the 'research' skill to enable the workflow.
+2. Phase 1: Fetch raw data to 'research/raw/[research-name]/' (Max 5MB).
+3. Phase 2: Process using 'node .gemini/skills/research/scripts/process_data.js'.
+   - This script MUST filter redundancies and generate 'research/[research-name]/overview.md'.
+   - Ensure individual files do not exceed 500 lines.
+4. Phase 3: Present findings using 'overview.md' as the primary index.
+   - Prefer links to processed files over large data chunks.
+"""
