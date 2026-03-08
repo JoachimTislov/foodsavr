@@ -15,34 +15,49 @@ class ServiceLocator {
   Future<void> setupDevelopment() async {
     const host = Config.emulatorHost;
 
-    await getIt<FirebaseAuth>().useAuthEmulator(host, 9099);
-    getIt<FirebaseFirestore>().useFirestoreEmulator(host, 8080);
+    try {
+      await getIt<FirebaseAuth>().useAuthEmulator(host, 9099);
+      getIt<FirebaseFirestore>().useFirestoreEmulator(host, 8080);
+    } catch (e) {
+      getIt<Logger>().e('Error connecting to Firebase emulators: $e');
+    }
 
-    // Pre-check if user is already signed in to avoid redundant seeding on hot reload or full restart during development.
+    // We don't await the actual seeding/login logic here to avoid blocking runApp on web refresh.
+    // The router and services will handle the transient auth state.
+    _performAsyncSeeding();
+  }
+
+  Future<void> _performAsyncSeeding() async {
     final logger = getIt<Logger>();
     final authService = getIt<IAuthService>();
+
+    // Give Firebase a moment to initialize its internal state on web
+    await Future.delayed(const Duration(milliseconds: 500));
+
     var userId = authService.getUserId();
     try {
       // On web, sign-in might hang if the emulator host is unreachable.
-      // We use a timeout to avoid blocking app startup indefinitely.
+      // We use a timeout to avoid blocking indefinitely.
       userId ??=
           (await authService
                   .signIn(
                     email: Config.testUserEmail,
                     password: Config.testUserPassword,
                   )
-                  .timeout(const Duration(seconds: 5)))
+                  .timeout(const Duration(seconds: 3)))
               .user
               ?.uid;
     } catch (e) {
       logger.w('Development auto-login failed or timed out: $e');
     }
+
     if (userId == null) {
       logger.i('Seeding database with initial data...');
-      // Only init and seed the database if no user is signed in.
-      // Presumably, if the user is signed in, the emulators are already seeded and ready to go.
-      // TODO: should the seed data reset on hot reload or full restart? Maybe add a flag to control this behavior?
-      await getIt<SeedingService>().seedDatabase();
+      try {
+        await getIt<SeedingService>().seedDatabase();
+      } catch (e) {
+        logger.e('Failed to seed database: $e');
+      }
     } else {
       logger.i('User already signed in, skipping seeding');
     }

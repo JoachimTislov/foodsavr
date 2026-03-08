@@ -24,11 +24,18 @@ final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
 );
 
 GoRouter createAppRouter(IAuthService authService) {
+  final authListenable = _AuthStreamListenable(authService);
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/',
-    refreshListenable: _AuthStreamListenable(authService),
+    refreshListenable: authListenable,
     redirect: (BuildContext context, GoRouterState state) {
+      // On web refresh, the initial state is 'not logged in' until Firebase initializes.
+      // We check if we're still 'loading' the initial auth state.
+      if (!authListenable.isInitialized) {
+        return null; // Stay on current route while loading
+      }
+
       final isLoggedIn = authService.getUserId() != null;
       final isAuthRoute = state.uri.path == '/auth';
       final isLandingRoute = state.uri.path == '/';
@@ -153,10 +160,22 @@ class _AuthStreamListenable extends ChangeNotifier {
   final IAuthService _authService;
   late final StreamSubscription<User?> _subscription;
   bool _isDisposed = false;
+  bool _isInitialized = false;
+
+  bool get isInitialized => _isInitialized;
 
   _AuthStreamListenable(this._authService) {
     _subscription = _authService.authStateChanges.listen((_) {
+      _isInitialized = true;
       if (!_isDisposed) {
+        notifyListeners();
+      }
+    });
+
+    // Safety fallback for initialization
+    Future.delayed(const Duration(seconds: 2), () {
+      if (!_isInitialized && !_isDisposed) {
+        _isInitialized = true;
         notifyListeners();
       }
     });
