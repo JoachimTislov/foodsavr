@@ -60,20 +60,23 @@ class ShelfLifeService {
     // Fallback: If we have a general 'category' string, try to match it
     if (product.category != null) {
       final cat = product.category!.toLowerCase();
-      if (cat.contains('dairy') || cat.contains('milk')) {
-        return baseDate.add(const Duration(days: 10));
-      }
-      if (cat.contains('meat') || cat.contains('poultry')) {
-        return baseDate.add(const Duration(days: 4));
-      }
-      if (cat.contains('fruit') || cat.contains('vegetable')) {
-        return baseDate.add(const Duration(days: 7));
-      }
-      if (cat.contains('frozen')) {
-        return baseDate.add(const Duration(days: 180));
-      }
-      if (cat.contains('canned')) {
-        return baseDate.add(const Duration(days: 730));
+      const fallbackMapping = {
+        'en:milks': ['dairy', 'milk'],
+        'en:fresh-meats': ['meat'],
+        'en:poultries': ['poultry'],
+        'en:fresh-fruits': ['fruit'],
+        'en:fresh-vegetables': ['vegetable'],
+        'en:frozen-foods': ['frozen'],
+        'en:canned-foods': ['canned'],
+      };
+
+      for (final entry in fallbackMapping.entries) {
+        if (entry.value.any(cat.contains)) {
+          final duration = _categoryDurations[entry.key];
+          if (duration != null) {
+            return baseDate.add(duration);
+          }
+        }
       }
     }
 

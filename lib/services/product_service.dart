@@ -78,6 +78,7 @@ class ProductService {
       return ScanAddProductResult(
         product: updatedProduct,
         matchedExisting: true,
+        estimatedExpiryDays: estimatedExpiry?.difference(DateTime.now()).inDays,
       );
     }
 
@@ -108,37 +109,40 @@ class ProductService {
         // Combine tags and categories for better shelf life heuristics
         final combinedTags = [...tags, ...categories];
 
-        final randomSuffix = Random().nextInt(1000);
+        final estimatedExpiry = _shelfLifeService.estimateExpiration(
+          // Use a temporary, minimal product instance for estimation
+          Product(
+            id: 0,
+            name: '',
+            description: '',
+            userId: '',
+            tags: combinedTags,
+          ),
+        );
 
-        // Initial creation to calculate expiry
-        var newProduct = Product(
+        final randomSuffix = Random().nextInt(1000);
+        final newProduct = Product(
           id: DateTime.now().microsecondsSinceEpoch + randomSuffix,
           name: productName,
           description: '',
           userId: userId,
-          nonExpiringQuantity: 1, // Default, might be overridden below
+          nonExpiringQuantity: estimatedExpiry == null ? 1 : 0,
           barcode: normalizedBarcode,
           imageUrl: imageUrl,
           tags: combinedTags,
+          expiries: estimatedExpiry != null
+              ? [ExpiryEntry(quantity: 1, expirationDate: estimatedExpiry)]
+              : [],
         );
-
-        final estimatedExpiry = _shelfLifeService.estimateExpiration(
-          newProduct,
-        );
-        if (estimatedExpiry != null) {
-          newProduct = newProduct.copyWith(
-            nonExpiringQuantity: 0,
-            expiries: [
-              ExpiryEntry(quantity: 1, expirationDate: estimatedExpiry),
-            ],
-          );
-        }
 
         final addedProduct = await _productRepository.add(newProduct);
         _logger.i('Created new product from OFF API: $normalizedBarcode');
         return ScanAddProductResult(
           product: addedProduct,
           matchedExisting: false,
+          estimatedExpiryDays: estimatedExpiry
+              ?.difference(DateTime.now())
+              .inDays,
         );
       }
     } catch (e) {
@@ -252,10 +256,12 @@ class ScanAddProductResult {
   final Product product;
   final bool matchedExisting;
   final bool notFound;
+  final int? estimatedExpiryDays;
 
   const ScanAddProductResult({
     required this.product,
     required this.matchedExisting,
     this.notFound = false,
+    this.estimatedExpiryDays,
   });
 }

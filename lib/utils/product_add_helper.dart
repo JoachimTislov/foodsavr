@@ -69,13 +69,10 @@ class ProductAddHelper {
 
         if (!context.mounted) return false;
 
-        final hasAssumedExpiry = result.product.expiries.isNotEmpty;
-        final expiryMsg = hasAssumedExpiry
+        final expiryDays = result.estimatedExpiryDays;
+        final expiryMsg = expiryDays != null
             ? 'product.barcodeAssumedExpiry'.tr(
-                namedArgs: {
-                  'days': result.product.expiries.last.daysUntilExpiration
-                      .toString(),
-                },
+                namedArgs: {'days': expiryDays.toString()},
               )
             : '';
 
