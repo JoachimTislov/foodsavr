@@ -23,3 +23,6 @@ This document provides a collection of external resources, documentation, and to
 ## Resources
 
 - [Connecting Physical Devices to Your Firebase Emulator](https://medium.com/@Toglefritz/connecting-physical-devices-to-your-firebase-emulator-dae629c6d192)
+- [Open food facts](https://world.openfoodfacts.org/)
+    - [data](https://world.openfoodfacts.org/data)
+    - [docs](https://openfoodfacts.github.io/documentation/docs/)
