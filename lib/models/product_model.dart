@@ -58,6 +58,17 @@ class ExpiryEntry {
     };
   }
 
+  Map<String, dynamic> toFirestoreRest() {
+    return {
+      'mapValue': {
+        'fields': {
+          'quantity': {'integerValue': quantity.toString()},
+          'expirationDate': {'stringValue': expirationDate.toIso8601String()},
+        },
+      },
+    };
+  }
+
   factory ExpiryEntry.fromJson(Map<String, dynamic> json) {
     return ExpiryEntry(
       quantity: json['quantity'] as int,
@@ -139,6 +150,30 @@ class Product {
       'barcode': barcode,
       'isGlobal': isGlobal,
       'tags': tags,
+    };
+  }
+
+  Map<String, dynamic> toFirestoreRest() {
+    return {
+      'id': {'integerValue': id.toString()},
+      'name': {'stringValue': name},
+      'description': {'stringValue': description},
+      'userId': {'stringValue': userId},
+      'expiries': {
+        'arrayValue': {
+          'values': expiries.map((e) => e.toFirestoreRest()).toList(),
+        },
+      },
+      'nonExpiringQuantity': {'integerValue': nonExpiringQuantity.toString()},
+      'category': {'stringValue': category ?? ''},
+      'imageUrl': {'stringValue': imageUrl ?? ''},
+      'barcode': {'stringValue': barcode ?? ''},
+      'isGlobal': {'booleanValue': isGlobal},
+      'tags': {
+        'arrayValue': {
+          'values': tags.map((t) => {'stringValue': t}).toList(),
+        },
+      },
     };
   }
 

@@ -47,6 +47,23 @@ class Collection {
     };
   }
 
+  Map<String, dynamic> toFirestoreRest() {
+    return {
+      'id': {'stringValue': id},
+      'name': {'stringValue': name},
+      'productIds': {
+        'arrayValue': {
+          'values': productIds
+              .map((id) => {'integerValue': id.toString()})
+              .toList(),
+        },
+      },
+      'userId': {'stringValue': userId},
+      'description': {'stringValue': description ?? ''},
+      'type': {'stringValue': type.name},
+    };
+  }
+
   factory Collection.fromJson(Map<String, dynamic> json) {
     return Collection(
       id: json['id'] as String,

@@ -8,6 +8,9 @@ import 'package:http/http.dart' as http;
 import 'package:foodsavr/mock_data/collections.dart';
 import 'package:foodsavr/mock_data/global_products.dart';
 import 'package:foodsavr/mock_data/inventory_products.dart';
+import 'package:foodsavr/models/product_model.dart';
+import 'package:foodsavr/models/collection_model.dart';
+import 'package:foodsavr/utils/collection_types.dart';
 
 const String projectId = 'demo-project';
 const String host = 'localhost';
@@ -110,42 +113,24 @@ Future<List<int>> seedInventoryProducts(String userId) async {
     final expirationDays = data['expirationDays'] as int?;
     final quantity = data['quantity'] as int? ?? 1;
 
-    final productMap = {
-      'id': {'integerValue': id.toString()},
-      'name': {'stringValue': data['name']},
-      'description': {'stringValue': data['description']},
-      'userId': {'stringValue': userId},
-      'nonExpiringQuantity': {
-        'integerValue': (expirationDays == null ? quantity : 0).toString(),
-      },
-      'isGlobal': {'booleanValue': false},
-      'category': {'stringValue': data['category'] ?? ''},
-      'tags': {
-        'arrayValue': {'values': []},
-      },
-      'expiries': {
-        'arrayValue': {
-          'values': expirationDays != null
-              ? [
-                  {
-                    'mapValue': {
-                      'fields': {
-                        'quantity': {'integerValue': quantity.toString()},
-                        'expirationDate': {
-                          'stringValue': now
-                              .add(Duration(days: expirationDays))
-                              .toIso8601String(),
-                        },
-                      },
-                    },
-                  },
-                ]
-              : [],
-        },
-      },
-    };
+    final product = Product(
+      id: id,
+      name: data['name'] as String,
+      description: data['description'] as String,
+      userId: userId,
+      nonExpiringQuantity: expirationDays == null ? quantity : 0,
+      expiries: expirationDays != null
+          ? [
+              ExpiryEntry(
+                quantity: quantity,
+                expirationDate: now.add(Duration(days: expirationDays)),
+              ),
+            ]
+          : [],
+      category: data['category'] as String?,
+    );
 
-    await postToFirestore('products', id.toString(), productMap);
+    await postToFirestore('products', id.toString(), product.toFirestoreRest());
     addedIds.add(id);
   }
   return addedIds;
@@ -156,23 +141,16 @@ Future<void> seedGlobalProducts() async {
 
   for (var data in productsData) {
     final id = data['id'] as int;
-    final productMap = {
-      'id': {'integerValue': id.toString()},
-      'name': {'stringValue': data['name']},
-      'description': {'stringValue': data['description']},
-      'userId': {'stringValue': 'global'},
-      'nonExpiringQuantity': {'integerValue': '0'},
-      'isGlobal': {'booleanValue': true},
-      'category': {'stringValue': data['category'] ?? ''},
-      'tags': {
-        'arrayValue': {'values': []},
-      },
-      'expiries': {
-        'arrayValue': {'values': []},
-      },
-    };
+    final product = Product(
+      id: id,
+      name: data['name'] as String,
+      description: data['description'] as String,
+      userId: 'global',
+      isGlobal: true,
+      category: data['category'] as String?,
+    );
 
-    await postToFirestore('products', id.toString(), productMap);
+    await postToFirestore('products', id.toString(), product.toFirestoreRest());
   }
 }
 
@@ -183,22 +161,18 @@ Future<void> seedCollections(String userId) async {
     final id = data['id'] as String;
     final mockProductIds = List<int>.from(data['productIds'] as List);
 
-    final collectionMap = {
-      'id': {'stringValue': id},
-      'name': {'stringValue': data['name']},
-      'userId': {'stringValue': userId},
-      'type': {'stringValue': data['type']},
-      'description': {'stringValue': data['description'] ?? ''},
-      'productIds': {
-        'arrayValue': {
-          'values': mockProductIds
-              .map((pid) => {'integerValue': pid.toString()})
-              .toList(),
-        },
-      },
-    };
+    final collection = Collection(
+      id: id,
+      name: data['name'] as String,
+      productIds: mockProductIds,
+      userId: userId,
+      description: data['description'] as String?,
+      type: data['type'] == 'inventory'
+          ? CollectionType.inventory
+          : CollectionType.shoppingList,
+    );
 
-    await postToFirestore('collections', id, collectionMap);
+    await postToFirestore('collections', id, collection.toFirestoreRest());
   }
 }
 
