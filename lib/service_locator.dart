@@ -23,12 +23,19 @@ class ServiceLocator {
     final authService = getIt<IAuthService>();
     var userId = authService.getUserId();
     try {
-      userId ??= (await authService.signIn(
-        email: Config.testUserEmail,
-        password: Config.testUserPassword,
-      )).user?.uid;
-    } catch (_) {
-      // ignore error ...
+      // On web, sign-in might hang if the emulator host is unreachable.
+      // We use a timeout to avoid blocking app startup indefinitely.
+      userId ??=
+          (await authService
+                  .signIn(
+                    email: Config.testUserEmail,
+                    password: Config.testUserPassword,
+                  )
+                  .timeout(const Duration(seconds: 5)))
+              .user
+              ?.uid;
+    } catch (e) {
+      logger.w('Development auto-login failed or timed out: $e');
     }
     if (userId == null) {
       logger.i('Seeding database with initial data...');

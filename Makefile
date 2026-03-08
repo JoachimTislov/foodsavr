@@ -2,6 +2,9 @@
 
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
 
+build-android: deps
+	@flutter build apk --no-pub $(DOTENV_FLAGS)
+
 dev-chrome-prod: deps
 	@flutter run -d chrome --no-pub --flavor production $(DOTENV_FLAGS)
 

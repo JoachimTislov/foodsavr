@@ -40,8 +40,7 @@ void main() async {
       'Invalid app flavor: $appFlavor. Supported flavors: ${supportedFlavors.join(', ')}',
     );
   }
-  final engine = WidgetsFlutterBinding.ensureInitialized();
-  engine.performReassemble(); // TODO: I don't think this works...
+  WidgetsFlutterBinding.ensureInitialized();
 
   OpenFoodAPIConfiguration.userAgent = UserAgent(
     name: 'FoodSavr',
@@ -70,6 +69,7 @@ void main() async {
   }
 
   const enLocale = Locale('en');
+  const nbLocale = Locale('nb');
   await EasyLocalization.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
@@ -82,7 +82,7 @@ void main() async {
   final router = createAppRouter(getIt<IAuthService>());
   runApp(
     EasyLocalization(
-      supportedLocales: const [enLocale, Locale('no')],
+      supportedLocales: const [enLocale, nbLocale],
       path: 'assets/translations',
       fallbackLocale: enLocale,
       startLocale: enLocale,
