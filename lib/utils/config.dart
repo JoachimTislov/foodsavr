@@ -6,6 +6,11 @@ class Config {
   static const bool isDevelopment = appFlavor == null;
   static const String? environment = isDevelopment ? 'development' : appFlavor;
 
+  static bool get isProduction => appFlavor == 'production';
+
+  /// Key used in SharedPreferences to store the environment preference.
+  static const String useEmulatorsKey = 'use_local_emulators';
+
   /// The IP address for local development emulators.
   ///
   /// 💡 For Android emulators, this MUST be '10.0.2.2'.

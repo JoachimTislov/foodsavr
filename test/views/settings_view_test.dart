@@ -35,14 +35,18 @@ void main() {
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
       await EasyLocalization.ensureInitialized();
       await getIt.reset();
+
       mockAuthService = _MockAuthService();
       when(
         () => mockAuthService.authStateChanges,
       ).thenAnswer((_) => const Stream.empty());
       when(() => mockAuthService.currentUser).thenReturn(null);
+
       getIt.registerLazySingleton<IAuthService>(() => mockAuthService);
+      getIt.registerSingleton<SharedPreferences>(prefs);
     });
 
     testWidgets('renders all settings sections', (tester) async {

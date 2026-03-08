@@ -68,6 +68,7 @@
     "name": "Name",
     "name_required": "Please enter a name",
     "add": "Add",
+    "ok": "OK",
     "save": "Save",
     "create": "Create",
     "delete": "Delete",
@@ -199,6 +200,10 @@
     "account": "Account",
     "app_version": "App Version",
     "appearance": "Appearance",
+    "developer_tools": "Developer Tools",
+    "use_emulators": "Use Local Emulators",
+    "restart_required": "Restart Required",
+    "restart_message": "A manual restart of the app is required to switch between local and remote environments.",
     "language": "Language",
     "languages": {
       "en": "English",
