@@ -5,13 +5,15 @@ import 'package:logger/logger.dart';
 import 'package:openfoodfacts/openfoodfacts.dart' as off;
 import '../models/product_model.dart';
 import '../interfaces/i_product_repository.dart';
+import 'shelf_life_service.dart';
 
 @lazySingleton
 class ProductService {
   final IProductRepository _productRepository;
+  final ShelfLifeService _shelfLifeService;
   final Logger _logger;
 
-  ProductService(this._productRepository, this._logger);
+  ProductService(this._productRepository, this._shelfLifeService, this._logger);
 
   String _normalizeBarcode(String barcode) {
     var normalized = barcode.trim();
@@ -44,13 +46,28 @@ class ProductService {
 
     if (existingProduct != null) {
       _logger.i('Barcode matched existing product: ${existingProduct.name}');
+
+      // Calculate smart default expiry if none exists, else just increment quantity
+      final estimatedExpiry = _shelfLifeService.estimateExpiration(
+        existingProduct,
+      );
+      final newExpiries = List<ExpiryEntry>.from(existingProduct.expiries);
+
+      if (estimatedExpiry != null) {
+        newExpiries.add(
+          ExpiryEntry(quantity: 1, expirationDate: estimatedExpiry),
+        );
+      }
+
       final updatedProduct = Product(
         id: existingProduct.id,
         name: existingProduct.name,
         description: existingProduct.description,
         userId: existingProduct.userId,
-        expiries: existingProduct.expiries,
-        nonExpiringQuantity: existingProduct.nonExpiringQuantity + 1,
+        expiries: newExpiries,
+        nonExpiringQuantity: estimatedExpiry == null
+            ? existingProduct.nonExpiringQuantity + 1
+            : existingProduct.nonExpiringQuantity,
         category: existingProduct.category,
         imageUrl: existingProduct.imageUrl,
         barcode: existingProduct.barcode,
@@ -68,11 +85,13 @@ class ProductService {
     try {
       final configuration = off.ProductQueryConfiguration(
         normalizedBarcode,
+        language: off.OpenFoodFactsLanguage.NORWEGIAN,
         version: off.ProductQueryVersion.v3,
         fields: [
           off.ProductField.NAME,
           off.ProductField.IMAGE_FRONT_URL,
           off.ProductField.LABELS_TAGS,
+          off.ProductField.CATEGORIES_TAGS,
         ],
       );
 
@@ -84,18 +103,37 @@ class ProductService {
         final productName = productData.productName ?? normalizedBarcode;
         final imageUrl = productData.imageFrontUrl;
         final tags = productData.labelsTags ?? [];
+        final categories = productData.categoriesTags ?? [];
+
+        // Combine tags and categories for better shelf life heuristics
+        final combinedTags = [...tags, ...categories];
 
         final randomSuffix = Random().nextInt(1000);
-        final newProduct = Product(
+
+        // Initial creation to calculate expiry
+        var newProduct = Product(
           id: DateTime.now().microsecondsSinceEpoch + randomSuffix,
           name: productName,
           description: '',
           userId: userId,
-          nonExpiringQuantity: 1,
+          nonExpiringQuantity: 1, // Default, might be overridden below
           barcode: normalizedBarcode,
           imageUrl: imageUrl,
-          tags: tags,
+          tags: combinedTags,
         );
+
+        final estimatedExpiry = _shelfLifeService.estimateExpiration(
+          newProduct,
+        );
+        if (estimatedExpiry != null) {
+          newProduct = newProduct.copyWith(
+            nonExpiringQuantity: 0,
+            expiries: [
+              ExpiryEntry(quantity: 1, expirationDate: estimatedExpiry),
+            ],
+          );
+        }
+
         final addedProduct = await _productRepository.add(newProduct);
         _logger.i('Created new product from OFF API: $normalizedBarcode');
         return ScanAddProductResult(

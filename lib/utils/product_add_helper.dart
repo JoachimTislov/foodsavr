@@ -69,16 +69,27 @@ class ProductAddHelper {
 
         if (!context.mounted) return false;
 
+        final hasAssumedExpiry = result.product.expiries.isNotEmpty;
+        final expiryMsg = hasAssumedExpiry
+            ? 'product.barcodeAssumedExpiry'.tr(
+                namedArgs: {
+                  'days': result.product.expiries.last.daysUntilExpiration
+                      .toString(),
+                },
+              )
+            : '';
+
         messenger.showSnackBar(
           SnackBar(
             content: Text(
-              result.matchedExisting
-                  ? 'product.barcodeMatched'.tr(
-                      namedArgs: {'name': result.product.name},
-                    )
-                  : 'product.barcodeCreated'.tr(
-                      namedArgs: {'name': result.product.name},
-                    ),
+              (result.matchedExisting
+                      ? 'product.barcodeMatched'.tr(
+                          namedArgs: {'name': result.product.name},
+                        )
+                      : 'product.barcodeCreated'.tr(
+                          namedArgs: {'name': result.product.name},
+                        )) +
+                  expiryMsg,
             ),
           ),
         );

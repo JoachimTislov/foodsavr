@@ -1,0 +1,43 @@
+# Research: Expiration Date Extraction via OCR (Flutter/ML Kit)
+
+## Objective
+Identify a reliable technical workflow for automatically extracting expiration dates from food packaging using Flutter.
+
+## Core Implementation Pattern
+Extraction involves two primary steps:
+1. **Text Recognition (OCR):** Convert image pixels into machine-readable text.
+2. **Entity Extraction/Parsing:** Isolate date patterns from the raw text.
+
+### Recommended Dependencies
+- `google_mlkit_text_recognition`: Primary OCR engine.
+- `google_mlkit_entity_extraction`: (Optional) Advanced parsing for dates with context.
+- `image_picker` or `camera`: For capturing/streaming frames.
+
+### Step 1: Text Recognition
+```dart
+final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+final InputImage inputImage = InputImage.fromFilePath(imagePath);
+final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
+String rawText = recognizedText.text;
+```
+
+### Step 2: Date Parsing
+#### A. Regex Approach (Performant & Predictable)
+Target common formats: `DD.MM.YY`, `DD/MM/YYYY`, `MM/YY`.
+final dateRegex = RegExp(r'(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})|(\d{1,2}[/\-.]\d{2,4})');
+
+#### B. Entity Extraction (Context-Aware)
+Best for detecting dates coupled with labels like "EXP:" or "Best Before".
+final entityExtractor = EntityExtractor(language: EntityExtractorLanguage.english);
+final List<EntityAnnotation> annotations = await entityExtractor.annotateText(rawText);
+
+## Challenges & Edge Cases
+- **Font Quality:** Food packaging often uses "dotted" inkjet fonts which can be difficult for standard OCR models.
+- **Lighting/Reflection:** Glossy plastic packaging creates glare that obscures text.
+- **Ambiguity:** Distinguishing between 'Packed Date' and 'Expiration Date'. Use proximity keywords (Best før, EXP, BB) to disambiguate.
+
+## Proposed Application Workflow for FoodSavr
+1. User scans barcode (identifies product).
+2. UI prompts user to "Scan Expiration Date".
+3. App uses a focused OCR frame (similar to the barcode scanner overlay).
+4. Auto-detects date and presents it for confirmation before saving.

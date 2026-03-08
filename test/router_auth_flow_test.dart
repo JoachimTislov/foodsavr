@@ -18,10 +18,13 @@ import 'package:foodsavr/models/collection_model.dart'; // Import Collection
 import 'package:foodsavr/views/landing_page_view.dart';
 import 'package:foodsavr/views/dashboard_view.dart';
 import 'package:foodsavr/services/collection_service.dart'; // Import CollectionService
+import 'package:foodsavr/services/shelf_life_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class _MockShelfLifeService extends Mock implements ShelfLifeService {}
 
 class _FakeCollectionRepository implements ICollectionRepository {
   @override
@@ -171,8 +174,11 @@ void main() {
       router = createAppRouter(authService);
       getIt.registerLazySingleton<IAuthService>(() => authService);
       getIt.registerLazySingleton<ProductService>(
-        () =>
-            ProductService(_FakeProductRepository(), Logger(level: Level.off)),
+        () => ProductService(
+          _FakeProductRepository(),
+          _MockShelfLifeService(),
+          Logger(level: Level.off),
+        ),
       );
       getIt.registerLazySingleton<CollectionService>(
         () => CollectionService(
