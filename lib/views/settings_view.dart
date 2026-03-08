@@ -223,7 +223,7 @@ class _SettingsViewState extends State<SettingsView> {
                   ? const Icon(Icons.check, color: Colors.blue)
                   : null,
               onTap: () {
-                context.setLocale(const Locale('en', 'US'));
+                context.setLocale(const Locale('en'));
                 Navigator.pop(context);
               },
             ),
@@ -233,7 +233,7 @@ class _SettingsViewState extends State<SettingsView> {
                   ? const Icon(Icons.check, color: Colors.blue)
                   : null,
               onTap: () {
-                context.setLocale(const Locale('nb', 'NO'));
+                context.setLocale(const Locale('nb'));
                 Navigator.pop(context);
               },
             ),

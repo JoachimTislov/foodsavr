@@ -1,0 +1,24 @@
+### Open Food Facts API v3 & Flutter Package Research
+
+1. API v3 Overview
+The v3 API is the current standard. It uses GET and POST endpoints for product retrieval and search. It is field-aware, allowing developers to request only specific fields to optimize performance.
+
+2. Norwegian Market & Labels
+- Nøkkelhullet (Keyhole): Standardized as 'en:keyhole' in the 'labels_tags' field.
+- Data Taxonomy: Nordic Keyhole labels (Norway, Sweden, Denmark) are grouped under the same 'en:keyhole' tag.
+- Check 'labels_tags' for programmatic identification of healthier choices.
+
+3. Flutter Integration (openfoodfacts package)
+- Dependency: openfoodfacts (v3.30.2+)
+- Configuration: Must set 'OpenFoodAPIConfiguration.userAgent' globally at startup.
+- Retrieval: Use 'OpenFoodAPIClient.getProductV3' with 'ProductQueryConfiguration' and 'ProductQueryVersion.v3'.
+- Auth: Required only for WRITE operations (saveProduct, image upload).
+
+4. Technical Best Practices
+- Field Filtering: Request only needed fields (e.g., ProductField.NAME, ProductField.NUTRIMENTS).
+- User-Agent: Mandatory to avoid blocks.
+- Versioning: Ensure the client is explicitly set to v3.
+
+Official API Ref: https://world.openfoodfacts.org/api/v3/
+OFF Wiki: https://wiki.openfoodfacts.org/The_Keyhole
+Pub.dev: https://pub.dev/packages/openfoodfacts

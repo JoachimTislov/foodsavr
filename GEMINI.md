@@ -70,6 +70,14 @@ When reviewing or writing code, **check [pub.dev](https://pub.dev) or the [Flutt
 - **Resolved Comment Cleanup Rule**: Remove stale comment references once high-quality, Effective Dart-aligned, non-fragile solutions are fully implemented.
 - **Style**: `snake_case` (files), `camelCase` (members), `_private`. Follow [Effective Dart](https://dart.dev/effective-dart/design).
 
+## 5. Environment Configuration
+- **.env Support**: The project uses a `.env` file in the root for environment variables.
+- **Flutter**: Loaded via `String.fromEnvironment` (passed by `Makefile` using `--dart-define-from-file`).
+- **Android**: Loaded in `android/app/build.gradle.kts`. Variables are available as `manifestPlaceholders` and `resValue` (e.g., `@string/EMULATOR_HOST`).
+- **Host IP**: For local development (Firebase emulators), set `EMULATOR_HOST` in `.env`.
+- **Android Sync**: The `network_security_config.xml` includes common development IPs. If you use a custom IP not in the XML, you must add it there to allow cleartext traffic.
+- **Emulator UI**: Access the Firebase Emulator UI at `http://localhost:8081`.
+
 ## Implementation Pattern (New Features)
 1. **Model**: `@models/` (JSON logic + computed properties).
 2. **Interface**: `@interfaces/i_your_repository.dart`.

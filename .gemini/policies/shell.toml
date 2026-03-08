@@ -1,5 +1,11 @@
 [[rule]]
 toolName = "run_shell_command"
+commandPrefix = "node .gemini/skills/research/scripts/process_data.js"
+decision = "allow"
+priority = 200
+
+[[rule]]
+toolName = "run_shell_command"
 decision = "deny"
 priority = 100
 
@@ -7,7 +13,7 @@ priority = 100
 # Avoid -exec through find, which can be used to run arbitrary commands on files.
 [[rule]]
 toolName = "run_shell_command"
-commandPrefix = ["rm ", "find ", "rg --g"]
+commandPrefix = ["rm ", "find "]
 decision = "deny"
 priority = 999
 
@@ -34,6 +40,12 @@ toolName = "run_shell_command"
 commandRegex = "git (merge|rebase|rm|restore|reset|checkout|branch)"
 decision = "ask_user"
 priority = 200
+
+[[rule]]
+toolName = "run_shell_command"
+commandPrefix = "git rebase --continue"
+decision = "allow"
+priority = 201
 
 [[rule]]
 toolName = "run_shell_command"

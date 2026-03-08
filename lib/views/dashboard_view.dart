@@ -9,11 +9,11 @@ import '../service_locator.dart';
 import '../services/product_service.dart';
 import '../services/collection_service.dart';
 import '../utils/collection_types.dart'; // Import CollectionType
+import '../utils/product_add_helper.dart';
 import '../views/product_detail_view.dart';
 import '../widgets/dashboard/expiring_item_card.dart';
 import '../widgets/dashboard/overview_card.dart';
 import 'collection_form_view.dart';
-import 'product_form_view.dart';
 
 class DashboardView extends StatefulWidget {
   const DashboardView({super.key});
@@ -100,7 +100,7 @@ class _DashboardViewState extends State<DashboardView> {
                   icon: Icons.add_box_outlined,
                   label: 'dashboard.createProduct'.tr(),
                   color: colorScheme.primary,
-                  onTap: () => ProductFormView.show(context),
+                  onTap: () => ProductAddHelper.startAddProductFlow(context),
                 ),
                 const SizedBox(width: 8),
                 _ActionChip(

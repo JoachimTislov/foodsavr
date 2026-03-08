@@ -1,0 +1,24 @@
+# Research: strekkodernorge.info
+
+## Website Overview
+- **Name:** Strekkoder Norge (strekkodernorge.info)
+- **Primary Function:** Reseller of barcode numbers (EAN-13/UPC) and member of the International Barcodes Network.
+- **Data Source:** IBNREG (International Barcode Registry).
+
+## Barcode Lookup Capabilities
+- **Search URL:** https://strekkodernorge.info/ibnreg/
+- **Mechanism:** Manual entry of EAN-13/UPC numbers. Returns product/company info if registered in their network.
+- **API Access:** No documented, public-facing REST API for developers.
+
+## Recommended Alternatives for Norwegian Groceries
+1. **Kassal.app API:**
+   - Focus: Norwegian grocery prices and product data.
+   - Features: Barcode lookup, price history, product images.
+   - URL: https://kassal.app/api
+2. **Open Food Facts:**
+   - Focus: Global, free, and open food database.
+   - Coverage: Significant for Norwegian products.
+   - API: https://world.openfoodfacts.org/data
+
+## Summary
+Strekkoder Norge is not a developer-friendly lookup service for grocery apps. Kassal.app is the recommended industry standard for local Norwegian data.

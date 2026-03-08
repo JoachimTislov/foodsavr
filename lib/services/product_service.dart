@@ -1,5 +1,8 @@
+import 'dart:math';
+
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
+import 'package:openfoodfacts/openfoodfacts.dart' as off;
 import '../models/product_model.dart';
 import '../interfaces/i_product_repository.dart';
 
@@ -9,6 +12,116 @@ class ProductService {
   final Logger _logger;
 
   ProductService(this._productRepository, this._logger);
+
+  String _normalizeBarcode(String barcode) {
+    var normalized = barcode.trim();
+    if (normalized.length < 13) {
+      normalized = normalized.padLeft(13, '0');
+    }
+    return normalized;
+  }
+
+  Future<ScanAddProductResult> addOrIncrementByBarcode({
+    required String userId,
+    required String barcode,
+  }) async {
+    _logger.i('addOrIncrementByBarcode: processing barcode for user $userId');
+    final trimmedBarcode = barcode.trim();
+    if (trimmedBarcode.isEmpty) {
+      throw ArgumentError('Barcode cannot be empty');
+    }
+
+    final normalizedBarcode = _normalizeBarcode(trimmedBarcode);
+
+    final products = await _productRepository.getProducts(userId);
+    Product? existingProduct;
+    for (final product in products) {
+      if (product.barcode == normalizedBarcode || product.barcode == barcode) {
+        existingProduct = product;
+        break;
+      }
+    }
+
+    if (existingProduct != null) {
+      _logger.i('Barcode matched existing product: ${existingProduct.name}');
+      final updatedProduct = Product(
+        id: existingProduct.id,
+        name: existingProduct.name,
+        description: existingProduct.description,
+        userId: existingProduct.userId,
+        expiries: existingProduct.expiries,
+        nonExpiringQuantity: existingProduct.nonExpiringQuantity + 1,
+        category: existingProduct.category,
+        imageUrl: existingProduct.imageUrl,
+        barcode: existingProduct.barcode,
+        isGlobal: existingProduct.isGlobal,
+        tags: existingProduct.tags,
+      );
+      await _productRepository.update(updatedProduct);
+      return ScanAddProductResult(
+        product: updatedProduct,
+        matchedExisting: true,
+      );
+    }
+
+    // Attempt to fetch from Open Food Facts API
+    try {
+      final configuration = off.ProductQueryConfiguration(
+        normalizedBarcode,
+        version: off.ProductQueryVersion.v3,
+        fields: [
+          off.ProductField.NAME,
+          off.ProductField.IMAGE_FRONT_URL,
+          off.ProductField.LABELS_TAGS,
+        ],
+      );
+
+      final result = await off.OpenFoodAPIClient.getProductV3(configuration);
+
+      if (result.status == off.ProductResultV3.statusSuccess &&
+          result.product != null) {
+        final productData = result.product!;
+        final productName = productData.productName ?? normalizedBarcode;
+        final imageUrl = productData.imageFrontUrl;
+        final tags = productData.labelsTags ?? [];
+
+        final randomSuffix = Random().nextInt(1000);
+        final newProduct = Product(
+          id: DateTime.now().microsecondsSinceEpoch + randomSuffix,
+          name: productName,
+          description: '',
+          userId: userId,
+          nonExpiringQuantity: 1,
+          barcode: normalizedBarcode,
+          imageUrl: imageUrl,
+          tags: tags,
+        );
+        final addedProduct = await _productRepository.add(newProduct);
+        _logger.i('Created new product from OFF API: $normalizedBarcode');
+        return ScanAddProductResult(
+          product: addedProduct,
+          matchedExisting: false,
+        );
+      }
+    } catch (e) {
+      _logger.e('Error fetching from Open Food Facts API: $e');
+    }
+
+    // Not found locally or on OFF API. Return special result to prompt user.
+    _logger.i('Barcode not found on OFF API: $normalizedBarcode');
+    return ScanAddProductResult(
+      product: Product(
+        id: 0,
+        name: '',
+        description: '',
+        userId: userId,
+        nonExpiringQuantity: 1,
+        barcode: normalizedBarcode,
+      ),
+      matchedExisting: false,
+      notFound: true,
+    );
+  }
 
   /// Fetches all products for a specific user
   /// Returns empty list if userId is null (no user logged in)
@@ -95,4 +208,16 @@ class ProductService {
       rethrow;
     }
   }
+}
+
+class ScanAddProductResult {
+  final Product product;
+  final bool matchedExisting;
+  final bool notFound;
+
+  const ScanAddProductResult({
+    required this.product,
+    required this.matchedExisting,
+    this.notFound = false,
+  });
 }

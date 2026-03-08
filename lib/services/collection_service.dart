@@ -143,6 +143,17 @@ class CollectionService {
     }
   }
 
+  Future<void> deleteCollection(String id) async {
+    _logger.i('Deleting collection: $id');
+    try {
+      await _collectionRepository.delete(id);
+      _logger.i('Successfully deleted collection');
+    } catch (e) {
+      _logger.e('Error deleting collection: $e');
+      rethrow;
+    }
+  }
+
   /// Add a product to a collection (update productIds list)
   Future<void> addProductToCollection(
     String collectionId,

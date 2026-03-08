@@ -2,10 +2,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/services/auth_controller.dart';
+import 'package:foodsavr/services/collection_service.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockAuthService extends Mock implements IAuthService {}
+
+class MockCollectionService extends Mock implements CollectionService {}
 
 class MockLogger extends Mock implements Logger {}
 
@@ -13,14 +16,17 @@ class MockUserCredential extends Mock implements UserCredential {}
 
 void main() {
   late MockAuthService mockAuthService;
+  late MockCollectionService mockCollectionService;
   late MockLogger mockLogger;
   late AuthController authController;
 
   setUp(() {
     mockAuthService = MockAuthService();
+    mockCollectionService = MockCollectionService();
     mockLogger = MockLogger();
     authController = AuthController(
       mockAuthService,
+      mockCollectionService,
       mockLogger,
       translate: (String key) => key,
     );
