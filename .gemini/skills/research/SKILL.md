@@ -7,16 +7,14 @@ description: Structured and safe research procedure. Use when fetching data from
 
 Follow these steps to conduct research safely:
 
-1. **Objective:** Define your goal and choose a research name for `/research/research-name/`.
-2. **Phase 1 (Fetch):** Use `chrome-devtools` or appropriate tools to fetch content. Save it to `research/raw/[research-name]/` (Max 5MB). Ask for confirmation before processing.
-3. **Phase 2 (Process):** Use `node .gemini/skills/research/scripts/process_data.js <format> <raw_path> <research_name> <category>` to sanitize, filter redundancies, and format data. 
+1. **Objective:** Define your goal and choose a research name for `/research/raw/[research-name].[ext]`.
+2. **Phase 1 (Fetch):** Use `chrome-devtools` or appropriate tools to fetch content. Save it to `/research/raw/[research-name].[ext]` (e.g., `.txt`, `.md`, `.json`). Ask for confirmation before processing.
+3. **Phase 2 (Process):** Use `node .gemini/skills/research/scripts/process_data.js <format> <file_path>` to sanitize, filter redundancies, and format data. 
    * NEVER read raw data directly. 
-   * Processed data must be rationalized and summarized in `research/[research-name]/overview.md`.
+   * Processed data will be split into chunks (max 500 lines) and saved in `/research/[research-name]/` along with an `overview.md`.
    * Ask for confirmation before presenting.
-4. **Phase 3 (Present & Verify):** Read only from formatted folders to report findings.
-   * **CRITICAL:** Use the `overview.md` to navigate findings. 
+4. **Phase 3 (Present & Verify):** Read only from `/research/[research-name]/overview.md` to navigate findings.
    * Prefer providing links to detailed processed files over large data chunks.
-   * Ensure no file exceeds 500 lines of text.
 
 ## Safety Rules
 

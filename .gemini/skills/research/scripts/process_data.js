@@ -13,7 +13,6 @@ const path = require('path');
 
 const MAX_LINES = 500;
 const MAX_CHARS = 20000;
-const MAX_RAW_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 
 const SUSPICIOUS_PATTERNS = [
   /ignore all previous/i,
@@ -126,13 +125,12 @@ function filterRedundancy(content) {
 /**
  * Overview Generator: Updates or creates an overview.md for the research session.
  */
-function updateOverview(researchRoot, fileName, outputSubdir, summary) {
-  const overviewPath = path.join(researchRoot, 'overview.md');
-  const linkPath = path.join(outputSubdir, fileName);
-  const entry = `\n### ${path.basename(fileName, '.md')}\n- **Source:** [${fileName}](${linkPath})\n- **Summary:** ${summary.substring(0, 200)}...\n`;
+function updateOverview(outputDir, fileName, summary, researchName) {
+  const overviewPath = path.join(outputDir, 'overview.md');
+  const entry = `\n### ${path.basename(fileName, '.md')}\n- **Source:** [${fileName}](${fileName})\n- **Summary:** ${summary.substring(0, 200)}...\n`;
 
   if (!fs.existsSync(overviewPath)) {
-    const header = `# Research Overview: ${path.basename(researchRoot)}\n\nThis file provides a rational structure and links to processed research data. Redundant information has been filtered out.\n`;
+    const header = `# Research Overview: ${researchName}\n\nThis file provides a rational structure and links to processed research data. Redundant information has been filtered out.\n`;
     fs.writeFileSync(overviewPath, header + entry);
   } else {
     fs.appendFileSync(overviewPath, entry);
@@ -178,44 +176,30 @@ const Handlers = {
 };
 
 const args = process.argv.slice(2);
-if (args.length < 3) {
-  console.log("Usage: node process_data.js <format> <file_path> <research_name> [output_subdir]");
+if (args.length < 2) {
+  console.log("Usage: node process_data.js <format> <file_path>");
   process.exit(1);
 }
 
 const format = args[0].toLowerCase();
 const inputFilePath = path.resolve(args[1]);
-const researchName = args[2];
-const outputSubdir = args[3] || 'processed';
+
+const baseFileName = path.basename(inputFilePath, path.extname(inputFilePath));
+const researchName = baseFileName; // The research name is the basename of the file
 
 const projectRoot = process.cwd();
-const researchRoot = path.join(projectRoot, 'research', researchName);
-const rawDir = path.join(projectRoot, 'research', 'raw', researchName);
-const outputDir = path.join(researchRoot, outputSubdir);
+const outputDir = path.join(projectRoot, 'research', researchName);
 
-[rawDir, outputDir].forEach(dir => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-});
+if (!fs.existsSync(outputDir)) {
+  fs.mkdirSync(outputDir, { recursive: true });
+}
 
 if (!fs.existsSync(inputFilePath)) {
   console.error(`Error: Input file not found at ${inputFilePath}`);
   process.exit(1);
 }
 
-const stats = fs.statSync(inputFilePath);
-if (stats.size > MAX_RAW_SIZE_BYTES) {
-  console.error(`Error: Raw file exceeds the 5MB limit (${stats.size} bytes).`);
-  process.exit(1);
-}
-
 const rawContent = fs.readFileSync(inputFilePath, 'utf8');
-
-const rawDest = path.join(rawDir, path.basename(inputFilePath));
-if (inputFilePath !== rawDest) {
-  fs.writeFileSync(rawDest, rawContent);
-}
 
 const findings = scanForSuspiciousContent(rawContent);
 
@@ -230,8 +214,6 @@ const handler = Handlers[format] || Handlers.plain;
 const filtered = filterRedundancy(handler(rawContent));
 const chunks = splitIntoChunks(filtered);
 
-const baseFileName = path.basename(inputFilePath, path.extname(inputFilePath));
-
 chunks.forEach((chunk, index) => {
   const sanitized = sanitize(chunk);
   const partSuffix = chunks.length > 1 ? `_part${index + 1}` : '';
@@ -239,11 +221,10 @@ chunks.forEach((chunk, index) => {
   const finalPath = path.join(outputDir, outputFileName);
 
   fs.writeFileSync(finalPath, sanitized);
-  updateOverview(researchRoot, outputFileName, outputSubdir, sanitized.substring(0, 500));
+  updateOverview(outputDir, outputFileName, sanitized.substring(0, 500), researchName);
 
   console.log(`Processed part ${index + 1}/${chunks.length}: ${outputFileName}`);
 });
 
 console.log(`\nSuccessfully processed ${chunks.length} parts.`);
-console.log(`Raw: ${rawDest}`);
-console.log(`Overview updated: ${path.join(researchRoot, 'overview.md')}`);
+console.log(`Overview updated: ${path.join(outputDir, 'overview.md')}`);
