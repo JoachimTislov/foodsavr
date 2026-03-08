@@ -35,20 +35,26 @@ class ServiceLocator {
     await Future.delayed(const Duration(milliseconds: 500));
 
     var userId = authService.getUserId();
-    try {
-      // On web, sign-in might hang if the emulator host is unreachable.
-      // We use a timeout to avoid blocking indefinitely.
-      userId ??=
-          (await authService
-                  .signIn(
-                    email: Config.testUserEmail,
-                    password: Config.testUserPassword,
-                  )
-                  .timeout(const Duration(seconds: 3)))
-              .user
-              ?.uid;
-    } catch (e) {
-      logger.w('Development auto-login failed or timed out: $e');
+    if (userId == null) {
+      try {
+        // On web, sign-in might hang if the emulator host is unreachable.
+        // We use a timeout to avoid blocking indefinitely.
+        userId =
+            (await authService
+                    .signIn(
+                      email: Config.testUserEmail,
+                      password: Config.testUserPassword,
+                    )
+                    .timeout(const Duration(seconds: 3)))
+                .user
+                ?.uid;
+      } catch (e) {
+        logger.w('Development auto-login failed or timed out: $e');
+      }
+    } else {
+      logger.i(
+        'User already signed in (session restored), skipping auto-login',
+      );
     }
 
     if (userId == null) {
@@ -59,7 +65,7 @@ class ServiceLocator {
         logger.e('Failed to seed database: $e');
       }
     } else {
-      logger.i('User already signed in, skipping seeding');
+      logger.i('Skipping seeding as user is signed in');
     }
   }
 }
