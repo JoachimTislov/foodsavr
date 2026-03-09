@@ -44,15 +44,17 @@ class StandaloneSeedingService {
   Future<String> createTestUser(String email, String password) async {
     final url =
         'http://$host:$authPort/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake-key';
-    final response = await client.post(
-      Uri.parse(url),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email,
-        'password': password,
-        'returnSecureToken': true,
-      }),
-    ).timeout(const Duration(seconds: 5));
+    final response = await client
+        .post(
+          Uri.parse(url),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'email': email,
+            'password': password,
+            'returnSecureToken': true,
+          }),
+        )
+        .timeout(const Duration(seconds: 5));
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -62,15 +64,17 @@ class StandaloneSeedingService {
       if (error != null && error['message'] == 'EMAIL_EXISTS') {
         final signInUrl =
             'http://$host:$authPort/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake-key';
-        final signInResponse = await client.post(
-          Uri.parse(signInUrl),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'email': email,
-            'password': password,
-            'returnSecureToken': true,
-          }),
-        ).timeout(const Duration(seconds: 5));
+        final signInResponse = await client
+            .post(
+              Uri.parse(signInUrl),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'email': email,
+                'password': password,
+                'returnSecureToken': true,
+              }),
+            )
+            .timeout(const Duration(seconds: 5));
 
         if (signInResponse.statusCode == 200) {
           final data = jsonDecode(signInResponse.body);
@@ -177,11 +181,13 @@ class StandaloneSeedingService {
   ) async {
     final url =
         'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collection/$documentId';
-    final response = await client.patch(
-      Uri.parse(url),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'fields': fields}),
-    ).timeout(const Duration(seconds: 5));
+    final response = await client
+        .patch(
+          Uri.parse(url),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'fields': fields}),
+        )
+        .timeout(const Duration(seconds: 5));
 
     if (response.statusCode != 200) {
       throw Exception(
