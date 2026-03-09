@@ -126,6 +126,34 @@ class Product {
     this.tags = const [],
   });
 
+  Product copyWith({
+    int? id,
+    String? name,
+    String? description,
+    String? userId,
+    List<ExpiryEntry>? expiries,
+    int? nonExpiringQuantity,
+    String? category,
+    String? imageUrl,
+    String? barcode,
+    bool? isGlobal,
+    List<String>? tags,
+  }) {
+    return Product(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      userId: userId ?? this.userId,
+      expiries: expiries ?? this.expiries,
+      nonExpiringQuantity: nonExpiringQuantity ?? this.nonExpiringQuantity,
+      category: category ?? this.category,
+      imageUrl: imageUrl ?? this.imageUrl,
+      barcode: barcode ?? this.barcode,
+      isGlobal: isGlobal ?? this.isGlobal,
+      tags: tags ?? this.tags,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

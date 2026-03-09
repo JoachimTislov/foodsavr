@@ -123,6 +123,7 @@
     "scanUnavailable": "Strekkodeskanner utilgjengelig: {error}",
     "barcodeMatched": "Oppdaterte eksisterende produkt \"{name}\"",
     "barcodeCreated": "Opprettet nytt produkt \"{name}\"",
+    "barcodeAssumedExpiry": ". Antar utløp om {days} dager. Trykk for å endre.",
     "barcodeAddError": "Kunne ikke legge til skannet strekkode: {error}",
     "enterBarcodeManually": "Skriv inn strekkode manuelt",
     "barcodeNotFound": "Produktet ble ikke funnet. Vær den første til å legge det til!",
