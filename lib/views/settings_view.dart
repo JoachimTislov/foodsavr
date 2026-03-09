@@ -2,12 +2,14 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants/privacy_notice.dart';
 import '../constants/terms_of_service.dart';
 import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
 import '../services/theme_notifier.dart';
+import '../utils/config.dart';
 
 class SettingsView extends StatefulWidget {
   const SettingsView({super.key});
@@ -110,6 +112,28 @@ class _SettingsViewState extends State<SettingsView> {
             ),
             const SizedBox(height: 24),
 
+            // Developer Tools Section (Non-production only)
+            if (!Config.isProduction) ...[
+              _SettingsSection(
+                title: 'settings.developer_tools'.tr(),
+                children: [
+                  _SettingsTile(
+                    icon: Icons.bug_report_outlined,
+                    title: 'settings.use_emulators'.tr(),
+                    trailing: Switch(
+                      value:
+                          getIt<SharedPreferences>().getBool(
+                            Config.useEmulatorsKey,
+                          ) ??
+                          Config.isDevelopment,
+                      onChanged: (value) => _toggleEmulators(context, value),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+            ],
+
             // Legal & Info Section
             _SettingsSection(
               title: 'settings.about'.tr(),
@@ -138,6 +162,24 @@ class _SettingsViewState extends State<SettingsView> {
                   trailing: Text('generated.100_42'.tr()),
                   onTap: null,
                 ),
+                if (!Config.isProduction)
+                  _SettingsTile(
+                    icon: Icons.analytics_outlined,
+                    title: 'Environment',
+                    trailing: Text(
+                      getIt<SharedPreferences>().getBool(
+                                Config.useEmulatorsKey,
+                              ) ??
+                              Config.isDevelopment
+                          ? 'Local Emulator'
+                          : 'Remote Cloud',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.secondary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    onTap: null,
+                  ),
               ],
             ),
           ],
@@ -160,6 +202,29 @@ class _SettingsViewState extends State<SettingsView> {
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Text('common.close'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _toggleEmulators(BuildContext context, bool value) async {
+    final prefs = getIt<SharedPreferences>();
+    await prefs.setBool(Config.useEmulatorsKey, value);
+    if (!context.mounted) return;
+
+    setState(() {});
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text('settings.restart_required'.tr()),
+        content: Text('settings.restart_message'.tr()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('common.ok'.tr()),
           ),
         ],
       ),

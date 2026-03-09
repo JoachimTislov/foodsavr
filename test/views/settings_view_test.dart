@@ -81,6 +81,7 @@ void main() {
       when(() => mockAuthController.rememberMe).thenReturn(false);
       when(() => mockAuthController.agreedToTerms).thenReturn(false);
       getIt.registerSingleton<AuthController>(mockAuthController);
+      getIt.registerSingleton<SharedPreferences>(prefs);
     });
 
     testWidgets('renders all settings sections', (tester) async {
