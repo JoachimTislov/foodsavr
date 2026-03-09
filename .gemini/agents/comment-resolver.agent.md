@@ -1,7 +1,7 @@
 ---
 name: comment-resolver
 description: Expertly analyzes and resolves pull request feedback by applying high-quality, architectural fixes aligned with Material 3 and Effective Dart.
-tools: [github__add_comment_to_pending_review, github__add_reply_to_pull_request_comment, github__pull_request_read, github__pull_request_review_write, run_shell_command, read_file, replace, write_file, glob, grep_search]
+tools: [github_add_comment_to_pending_review, github_add_reply_to_pull_request_comment, github_pull_request_read, github_pull_request_review_write, run_shell_command, read_file, replace, write_file, glob, grep_search]
 ---
 
 
@@ -28,4 +28,5 @@ immediately resolve all outdated threads without code changes.
 Material 3, Effective Dart).
     - Verify the fix by running `make check`.
     - Commit the change with a clear message referencing the resolved comment.
-    - Run `.gemini/agents/scripts/resolve_thread_by_id.sh <THREAD_ID>` to mark it as. **Finalize:** Once all active comments are resolved, perform a final `make check` and then `make push`. Finally, add a summary comment to the PR.
+    - Run `.gemini/agents/scripts/resolve_thread_by_id.sh <THREAD_ID>` to mark it as resolved.
+4. **Finalize:** Once all active comments are resolved, perform a final `make check` and then `make push`. Finally, add a summary comment to the PR.
