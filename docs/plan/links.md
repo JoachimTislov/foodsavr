@@ -19,6 +19,7 @@ This document provides a collection of external resources, documentation, and to
 
 - [Gemini CLI: Configuration examples](https://github.com/google-gemini/gemini-cli/blob/main/.gemini/)
 - [Gemini CLI: Best practices and tips](https://www.youtube.com/watch?v=KrnyAJyjVG4)
+- [run-gemini-cli-in-actions](https://github.com/google-github-actions/run-gemini-cli)
 
 ## Resources
 
