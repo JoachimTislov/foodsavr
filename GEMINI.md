@@ -59,6 +59,13 @@ When reviewing or writing code, **check [pub.dev](https://pub.dev) or the [Flutt
 - `make check`: Run full suite (analyze, format, test). **Required before commit**.
 
 ## 4. **Workflow**:
+- **Meta-Task Branch Rule**: Reserve the main working branch for "meta" tasks (agents, documentation, research, system-level updates). All source code modifications MUST be delegated to background agents in separate Git worktrees.
+- **Headless Task Rule**: All implementation, bug fixes, and source code changes MUST be executed using `gemini --task <task_description>` (headless mode). The interactive session MUST NOT directly perform source code changes.
+- **No Orchestration Make Targets**: Do NOT include `make` targets for task orchestration or PR management (e.g., `make seed`, `make pr-comments-*`). Use the CLI's native agent capabilities instead.
+- **Multi-Agent Worktree Rule**: Spin up background agents in separate Git worktrees to isolate source code tasks (PRs, issues). This allows the main process to remain dedicated to orchestration and meta-tasks.
+- **Task Ordering Rule**: Prioritize tasks in the following order: (1) handle existing PRs, (2) handle open issues, (3) create new issues systematically from the `TODO.md` / TODO folder backlog.
+- **Worktree Sync Rule**: Always sync every new worktree with the `main` branch before commencing work to ensure the agent operates on the latest context.
+- **TODO Prioritization Rule**: TODOs from local backlog files should only be tackled when there are no open issues and no open PRs available.
 - **Task Completion Rule**: After each completed task (or tight related batch), commit and push immediately.
 - **Commit Message Rule**: Use clear descriptive messages; prefer Conventional Commits (e.g., `fix(router): handle auth redirect`).
 - **Execution Loop Rule**: Gather context (code/tests/PR comments/docs/rules/skills), check for missing context, implement minimal fix, run `make check`, add/update tests, run `make check` until green, run `make push`; if `make push` fails, fix and repeat from `make check`.
