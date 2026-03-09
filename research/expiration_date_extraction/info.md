@@ -24,12 +24,16 @@ String rawText = recognizedText.text;
 ### Step 2: Date Parsing
 #### A. Regex Approach (Performant & Predictable)
 Target common formats: `DD.MM.YY`, `DD/MM/YYYY`, `MM/YY`.
+```dart
 final dateRegex = RegExp(r'(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})|(\d{1,2}[/\-.]\d{2,4})');
+```
 
 #### B. Entity Extraction (Context-Aware)
 Best for detecting dates coupled with labels like "EXP:" or "Best Before".
+```dart
 final entityExtractor = EntityExtractor(language: EntityExtractorLanguage.english);
 final List<EntityAnnotation> annotations = await entityExtractor.annotateText(rawText);
+```
 
 ## Challenges & Edge Cases
 - **Font Quality:** Food packaging often uses "dotted" inkjet fonts which can be difficult for standard OCR models.

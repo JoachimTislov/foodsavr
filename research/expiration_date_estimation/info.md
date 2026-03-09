@@ -28,4 +28,4 @@ Map Open Food Facts category tags to a "Standard Shelf Life" table.
 1. **Barcode Scan:** Identifies product and category (e.g., "Tine Helmelk", Category: "Milks").
 2. **Auto-Estimate:** App sets a "Smart Default" based on category (Today + 10 days).
 3. **OCR Check (Optional):** User can point camera at the date to refine the accuracy.
-4. **Manual [REDACTED_POTENTIAL_INJECTION]:** User taps the date to adjust if the estimate is wrong.
+4. **Manual Override:** User taps the date to adjust if the estimate is wrong.

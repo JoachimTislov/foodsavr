@@ -42,6 +42,7 @@ class ProductAddHelper {
       final result = await productService.addOrIncrementByBarcode(
         userId: userId,
         barcode: scannedBarcode,
+        languageCode: context.locale.languageCode,
       );
 
       if (!context.mounted) return false;

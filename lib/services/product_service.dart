@@ -23,9 +23,22 @@ class ProductService {
     return normalized;
   }
 
+  off.OpenFoodFactsLanguage _getOFFLanguage(String languageCode) {
+    switch (languageCode) {
+      case 'en':
+        return off.OpenFoodFactsLanguage.ENGLISH;
+      case 'nb':
+      case 'no':
+        return off.OpenFoodFactsLanguage.NORWEGIAN;
+      default:
+        return off.OpenFoodFactsLanguage.ENGLISH;
+    }
+  }
+
   Future<ScanAddProductResult> addOrIncrementByBarcode({
     required String userId,
     required String barcode,
+    String languageCode = 'nb',
   }) async {
     _logger.i('addOrIncrementByBarcode: processing barcode for user $userId');
     final trimmedBarcode = barcode.trim();
@@ -86,7 +99,7 @@ class ProductService {
     try {
       final configuration = off.ProductQueryConfiguration(
         normalizedBarcode,
-        language: off.OpenFoodFactsLanguage.NORWEGIAN,
+        language: _getOFFLanguage(languageCode),
         version: off.ProductQueryVersion.v3,
         fields: [
           off.ProductField.NAME,
