@@ -2,7 +2,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_product_repository.dart';
 import 'package:foodsavr/models/product_model.dart';
 import 'package:foodsavr/services/product_service.dart';
+import 'package:foodsavr/services/shelf_life_service.dart';
 import 'package:logger/logger.dart';
+import 'package:mocktail/mocktail.dart';
+
+class _MockShelfLifeService extends Mock implements ShelfLifeService {}
+
+class _FakeProduct extends Fake implements Product {}
 
 class _FakeProductRepository implements IProductRepository {
   final List<Product> _products;
@@ -51,6 +57,10 @@ class _FakeProductRepository implements IProductRepository {
 }
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(_FakeProduct());
+  });
+
   group('ProductService barcode scan handling', () {
     test('increments non-expiring quantity for existing barcode', () async {
       final repository = _FakeProductRepository([
@@ -63,7 +73,15 @@ void main() {
           barcode: '1234567890',
         ),
       ]);
-      final service = ProductService(repository, Logger(level: Level.off));
+      final mockShelfLifeService = _MockShelfLifeService();
+      when(
+        () => mockShelfLifeService.estimateExpiration(any()),
+      ).thenReturn(null);
+      final service = ProductService(
+        repository,
+        mockShelfLifeService,
+        Logger(level: Level.off),
+      );
 
       final result = await service.addOrIncrementByBarcode(
         userId: 'user-1',
@@ -78,7 +96,15 @@ void main() {
 
     test('creates product for unknown barcode', () async {
       final repository = _FakeProductRepository([]);
-      final service = ProductService(repository, Logger(level: Level.off));
+      final mockShelfLifeService = _MockShelfLifeService();
+      when(
+        () => mockShelfLifeService.estimateExpiration(any()),
+      ).thenReturn(null);
+      final service = ProductService(
+        repository,
+        mockShelfLifeService,
+        Logger(level: Level.off),
+      );
 
       final result = await service.addOrIncrementByBarcode(
         userId: 'user-1',
@@ -94,7 +120,15 @@ void main() {
 
     test('throws ArgumentError for empty or whitespace barcode', () async {
       final repository = _FakeProductRepository([]);
-      final service = ProductService(repository, Logger(level: Level.off));
+      final mockShelfLifeService = _MockShelfLifeService();
+      when(
+        () => mockShelfLifeService.estimateExpiration(any()),
+      ).thenReturn(null);
+      final service = ProductService(
+        repository,
+        mockShelfLifeService,
+        Logger(level: Level.off),
+      );
 
       await expectLater(
         service.addOrIncrementByBarcode(userId: 'user-1', barcode: '   '),

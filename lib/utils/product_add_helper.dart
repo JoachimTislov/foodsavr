@@ -8,6 +8,7 @@ import '../services/product_service.dart';
 import '../services/collection_service.dart';
 import '../views/product_form_view.dart';
 import '../views/product_detail_view.dart';
+import 'localization_utils.dart';
 
 class ProductAddHelper {
   static Future<bool?> startAddProductFlow(
@@ -42,6 +43,7 @@ class ProductAddHelper {
       final result = await productService.addOrIncrementByBarcode(
         userId: userId,
         barcode: scannedBarcode,
+        languageCode: context.locale.languageCode,
       );
 
       if (!context.mounted) return false;
@@ -69,16 +71,23 @@ class ProductAddHelper {
 
         if (!context.mounted) return false;
 
+        final expiryDays = result.estimatedExpiryDays;
+        final expiryMsg = 'product.barcodeAssumedExpiry'.trWith(
+          namedArgs: {'days': '$expiryDays'},
+          when: expiryDays != null,
+        );
+
         messenger.showSnackBar(
           SnackBar(
             content: Text(
-              result.matchedExisting
-                  ? 'product.barcodeMatched'.tr(
-                      namedArgs: {'name': result.product.name},
-                    )
-                  : 'product.barcodeCreated'.tr(
-                      namedArgs: {'name': result.product.name},
-                    ),
+              (result.matchedExisting
+                      ? 'product.barcodeMatched'.tr(
+                          namedArgs: {'name': result.product.name},
+                        )
+                      : 'product.barcodeCreated'.tr(
+                          namedArgs: {'name': result.product.name},
+                        )) +
+                  expiryMsg,
             ),
           ),
         );

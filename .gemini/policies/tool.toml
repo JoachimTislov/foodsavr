@@ -10,12 +10,12 @@ priority = 100
 modes = ["autoEdit", "default"]
 
 [[rule]]
-toolName = ["push_files", "merge_pull_request", "create_branch", "create_repository", "grep_search"] # (SearchText) rg --g, is not a valid command
+toolName = ["push_files", "merge_pull_request", "create_branch", "create_repository", "grep_search", "SearchText"] # rg --g, is not a valid command
 decision = "deny"
 priority = 999
 
-# [[rule]]
-# toolName = ["google_web_search", "web_fetch"]
-# decision = "deny"
-# priority = 999
+[[rule]]
+toolName = ["google_web_search", "web_fetch"]
+decision = "deny"
+priority = 999
 

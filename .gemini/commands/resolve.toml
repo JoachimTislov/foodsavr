@@ -1,0 +1,6 @@
+description = "Resolves PR comment feedback using the comment-resolver sub-agent. Usage: /resolve <PR_NUMBER>"
+prompt = """
+Delegate the complete resolution of all comments in pull request #{{args}} to the `comment-resolver` sub-agent. 
+Follow the strategic orchestration rule in GEMINI.md: use the sub-agent to fetch, filter, and resolve all feedback iteratively.
+Once finished, summarize the final outcome and ensure changes are pushed.
+"""

@@ -5,13 +5,15 @@ import 'package:logger/logger.dart';
 import 'package:openfoodfacts/openfoodfacts.dart' as off;
 import '../models/product_model.dart';
 import '../interfaces/i_product_repository.dart';
+import 'shelf_life_service.dart';
 
 @lazySingleton
 class ProductService {
   final IProductRepository _productRepository;
+  final ShelfLifeService _shelfLifeService;
   final Logger _logger;
 
-  ProductService(this._productRepository, this._logger);
+  ProductService(this._productRepository, this._shelfLifeService, this._logger);
 
   String _normalizeBarcode(String barcode) {
     var normalized = barcode.trim();
@@ -21,9 +23,22 @@ class ProductService {
     return normalized;
   }
 
+  off.OpenFoodFactsLanguage _getOFFLanguage(String languageCode) {
+    switch (languageCode) {
+      case 'en':
+        return off.OpenFoodFactsLanguage.ENGLISH;
+      case 'nb':
+      case 'no':
+        return off.OpenFoodFactsLanguage.NORWEGIAN;
+      default:
+        return off.OpenFoodFactsLanguage.ENGLISH;
+    }
+  }
+
   Future<ScanAddProductResult> addOrIncrementByBarcode({
     required String userId,
     required String barcode,
+    String languageCode = 'nb',
   }) async {
     _logger.i('addOrIncrementByBarcode: processing barcode for user $userId');
     final trimmedBarcode = barcode.trim();
@@ -44,13 +59,28 @@ class ProductService {
 
     if (existingProduct != null) {
       _logger.i('Barcode matched existing product: ${existingProduct.name}');
+
+      // Calculate smart default expiry if none exists, else just increment quantity
+      final estimatedExpiry = _shelfLifeService.estimateExpiration(
+        existingProduct,
+      );
+      final newExpiries = List<ExpiryEntry>.from(existingProduct.expiries);
+
+      if (estimatedExpiry != null) {
+        newExpiries.add(
+          ExpiryEntry(quantity: 1, expirationDate: estimatedExpiry),
+        );
+      }
+
       final updatedProduct = Product(
         id: existingProduct.id,
         name: existingProduct.name,
         description: existingProduct.description,
         userId: existingProduct.userId,
-        expiries: existingProduct.expiries,
-        nonExpiringQuantity: existingProduct.nonExpiringQuantity + 1,
+        expiries: newExpiries,
+        nonExpiringQuantity: estimatedExpiry == null
+            ? existingProduct.nonExpiringQuantity + 1
+            : existingProduct.nonExpiringQuantity,
         category: existingProduct.category,
         imageUrl: existingProduct.imageUrl,
         barcode: existingProduct.barcode,
@@ -61,6 +91,7 @@ class ProductService {
       return ScanAddProductResult(
         product: updatedProduct,
         matchedExisting: true,
+        estimatedExpiryDays: estimatedExpiry?.difference(DateTime.now()).inDays,
       );
     }
 
@@ -68,11 +99,13 @@ class ProductService {
     try {
       final configuration = off.ProductQueryConfiguration(
         normalizedBarcode,
+        language: _getOFFLanguage(languageCode),
         version: off.ProductQueryVersion.v3,
         fields: [
           off.ProductField.NAME,
           off.ProductField.IMAGE_FRONT_URL,
           off.ProductField.LABELS_TAGS,
+          off.ProductField.CATEGORIES_TAGS,
         ],
       );
 
@@ -84,6 +117,21 @@ class ProductService {
         final productName = productData.productName ?? normalizedBarcode;
         final imageUrl = productData.imageFrontUrl;
         final tags = productData.labelsTags ?? [];
+        final categories = productData.categoriesTags ?? [];
+
+        // Combine tags and categories for better shelf life heuristics
+        final combinedTags = [...tags, ...categories];
+
+        final estimatedExpiry = _shelfLifeService.estimateExpiration(
+          // Use a temporary, minimal product instance for estimation
+          Product(
+            id: 0,
+            name: '',
+            description: '',
+            userId: '',
+            tags: combinedTags,
+          ),
+        );
 
         final randomSuffix = Random().nextInt(1000);
         final newProduct = Product(
@@ -91,16 +139,23 @@ class ProductService {
           name: productName,
           description: '',
           userId: userId,
-          nonExpiringQuantity: 1,
+          nonExpiringQuantity: estimatedExpiry == null ? 1 : 0,
           barcode: normalizedBarcode,
           imageUrl: imageUrl,
-          tags: tags,
+          tags: combinedTags,
+          expiries: estimatedExpiry != null
+              ? [ExpiryEntry(quantity: 1, expirationDate: estimatedExpiry)]
+              : [],
         );
+
         final addedProduct = await _productRepository.add(newProduct);
         _logger.i('Created new product from OFF API: $normalizedBarcode');
         return ScanAddProductResult(
           product: addedProduct,
           matchedExisting: false,
+          estimatedExpiryDays: estimatedExpiry
+              ?.difference(DateTime.now())
+              .inDays,
         );
       }
     } catch (e) {
@@ -214,10 +269,12 @@ class ScanAddProductResult {
   final Product product;
   final bool matchedExisting;
   final bool notFound;
+  final int? estimatedExpiryDays;
 
   const ScanAddProductResult({
     required this.product,
     required this.matchedExisting,
     this.notFound = false,
+    this.estimatedExpiryDays,
   });
 }
