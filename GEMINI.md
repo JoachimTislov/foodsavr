@@ -61,7 +61,7 @@ When reviewing or writing code, **check [pub.dev](https://pub.dev) or the [Flutt
 ## 4. **Workflow**:
 - **Task Completion Rule**: After each completed task (or tight related batch), commit and push immediately.
 - **Commit Message Rule**: Use clear descriptive messages; prefer Conventional Commits (e.g., `fix(router): handle auth redirect`).
-- **Execution Loop Rule**: Gather context (code/tests/PR comments/docs/rules/skills), check for missing context, implement minimal fix, run `make check`, add/update tests, run `make check` until green, run `make push`; if `make push` fails, fix and repeat from `make check`.
+- **Execution Loop Rule**: Gather context (code/tests/PR comments/docs/rules/skills), check for missing context, implement minimal fix, run `make check`, add/update tests, run `make check` until green, run `make push`; if `make check` fails two times in a row, STOP and ask the instructor for guidance; if `make push` fails, fix and repeat from `make check`.
 - **Introspection Rule**: Re-evaluate context after each major step and keep only task-relevant information.
 - **PR Script Rule**: Use one-thread-per-run PR scripts to keep context narrow and avoid bulk actions.
 - **Future Improvement Logging Rule**: Log follow-ups in `log/review-thread-followups.log` only when improvement is still needed (id, remaining gap, next action).

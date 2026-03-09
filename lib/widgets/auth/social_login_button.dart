@@ -48,9 +48,16 @@ class SocialLoginButton extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            Text(
-              text,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Flexible(
+              child: Text(
+                text,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
