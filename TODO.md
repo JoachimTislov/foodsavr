@@ -2,8 +2,8 @@
 
 Look into
 
-- [ ] Seed database when using Firebase emulator for testing and development.
-    - run script through make start-emulator target or similar
+- [x] Seed database when using Firebase emulator for testing and development.
+    - Added `make seed` target and `tool/seed_database.dart` script.
 - [ ] "Cloud Firestore emulator" Flutter integration test
 - [ ] "flutter test" "firebase emulator" CI GitHub Actions
 - [ ] "firestore.rules" best practices Flutter app
