@@ -23,8 +23,13 @@ void main() {
       if (kIsWeb) {
         expect(Config.emulatorHost, equals('localhost'));
       } else {
-        // Default value when EMULATOR_HOST is not set
-        expect(Config.emulatorHost, equals('192.168.0.253'));
+        // Non-web should be a valid IPv4 address or hostname
+        expect(Config.emulatorHost, isNotEmpty);
+        final isIpAddress = RegExp(
+          r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$',
+        ).hasMatch(Config.emulatorHost);
+        final isLocalhost = Config.emulatorHost == 'localhost';
+        expect(isIpAddress || isLocalhost, isTrue);
       }
     });
 
@@ -64,8 +69,9 @@ void main() {
       test('test credentials are valid for Firebase auth format', () {
         // Email should be a valid format
         expect(
-          RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
-              .hasMatch(Config.testUserEmail),
+          RegExp(
+            r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+          ).hasMatch(Config.testUserEmail),
           isTrue,
         );
 

@@ -2,15 +2,19 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
-
-// We need to import the functions from the seed script
-// Since it's a standalone script, we'll test the logic conceptually
-// For a real production app, you'd extract functions to a library
+import 'package:foodsavr/services/standalone_seeding_service.dart';
+import 'package:foodsavr/models/product_model.dart';
 
 class MockClient extends Mock implements http.Client {}
 
 void main() {
   late MockClient mockClient;
+  late StandaloneSeedingService seedingService;
+
+  const projectId = 'demo-project';
+  const host = 'localhost';
+  const firestorePort = '8080';
+  const authPort = '9099';
 
   setUpAll(() {
     registerFallbackValue(Uri.parse('http://example.com'));
@@ -18,133 +22,123 @@ void main() {
 
   setUp(() {
     mockClient = MockClient();
+    seedingService = StandaloneSeedingService(
+      projectId: projectId,
+      host: host,
+      authPort: authPort,
+      firestorePort: firestorePort,
+      client: mockClient,
+    );
   });
 
-  group('Database Seeding Logic Tests', () {
-    const projectId = 'demo-project';
-    const host = 'localhost';
-    const firestorePort = '8080';
-    const authPort = '9099';
-
+  group('StandaloneSeedingService Tests', () {
     group('Emulator Check', () {
       test('checkEmulators returns true when emulator is running', () async {
-        when(() => mockClient.get(any())).thenAnswer(
-          (_) async => http.Response('OK', 200),
-        );
+        when(
+          () => mockClient.get(any()).timeout(any()),
+        ).thenAnswer((_) async => http.Response('OK', 200));
 
-        final response = await mockClient.get(
-          Uri.parse('http://$host:$firestorePort/'),
-        );
-
-        expect(response.statusCode == 200 || response.statusCode == 404, true);
+        final result = await seedingService.checkEmulators();
+        expect(result, isTrue);
       });
 
-      test('checkEmulators returns true for 404 response', () async {
-        when(() => mockClient.get(any())).thenAnswer(
-          (_) async => http.Response('Not Found', 404),
+      test('checkEmulators returns false on connection error', () async {
+        when(
+          () => mockClient.get(any()).timeout(any()),
+        ).thenThrow(Exception('Connection refused'));
+
+        final result = await seedingService.checkEmulators();
+        expect(result, isFalse);
+      });
+    });
+
+    group('User Creation/Sign-in', () {
+      const email = 'test@example.com';
+      const password = 'password123';
+
+      test('createTestUser succeeds on new user creation', () async {
+        when(
+          () => mockClient.post(
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+          ),
+        ).thenAnswer(
+          (_) async =>
+              http.Response(jsonEncode({'localId': 'new-user-id'}), 200),
         );
 
-        final response = await mockClient.get(
-          Uri.parse('http://$host:$firestorePort/'),
-        );
-
-        expect(response.statusCode == 200 || response.statusCode == 404, true);
+        final userId = await seedingService.createTestUser(email, password);
+        expect(userId, 'new-user-id');
       });
 
-      test('checkEmulators handles connection errors gracefully', () async {
-        when(() => mockClient.get(any())).thenThrow(
-          Exception('Connection refused'),
+      test('createTestUser signs in if email already exists', () async {
+        // First mock: signUp fails with EMAIL_EXISTS
+        when(
+          () => mockClient.post(
+            Uri.parse(
+              'http://$host:$authPort/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake-key',
+            ),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+          ),
+        ).thenAnswer(
+          (_) async => http.Response(
+            jsonEncode({
+              'error': {'message': 'EMAIL_EXISTS'},
+            }),
+            400,
+          ),
+        );
+
+        // Second mock: signIn succeeds
+        when(
+          () => mockClient.post(
+            Uri.parse(
+              'http://$host:$authPort/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake-key',
+            ),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+          ),
+        ).thenAnswer(
+          (_) async =>
+              http.Response(jsonEncode({'localId': 'existing-user-id'}), 200),
+        );
+
+        final userId = await seedingService.createTestUser(email, password);
+        expect(userId, 'existing-user-id');
+      });
+
+      test('createTestUser throws on unexpected sign-up error', () async {
+        when(
+          () => mockClient.post(
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+          ),
+        ).thenAnswer(
+          (_) async => http.Response(
+            jsonEncode({
+              'error': {'message': 'INVALID_EMAIL'},
+            }),
+            400,
+          ),
         );
 
         expect(
-          () async => await mockClient.get(
-            Uri.parse('http://$host:$firestorePort/'),
-          ),
+          () => seedingService.createTestUser(email, password),
           throwsException,
         );
       });
     });
 
-    group('User Creation', () {
-      test('createTestUser makes correct API request', () async {
-        final expectedUrl =
-            'http://$host:$authPort/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake-key';
-
-        when(
-          () => mockClient.post(
-            any(),
-            headers: any(named: 'headers'),
-            body: any(named: 'body'),
-          ),
-        ).thenAnswer(
-          (_) async => http.Response(
-            jsonEncode({'localId': 'test-user-id'}),
-            200,
-          ),
-        );
-
-        final response = await mockClient.post(
-          Uri.parse(expectedUrl),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'email': 'bob@example.com',
-            'password': 'password123',
-            'returnSecureToken': true,
-          }),
-        );
-
-        expect(response.statusCode, 200);
-        final data = jsonDecode(response.body);
-        expect(data['localId'], 'test-user-id');
-      });
-
-      test('handles EMAIL_EXISTS error and signs in instead', () async {
-        final signUpUrl =
-            'http://$host:$authPort/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake-key';
-
-        when(
-          () => mockClient.post(
-            Uri.parse(signUpUrl),
-            headers: any(named: 'headers'),
-            body: any(named: 'body'),
-          ),
-        ).thenAnswer(
-          (_) async => http.Response(
-            jsonEncode({
-              'error': {'message': 'EMAIL_EXISTS'},
-            }),
-            400,
-          ),
-        );
-
-        final response = await mockClient.post(
-          Uri.parse(signUpUrl),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'email': 'bob@example.com',
-            'password': 'password123',
-            'returnSecureToken': true,
-          }),
-        );
-
-        expect(response.statusCode, 400);
-        final error = jsonDecode(response.body)['error'];
-        expect(error['message'], 'EMAIL_EXISTS');
-      });
-    });
-
-    group('Firestore Document Creation', () {
-      test('postToFirestore creates document with correct structure', () async {
-        const collection = 'products';
-        const documentId = '1';
+    group('Firestore Operations', () {
+      test('postToFirestore sends correct PATCH request', () async {
         final fields = {
-          'id': {'integerValue': '1'},
-          'name': {'stringValue': 'Test Product'},
-          'description': {'stringValue': 'Test Description'},
+          'name': {'stringValue': 'Test'},
         };
-
-        final expectedUrl =
-            'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collection?documentId=$documentId';
+        final collection = 'test_col';
+        final docId = 'doc_123';
 
         when(
           () => mockClient.patch(
@@ -152,312 +146,114 @@ void main() {
             headers: any(named: 'headers'),
             body: any(named: 'body'),
           ),
-        ).thenAnswer(
-          (_) async => http.Response(
-            jsonEncode({'fields': fields}),
-            200,
+        ).thenAnswer((_) async => http.Response('OK', 200));
+
+        await seedingService.postToFirestore(collection, docId, fields);
+
+        verify(
+          () => mockClient.patch(
+            Uri.parse(
+              'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collection?documentId=$docId',
+            ),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'fields': fields}),
           ),
-        );
-
-        final response = await mockClient.patch(
-          Uri.parse(expectedUrl),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'fields': fields}),
-        );
-
-        expect(response.statusCode, 200);
+        ).called(1);
       });
 
-      test('postToFirestore throws on error response', () async {
-        const collection = 'products';
-        const documentId = '1';
-
-        final expectedUrl =
-            'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collection?documentId=$documentId';
-
+      test('postToFirestore throws on failure', () async {
         when(
           () => mockClient.patch(
             any(),
             headers: any(named: 'headers'),
             body: any(named: 'body'),
           ),
-        ).thenAnswer(
-          (_) async => http.Response('Internal Server Error', 500),
-        );
+        ).thenAnswer((_) async => http.Response('Error', 500));
 
-        final response = await mockClient.patch(
-          Uri.parse(expectedUrl),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'fields': {
-              'id': {'integerValue': '1'},
-            },
-          }),
+        expect(
+          () => seedingService.postToFirestore('col', 'id', {}),
+          throwsException,
         );
-
-        expect(response.statusCode, 500);
       });
     });
 
-    group('Inventory Product Seeding', () {
-      test('builds correct product structure with expiry', () {
-        const userId = 'test-user-id';
-        const productId = 1;
-        const productName = 'Milk';
-        const description = 'Fresh milk';
-        const quantity = 2;
-        const expirationDays = 7;
+    group('Model Serialization (toFirestoreRest)', () {
+      test('Product toFirestoreRest matches expected Firestore REST shape', () {
         final now = DateTime.now();
-
-        final productMap = {
-          'id': {'integerValue': productId.toString()},
-          'name': {'stringValue': productName},
-          'description': {'stringValue': description},
-          'userId': {'stringValue': userId},
-          'nonExpiringQuantity': {'integerValue': '0'},
-          'isGlobal': {'booleanValue': false},
-          'category': {'stringValue': ''},
-          'tags': {
-            'arrayValue': {'values': []},
-          },
-          'expiries': {
-            'arrayValue': {
-              'values': [
-                {
-                  'mapValue': {
-                    'fields': {
-                      'quantity': {'integerValue': quantity.toString()},
-                      'expirationDate': {
-                        'stringValue':
-                            now.add(Duration(days: expirationDays)).toIso8601String(),
-                      },
-                    },
-                  },
-                },
-              ],
-            },
-          },
-        };
-
-        expect(productMap['id']!['integerValue'], '1');
-        expect(productMap['name']!['stringValue'], 'Milk');
-        expect(productMap['nonExpiringQuantity']!['integerValue'], '0');
-        expect(productMap['isGlobal']!['booleanValue'], false);
-        expect(
-          (productMap['expiries']!['arrayValue']! as Map)['values'],
-          isNotEmpty,
+        final product = Product(
+          id: 123,
+          name: 'Milk',
+          description: 'Dairy',
+          userId: 'user_1',
+          expiries: [ExpiryEntry(quantity: 2, expirationDate: now)],
+          nonExpiringQuantity: 1,
+          category: 'Drinks',
+          isGlobal: false,
+          tags: ['fresh', 'local'],
         );
+
+        final rest = product.toFirestoreRest();
+
+        expect(rest['id']['integerValue'], '123');
+        expect(rest['name']['stringValue'], 'Milk');
+        expect(rest['description']['stringValue'], 'Dairy');
+        expect(rest['userId']['stringValue'], 'user_1');
+        expect(rest['nonExpiringQuantity']['integerValue'], '1');
+        expect(rest['category']['stringValue'], 'Drinks');
+        expect(rest['isGlobal']['booleanValue'], isFalse);
+
+        final expiries = rest['expiries']['arrayValue']['values'] as List;
+        expect(expiries, hasLength(1));
+        final entry = expiries[0]['mapValue']['fields'];
+        expect(entry['quantity']['integerValue'], '2');
+        expect(entry['expirationDate']['stringValue'], now.toIso8601String());
+
+        final tags = rest['tags']['arrayValue']['values'] as List;
+        expect(tags, hasLength(2));
+        expect(tags[0]['stringValue'], 'fresh');
       });
 
-      test('builds correct product structure without expiry', () {
-        const userId = 'test-user-id';
-        const productId = 2;
-        const productName = 'Pasta';
-        const description = 'Dry pasta';
-        const quantity = 5;
-
-        final productMap = {
-          'id': {'integerValue': productId.toString()},
-          'name': {'stringValue': productName},
-          'description': {'stringValue': description},
-          'userId': {'stringValue': userId},
-          'nonExpiringQuantity': {'integerValue': quantity.toString()},
-          'isGlobal': {'booleanValue': false},
-          'category': {'stringValue': ''},
-          'tags': {
-            'arrayValue': {'values': []},
-          },
-          'expiries': {
-            'arrayValue': {'values': []},
-          },
-        };
-
-        expect(productMap['nonExpiringQuantity']!['integerValue'], '5');
-        expect(
-          (productMap['expiries']!['arrayValue']! as Map)['values'],
-          isEmpty,
+      test('Product toFirestoreRest handles null/empty fields', () {
+        final product = Product(
+          id: 456,
+          name: 'Water',
+          description: '',
+          userId: 'user_2',
         );
+
+        final rest = product.toFirestoreRest();
+        expect(rest['category']['stringValue'], '');
+        expect(rest['barcode']['stringValue'], '');
+        expect(rest['expiries']['arrayValue']['values'], isEmpty);
       });
     });
 
-    group('Global Product Seeding', () {
-      test('builds correct global product structure', () {
-        const productId = 100;
-        const productName = 'Global Milk';
-        const description = 'Global catalog item';
+    group('Edge Case Validations', () {
+      test('Product with negative quantity (sanitization/logic check)', () {
+        // Even if we pass negative, the model currently just serializes it.
+        // We might want to add validation in the model later,
+        // but for now we test that it serializes correctly.
+        final product = Product(
+          id: 1,
+          name: 'Test',
+          description: '',
+          userId: 'u1',
+          nonExpiringQuantity: -5,
+        );
 
-        final productMap = {
-          'id': {'integerValue': productId.toString()},
-          'name': {'stringValue': productName},
-          'description': {'stringValue': description},
-          'userId': {'stringValue': 'global'},
-          'nonExpiringQuantity': {'integerValue': '0'},
-          'isGlobal': {'booleanValue': true},
-          'category': {'stringValue': ''},
-          'tags': {
-            'arrayValue': {'values': []},
-          },
-          'expiries': {
-            'arrayValue': {'values': []},
-          },
-        };
-
-        expect(productMap['userId']!['stringValue'], 'global');
-        expect(productMap['isGlobal']!['booleanValue'], true);
-        expect(productMap['nonExpiringQuantity']!['integerValue'], '0');
+        final rest = product.toFirestoreRest();
+        expect(rest['nonExpiringQuantity']['integerValue'], '-5');
       });
-    });
 
-    group('Collection Seeding', () {
-      test('builds correct collection structure', () {
-        const userId = 'test-user-id';
-        const collectionId = 'my-inventory';
-        const collectionName = 'My Inventory';
-        const collectionType = 'inventory';
-        const description = 'My personal inventory';
-        final productIds = [1, 2, 3];
+      test('ExpiryEntry with past date is allowed in serialization', () {
+        final pastDate = DateTime.now().subtract(const Duration(days: 10));
+        final entry = ExpiryEntry(quantity: 1, expirationDate: pastDate);
 
-        final collectionMap = {
-          'id': {'stringValue': collectionId},
-          'name': {'stringValue': collectionName},
-          'userId': {'stringValue': userId},
-          'type': {'stringValue': collectionType},
-          'description': {'stringValue': description},
-          'productIds': {
-            'arrayValue': {
-              'values': productIds
-                  .map((pid) => {'integerValue': pid.toString()})
-                  .toList(),
-            },
-          },
-        };
-
-        expect(collectionMap['id']!['stringValue'], collectionId);
-        expect(collectionMap['name']!['stringValue'], collectionName);
-        expect(collectionMap['type']!['stringValue'], collectionType);
+        final rest = entry.toFirestoreRest();
         expect(
-          (collectionMap['productIds']!['arrayValue']! as Map)['values'],
-          hasLength(3),
+          rest['mapValue']['fields']['expirationDate']['stringValue'],
+          pastDate.toIso8601String(),
         );
-      });
-
-      test('handles empty product list in collection', () {
-        const userId = 'test-user-id';
-        const collectionId = 'empty-collection';
-        final productIds = <int>[];
-
-        final collectionMap = {
-          'id': {'stringValue': collectionId},
-          'name': {'stringValue': 'Empty'},
-          'userId': {'stringValue': userId},
-          'type': {'stringValue': 'shopping'},
-          'description': {'stringValue': ''},
-          'productIds': {
-            'arrayValue': {
-              'values':
-                  productIds.map((pid) => {'integerValue': pid.toString()}).toList(),
-            },
-          },
-        };
-
-        expect(
-          (collectionMap['productIds']!['arrayValue']! as Map)['values'],
-          isEmpty,
-        );
-      });
-    });
-
-    group('Idempotency Tests', () {
-      test('seeding script should be idempotent when user exists', () async {
-        // First attempt: user creation succeeds
-        when(
-          () => mockClient.post(
-            any(),
-            headers: any(named: 'headers'),
-            body: any(named: 'body'),
-          ),
-        ).thenAnswer(
-          (_) async => http.Response(
-            jsonEncode({'localId': 'user-123'}),
-            200,
-          ),
-        );
-
-        var response = await mockClient.post(
-          Uri.parse('http://test/signup'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'email': 'bob@example.com'}),
-        );
-
-        expect(response.statusCode, 200);
-
-        // Second attempt: user exists, should handle gracefully
-        when(
-          () => mockClient.post(
-            any(),
-            headers: any(named: 'headers'),
-            body: any(named: 'body'),
-          ),
-        ).thenAnswer(
-          (_) async => http.Response(
-            jsonEncode({
-              'error': {'message': 'EMAIL_EXISTS'},
-            }),
-            400,
-          ),
-        );
-
-        response = await mockClient.post(
-          Uri.parse('http://test/signup'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'email': 'bob@example.com'}),
-        );
-
-        // Should get EMAIL_EXISTS error
-        expect(response.statusCode, 400);
-        final error = jsonDecode(response.body)['error'];
-        expect(error['message'], 'EMAIL_EXISTS');
-      });
-    });
-
-    group('Data Validation', () {
-      test('product ID must be an integer', () {
-        final productMap = {
-          'id': {'integerValue': '123'},
-        };
-
-        expect(productMap['id']!['integerValue'], '123');
-        expect(int.parse(productMap['id']!['integerValue']!), 123);
-      });
-
-      test('expiration date must be valid ISO8601 string', () {
-        final now = DateTime.now();
-        final expiryDate = now.add(const Duration(days: 7));
-        final isoString = expiryDate.toIso8601String();
-
-        expect(DateTime.parse(isoString).isAfter(now), true);
-      });
-
-      test('quantity must be non-negative', () {
-        const quantity = 5;
-        final quantityMap = {'integerValue': quantity.toString()};
-
-        expect(int.parse(quantityMap['integerValue']!), greaterThanOrEqualTo(0));
-      });
-
-      test('user ID must not be empty', () {
-        const userId = 'test-user-id';
-
-        expect(userId, isNotEmpty);
-        expect(userId.length, greaterThan(0));
-      });
-
-      test('isGlobal flag must be boolean', () {
-        final globalProduct = {'isGlobal': {'booleanValue': true}};
-        final userProduct = {'isGlobal': {'booleanValue': false}};
-
-        expect(globalProduct['isGlobal']!['booleanValue'], isA<bool>());
-        expect(userProduct['isGlobal']!['booleanValue'], isA<bool>());
       });
     });
   });

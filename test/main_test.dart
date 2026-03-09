@@ -1,15 +1,24 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/main.dart';
 import 'package:foodsavr/router.dart';
 import 'package:foodsavr/service_locator.dart';
+import 'package:foodsavr/services/theme_notifier.dart';
+import 'package:foodsavr/services/auth_controller.dart';
+import 'package:foodsavr/services/collection_service.dart';
+import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MockAuthService extends Mock implements IAuthService {}
+
+class MockAuthController extends Mock implements AuthController {}
+
+class MockCollectionService extends Mock implements CollectionService {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +30,23 @@ void main() {
   setUpAll(() async {
     // Setup Firebase mocking
     setupFirebaseCoreMocks();
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
+
+    // Increase surface size to avoid overflows in tests
+    final binding = TestWidgetsFlutterBinding.ensureInitialized();
+    binding.platformDispatcher.views.first.physicalSize = const Size(
+      1200,
+      1800,
+    );
+    binding.platformDispatcher.views.first.devicePixelRatio = 1.0;
+  });
+
+  tearDownAll(() {
+    final binding = TestWidgetsFlutterBinding.ensureInitialized();
+    binding.platformDispatcher.views.first.resetPhysicalSize();
+    binding.platformDispatcher.views.first.resetDevicePixelRatio();
   });
 
   group('Main App Constants', () {
@@ -55,18 +81,35 @@ void main() {
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
       await EasyLocalization.ensureInitialized();
       await getIt.reset();
 
+      getIt.registerSingleton<Logger>(Logger(level: Level.off));
+      getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
       mockAuthService = MockAuthService();
-      when(() => mockAuthService.authStateChanges)
-          .thenAnswer((_) => const Stream.empty());
+      when(
+        () => mockAuthService.authStateChanges,
+      ).thenAnswer((_) => const Stream.empty());
       when(() => mockAuthService.currentUser).thenReturn(null);
       getIt.registerLazySingleton<IAuthService>(() => mockAuthService);
+
+      final mockCollectionService = MockCollectionService();
+      getIt.registerSingleton<CollectionService>(mockCollectionService);
+
+      final mockAuthController = MockAuthController();
+      when(() => mockAuthController.isLoading).thenReturn(false);
+      when(() => mockAuthController.errorMessage).thenReturn(null);
+      when(() => mockAuthController.isLogin).thenReturn(true);
+      when(() => mockAuthController.successMessage).thenReturn(null);
+      when(() => mockAuthController.rememberMe).thenReturn(false);
+      when(() => mockAuthController.agreedToTerms).thenReturn(false);
+      getIt.registerSingleton<AuthController>(mockAuthController);
     });
 
-    testWidgets('renders MaterialApp.router with correct configuration',
-        (tester) async {
+    testWidgets('renders MaterialApp.router with correct configuration', (
+      tester,
+    ) async {
       await tester.runAsync(() async {
         final router = createAppRouter(mockAuthService);
 
@@ -75,7 +118,13 @@ void main() {
             supportedLocales: const [Locale('en'), Locale('nb')],
             path: 'assets/translations',
             fallbackLocale: const Locale('en'),
-            child: MyApp(router: router),
+            child: Center(
+              child: SizedBox(
+                width: 1200,
+                height: 1800,
+                child: MyApp(router: router),
+              ),
+            ),
           ),
         );
         await tester.pumpAndSettle();
@@ -100,7 +149,13 @@ void main() {
             supportedLocales: const [Locale('en'), Locale('nb')],
             path: 'assets/translations',
             fallbackLocale: const Locale('en'),
-            child: MyApp(router: router),
+            child: Center(
+              child: SizedBox(
+                width: 1200,
+                height: 1800,
+                child: MyApp(router: router),
+              ),
+            ),
           ),
         );
         await tester.pumpAndSettle();
@@ -124,7 +179,13 @@ void main() {
             supportedLocales: const [Locale('en'), Locale('nb')],
             path: 'assets/translations',
             fallbackLocale: const Locale('en'),
-            child: MyApp(router: router),
+            child: Center(
+              child: SizedBox(
+                width: 1200,
+                height: 1800,
+                child: MyApp(router: router),
+              ),
+            ),
           ),
         );
         await tester.pumpAndSettle();
@@ -149,7 +210,13 @@ void main() {
             supportedLocales: const [Locale('en'), Locale('nb')],
             path: 'assets/translations',
             fallbackLocale: const Locale('en'),
-            child: MyApp(router: router),
+            child: Center(
+              child: SizedBox(
+                width: 1200,
+                height: 1800,
+                child: MyApp(router: router),
+              ),
+            ),
           ),
         );
         await tester.pumpAndSettle();
@@ -181,21 +248,25 @@ void main() {
             supportedLocales: const [Locale('en'), Locale('nb')],
             path: 'assets/translations',
             fallbackLocale: const Locale('en'),
-            child: MyApp(router: router),
+            child: Center(
+              child: SizedBox(
+                width: 1200,
+                height: 1800,
+                child: MyApp(router: router),
+              ),
+            ),
           ),
         );
         await tester.pumpAndSettle();
 
         // Initial state
-        var materialApp = tester.widget<MaterialApp>(
-          find.byType(MaterialApp),
-        );
+        var materialApp = tester.widget<MaterialApp>(find.byType(MaterialApp));
         expect(materialApp.themeMode, isNotNull);
 
         // The app should rebuild when ThemeNotifier changes
         // This is tested indirectly through the ListenableBuilder
         final listenableBuilder = tester.widget<ListenableBuilder>(
-          find.byType(ListenableBuilder),
+          find.byType(ListenableBuilder).first,
         );
         expect(listenableBuilder.listenable, isNotNull);
       });
@@ -251,8 +322,9 @@ void main() {
     testWidgets('MyApp handles null checks correctly', (tester) async {
       await tester.runAsync(() async {
         final mockAuthService = MockAuthService();
-        when(() => mockAuthService.authStateChanges)
-            .thenAnswer((_) => const Stream.empty());
+        when(
+          () => mockAuthService.authStateChanges,
+        ).thenAnswer((_) => const Stream.empty());
         when(() => mockAuthService.currentUser).thenReturn(null);
 
         final router = createAppRouter(mockAuthService);
@@ -273,9 +345,8 @@ void main() {
     });
 
     test('supportedFlavors is immutable', () {
-      // Attempting to modify should fail (this is implicit since it's const)
+      // Immutability is enforced at compile-time since supportedFlavors is const
       expect(supportedFlavors, isA<List<String>>());
-      // Const lists cannot be modified
     });
 
     test('dummyOptions is immutable', () {
@@ -288,8 +359,9 @@ void main() {
     testWidgets('supports both English and Norwegian locales', (tester) async {
       await tester.runAsync(() async {
         final mockAuthService = MockAuthService();
-        when(() => mockAuthService.authStateChanges)
-            .thenAnswer((_) => const Stream.empty());
+        when(
+          () => mockAuthService.authStateChanges,
+        ).thenAnswer((_) => const Stream.empty());
         when(() => mockAuthService.currentUser).thenReturn(null);
 
         final router = createAppRouter(mockAuthService);
@@ -299,7 +371,13 @@ void main() {
             supportedLocales: const [Locale('en'), Locale('nb')],
             path: 'assets/translations',
             fallbackLocale: const Locale('en'),
-            child: MyApp(router: router),
+            child: Center(
+              child: SizedBox(
+                width: 1200,
+                height: 1800,
+                child: MyApp(router: router),
+              ),
+            ),
           ),
         );
         await tester.pumpAndSettle();
@@ -316,12 +394,14 @@ void main() {
       });
     });
 
-    testWidgets('uses fallback locale when locale is not supported',
-        (tester) async {
+    testWidgets('uses fallback locale when locale is not supported', (
+      tester,
+    ) async {
       await tester.runAsync(() async {
         final mockAuthService = MockAuthService();
-        when(() => mockAuthService.authStateChanges)
-            .thenAnswer((_) => const Stream.empty());
+        when(
+          () => mockAuthService.authStateChanges,
+        ).thenAnswer((_) => const Stream.empty());
         when(() => mockAuthService.currentUser).thenReturn(null);
 
         final router = createAppRouter(mockAuthService);
@@ -331,7 +411,13 @@ void main() {
             supportedLocales: const [Locale('en'), Locale('nb')],
             path: 'assets/translations',
             fallbackLocale: const Locale('en'),
-            child: MyApp(router: router),
+            child: Center(
+              child: SizedBox(
+                width: 1200,
+                height: 1800,
+                child: MyApp(router: router),
+              ),
+            ),
           ),
         );
         await tester.pumpAndSettle();
@@ -352,30 +438,30 @@ void setupFirebaseCoreMocks() {
   // This is needed to prevent Firebase initialization errors in tests
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(
-    const MethodChannel('plugins.flutter.io/firebase_core'),
-    (MethodCall methodCall) async {
-      if (methodCall.method == 'Firebase#initializeCore') {
-        return [
-          {
-            'name': '[DEFAULT]',
-            'options': {
-              'apiKey': 'test-api-key',
-              'appId': 'test-app-id',
-              'messagingSenderId': 'test-sender-id',
-              'projectId': 'test-project-id',
-            },
-            'pluginConstants': {},
+        const MethodChannel('plugins.flutter.io/firebase_core'),
+        (MethodCall methodCall) async {
+          if (methodCall.method == 'Firebase#initializeCore') {
+            return [
+              {
+                'name': '[DEFAULT]',
+                'options': {
+                  'apiKey': 'test-api-key',
+                  'appId': 'test-app-id',
+                  'messagingSenderId': 'test-sender-id',
+                  'projectId': 'test-project-id',
+                },
+                'pluginConstants': {},
+              },
+            ];
           }
-        ];
-      }
-      if (methodCall.method == 'Firebase#initializeApp') {
-        return {
-          'name': methodCall.arguments['appName'],
-          'options': methodCall.arguments['options'],
-          'pluginConstants': {},
-        };
-      }
-      return null;
-    },
-  );
+          if (methodCall.method == 'Firebase#initializeApp') {
+            return {
+              'name': methodCall.arguments['appName'],
+              'options': methodCall.arguments['options'],
+              'pluginConstants': {},
+            };
+          }
+          return null;
+        },
+      );
 }
