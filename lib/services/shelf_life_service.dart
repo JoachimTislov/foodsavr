@@ -3,45 +3,60 @@ import '../models/product_model.dart';
 
 @lazySingleton
 class ShelfLifeService {
+  // Common Durations
+  static const _twoDays = Duration(days: 2);
+  static const _threeDays = Duration(days: 3);
+  static const _fourDays = Duration(days: 4);
+  static const _fiveDays = Duration(days: 5);
+  static const _sevenDays = Duration(days: 7);
+  static const _tenDays = Duration(days: 10);
+  static const _fourteenDays = Duration(days: 14);
+  static const _twentyEightDays = Duration(days: 28);
+  static const _thirtyDays = Duration(days: 30);
+  static const _ninetyDays = Duration(days: 90);
+  static const _sixMonths = Duration(days: 180);
+  static const _oneYear = Duration(days: 365);
+  static const _twoYears = Duration(days: 730);
+
   /// A heuristic mapping of Open Food Facts category tags to a default shelf life duration.
   /// This serves as the "Smart Default" layer for zero-interaction expiration estimation.
   final Map<String, Duration> _categoryDurations = {
     // Dairy & Eggs
-    'en:milks': const Duration(days: 10),
-    'en:yogurts': const Duration(days: 14),
-    'en:cheeses': const Duration(days: 30),
-    'en:eggs': const Duration(days: 28),
-    'en:butter': const Duration(days: 90),
+    'en:milks': _tenDays,
+    'en:yogurts': _fourteenDays,
+    'en:cheeses': _thirtyDays,
+    'en:eggs': _twentyEightDays,
+    'en:butter': _ninetyDays,
 
     // Meats & Fish
-    'en:fresh-meats': const Duration(days: 4),
-    'en:poultries': const Duration(days: 4),
-    'en:fishes': const Duration(days: 2),
-    'en:seafood': const Duration(days: 2),
-    'en:processed-meats': const Duration(days: 14), // e.g., sausages, ham
+    'en:fresh-meats': _fourDays,
+    'en:poultries': _fourDays,
+    'en:fishes': _twoDays,
+    'en:seafood': _twoDays,
+    'en:processed-meats': _fourteenDays, // e.g., sausages, ham
     // Bakery
-    'en:breads': const Duration(days: 5),
-    'en:pastries': const Duration(days: 3),
+    'en:breads': _fiveDays,
+    'en:pastries': _threeDays,
 
     // Produce
-    'en:fresh-fruits': const Duration(days: 7),
-    'en:fresh-vegetables': const Duration(days: 7),
-    'en:salads': const Duration(days: 5),
+    'en:fresh-fruits': _sevenDays,
+    'en:fresh-vegetables': _sevenDays,
+    'en:salads': _fiveDays,
 
     // Pantry / Long-term
-    'en:canned-foods': const Duration(days: 730), // 2 years
-    'en:dried-products': const Duration(days: 365), // 1 year
-    'en:pastas': const Duration(days: 730),
-    'en:rice': const Duration(days: 730),
-    'en:cereals': const Duration(days: 365),
-    'en:condiments': const Duration(days: 180),
-    'en:sauces': const Duration(days: 365),
-    'en:snacks': const Duration(days: 180),
-    'en:beverages': const Duration(days: 365),
+    'en:canned-foods': _twoYears,
+    'en:dried-products': _oneYear,
+    'en:pastas': _twoYears,
+    'en:rice': _twoYears,
+    'en:cereals': _oneYear,
+    'en:condiments': _sixMonths,
+    'en:sauces': _oneYear,
+    'en:snacks': _sixMonths,
+    'en:beverages': _oneYear,
 
     // Frozen
-    'en:frozen-foods': const Duration(days: 180), // 6 months
-    'en:ice-creams': const Duration(days: 180),
+    'en:frozen-foods': _sixMonths,
+    'en:ice-creams': _sixMonths,
   };
 
   /// Estimates the expiration date for a product based on its tags/categories.
