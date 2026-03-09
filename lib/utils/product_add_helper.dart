@@ -8,6 +8,7 @@ import '../services/product_service.dart';
 import '../services/collection_service.dart';
 import '../views/product_form_view.dart';
 import '../views/product_detail_view.dart';
+import 'localization_utils.dart';
 
 class ProductAddHelper {
   static Future<bool?> startAddProductFlow(
@@ -71,11 +72,10 @@ class ProductAddHelper {
         if (!context.mounted) return false;
 
         final expiryDays = result.estimatedExpiryDays;
-        final expiryMsg = expiryDays != null
-            ? 'product.barcodeAssumedExpiry'.tr(
-                namedArgs: {'days': expiryDays.toString()},
-              )
-            : '';
+        final expiryMsg = 'product.barcodeAssumedExpiry'.trWith(
+          namedArgs: {'days': '$expiryDays'},
+          when: expiryDays != null,
+        );
 
         messenger.showSnackBar(
           SnackBar(

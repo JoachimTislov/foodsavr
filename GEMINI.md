@@ -59,7 +59,6 @@ When reviewing or writing code, **check [pub.dev](https://pub.dev) or the [Flutt
 - `make check`: Run full suite (analyze, format, test). **Required before commit**.
 
 ## 4. **Workflow**:
-- **Strategic Orchestration Rule**: When tasked with context-heavy operations such as batch PR comment resolution, you MUST delegate the entire process to the `comment-resolver` sub-agent as the very first step to save main session context.
 - **Task Completion Rule**: After each completed task (or tight related batch), commit and push immediately.
 - **Commit Message Rule**: Use clear descriptive messages; prefer Conventional Commits (e.g., `fix(router): handle auth redirect`).
 - **Execution Loop Rule**: Gather context (code/tests/PR comments/docs/rules/skills), check for missing context, implement minimal fix, run `make check`, add/update tests, run `make check` until green, run `make push`; if `make push` fails, fix and repeat from `make check`.
