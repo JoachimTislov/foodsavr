@@ -26,10 +26,15 @@ class StandaloneSeedingService {
   /// Checks if the Firebase Emulators are running.
   Future<bool> checkEmulators() async {
     try {
-      final response = await client
-          .get(Uri.parse('http://$host:$firestorePort/'))
-          .timeout(const Duration(seconds: 5));
-      return response.statusCode == 200 || response.statusCode == 404;
+      final results = await Future.wait([
+        client
+            .get(Uri.parse('http://$host:$firestorePort/'))
+            .timeout(const Duration(seconds: 5)),
+        client
+            .get(Uri.parse('http://$host:$authPort/'))
+            .timeout(const Duration(seconds: 5)),
+      ]);
+      return results.every((r) => r.statusCode == 200 || r.statusCode == 404);
     } catch (e) {
       return false;
     }
@@ -47,7 +52,7 @@ class StandaloneSeedingService {
         'password': password,
         'returnSecureToken': true,
       }),
-    );
+    ).timeout(const Duration(seconds: 5));
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -65,7 +70,7 @@ class StandaloneSeedingService {
             'password': password,
             'returnSecureToken': true,
           }),
-        );
+        ).timeout(const Duration(seconds: 5));
 
         if (signInResponse.statusCode == 200) {
           final data = jsonDecode(signInResponse.body);
@@ -171,12 +176,12 @@ class StandaloneSeedingService {
     Map<String, dynamic> fields,
   ) async {
     final url =
-        'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collection?documentId=$documentId';
+        'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collection/$documentId';
     final response = await client.patch(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'fields': fields}),
-    );
+    ).timeout(const Duration(seconds: 5));
 
     if (response.statusCode != 200) {
       throw Exception(

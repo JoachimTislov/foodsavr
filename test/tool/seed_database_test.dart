@@ -35,7 +35,7 @@ void main() {
     group('Emulator Check', () {
       test('checkEmulators returns true when emulator is running', () async {
         when(
-          () => mockClient.get(any()).timeout(any()),
+          () => mockClient.get(any()),
         ).thenAnswer((_) async => http.Response('OK', 200));
 
         final result = await seedingService.checkEmulators();
@@ -44,7 +44,7 @@ void main() {
 
       test('checkEmulators returns false on connection error', () async {
         when(
-          () => mockClient.get(any()).timeout(any()),
+          () => mockClient.get(any()),
         ).thenThrow(Exception('Connection refused'));
 
         final result = await seedingService.checkEmulators();
@@ -153,7 +153,7 @@ void main() {
         verify(
           () => mockClient.patch(
             Uri.parse(
-              'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collection?documentId=$docId',
+              'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collection/$docId',
             ),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({'fields': fields}),
