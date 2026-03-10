@@ -2,6 +2,7 @@
   "auth": {
     "terms": {
       "required": "You must agree to the Terms of Service and Privacy Notice.",
+      "register_failure": "Registration failed. Please agree to the Terms of Service.",
       "prefix": "I agree to the "
     },
     "reset": {

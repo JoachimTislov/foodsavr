@@ -100,7 +100,7 @@ class AuthController extends ChangeNotifier {
     if (_isLoading) return;
 
     if (!_isLogin && !_agreedToTerms) {
-      _errorMessage = _tr('auth.terms.required');
+      _errorMessage = _tr('auth.terms.register_failure');
       notifyListeners();
       return;
     }
