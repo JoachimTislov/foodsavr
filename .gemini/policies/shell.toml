@@ -25,13 +25,13 @@ priority = 998
 
 [[rule]]
 toolName = "run_shell_command"
-commandPrefix = ["rg ", "cat ", "touch ", "ls ", "echo ", "head ", "tail ", "wc ", "diff ", "grep ", "find "]
+commandPrefix = ["gemini ", "rg ", "cat ", "touch ", "ls ", "echo ", "head ", "tail ", "wc ", "diff ", "grep "]
 decision = "allow"
 priority = 200
 
 [[rule]]
 toolName = "run_shell_command"
-commandRegex = "git (commit|add|status|grep|diff|log|show|grep)"
+commandRegex = "git (commit|add|status|grep|diff|log|show|grep|remote|worktree)"
 decision = "allow"
 priority = 200
 
