@@ -181,30 +181,6 @@ class Product {
     };
   }
 
-  Map<String, dynamic> toFirestoreRest() {
-    return {
-      'id': {'integerValue': id.toString()},
-      'name': {'stringValue': name},
-      'description': {'stringValue': description},
-      'userId': {'stringValue': userId},
-      'expiries': {
-        'arrayValue': {
-          'values': expiries.map((e) => e.toFirestoreRest()).toList(),
-        },
-      },
-      'nonExpiringQuantity': {'integerValue': nonExpiringQuantity.toString()},
-      'category': {'stringValue': category ?? ''},
-      'imageUrl': {'stringValue': imageUrl ?? ''},
-      'barcode': {'stringValue': barcode ?? ''},
-      'isGlobal': {'booleanValue': isGlobal},
-      'tags': {
-        'arrayValue': {
-          'values': tags.map((t) => {'stringValue': t}).toList(),
-        },
-      },
-    };
-  }
-
   factory Product.fromJson(Map<String, dynamic> json) {
     final parsedExpiries =
         (json['expiries'] as List<dynamic>?)
@@ -313,20 +289,7 @@ class Product {
       'userId': {'stringValue': userId},
       'expiries': {
         'arrayValue': {
-          'values': expiries
-              .map(
-                (e) => {
-                  'mapValue': {
-                    'fields': {
-                      'quantity': {'integerValue': e.quantity.toString()},
-                      'expirationDate': {
-                        'stringValue': e.expirationDate.toIso8601String(),
-                      },
-                    },
-                  },
-                },
-              )
-              .toList(),
+          'values': expiries.map((e) => e.toFirestoreRest()).toList(),
         },
       },
       'nonExpiringQuantity': {'integerValue': nonExpiringQuantity.toString()},
