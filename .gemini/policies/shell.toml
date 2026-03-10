@@ -25,7 +25,7 @@ priority = 998
 
 [[rule]]
 toolName = "run_shell_command"
-commandPrefix = ["rg ", "cat ", "touch ", "ls ", "echo ", "head ", "tail ", "wc ", "diff ", "grep "]
+commandPrefix = ["gemini ", "rg ", "cat ", "touch ", "ls ", "echo ", "head ", "tail ", "wc ", "diff ", "grep "]
 decision = "allow"
 priority = 200
 

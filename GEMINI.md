@@ -38,20 +38,9 @@ When reviewing or writing code, **check [pub.dev](https://pub.dev) or the [Flutt
 - `make check`: Run full suite (analyze, format, test). **Required before commit**.
 
 ## 4. **Workflow**:
-
-### Synchronous Orchestration
-- **Meta-Task Branch Rule**: Reserve the main working branch for "meta" tasks (agents, documentation, research, system-level updates). All source code modifications must be made in separate Git worktrees.
-- **Asynchronous Execution Rule**: Use the `run_shell_command` tool with the `is_background: true` parameter to execute tasks asynchronously.
-- **Multi-Agent Worktree Rule**: Spin up background agents in separate Git worktrees to isolate source code tasks (PRs, issues). This allows the main process to remain dedicated to orchestration and meta-tasks.
+- **Meta-Task Branch Rule**: Reserve the main working branch (default folder) for "meta" tasks (agents, documentation, research, system-level updates). All source code modifications must be made in separate Git worktrees.
 - **Task Ordering Rule**: Prioritize tasks in the following order: (1) handle existing PRs, (2) handle open issues, (3) create new issues systematically from the `TODO.md` / TODO folder backlog.
 - **TODO Prioritization Rule**: TODOs from local backlog files should only be tackled when there are no open issues and no open PRs available.
-
-### Asynchronous Agents
-- **Headless Task Rule**: All implementation, bug fixes, and source code changes MUST be executed using `gemini --task <task_description>` (headless mode). The interactive session MUST NOT directly perform source code changes.
-- **Worktree Sync Rule**: Always sync every new worktree with the `main` branch before commencing work to ensure the agent operates on the latest context.
-- **PR Script Rule**: Use one-thread-per-run PR scripts to keep context narrow and avoid bulk actions.
-
-### Common Traditional Loop
 - **Task Completion Rule**: After each completed task (or tight related batch), commit and push immediately.
 - **Commit Message Rule**: Use clear descriptive messages; prefer Conventional Commits (e.g., `fix(router): handle auth redirect`).
 - **Execution Loop Rule**: Gather context (code/tests/PR comments/docs/rules/skills), check for missing context, implement minimal fix, run `make check`, add/update tests, run `make check` until green, run `make push`; if `make push` fails, fix and repeat from `make check`.
@@ -61,14 +50,6 @@ When reviewing or writing code, **check [pub.dev](https://pub.dev) or the [Flutt
 - **Quality Risk Logging Rule**: If quality may be weak at current stage, log task/risk/impact/follow-up in `log/implementation-risks.log`.
 - **Resolved Comment Cleanup Rule**: Remove stale comment references once high-quality, Effective Dart-aligned, non-fragile solutions are fully implemented.
 - **Style**: `snake_case` (files), `camelCase` (members), `_private`. Follow [Effective Dart](https://dart.dev/effective-dart/design).
-
-## 5. Environment Configuration
-- **.env Support**: The project uses a `.env` file in the root for environment variables.
-- **Flutter**: Loaded via `String.fromEnvironment` (passed by `Makefile` using `--dart-define-from-file`).
-- **Android**: Loaded in `android/app/build.gradle.kts`. Variables are available as `manifestPlaceholders` and `resValue` (e.g., `@string/EMULATOR_HOST`).
-- **Host IP**: For local development (Firebase emulators), set `EMULATOR_HOST` in `.env`.
-- **Android Sync**: The `network_security_config.xml` includes common development IPs. If you use a custom IP not in the XML, you must add it there to allow cleartext traffic.
-- **Emulator UI**: Access the Firebase Emulator UI at `http://localhost:8081`.
 
 ## Implementation Pattern (New Features)
 1. **Model**: `@models/` (JSON logic + computed properties).
