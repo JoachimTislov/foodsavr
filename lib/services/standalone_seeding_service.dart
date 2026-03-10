@@ -60,8 +60,7 @@ class StandaloneSeedingService {
       final data = jsonDecode(response.body);
       return data['localId'];
     } else {
-      final errorData = jsonDecode(response.body);
-      final error = errorData['error'];
+      final error = jsonDecode(response.body)['error'];
       if (error != null && error['message'] == 'EMAIL_EXISTS') {
         final signInUrl =
             'http://$host:$authPort/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake-key';
