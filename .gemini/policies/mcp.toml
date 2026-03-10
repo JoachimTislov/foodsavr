@@ -4,6 +4,11 @@ decision = "deny"
 priority = 100
 
 [[rule]]
-mcpName = ["stitch", "github"]
+mcpName = "stitch__*"
+decision = "allow"
+priority = 101
+
+[[rule]]
+mcpName = "github__*"
 decision = "allow"
 priority = 101

@@ -15,6 +15,7 @@ import 'views/transfer_management_view.dart';
 import 'views/select_products_view.dart';
 import 'views/settings_view.dart';
 import 'views/profile_view.dart';
+import 'views/barcode_scan_view.dart';
 import 'views/main_navigation_view.dart';
 import 'views/dynamic_collection_view.dart';
 
@@ -23,12 +24,20 @@ final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
 );
 
 GoRouter createAppRouter(IAuthService authService) {
+  final authListenable = _AuthStreamListenable(authService);
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/',
-    refreshListenable: _AuthStreamListenable(authService),
+    refreshListenable: authListenable,
     redirect: (BuildContext context, GoRouterState state) {
+      // On web refresh, the initial state is 'not logged in' until Firebase initializes.
+      // We check if we're still 'loading' the initial auth state.
+      if (!authListenable.isInitialized) {
+        return null; // Stay on current route while loading
+      }
+
       final isLoggedIn = authService.getUserId() != null;
+      final isAnonymousUser = authService.currentUser?.isAnonymous ?? false;
       final isAuthRoute = state.uri.path == '/auth';
       final isLandingRoute = state.uri.path == '/';
 
@@ -38,7 +47,7 @@ GoRouter createAppRouter(IAuthService authService) {
         }
         return null;
       } else {
-        if (isLandingRoute || isAuthRoute) {
+        if (isLandingRoute || (isAuthRoute && !isAnonymousUser)) {
           return '/products';
         }
         return null;
@@ -139,6 +148,10 @@ GoRouter createAppRouter(IAuthService authService) {
         path: '/profile',
         builder: (context, state) => const ProfileView(),
       ),
+      GoRoute(
+        path: '/barcode-scan',
+        builder: (context, state) => const BarcodeScanView(),
+      ),
     ],
   );
 }
@@ -148,10 +161,22 @@ class _AuthStreamListenable extends ChangeNotifier {
   final IAuthService _authService;
   late final StreamSubscription<User?> _subscription;
   bool _isDisposed = false;
+  bool _isInitialized = false;
+
+  bool get isInitialized => _isInitialized;
 
   _AuthStreamListenable(this._authService) {
     _subscription = _authService.authStateChanges.listen((_) {
+      _isInitialized = true;
       if (!_isDisposed) {
+        notifyListeners();
+      }
+    });
+
+    // Safety fallback for initialization
+    Future.delayed(const Duration(seconds: 2), () {
+      if (!_isInitialized && !_isDisposed) {
+        _isInitialized = true;
         notifyListeners();
       }
     });

@@ -2,6 +2,8 @@
 
 Look into
 
+- [x] Seed database when using Firebase emulator for testing and development.
+    - Added `make seed` target and `tool/seed_database.dart` script.
 - [ ] "Cloud Firestore emulator" Flutter integration test
 - [ ] "flutter test" "firebase emulator" CI GitHub Actions
 - [ ] "firestore.rules" best practices Flutter app
@@ -61,6 +63,7 @@ actions:
 - [x] Create .gemini/commands folder with .toml files for custom commands and templates
     - [x] Iteration command for fixing issues in flutter analyze until no issues remain
         - [x] Also one for Test, should be template
+    - [x] Research command for fetching and presenting data from the internet safely
     - [ ] Screenshot of page for reference to give better context to the LLM when adjusting UI
         - [ ] UI healing, grading in terms of user feeling, accessibility, material 3 compliance, etc.
     - [ ] Locales command
@@ -95,7 +98,7 @@ actions:
 
 ## Features & Functionality
 - [ ] Scanning products to ease the process of adding items to the inventory.
-    - [ ] Barcode
+    - [x] Barcode
     - [ ] QR code
     - [ ] Picture ? (need to explore ML options for this)
 - [ ] Add support for push/app/internal notifications (e.g., expiring products, meal plan reminders).

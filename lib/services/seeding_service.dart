@@ -28,10 +28,14 @@ class SeedingService {
   );
 
   Future<void> seedDatabase() async {
-    final userId = await _seedUser();
-    final addedProducts = await _seedProducts(userId);
-    await _seedCollections(userId, addedProducts);
-    await _seedGlobalProducts();
+    try {
+      final userId = await _seedUser();
+      final addedProducts = await _seedProducts(userId);
+      await _seedCollections(userId, addedProducts);
+      await _seedGlobalProducts();
+    } catch (e) {
+      _logger.e('Error seeding database: $e');
+    }
   }
 
   Future<String> _seedUser() async {
