@@ -80,6 +80,12 @@ class _ProfileViewState extends State<ProfileView> {
                     const SizedBox(height: 16),
                     _SettingsGroup(
                       items: [
+                        if (user?.isAnonymous ?? false)
+                          _SettingsItem(
+                            icon: Icons.person_add_alt_1_outlined,
+                            label: 'profile.create_account'.tr(),
+                            onTap: () => context.go('/auth?mode=signup'),
+                          ),
                         _SettingsItem(
                           icon: Icons.lock_reset,
                           label: 'profile.forgot_password'.tr(),

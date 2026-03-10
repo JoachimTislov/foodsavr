@@ -12,6 +12,7 @@ abstract class IAuthService {
   });
   Future<UserCredential> signInWithGoogle();
   Future<UserCredential> signInWithFacebook();
+  Future<UserCredential> signInAsGuest();
   Future<void> sendPasswordResetEmail(String email);
   Future<void> signOut();
   Stream<User?> get authStateChanges;

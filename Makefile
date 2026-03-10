@@ -109,6 +109,52 @@ preflight:
 		echo "No upstream branch found, skipping behind check."; \
 	fi
 
+# --- Automation & Gemini Targets ---
+
+.PHONY: data feature research resolve-comments unit-tests integration-tests analyze-architecture
+
+data: start-firebase-emulators
+	@echo "Seeding emulator data using standalone seeder..."
+	@dart run tool/seed_database.dart
+
+feature:
+	@if [ -z "$(name)" ]; then \
+		echo "Error: Provide a feature name (e.g., make feature name=shopping_list)"; \
+		exit 1; \
+	fi
+	@echo "Scaffolding feature: $(name)..."
+	@gemini -p "Activate the 'creation' skill and scaffold a new feature named '$(name)' following the 3-tier Layered Architecture (lib/models, lib/interfaces, lib/repositories, lib/services, lib/views)."
+
+research:
+	@if [ -z "$(topic)" ]; then \
+		echo "Error: Provide a research topic (e.g., make research topic='Firebase Security Rules')"; \
+		exit 1; \
+	fi
+	@echo "Conducting research on: $(topic)..."
+	@gemini -p "Activate the 'research' skill and conduct structured research on the topic: '$(topic)'. Save the findings in the research/ directory following the project's research standards."
+
+resolve-comments:
+	@echo "Starting automated PR comment resolution..."
+	@PR_NUM=$$(gh pr view --json number -q .number 2>/dev/null); \
+	if [ -z "$$PR_NUM" ]; then \
+		echo "Error: No active pull request found for this branch."; \
+		exit 1; \
+	fi; \
+	gemini -p "/resolve $$PR_NUM"
+
+unit-tests: deps
+	@echo "Running unit tests..."
+	@flutter test --no-pub || (flutter test --no-pub 2>&1 | gemini -p "Analyze the following unit test failures. Identify the root cause relative to the 3-tier Layered Architecture and suggest or apply fixes that maintain architectural integrity and Material 3 standards:")
+
+integration-tests: deps start-firebase-emulators
+	@echo "Running integration tests..."
+	@flutter test integration_test --no-pub || (flutter test integration_test --no-pub 2>&1 | gemini -p "Analyze the following integration test failures. Ensure the Firebase emulators are properly utilized and that the tests align with the 3-tier Layered Architecture and Material 3 design patterns. Suggest or apply fixes:")
+
+analyze-architecture: deps
+	@echo "Analyzing architecture and code quality..."
+	@flutter analyze --no-pub 2>&1 | gemini -p "Perform a deep architectural analysis of the codebase based on the provided lint issues and file structure. Focus on violations of the 3-tier Layered Architecture (lib/models, lib/interfaces, lib/repositories, lib/services, lib/views) and Material 3 design patterns. Provide a metadata report and fix the identified issues while ensuring generational consistency."
+
+# Original targets
 push: deps preflight
 	@CHANGED=$$(git --no-pager diff --name-only @{upstream}..HEAD); \
 	DI_PATTERN='^lib/(services|interfaces|repositories|di)/|^lib/(service_locator|injection)\.dart$$'; \

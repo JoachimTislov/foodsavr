@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +7,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
 void main() {
+  late MockFirebaseFirestore mockFirestore;
   late MockFirebaseAuth mockFirebaseAuth;
   late MockGoogleSignIn mockGoogleSignIn;
   late MockFacebookAuth mockFacebookAuth;
@@ -17,6 +19,7 @@ void main() {
   });
 
   setUp(() {
+    mockFirestore = MockFirebaseFirestore();
     mockFirebaseAuth = MockFirebaseAuth();
     mockGoogleSignIn = MockGoogleSignIn();
     mockFacebookAuth = MockFacebookAuth();
@@ -26,6 +29,7 @@ void main() {
       googleSignIn: mockGoogleSignIn,
       facebookAuth: mockFacebookAuth,
       supportsPersistence: true,
+      firestore: mockFirestore,
     );
   });
 
@@ -109,6 +113,26 @@ void main() {
       ).called(1);
     });
 
+    test('signUp links credentials when current user is anonymous', () async {
+      final mockUser = MockUser();
+      when(() => mockFirebaseAuth.currentUser).thenReturn(mockUser);
+      when(() => mockUser.isAnonymous).thenReturn(true);
+      when(
+        () => mockUser.linkWithCredential(any()),
+      ).thenAnswer((_) async => mockUserCredential);
+
+      final result = await authService.signUp(email: email, password: password);
+
+      expect(result, mockUserCredential);
+      verify(() => mockUser.linkWithCredential(any())).called(1);
+      verifyNever(
+        () => mockFirebaseAuth.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        ),
+      );
+    });
+
     test('sendPasswordResetEmail calls FirebaseAuth', () async {
       when(
         () => mockFirebaseAuth.sendPasswordResetEmail(email: email),
@@ -187,6 +211,17 @@ void main() {
 
       verify(() => mockFirebaseAuth.signOut()).called(1);
     });
+
+    test('signInAsGuest calls signInAnonymously', () async {
+      when(
+        () => mockFirebaseAuth.signInAnonymously(),
+      ).thenAnswer((_) async => mockUserCredential);
+
+      final result = await authService.signInAsGuest();
+
+      expect(result, mockUserCredential);
+      verify(() => mockFirebaseAuth.signInAnonymously()).called(1);
+    });
   });
 }
 
@@ -195,6 +230,8 @@ class FakeAuthCredential extends Fake implements AuthCredential {}
 class MockAccessToken extends Mock implements AccessToken {}
 
 class MockFacebookAuth extends Mock implements FacebookAuth {}
+
+class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
 
 class MockFirebaseAuth extends Mock implements FirebaseAuth {}
 
@@ -206,5 +243,7 @@ class MockGoogleSignInAuthentication extends Mock
     implements GoogleSignInAuthentication {}
 
 class MockLoginResult extends Mock implements LoginResult {}
+
+class MockUser extends Mock implements User {}
 
 class MockUserCredential extends Mock implements UserCredential {}
