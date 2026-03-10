@@ -140,15 +140,18 @@ void main() {
       expect(routes.length, greaterThanOrEqualTo(2));
     });
 
-    test('anonymous user can navigate to auth route to create account', () async {
-      authService.signInForTest('guest-1', anonymous: true);
-      await Future.delayed(const Duration(milliseconds: 50));
+    test(
+      'anonymous user can navigate to auth route to create account',
+      () async {
+        authService.signInForTest('guest-1', anonymous: true);
+        await Future.delayed(const Duration(milliseconds: 50));
 
-      router.go('/auth?mode=signup');
-      await Future.delayed(const Duration(milliseconds: 50));
+        router.go('/auth?mode=signup');
+        await Future.delayed(const Duration(milliseconds: 50));
 
-      expect(router.routeInformationProvider.value.uri.path, '/auth');
-    });
+        expect(router.routeInformationProvider.value.uri.path, '/auth');
+      },
+    );
 
     test('getUserId returns null when not logged in', () {
       expect(authService.getUserId(), isNull);

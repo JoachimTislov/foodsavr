@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
@@ -61,10 +62,18 @@ class AuthController extends ChangeNotifier {
 
   Future<void> _initializeDefaultCollections(String userId) async {
     try {
+      final existing = await _collectionService.getCollectionsForUser(userId);
+      if (existing.isNotEmpty) {
+        _logger.i(
+          'Collections already exist for user $userId, skipping initialization.',
+        );
+        return;
+      }
+
       await _collectionService.addCollection(
         Collection(
-          id: '${DateTime.now().microsecondsSinceEpoch}_inv',
-          name: 'My Inventory',
+          id: '',
+          name: _tr('dashboard.myInventory'),
           userId: userId,
           type: CollectionType.inventory,
           productIds: [],
@@ -72,8 +81,8 @@ class AuthController extends ChangeNotifier {
       );
       await _collectionService.addCollection(
         Collection(
-          id: '${DateTime.now().microsecondsSinceEpoch}_shop',
-          name: 'Shopping List',
+          id: '',
+          name: _tr('dashboard.shoppingList'),
           userId: userId,
           type: CollectionType.shoppingList,
           productIds: [],
@@ -98,20 +107,21 @@ class AuthController extends ChangeNotifier {
 
     _setLoading(true);
     try {
+      final UserCredential credential;
       if (_isLogin) {
-        await _authService.signIn(
+        credential = await _authService.signIn(
           email: email.trim(),
           password: password.trim(),
           rememberMe: _rememberMe,
         );
       } else {
-        final credential = await _authService.signUp(
+        credential = await _authService.signUp(
           email: email.trim(),
           password: password.trim(),
         );
-        if (credential.user != null) {
-          await _initializeDefaultCollections(credential.user!.uid);
-        }
+      }
+      if (credential.user != null) {
+        await _initializeDefaultCollections(credential.user!.uid);
       }
     } catch (e) {
       _logger.e('Auth error: $e');
@@ -125,9 +135,10 @@ class AuthController extends ChangeNotifier {
     if (_isLoading) return;
     _setLoading(true);
     try {
-      // Note: Google sign-in might be a new user, but we'd need to check if it's their first time
-      // to avoid creating duplicates. For simplicity, we only seed on explicit email sign up currently.
-      await _authService.signInWithGoogle();
+      final credential = await _authService.signInWithGoogle();
+      if (credential.user != null) {
+        await _initializeDefaultCollections(credential.user!.uid);
+      }
     } catch (e) {
       _logger.e('Google Sign-in error: $e');
       _errorMessage = AuthErrorHandler.getErrorMessage(e);
@@ -140,7 +151,10 @@ class AuthController extends ChangeNotifier {
     if (_isLoading) return;
     _setLoading(true);
     try {
-      await _authService.signInWithFacebook();
+      final credential = await _authService.signInWithFacebook();
+      if (credential.user != null) {
+        await _initializeDefaultCollections(credential.user!.uid);
+      }
     } catch (e) {
       _logger.e('Facebook Sign-in error: $e');
       _errorMessage = AuthErrorHandler.getErrorMessage(e);
@@ -153,7 +167,10 @@ class AuthController extends ChangeNotifier {
     if (_isLoading) return;
     _setLoading(true);
     try {
-      await _authService.signInAsGuest();
+      final credential = await _authService.signInAsGuest();
+      if (credential.user != null) {
+        await _initializeDefaultCollections(credential.user!.uid);
+      }
     } catch (e) {
       _logger.e('Guest sign-in error: $e');
       _errorMessage = AuthErrorHandler.getErrorMessage(e);

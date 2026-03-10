@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/services/auth_controller.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:logger/logger.dart';
@@ -12,18 +13,40 @@ class MockCollectionService extends Mock implements CollectionService {}
 
 class MockLogger extends Mock implements Logger {}
 
+class MockUser extends Mock implements User {}
+
 class MockUserCredential extends Mock implements UserCredential {}
 
+class FakeCollection extends Fake implements Collection {}
+
 void main() {
+  setUpAll(() {
+    registerFallbackValue(FakeCollection());
+  });
+
   late MockAuthService mockAuthService;
   late MockCollectionService mockCollectionService;
   late MockLogger mockLogger;
   late AuthController authController;
+  late MockUser mockUser;
+  late MockUserCredential mockUserCredential;
 
   setUp(() {
     mockAuthService = MockAuthService();
     mockCollectionService = MockCollectionService();
     mockLogger = MockLogger();
+    mockUser = MockUser();
+    mockUserCredential = MockUserCredential();
+
+    when(() => mockUser.uid).thenReturn('test-uid');
+    when(() => mockUserCredential.user).thenReturn(mockUser);
+    when(
+      () => mockCollectionService.getCollectionsForUser(any()),
+    ).thenAnswer((_) async => []);
+    when(
+      () => mockCollectionService.addCollection(any()),
+    ).thenAnswer((invocation) async => invocation.positionalArguments[0]);
+
     authController = AuthController(
       mockAuthService,
       mockCollectionService,
@@ -56,7 +79,7 @@ void main() {
           password: password,
           rememberMe: any(named: 'rememberMe'),
         ),
-      ).thenAnswer((_) async => MockUserCredential());
+      ).thenAnswer((_) async => mockUserCredential);
 
       await authController.authenticate(email: email, password: password);
 
@@ -67,6 +90,10 @@ void main() {
           rememberMe: false,
         ),
       ).called(1);
+      verify(
+        () => mockCollectionService.getCollectionsForUser('test-uid'),
+      ).called(1);
+      verify(() => mockCollectionService.addCollection(any())).called(2);
       expect(authController.isLoading, false);
     });
 
@@ -80,13 +107,17 @@ void main() {
 
         when(
           () => mockAuthService.signUp(email: email, password: password),
-        ).thenAnswer((_) async => MockUserCredential());
+        ).thenAnswer((_) async => mockUserCredential);
 
         await authController.authenticate(email: email, password: password);
 
         verify(
           () => mockAuthService.signUp(email: email, password: password),
         ).called(1);
+        verify(
+          () => mockCollectionService.getCollectionsForUser('test-uid'),
+        ).called(1);
+        verify(() => mockCollectionService.addCollection(any())).called(2);
       },
     );
 
@@ -114,11 +145,15 @@ void main() {
     test('signInAsGuest calls auth service guest sign-in', () async {
       when(
         () => mockAuthService.signInAsGuest(),
-      ).thenAnswer((_) async => MockUserCredential());
+      ).thenAnswer((_) async => mockUserCredential);
 
       await authController.signInAsGuest();
 
       verify(() => mockAuthService.signInAsGuest()).called(1);
+      verify(
+        () => mockCollectionService.getCollectionsForUser('test-uid'),
+      ).called(1);
+      verify(() => mockCollectionService.addCollection(any())).called(2);
       expect(authController.isLoading, false);
       expect(authController.errorMessage, null);
     });
