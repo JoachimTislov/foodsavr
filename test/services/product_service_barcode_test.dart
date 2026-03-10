@@ -45,6 +45,14 @@ class _FakeProductRepository implements IProductRepository {
       _products.where((product) => product.isGlobal).toList();
 
   @override
+  Future<List<Product>> getPersonalProducts(String userId) async => _products
+      .where(
+        (product) =>
+            product.userId == userId && product.registryType == 'personal',
+      )
+      .toList();
+
+  @override
   Future<List<Product>> getProducts(String userId) async =>
       _products.where((product) => product.userId == userId).toList();
 

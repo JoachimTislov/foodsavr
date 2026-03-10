@@ -111,6 +111,11 @@ class ExpiryEntry {
 }
 
 class Product {
+  /// Scope in the shared `products` collection.
+  /// - global: globally shared registry products
+  /// - personal: user-owned registry products (templates)
+  /// - current: concrete products used in inventories/shopping lists
+  final String registryType;
   final int id;
   final String name;
   final String description;
@@ -121,6 +126,7 @@ class Product {
   final String? imageUrl; // Optional image URL
   final String? barcode; // Optional product barcode
   final bool isGlobal; // True if product is in global catalog
+  final int? mappedFromProductId;
   final List<String> tags; // Labels and tags from APIs like OpenFoodFacts
 
   Product({
@@ -134,6 +140,8 @@ class Product {
     this.imageUrl,
     this.barcode,
     this.isGlobal = false,
+    this.registryType = 'current',
+    this.mappedFromProductId,
     this.tags = const [],
   });
 
@@ -177,6 +185,8 @@ class Product {
       'imageUrl': imageUrl,
       'barcode': barcode,
       'isGlobal': isGlobal,
+      'registryType': registryType,
+      'mappedFromProductId': mappedFromProductId,
       'tags': tags,
     };
   }
@@ -214,6 +224,10 @@ class Product {
       imageUrl: json['imageUrl'] as String?,
       barcode: json['barcode'] as String?,
       isGlobal: json['isGlobal'] as bool? ?? false,
+      registryType:
+          json['registryType'] as String? ??
+          ((json['isGlobal'] as bool? ?? false) ? 'global' : 'current'),
+      mappedFromProductId: json['mappedFromProductId'] as int?,
       tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? const [],
     );
   }

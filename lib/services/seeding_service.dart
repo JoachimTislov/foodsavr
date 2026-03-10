@@ -103,6 +103,7 @@ class SeedingService {
         expiries: [],
         category: data['category'] as String?,
         isGlobal: true,
+        registryType: 'global',
       );
       await _productRepository.add(product);
     }
