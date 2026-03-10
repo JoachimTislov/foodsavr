@@ -1,7 +1,7 @@
 {
   "auth": {
     "terms": {
-      "register_failure": "Registrering feilet. Du må godta vilkårene for bruk.",
+      "required": "Du må godta vilkårene for bruk og personvernerklæringen.",
       "prefix": "Jeg godtar "
     },
     "reset": {

@@ -132,7 +132,7 @@ void main() {
           password: 'password',
         );
 
-        expect(authController.errorMessage, 'auth.terms.register_failure');
+        expect(authController.errorMessage, 'auth.terms.required');
         verifyNever(
           () => mockAuthService.signUp(
             email: any(named: 'email'),
