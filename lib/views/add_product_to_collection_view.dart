@@ -80,8 +80,8 @@ class _AddProductSheetState extends State<_AddProductSheet> {
       _productService.getPersonalProducts(userId),
       _productService.getAllProducts(),
     ]);
-    final personalProducts = results[0] as List<Product>;
-    final globalProducts = results[1] as List<Product>;
+    final personalProducts = results[0];
+    final globalProducts = results[1];
     return [...personalProducts, ...globalProducts];
   }
 
@@ -126,7 +126,8 @@ class _AddProductSheetState extends State<_AddProductSheet> {
   }
 
   int _generateProductId() {
-    return (DateTime.now().microsecondsSinceEpoch * 1000) + _random.nextInt(1000);
+    return (DateTime.now().microsecondsSinceEpoch * 1000) +
+        _random.nextInt(1000);
   }
 
   @override

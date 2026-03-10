@@ -70,6 +70,8 @@ class _FakeProductRepository implements IProductRepository {
   @override
   Future<List<Product>> getProducts(String userId) async => [];
   @override
+  Future<List<Product>> getPersonalProducts(String userId) async => [];
+  @override
   Future<List<Product>> getGlobalProducts() async => [];
 }
 

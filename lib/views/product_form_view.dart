@@ -182,7 +182,8 @@ class _ProductFormContentState extends State<_ProductFormContent> {
   }
 
   int _generateProductId() {
-    return (DateTime.now().microsecondsSinceEpoch * 1000) + _random.nextInt(1000);
+    return (DateTime.now().microsecondsSinceEpoch * 1000) +
+        _random.nextInt(1000);
   }
 
   @override
