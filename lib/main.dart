@@ -90,6 +90,7 @@ void main() async {
   const nbLocale = Locale('nb');
   await EasyLocalization.ensureInitialized();
 
+  getIt.registerSingleton<SharedPreferences>(prefs);
   getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
   if (!getIt.isRegistered<BarcodeScannerService>()) {
     getIt.registerLazySingleton<BarcodeScannerService>(
