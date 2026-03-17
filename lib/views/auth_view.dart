@@ -6,7 +6,6 @@ import 'package:watch_it/watch_it.dart';
 
 import '../constants/privacy_notice.dart';
 import '../constants/terms_of_service.dart';
-import '../service_locator.dart';
 import '../services/auth_controller.dart';
 import '../utils/config.dart';
 import '../widgets/auth/auth_form_fields.dart';
@@ -17,64 +16,127 @@ import '../widgets/auth/auth_toggle_button.dart';
 import '../widgets/auth/social_auth_section.dart';
 import '../widgets/auth/terms_and_privacy_checkbox.dart';
 
-class AuthView extends StatefulWidget {
+class AuthView extends WatchingWidget {
   const AuthView({super.key, this.isLogin = true});
 
   final bool isLogin;
 
   @override
-  State<AuthView> createState() => _AuthViewState();
-}
+  Widget build(BuildContext context) {
+    final emailController = createOnce(() => TextEditingController());
+    final passwordController = createOnce(() => TextEditingController());
+    final formKey = createOnce(() => GlobalKey<FormState>());
+    final privacyRecognizer = createOnce(() => TapGestureRecognizer());
+    final termsRecognizer = createOnce(() => TapGestureRecognizer());
+    final controller = watchIt<AuthController>();
 
-class _AuthViewState extends State<AuthView> with WatchItStatefulWidgetMixin {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
-  final _privacyRecognizer = TapGestureRecognizer();
-  final _termsRecognizer = TapGestureRecognizer();
-  late final AuthController _controller;
+    // Initial setup (initState equivalent)
+    callOnce((context) {
+      controller.isLogin = isLogin;
+      privacyRecognizer.onTap = () => _showPrivacyNotice(context);
+      termsRecognizer.onTap = () => _showTermsOfService(context);
 
-  @override
-  void initState() {
-    super.initState();
-    _controller = getIt<AuthController>();
-    _controller.isLogin = widget.isLogin;
-    _privacyRecognizer.onTap = _showPrivacyNotice;
-    _termsRecognizer.onTap = _showTermsOfService;
+      if (Config.isDevelopment) {
+        emailController.text = Config.testUserEmail;
+        passwordController.text = Config.testUserPassword;
+      }
+    });
 
-    if (Config.isDevelopment) {
-      _emailController.text = Config.testUserEmail;
-      _passwordController.text = Config.testUserPassword;
-    }
+    return Scaffold(
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AuthHeader(isLogin: controller.isLogin),
+                AuthStatusMessages(
+                  errorMessage: controller.errorMessage,
+                  successMessage: controller.successMessage,
+                ),
+                AbsorbPointer(
+                  absorbing: controller.isLoading,
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      children: [
+                        AuthFormFields(
+                          emailController: emailController,
+                          passwordController: passwordController,
+                        ),
+                        const SizedBox(height: 16.0),
+                        if (controller.isLogin)
+                          _buildLoginOptions(controller, emailController)
+                        else
+                          TermsAndPrivacyCheckbox(
+                            value: controller.agreedToTerms,
+                            onChanged: (val) =>
+                                controller.agreedToTerms = val ?? false,
+                            privacyRecognizer: privacyRecognizer,
+                            termsRecognizer: termsRecognizer,
+                          ),
+                        const SizedBox(height: 24.0),
+                        AuthSubmitButton(
+                          isLogin: controller.isLogin,
+                          isLoading: controller.isLoading,
+                          onPressed: controller.isLoading
+                              ? null
+                              : () => _authenticate(
+                                    controller,
+                                    formKey,
+                                    emailController,
+                                    passwordController,
+                                  ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24.0),
+                SocialAuthSection(
+                  isLoading: controller.isLoading,
+                  onGooglePressed: () => controller.signInWithGoogle(),
+                  onFacebookPressed: () => controller.signInWithFacebook(),
+                ),
+                const SizedBox(height: 24.0),
+                AuthToggleButton(
+                  isLogin: controller.isLogin,
+                  onPressed: controller.isLoading
+                      ? null
+                      : () {
+                          controller.isLogin = !controller.isLogin;
+                          emailController.clear();
+                          passwordController.clear();
+                          final mode = controller.isLogin ? 'login' : 'signup';
+                          context.go('/auth?mode=$mode');
+                        },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    _privacyRecognizer.dispose();
-    _termsRecognizer.dispose();
-    super.dispose();
-  }
-
-  void _authenticate() async {
-    if (_formKey.currentState?.validate() == true) {
-      await _controller.authenticate(
-        email: _emailController.text,
-        password: _passwordController.text,
+  void _authenticate(
+    AuthController controller,
+    GlobalKey<FormState> formKey,
+    TextEditingController emailController,
+    TextEditingController passwordController,
+  ) async {
+    if (formKey.currentState?.validate() == true) {
+      await controller.authenticate(
+        email: emailController.text,
+        password: passwordController.text,
       );
     }
   }
 
-  void _signInWithGoogle() async {
-    await _controller.signInWithGoogle();
-  }
-
-  void _signInWithFacebook() async {
-    await _controller.signInWithFacebook();
-  }
-
-  void _showPrivacyNotice() {
+  void _showPrivacyNotice(BuildContext context) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -92,7 +154,7 @@ class _AuthViewState extends State<AuthView> with WatchItStatefulWidgetMixin {
     );
   }
 
-  void _showTermsOfService() {
+  void _showTermsOfService(BuildContext context) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -110,101 +172,24 @@ class _AuthViewState extends State<AuthView> with WatchItStatefulWidgetMixin {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    watch(_controller);
-    return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AuthHeader(isLogin: _controller.isLogin),
-                AuthStatusMessages(
-                  errorMessage: _controller.errorMessage,
-                  successMessage: _controller.successMessage,
-                ),
-                AbsorbPointer(
-                  absorbing: _controller.isLoading,
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      children: [
-                        AuthFormFields(
-                          emailController: _emailController,
-                          passwordController: _passwordController,
-                        ),
-                        const SizedBox(height: 16.0),
-                        if (_controller.isLogin)
-                          _buildLoginOptions()
-                        else
-                          TermsAndPrivacyCheckbox(
-                            value: _controller.agreedToTerms,
-                            onChanged: (val) =>
-                                _controller.agreedToTerms = val ?? false,
-                            privacyRecognizer: _privacyRecognizer,
-                            termsRecognizer: _termsRecognizer,
-                          ),
-                        const SizedBox(height: 24.0),
-                        AuthSubmitButton(
-                          isLogin: _controller.isLogin,
-                          isLoading: _controller.isLoading,
-                          onPressed: _controller.isLoading
-                              ? null
-                              : _authenticate,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24.0),
-                SocialAuthSection(
-                  isLoading: _controller.isLoading,
-                  onGooglePressed: _signInWithGoogle,
-                  onFacebookPressed: _signInWithFacebook,
-                ),
-                const SizedBox(height: 24.0),
-                AuthToggleButton(
-                  isLogin: _controller.isLogin,
-                  onPressed: _controller.isLoading
-                      ? null
-                      : () {
-                          _controller.isLogin = !_controller.isLogin;
-                          _emailController.clear();
-                          _passwordController.clear();
-                          final mode = _controller.isLogin
-                              ? 'login'
-                              : 'signup';
-                          context.go('/auth?mode=$mode');
-                        },
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLoginOptions() {
+  Widget _buildLoginOptions(
+    AuthController controller,
+    TextEditingController emailController,
+  ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Row(
           children: [
             Checkbox(
-              value: _controller.rememberMe,
-              onChanged: (val) => _controller.rememberMe = val ?? false,
+              value: controller.rememberMe,
+              onChanged: (val) => controller.rememberMe = val ?? false,
             ),
             Text('auth.form.remember_me'.tr()),
           ],
         ),
         TextButton(
-          onPressed: () => _controller.forgotPassword(_emailController.text),
+          onPressed: () => controller.forgotPassword(emailController.text),
           child: Text('auth.form.forgot_password'.tr()),
         ),
       ],

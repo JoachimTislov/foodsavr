@@ -31,17 +31,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final passwordFieldBefore = tester.widgetList<TextFormField>(
-      find.byType(TextFormField),
-    ).last;
+    final passwordFieldFinder = find.byType(EditableText).last;
+    final passwordFieldBefore = tester.widget<EditableText>(passwordFieldFinder);
     expect(passwordFieldBefore.obscureText, isTrue);
 
     await tester.tap(find.byIcon(Icons.visibility_off));
     await tester.pump();
 
-    final passwordFieldAfter = tester.widgetList<TextFormField>(
-      find.byType(TextFormField),
-    ).last;
+    final passwordFieldAfter = tester.widget<EditableText>(passwordFieldFinder);
     expect(passwordFieldAfter.obscureText, isFalse);
 
     emailController.dispose();

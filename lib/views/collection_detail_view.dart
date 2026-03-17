@@ -2,23 +2,22 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
 
+import '../interfaces/i_auth_service.dart';
 import '../models/collection_model.dart';
 import '../models/product_model.dart';
+import '../service_locator.dart';
+import '../services/collection_service.dart';
+import '../services/product_service.dart';
 import '../utils/collection_types.dart';
 import '../utils/product_add_helper.dart';
-import '../service_locator.dart';
-import '../services/product_service.dart';
-import '../services/collection_service.dart';
-import '../interfaces/i_auth_service.dart';
 import '../widgets/collection/collection_header.dart';
-import '../widgets/common/empty_state_widget.dart';
-import 'add_product_to_collection_view.dart';
 import '../widgets/common/error_state_widget.dart';
 import '../widgets/product/product_card_normal.dart';
-import 'product_detail_view.dart';
+import 'add_product_to_collection_view.dart';
 import 'collection_form_view.dart';
+import 'product_detail_view.dart';
 
-class CollectionDetailView extends StatefulWidget {
+class CollectionDetailView extends StatefulWidget with WatchItStatefulWidgetMixin {
   final Collection collection;
 
   const CollectionDetailView({super.key, required this.collection});
@@ -28,12 +27,12 @@ class CollectionDetailView extends StatefulWidget {
 }
 
 class _CollectionDetailViewState extends State<CollectionDetailView>
-    with WatchItStatefulWidgetMixin {
+    with WatchItMixin {
   late final ValueNotifier<Future<List<Product>>> _productsFuture;
   late final ProductService _productService;
   late final CollectionService _collectionService;
   late final IAuthService _authService;
-  late Collection _currentCollection;
+  late final ValueNotifier<Collection> _currentCollection;
 
   @override
   void initState() {
@@ -41,13 +40,14 @@ class _CollectionDetailViewState extends State<CollectionDetailView>
     _productService = getIt<ProductService>();
     _collectionService = getIt<CollectionService>();
     _authService = getIt<IAuthService>();
-    _currentCollection = widget.collection;
+    _currentCollection = ValueNotifier<Collection>(widget.collection);
     _productsFuture = ValueNotifier<Future<List<Product>>>(_fetchProducts());
   }
 
   @override
   void dispose() {
     _productsFuture.dispose();
+    _currentCollection.dispose();
     super.dispose();
   }
 
@@ -57,24 +57,23 @@ class _CollectionDetailViewState extends State<CollectionDetailView>
 
   Future<void> _refreshCollection() async {
     final updated = await _collectionService.getCollection(
-      _currentCollection.id,
+      _currentCollection.value.id,
     );
     if (updated != null && mounted) {
-      setState(() {
-        _currentCollection = updated;
-      });
+      _currentCollection.value = updated;
       _refreshProducts();
     }
   }
 
   Future<void> _deleteCollection() async {
+    final currentCollection = _currentCollection.value;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('common.delete'.tr()),
         content: Text(
           'product.deleteConfirmMessage'.tr(
-            namedArgs: {'name': _currentCollection.name},
+            namedArgs: {'name': currentCollection.name},
           ),
         ),
         actions: [
@@ -96,7 +95,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView>
 
     if (confirmed == true && mounted) {
       try {
-        await _collectionService.deleteCollection(_currentCollection.id);
+        await _collectionService.deleteCollection(currentCollection.id);
         if (mounted) {
           Navigator.of(context).pop(true);
         }
@@ -113,6 +112,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView>
   @override
   Widget build(BuildContext context) {
     final productsFuture = watch(_productsFuture).value;
+    final currentCollection = watch(_currentCollection).value;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -125,8 +125,8 @@ class _CollectionDetailViewState extends State<CollectionDetailView>
               if (value == 'edit') {
                 final result = await CollectionFormView.show(
                   context,
-                  type: _currentCollection.type,
-                  collection: _currentCollection,
+                  type: currentCollection.type,
+                  collection: currentCollection,
                 );
                 if (result == true) {
                   _refreshCollection();
@@ -176,25 +176,25 @@ class _CollectionDetailViewState extends State<CollectionDetailView>
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CollectionHeader(collection: _currentCollection),
+          CollectionHeader(collection: currentCollection),
           Expanded(
             child: _buildProductsList(productsFuture),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        heroTag: 'collection_detail_fab_${_currentCollection.id}',
+        heroTag: 'collection_detail_fab_${currentCollection.id}',
         onPressed: () async {
           bool? result;
-          if (_currentCollection.type == CollectionType.shoppingList) {
+          if (currentCollection.type == CollectionType.shoppingList) {
             result = await AddProductToCollectionView.show(
               context,
-              _currentCollection.id,
+              currentCollection.id,
             );
           } else {
             result = await ProductAddHelper.startAddProductFlow(
               context,
-              collectionId: _currentCollection.id,
+              collectionId: currentCollection.id,
             );
           }
           if (!mounted) return;
@@ -213,38 +213,43 @@ class _CollectionDetailViewState extends State<CollectionDetailView>
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
-        } else if (snapshot.hasError) {
-          return ErrorStateWidget(
-            message: 'collection.errorLoadingProducts'.tr(),
-          );
-        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return EmptyStateWidget(
-            icon: Icons.inventory_2_outlined,
-            title: 'collection.noProducts'.tr(),
-          );
-        } else {
-          return _buildProductList(snapshot.data!);
         }
-      },
-    );
-  }
 
-  Widget _buildProductList(List<Product> products) {
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 80),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        final product = products[index];
-        return ProductCardNormal(
-          product: product,
-          onTap: () => _navigateToProductDetail(product),
+        if (snapshot.hasError) {
+          return ErrorStateWidget(
+            message: 'common.error_loading_data'.tr(),
+            onRetry: _refreshProducts,
+          );
+        }
+
+        final products = snapshot.data ?? [];
+
+        if (products.isEmpty) {
+          return Center(
+            child: Text(
+              'product.noProductsFound'.tr(),
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: products.length,
+          itemBuilder: (context, index) {
+            final product = products[index];
+            return ProductCardNormal(
+              product: product,
+              onTap: () => _navigateToProductDetail(product),
+            );
+          },
         );
       },
     );
   }
 
   Future<List<Product>> _fetchProducts() async {
-    final productIds = _currentCollection.productIds;
+    final productIds = _currentCollection.value.productIds;
     if (productIds.isEmpty) return [];
     final products = <Product>[];
     for (final id in productIds) {

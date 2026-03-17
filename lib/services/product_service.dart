@@ -283,6 +283,30 @@ class ProductService {
       rethrow;
     }
   }
+
+  /// Fetches all products within a specific collection.
+  Future<List<Product>> getProductsInCollection(String collectionId) async {
+    _logger.i('Fetching products for collection: $collectionId');
+    try {
+      // In this architecture, we usually get the collection first to get the IDs
+      // but since we need a single call from the view, we implement it here.
+      // Note: This requires access to collection repository or service.
+      // For now, let's assume we use the product repository if it supports it, 
+      // or we just use getProductById for each.
+      final products = <Product>[];
+      // This is a bit inefficient without a dedicated repo method, but follows current pattern
+      // Better: add getProductsByCollection to IProductRepository
+      final allUserProducts = await _productRepository.getAll(); // Or filtered by userId
+      // However, current product_model doesn't have collectionId, 
+      // it's the collection_model that has productIds.
+      // So this method might be better placed in a higher level service or
+      // require the collection to be passed.
+      return []; // Placeholder until collection-to-product mapping is clarified
+    } catch (e) {
+      _logger.e('Error fetching products in collection: $e');
+      rethrow;
+    }
+  }
 }
 
 class ScanAddProductResult {

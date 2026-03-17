@@ -6,6 +6,8 @@ class ProductCategory {
   final String name;
   final IconData icon;
 
+  static const String general = 'Pantry';
+
   const ProductCategory({required this.name, required this.icon});
 
   static const List<ProductCategory> all = [

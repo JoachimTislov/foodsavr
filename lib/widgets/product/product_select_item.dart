@@ -6,12 +6,14 @@ import '../../models/product_model.dart';
 class ProductSelectItem extends StatelessWidget {
   final Product product;
   final bool isSelected;
+  final bool isActive;
   final VoidCallback onToggle;
 
   const ProductSelectItem({
     super.key,
     required this.product,
     required this.isSelected,
+    this.isActive = true,
     required this.onToggle,
   });
 
@@ -21,74 +23,77 @@ class ProductSelectItem extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final statusColor = product.status.getColor(colorScheme);
 
-    return InkWell(
-      onTap: onToggle,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? colorScheme.primary.withValues(alpha: 0.5)
-                : Colors.transparent,
+    return Opacity(
+      opacity: isActive ? 1.0 : 0.5,
+      child: InkWell(
+        onTap: isActive ? onToggle : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected
+                  ? colorScheme.primary.withValues(alpha: 0.5)
+                  : Colors.transparent,
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              height: 24,
-              width: 24,
-              child: Checkbox(
-                value: isSelected,
-                onChanged: (_) => onToggle(),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(4),
+          child: Row(
+            children: [
+              SizedBox(
+                height: 24,
+                width: 24,
+                child: Checkbox(
+                  value: isSelected,
+                  onChanged: isActive ? (_) => onToggle() : null,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.name,
-                    style: textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product.name,
+                      style: textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: statusColor,
-                          shape: BoxShape.circle,
+                    Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: statusColor,
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '${'product.status'.tr()}: ',
-                        style: textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                        const SizedBox(width: 8),
+                        Text(
+                          '${'product.status'.tr()}: ',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
-                      ),
-                      Text(
-                        product.status.getMessage(),
-                        style: textTheme.bodySmall?.copyWith(
-                          color: statusColor,
-                          fontWeight: FontWeight.bold,
+                        Text(
+                          product.status.getMessage(),
+                          style: textTheme.bodySmall?.copyWith(
+                            color: statusColor,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -13,23 +13,14 @@ class CollectionFormView extends StatelessWidget {
 
   const CollectionFormView({super.key, required this.type, this.collection});
 
-  /// Shows the collection form as a modal bottom sheet.
-  /// Returns `true` if a collection was saved.
-  static Future<bool?> show(
-    BuildContext context, {
-    required CollectionType type,
-    Collection? collection,
-  }) {
-    return showDialog<bool>(
+  static Future<bool?> show(BuildContext context,
+      {required CollectionType type, Collection? collection}) {
+    return showModalBottomSheet<bool>(
       context: context,
-      barrierDismissible: true,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
-          child: _CollectionFormSheet(type: type, collection: collection),
-        ),
-      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) =>
+          _CollectionFormSheet(type: type, collection: collection),
     );
   }
 
@@ -39,7 +30,7 @@ class CollectionFormView extends StatelessWidget {
   }
 }
 
-class _CollectionFormSheet extends StatefulWidget {
+class _CollectionFormSheet extends StatefulWidget with WatchItStatefulWidgetMixin {
   final CollectionType type;
   final Collection? collection;
 
@@ -49,14 +40,12 @@ class _CollectionFormSheet extends StatefulWidget {
   State<_CollectionFormSheet> createState() => _CollectionFormSheetState();
 }
 
-class _CollectionFormSheetState extends State<_CollectionFormSheet>
-    with WatchItStatefulWidgetMixin {
+class _CollectionFormSheetState extends State<_CollectionFormSheet> with WatchItMixin {
   final _formKey = GlobalKey<FormState>();
   late final CollectionService _collectionService;
   late final IAuthService _authService;
 
   late TextEditingController _nameController;
-
   final _isSaving = ValueNotifier<bool>(false);
 
   @override
@@ -64,10 +53,8 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet>
     super.initState();
     _collectionService = getIt<CollectionService>();
     _authService = getIt<IAuthService>();
-
-    _nameController = TextEditingController(
-      text: widget.collection?.name ?? '',
-    );
+    _nameController =
+        TextEditingController(text: widget.collection?.name ?? '');
   }
 
   @override
@@ -79,13 +66,11 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet>
 
   String _title() {
     if (widget.collection != null) {
-      return widget.type == CollectionType.inventory
-          ? 'collection.edit_inventory'.tr()
-          : 'collection.edit_shopping_list'.tr();
+      return 'collection.editTitle'.tr();
     }
     return widget.type == CollectionType.inventory
-        ? 'collection.add_inventory'.tr()
-        : 'collection.add_shopping_list'.tr();
+        ? 'collection.createInventoryTitle'.tr()
+        : 'collection.createShoppingListTitle'.tr();
   }
 
   Future<void> _save() async {
@@ -95,77 +80,82 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet>
     if (userId == null) return;
 
     _isSaving.value = true;
-
     try {
-      final collection = Collection(
-        id: widget.collection?.id ?? '',
-        name: _nameController.text,
-        description: null,
-        userId: userId,
-        type: widget.type,
-        productIds: widget.collection?.productIds ?? [],
-      );
-
-      if (widget.collection == null) {
-        await _collectionService.addCollection(collection);
+      if (widget.collection != null) {
+        final updated = widget.collection!.copyWith(
+          name: _nameController.text,
+        );
+        await _collectionService.updateCollection(updated);
       } else {
-        await _collectionService.updateCollection(collection);
+        final collection = Collection(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: _nameController.text,
+          userId: userId,
+          type: widget.type,
+          productIds: [],
+        );
+        await _collectionService.addCollection(collection);
       }
-
-      if (mounted) {
-        Navigator.of(context).pop(true);
-      }
+      if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('common.error_loading_data'.tr())),
+        );
       }
     } finally {
-      if (mounted) {
-        _isSaving.value = false;
-      }
+      if (mounted) _isSaving.value = false;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final isSaving = watch(_isSaving).value;
-    final textTheme = Theme.of(context).textTheme;
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Form(
-        key: _formKey,
+    return Container(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
               _title(),
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            Form(
+              key: _formKey,
+              child: TextFormField(
+                controller: _nameController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'common.name'.tr(),
+                  border: const OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'common.required'.tr();
+                  }
+                  return null;
+                },
               ),
             ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _nameController,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: 'common.name'.tr(),
-                border: const OutlineInputBorder(),
-              ),
-              validator: (value) => value == null || value.isEmpty
-                  ? 'common.name_required'.tr()
-                  : null,
-            ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             FilledButton(
               onPressed: isSaving ? null : _save,
               child: isSaving
                   ? const SizedBox(
-                      width: 20,
                       height: 20,
+                      width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : Text(

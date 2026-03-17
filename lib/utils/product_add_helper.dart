@@ -22,7 +22,7 @@ class ProductAddHelper {
     }
 
     if (scannedBarcode == 'MANUAL_ENTRY') {
-      return await ProductFormView.show(context, collectionId: collectionId);
+      return await ProductFormView.show(context, initialCollectionId: collectionId);
     }
 
     final authService = getIt<IAuthService>();
@@ -59,7 +59,7 @@ class ProductAddHelper {
         return await ProductFormView.show(
           context,
           product: result.product,
-          collectionId: collectionId,
+          initialCollectionId: collectionId,
         );
       } else {
         if (collectionId != null) {

@@ -6,15 +6,14 @@ import '../service_locator.dart';
 import '../services/auth_controller.dart';
 import '../widgets/auth/social_auth_section.dart';
 
-class LandingPageView extends StatefulWidget {
+class LandingPageView extends StatefulWidget with WatchItStatefulWidgetMixin {
   const LandingPageView({super.key});
 
   @override
   State<LandingPageView> createState() => _LandingPageViewState();
 }
 
-class _LandingPageViewState extends State<LandingPageView>
-    with WatchItStatefulWidgetMixin {
+class _LandingPageViewState extends State<LandingPageView> with WatchItMixin {
   late final AuthController _controller;
 
   @override
@@ -28,149 +27,120 @@ class _LandingPageViewState extends State<LandingPageView>
     watch(_controller);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final textTheme = theme.textTheme;
 
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              colorScheme.primaryContainer.withValues(alpha: 0.3),
+              colorScheme.surface,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
             padding: const EdgeInsets.all(24.0),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                      // Header Section
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: colorScheme.primary.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Icon(
-                          Icons.inventory_2_outlined,
-                          color: colorScheme.primary,
-                          size: 40,
-                        ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Spacer(),
+                // App Logo/Icon
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: colorScheme.primary.withValues(alpha: 0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
                       ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'auth.landing.title'.tr(),
-                        style: textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: colorScheme.onSurface,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'auth.landing.subtitle'.tr(),
-                        style: textTheme.titleMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 48),
-
-                      // Social Login Stack
-                      SocialAuthSection(
-                        isLoading: _controller.isLoading,
-                        onGooglePressed: _controller.signInWithGoogle,
-                        onFacebookPressed: _controller.signInWithFacebook,
-                        showTopDivider: false,
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // Divider Section (Manual for Landing Page)
-                      // No need to repeat the divider if SocialAuthSection already has one,
-                      // but LandingPageView original had its own layout.
-                      // Actually SocialAuthSection includes the divider at the TOP.
-                      // Let's see how it looks.
-                      const SizedBox(height: 24),
-
-                      // Email Button (Primary)
-                      ElevatedButton(
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.restaurant_menu,
+                    size: 64,
+                    color: colorScheme.onPrimary,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                // App Name
+                Text(
+                  'FoodSavr',
+                  style: theme.textTheme.displayMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Tagline
+                Text(
+                  'landing.tagline'.tr(),
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const Spacer(),
+                // Auth Actions
+                SocialAuthSection(
+                  isLoading: _controller.isLoading,
+                  onGooglePressed: () => _controller.signInWithGoogle(),
+                  onFacebookPressed: () => _controller.signInWithFacebook(),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
                         onPressed: _controller.isLoading
                             ? null
-                            : () {
-                                context.go(
-                                  Uri(
-                                    path: '/auth',
-                                    queryParameters: {'mode': 'login'},
-                                  ).toString(),
-                                );
-                              },
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.mail_outline),
-                            const SizedBox(width: 8),
-                            Text(
-                              'auth.social.continue_email'.tr(),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+                            : () => context.go('/auth?mode=login'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
+                        child: Text('auth.login.title'.tr()),
                       ),
-
-                      const SizedBox(height: 12),
-
-                      OutlinedButton(
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: FilledButton(
                         onPressed: _controller.isLoading
                             ? null
-                            : _controller.signInAsGuest,
-                        child: Text('auth.social.continue_guest'.tr()),
-                      ),
-
-                      const SizedBox(height: 32),
-
-                      // Footer
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              'auth.toggle.no_account'.tr(),
-                              style: TextStyle(
-                                color: colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
+                            : () => context.go('/auth?mode=signup'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          Flexible(
-                            child: TextButton(
-                              onPressed: _controller.isLoading
-                                  ? null
-                                  : () {
-                                      context.go(
-                                        Uri(
-                                          path: '/auth',
-                                          queryParameters: {'mode': 'signup'},
-                                        ).toString(),
-                                      );
-                                    },
-                              child: Text(
-                                'auth.toggle.sign_up'.tr(),
-                                style: TextStyle(
-                                  color: colorScheme.primary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
+                        child: Text('auth.signup.title'.tr()),
                       ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: _controller.isLoading
+                      ? null
+                      : () => _controller.signInAsGuest(),
+                  child: Text(
+                    'landing.continue_as_guest'.tr(),
+                    style: TextStyle(
+                      color: colorScheme.secondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
             ),
           ),
         ),

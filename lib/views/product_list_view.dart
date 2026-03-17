@@ -2,20 +2,19 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
 
+import '../interfaces/i_auth_service.dart';
 import '../models/product_model.dart';
 import '../service_locator.dart';
-import '../services/product_service.dart';
 import '../services/collection_service.dart';
-import '../interfaces/i_auth_service.dart';
-import '../widgets/product/product_card_compact.dart';
-import 'product_form_view.dart';
-import '../widgets/product/product_card_normal.dart';
-import '../widgets/product/product_card_details.dart';
-import '../utils/product_add_helper.dart';
+import '../services/product_service.dart';
 import '../utils/view_mode_helper.dart';
+import '../widgets/product/product_card_details.dart';
+import '../widgets/product/product_card_normal.dart';
+import '../widgets/product/product_card_compact.dart';
+import '../utils/product_add_helper.dart';
 import 'product_detail_view.dart';
 
-class ProductListView extends StatefulWidget {
+class ProductListView extends StatefulWidget with WatchItStatefulWidgetMixin {
   final bool showGlobalProducts;
 
   const ProductListView({super.key, this.showGlobalProducts = false});
@@ -24,8 +23,7 @@ class ProductListView extends StatefulWidget {
   State<ProductListView> createState() => _ProductListViewState();
 }
 
-class _ProductListViewState extends State<ProductListView>
-    with WatchItStatefulWidgetMixin {
+class _ProductListViewState extends State<ProductListView> with WatchItMixin {
   late final ValueNotifier<Future<List<Product>>> _productsFuture;
   late final ProductService _productService;
   late final CollectionService _collectionService;
@@ -52,51 +50,35 @@ class _ProductListViewState extends State<ProductListView>
     super.dispose();
   }
 
-  Future<List<Product>> _fetchProducts() async {
-    List<Product> products;
-    if (widget.showGlobalProducts) {
-      products = await _productService.getAllProducts();
-    } else {
-      final userId = _authService.getUserId();
-      if (userId == null) return [];
-      products = await _productService.getProducts(userId);
-    }
-
-    if (!widget.showGlobalProducts) {
-      try {
-        await _loadInventoryNames(products);
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'product.inventoryLoadError'.tr(namedArgs: {'error': '$e'}),
-              ),
-            ),
-          );
-        }
-      }
-    }
-
-    return products;
+  void _refreshProducts() {
+    _productsFuture.value = _fetchProducts();
   }
 
-  Future<void> _loadInventoryNames(List<Product> products) async {
-    final userId = _authService.getUserId();
-    if (userId == null) {
-      if (mounted) _productInventories.value = {};
-      return;
+  Future<List<Product>> _fetchProducts() async {
+    if (widget.showGlobalProducts) {
+      return _productService.getAllProducts();
     }
+    final userId = _authService.getUserId();
+    if (userId == null) return [];
+    final products = await _productService.getPersonalProducts(userId);
 
-    final productIds = products.map((p) => p.id).toSet();
-    final inventoryMap = await _collectionService.getInventoryNamesForProducts(
-      userId,
-      productIds,
-    );
-
+    // Fetch collections to show which inventories products are in
+    final collections = await _collectionService.getCollectionsForUser(userId);
+    final inventoryMap = <int, List<String>>{};
+    for (final product in products) {
+      final names = collections
+          .where((c) => c.productIds.contains(product.id))
+          .map((c) => c.name)
+          .toList();
+      if (names.isNotEmpty) {
+        inventoryMap[product.id] = names;
+      }
+    }
     if (mounted) {
       _productInventories.value = inventoryMap;
     }
+
+    return products;
   }
 
   @override
@@ -104,289 +86,111 @@ class _ProductListViewState extends State<ProductListView>
     final productsFuture = watch(_productsFuture).value;
     final viewMode = watch(_viewMode).value;
     final isSigningOut = watch(_isSigningOut).value;
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final productInventories = watch(_productInventories).value;
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: colorScheme.surface,
-        elevation: 0,
+        title: Text(
+          widget.showGlobalProducts
+              ? 'product.globalTitle'.tr()
+              : 'product.personalTitle'.tr(),
+        ),
         actions: [
-          // View mode toggle
-          PopupMenuButton<ProductViewMode>(
-            icon: Icon(
-              ViewModeHelper.getViewModeIcon(viewMode),
-              color: colorScheme.primary,
-            ),
-            onSelected: (mode) {
-              _viewMode.value = mode;
+          IconButton(
+            icon: Icon(ViewModeHelper.getViewModeIcon(viewMode)),
+            onPressed: () {
+              final nextMode = switch (viewMode) {
+                ProductViewMode.normal => ProductViewMode.compact,
+                ProductViewMode.compact => ProductViewMode.details,
+                ProductViewMode.details => ProductViewMode.normal,
+              };
+              _viewMode.value = nextMode;
             },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: ProductViewMode.compact,
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.view_headline,
-                      color: viewMode == ProductViewMode.compact
-                          ? colorScheme.primary
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'product.compact'.tr(),
-                      style: TextStyle(
-                        fontWeight: viewMode == ProductViewMode.compact
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: ProductViewMode.normal,
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.view_agenda,
-                      color: viewMode == ProductViewMode.normal
-                          ? colorScheme.primary
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'product.normal'.tr(),
-                      style: TextStyle(
-                        fontWeight: viewMode == ProductViewMode.normal
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: ProductViewMode.details,
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.view_day,
-                      color: viewMode == ProductViewMode.details
-                          ? colorScheme.primary
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'product.details'.tr(),
-                      style: TextStyle(
-                        fontWeight: viewMode == ProductViewMode.details
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ),
           IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: isSigningOut ? null : _handleSignOut,
+            icon: isSigningOut
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.logout),
+            onPressed: isSigningOut
+                ? null
+                : () async {
+                    _isSigningOut.value = true;
+                    await _authService.signOut();
+                    if (mounted) _isSigningOut.value = false;
+                  },
           ),
         ],
       ),
-      body: FutureBuilder<List<Product>>(
-        future: productsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error_outline, size: 64, color: colorScheme.error),
-                  const SizedBox(height: 16),
-                  Text(
-                    'product.errorLoading'.tr(),
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${snapshot.error}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
+      body: RefreshIndicator(
+        onRefresh: () async => _refreshProducts(),
+        child: FutureBuilder<List<Product>>(
+          future: productsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('common.error_loading_data'.tr()));
+            }
+            final products = snapshot.data ?? [];
+            if (products.isEmpty) {
+              return Center(child: Text('product.noProductsFound'.tr()));
+            }
+
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: products.length,
+              itemBuilder: (context, index) {
+                final product = products[index];
+                return _buildProductCard(product, viewMode, productInventories);
+              },
             );
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.inventory_2_outlined,
-                    size: 64,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'product.noProductsFound'.tr(),
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'product.addFirst'.tr(),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          } else {
-            final products = snapshot.data!;
-            return RefreshIndicator(
-              onRefresh: _refreshProducts,
-              child: ListView.builder(
-                padding: EdgeInsets.only(
-                  top: viewMode == ProductViewMode.compact ? 4 : 8,
-                  bottom: 80,
-                ),
-                itemCount: products.length,
-                itemBuilder: (context, index) {
-                  final product = products[index];
-                  return _buildProductCard(product);
-                },
-              ),
-            );
-          }
-        },
+          },
+        ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'product_list_fab',
+      floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final result = await ProductAddHelper.startAddProductFlow(context);
-          if (result == true && mounted) {
-            await _refreshProducts();
+          if (result == true) {
+            _refreshProducts();
           }
         },
-        icon: const Icon(Icons.qr_code_scanner),
-        label: Text('product.scanBarcode'.tr()),
+        child: const Icon(Icons.add),
       ),
     );
   }
 
-  Widget _buildProductCard(Product product) {
-    final viewMode = _viewMode.value;
-    switch (viewMode) {
-      case ProductViewMode.compact:
-        return ProductCardCompact(
+  Widget _buildProductCard(
+    Product product,
+    ProductViewMode viewMode,
+    Map<int, List<String>> productInventories,
+  ) {
+    return switch (viewMode) {
+      ProductViewMode.compact => ProductCardCompact(
           product: product,
-          onTap: () => _navigateToProductDetail(product),
-        );
-      case ProductViewMode.normal:
-        return ProductCardNormal(
+          onTap: () => _navigateToDetail(product),
+        ),
+      ProductViewMode.normal => ProductCardNormal(
           product: product,
-          onTap: () => _navigateToProductDetail(product),
-        );
-      case ProductViewMode.details:
-        return ProductCardDetails(
+          onTap: () => _navigateToDetail(product),
+        ),
+      ProductViewMode.details => ProductCardDetails(
           product: product,
-          onTap: () => _navigateToProductDetail(product),
-          inventoryNames: _productInventories.value[product.id],
-          onEdit: () async {
-            final result = await ProductFormView.show(
-              context,
-              product: product,
-            );
-            if (!mounted) return;
-            if (result == true) {
-              _refreshProducts();
-            }
-          },
-          onDelete: () {
-            // TODO: Show delete confirmation
-            _showDeleteConfirmation(product);
-          },
-        );
-    }
+          inventoryNames: productInventories[product.id],
+          onTap: () => _navigateToDetail(product),
+        ),
+    };
   }
 
-  void _navigateToProductDetail(Product product) {
+  void _navigateToDetail(Product product) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => ProductDetailView(product: product),
       ),
     );
-  }
-
-  void _showDeleteConfirmation(Product product) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('product.delete'.tr()),
-        content: Text(
-          'product.deleteConfirmMessage'.tr(namedArgs: {'name': product.name}),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text('common.cancel'.tr()),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.of(dialogContext).pop();
-              try {
-                await _productService.deleteProduct(product.id);
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'product.deleted'.tr(namedArgs: {'name': product.name}),
-                    ),
-                  ),
-                );
-                _productsFuture.value = _fetchProducts();
-              } catch (e) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'product.deleteError'.tr(namedArgs: {'error': '$e'}),
-                    ),
-                  ),
-                );
-              }
-            },
-            child: Text('common.delete'.tr()),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _refreshProducts() async {
-    _productsFuture.value = _fetchProducts();
-  }
-
-  Future<void> _handleSignOut() async {
-    _isSigningOut.value = true;
-    try {
-      await _authService.signOut();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Sign out failed: $e')));
-    } finally {
-      if (mounted) {
-        _isSigningOut.value = false;
-      }
-    }
   }
 }

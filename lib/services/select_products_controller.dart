@@ -7,6 +7,7 @@ class SelectProductsController extends ChangeNotifier {
   List<Product> _allProducts = [];
   String _query = '';
   final Set<int> _selectedIds = {};
+  bool _isLoading = false;
 
   List<Product> get filteredProducts {
     if (_query.isEmpty) return List.unmodifiable(_allProducts);
@@ -17,17 +18,32 @@ class SelectProductsController extends ChangeNotifier {
   }
 
   int get selectedCount => _selectedIds.length;
+  bool get isLoading => _isLoading;
+  Set<int> get selectedIds => _selectedIds;
+  
+  List<Product> get selectedProducts {
+    return _allProducts.where((p) => _selectedIds.contains(p.id)).toList();
+  }
 
   bool isSelected(int productId) => _selectedIds.contains(productId);
 
-  void loadProducts(List<Product> products) {
+  void setAvailableProducts(List<Product> products) {
     _allProducts = List.of(products);
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  void loadProducts(List<Product> products) {
+    setAvailableProducts(products);
+  }
+
+  void setSearchQuery(String query) {
+    _query = query;
     notifyListeners();
   }
 
   void updateQuery(String query) {
-    _query = query;
-    notifyListeners();
+    setSearchQuery(query);
   }
 
   void toggleSelection(int productId) {
@@ -36,6 +52,11 @@ class SelectProductsController extends ChangeNotifier {
     } else {
       _selectedIds.add(productId);
     }
+    notifyListeners();
+  }
+
+  void setLoading(bool loading) {
+    _isLoading = loading;
     notifyListeners();
   }
 }

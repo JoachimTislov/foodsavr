@@ -1,8 +1,8 @@
 import 'package:easy_localization/easy_localization.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:watch_it/watch_it.dart';
 
 import '../constants/privacy_notice.dart';
 import '../constants/terms_of_service.dart';
@@ -11,27 +11,24 @@ import '../service_locator.dart';
 import '../services/theme_notifier.dart';
 import '../utils/config.dart';
 
-class SettingsView extends StatefulWidget {
+class SettingsView extends WatchingWidget {
   const SettingsView({super.key});
 
   @override
-  State<SettingsView> createState() => _SettingsViewState();
-}
-
-class _SettingsViewState extends State<SettingsView> {
-  late final IAuthService _authService;
-
-  @override
-  void initState() {
-    super.initState();
-    _authService = getIt<IAuthService>();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final authService = getIt<IAuthService>();
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
+
+    // Use watchStream to reactively rebuild when auth state changes
+    final user = watchStream(
+      (IAuthService s) => s.authStateChanges,
+      initialValue: authService.currentUser,
+    ).data;
+
+    final displayName = user?.displayName ?? user?.email?.split('@').first ?? '';
+    final email = user?.email ?? '';
 
     return Scaffold(
       appBar: AppBar(title: Text('settings.title'.tr()), centerTitle: true),
@@ -41,40 +38,29 @@ class _SettingsViewState extends State<SettingsView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // User Profile Section
-            StreamBuilder<User?>(
-              stream: _authService.authStateChanges,
-              initialData: _authService.currentUser,
-              builder: (context, snapshot) {
-                final user = snapshot.data;
-                final displayName =
-                    user?.displayName ?? user?.email?.split('@').first ?? '';
-                final email = user?.email ?? '';
-
-                return _SettingsSection(
-                  title: 'settings.account'.tr(),
-                  children: [
-                    _SettingsTile(
-                      leading: CircleAvatar(
-                        radius: 20,
-                        backgroundColor: colorScheme.primaryContainer,
-                        backgroundImage: user?.photoURL != null
-                            ? NetworkImage(user!.photoURL!)
-                            : null,
-                        child: user?.photoURL == null
-                            ? Icon(
-                                Icons.person_outline,
-                                size: 20,
-                                color: colorScheme.onPrimaryContainer,
-                              )
-                            : null,
-                      ),
-                      title: displayName,
-                      subtitle: email,
-                      onTap: () => context.push('/profile'),
-                    ),
-                  ],
-                );
-              },
+            _SettingsSection(
+              title: 'settings.account'.tr(),
+              children: [
+                _SettingsTile(
+                  leading: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: colorScheme.primaryContainer,
+                    backgroundImage: user?.photoURL != null
+                        ? NetworkImage(user!.photoURL!)
+                        : null,
+                    child: user?.photoURL == null
+                        ? Icon(
+                            Icons.person_outline,
+                            size: 20,
+                            color: colorScheme.onPrimaryContainer,
+                          )
+                        : null,
+                  ),
+                  title: displayName,
+                  subtitle: email,
+                  onTap: () => context.push('/profile'),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
 
@@ -213,7 +199,9 @@ class _SettingsViewState extends State<SettingsView> {
     await prefs.setBool(Config.useEmulatorsKey, value);
     if (!context.mounted) return;
 
-    setState(() {});
+    // No need for setState() because WatchingWidget will react to change if we use a ValueNotifier
+    // or we can manually trigger a rebuild if needed, but here it is just a pref change
+    // that affects the UI on next build or after restart.
 
     showDialog(
       context: context,

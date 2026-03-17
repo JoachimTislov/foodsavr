@@ -5,8 +5,14 @@ import 'package:easy_localization/easy_localization.dart';
 class ErrorStateWidget extends StatelessWidget {
   final String? message;
   final String? details;
+  final VoidCallback? onRetry;
 
-  const ErrorStateWidget({super.key, this.message, this.details});
+  const ErrorStateWidget({
+    super.key,
+    this.message,
+    this.details,
+    this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +38,14 @@ class ErrorStateWidget extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               ),
+            ),
+          ],
+          if (onRetry != null) ...[
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: Text('common.retry'.tr()),
             ),
           ],
         ],

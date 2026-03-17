@@ -2,7 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
 
-class AuthFormFields extends StatefulWidget {
+class AuthFormFields extends WatchingWidget {
   final TextEditingController emailController;
   final TextEditingController passwordController;
 
@@ -13,82 +13,59 @@ class AuthFormFields extends StatefulWidget {
   });
 
   @override
-  State<AuthFormFields> createState() => _AuthFormFieldsState();
-}
-
-class _AuthFormFieldsState extends State<AuthFormFields>
-    with WatchItStatefulWidgetMixin {
-  final _isPasswordVisible = ValueNotifier<bool>(false);
-
-  @override
-  void dispose() {
-    _isPasswordVisible.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final isPasswordVisible = watch(_isPasswordVisible).value;
+    final isPasswordVisible = createOnce(() => ValueNotifier<bool>(false));
+    final passwordVisible = watch(isPasswordVisible).value;
+
     return Column(
       children: [
-        // Email Input
         TextFormField(
-          controller: widget.emailController,
+          controller: emailController,
           decoration: InputDecoration(
-            labelText: 'auth.form.email.label'.tr(),
-            hintText: 'auth.form.email.hint'.tr(),
-            prefixIcon: const Icon(Icons.mail_outline),
+            labelText: 'auth.form.email'.tr(),
+            hintText: 'auth.form.email_hint'.tr(),
+            prefixIcon: const Icon(Icons.email_outlined),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12.0),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12.0),
-              borderSide: BorderSide(
-                color: Theme.of(context).colorScheme.primary,
-                width: 2.0,
-              ),
+              borderRadius: BorderRadius.circular(12),
             ),
           ),
           keyboardType: TextInputType.emailAddress,
           validator: (value) {
             if (value == null || value.isEmpty) {
-              return 'auth.form.email.required'.tr();
+              return 'auth.validation.email_required'.tr();
+            }
+            if (!value.contains('@')) {
+              return 'auth.validation.email_invalid'.tr();
             }
             return null;
           },
         ),
         const SizedBox(height: 16.0),
-
-        // Password Input
         TextFormField(
-          controller: widget.passwordController,
-          obscureText: !isPasswordVisible,
+          controller: passwordController,
           decoration: InputDecoration(
-            labelText: 'auth.form.password.label'.tr(),
-            hintText: 'auth.form.password.hint'.tr(),
+            labelText: 'auth.form.password'.tr(),
+            hintText: 'auth.form.password_hint'.tr(),
             prefixIcon: const Icon(Icons.lock_outline),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12.0),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12.0),
-              borderSide: BorderSide(
-                color: Theme.of(context).colorScheme.primary,
-                width: 2.0,
-              ),
-            ),
             suffixIcon: IconButton(
               icon: Icon(
-                isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                passwordVisible
+                    ? Icons.visibility
+                    : Icons.visibility_off,
               ),
-              onPressed: () {
-                _isPasswordVisible.value = !isPasswordVisible;
-              },
+              onPressed: () => isPasswordVisible.value = !passwordVisible,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
           ),
+          obscureText: !passwordVisible,
           validator: (value) {
             if (value == null || value.isEmpty) {
-              return 'auth.form.password.required'.tr();
+              return 'auth.validation.password_required'.tr();
+            }
+            if (value.length < 6) {
+              return 'auth.validation.password_too_short'.tr();
             }
             return null;
           },
