@@ -88,7 +88,8 @@ void _handleValidate(
     exit(1);
   }
 
-  var hasIssues = false;
+  var hasMissingKeys = false;
+  var hasUnusedKeys = false;
   final allLocaleKeys = <String, Set<String>>{};
   final unionOfAllKeys = <String>{};
 
@@ -103,15 +104,16 @@ void _handleValidate(
     final unused = keys.difference(usedKeys).toList()..sort();
 
     if (missing.isNotEmpty || unused.isNotEmpty) {
-      hasIssues = true;
       stdout.writeln('\n[$fileName]');
       if (missing.isNotEmpty) {
+        hasMissingKeys = true;
         stdout.writeln('  Missing keys from source (${missing.length}):');
         for (final key in missing) {
           stdout.writeln('    - $key');
         }
       }
       if (unused.isNotEmpty) {
+        hasUnusedKeys = true;
         stdout.writeln('  Unused keys (${unused.length}):');
         for (final key in unused) {
           stdout.writeln('    - $key');
@@ -127,7 +129,7 @@ void _handleValidate(
     final keys = entry.value;
     final missingFromOther = unionOfAllKeys.difference(keys).toList()..sort();
     if (missingFromOther.isNotEmpty) {
-      hasIssues = true;
+      hasMissingKeys = true;
       stdout.writeln('  [$fileName] is missing keys present in other locales:');
       for (final key in missingFromOther) {
         stdout.writeln('    - $key');
@@ -135,9 +137,16 @@ void _handleValidate(
     }
   }
 
-  if (hasIssues) {
+  if (hasMissingKeys || hasUnusedKeys) {
+    if (hasMissingKeys) {
+      stderr.writeln(
+        '\nLocalization validation failed: Missing keys detected.',
+      );
+    } else {
+      stderr.writeln('\nLocalization validation failed: Unused keys detected.');
+    }
+
     stderr.writeln(
-      '\nLocalization validation failed. '
       'Please add missing keys and remove unused keys in your locale JSON files, '
       'or run the localization generator tool to update them.',
     );
@@ -146,5 +155,6 @@ void _handleValidate(
     stdout.writeln(
       'Localization validation passed (${usedKeys.length} used keys checked).',
     );
+    exit(0);
   }
 }
