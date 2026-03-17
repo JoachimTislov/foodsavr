@@ -58,6 +58,17 @@ class ExpiryEntry {
     };
   }
 
+  Map<String, dynamic> toFirestoreRest() {
+    return {
+      'mapValue': {
+        'fields': {
+          'quantity': {'integerValue': quantity.toString()},
+          'expirationDate': {'stringValue': expirationDate.toIso8601String()},
+        },
+      },
+    };
+  }
+
   factory ExpiryEntry.fromJson(Map<String, dynamic> json) {
     return ExpiryEntry(
       quantity: json['quantity'] as int,
@@ -100,6 +111,11 @@ class ExpiryEntry {
 }
 
 class Product {
+  /// Scope in the shared `products` collection.
+  /// - global: globally shared registry products
+  /// - personal: user-owned registry products (templates)
+  /// - current: concrete products used in inventories/shopping lists
+  final String registryType;
   final int id;
   final String name;
   final String description;
@@ -108,7 +124,10 @@ class Product {
   final int nonExpiringQuantity; // Quantity without expiration date
   final String? category; // Category (e.g., 'Dairy', 'Fruits', 'Vegetables')
   final String? imageUrl; // Optional image URL
+  final String? barcode; // Optional product barcode
   final bool isGlobal; // True if product is in global catalog
+  final int? mappedFromProductId;
+  final List<String> tags; // Labels and tags from APIs like OpenFoodFacts
 
   Product({
     required this.id,
@@ -119,8 +138,40 @@ class Product {
     this.nonExpiringQuantity = 0,
     this.category,
     this.imageUrl,
+    this.barcode,
     this.isGlobal = false,
+    this.registryType = 'current',
+    this.mappedFromProductId,
+    this.tags = const [],
   });
+
+  Product copyWith({
+    int? id,
+    String? name,
+    String? description,
+    String? userId,
+    List<ExpiryEntry>? expiries,
+    int? nonExpiringQuantity,
+    String? category,
+    String? imageUrl,
+    String? barcode,
+    bool? isGlobal,
+    List<String>? tags,
+  }) {
+    return Product(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      userId: userId ?? this.userId,
+      expiries: expiries ?? this.expiries,
+      nonExpiringQuantity: nonExpiringQuantity ?? this.nonExpiringQuantity,
+      category: category ?? this.category,
+      imageUrl: imageUrl ?? this.imageUrl,
+      barcode: barcode ?? this.barcode,
+      isGlobal: isGlobal ?? this.isGlobal,
+      tags: tags ?? this.tags,
+    );
+  }
 
   Map<String, dynamic> toJson() {
     return {
@@ -132,7 +183,11 @@ class Product {
       'nonExpiringQuantity': nonExpiringQuantity,
       'category': category,
       'imageUrl': imageUrl,
+      'barcode': barcode,
       'isGlobal': isGlobal,
+      'registryType': registryType,
+      'mappedFromProductId': mappedFromProductId,
+      'tags': tags,
     };
   }
 
@@ -167,7 +222,13 @@ class Product {
               : 0),
       category: json['category'] as String?,
       imageUrl: json['imageUrl'] as String?,
+      barcode: json['barcode'] as String?,
       isGlobal: json['isGlobal'] as bool? ?? false,
+      registryType:
+          json['registryType'] as String? ??
+          ((json['isGlobal'] as bool? ?? false) ? 'global' : 'current'),
+      mappedFromProductId: json['mappedFromProductId'] as int?,
+      tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? const [],
     );
   }
 
@@ -232,5 +293,29 @@ class Product {
       );
     }
     return status.getMessage();
+  }
+
+  Map<String, dynamic> toFirestoreRest() {
+    return {
+      'id': {'integerValue': id.toString()},
+      'name': {'stringValue': name},
+      'description': {'stringValue': description},
+      'userId': {'stringValue': userId},
+      'expiries': {
+        'arrayValue': {
+          'values': expiries.map((e) => e.toFirestoreRest()).toList(),
+        },
+      },
+      'nonExpiringQuantity': {'integerValue': nonExpiringQuantity.toString()},
+      'category': {'stringValue': category ?? ''},
+      'imageUrl': {'stringValue': imageUrl ?? ''},
+      'barcode': {'stringValue': barcode ?? ''},
+      'isGlobal': {'booleanValue': isGlobal},
+      'tags': {
+        'arrayValue': {
+          'values': tags.map((t) => {'stringValue': t}).toList(),
+        },
+      },
+    };
   }
 }

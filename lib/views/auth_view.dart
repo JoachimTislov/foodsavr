@@ -8,6 +8,7 @@ import '../constants/privacy_notice.dart';
 import '../constants/terms_of_service.dart';
 import '../service_locator.dart';
 import '../services/auth_controller.dart';
+import '../utils/config.dart';
 import '../widgets/auth/auth_form_fields.dart';
 import '../widgets/auth/auth_header.dart';
 import '../widgets/auth/auth_status_messages.dart';
@@ -40,6 +41,11 @@ class _AuthViewState extends State<AuthView> with WatchItStatefulWidgetMixin {
     _controller.isLogin = widget.isLogin;
     _privacyRecognizer.onTap = _showPrivacyNotice;
     _termsRecognizer.onTap = _showTermsOfService;
+
+    if (Config.isDevelopment) {
+      _emailController.text = Config.testUserEmail;
+      _passwordController.text = Config.testUserPassword;
+    }
   }
 
   @override

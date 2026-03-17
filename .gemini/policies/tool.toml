@@ -1,5 +1,5 @@
 [[rule]]
-toolName = ["activate_skill"]
+toolName = ["activate_skill", "enter_plan_mode"]
 decision = "allow"
 priority = 100
 
@@ -10,6 +10,12 @@ priority = 100
 modes = ["autoEdit", "default"]
 
 [[rule]]
+toolName = ["github__push_files", "github__merge_pull_request", "github__create_branch", "github__create_repository", "grep_search"] # (SearchText) rg --g, is not a valid command
+decision = "deny"
+priority = 999
+
+[[rule]]
 toolName = ["google_web_search", "web_fetch"]
 decision = "deny"
 priority = 999
+

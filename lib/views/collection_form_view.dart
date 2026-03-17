@@ -56,7 +56,6 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet>
   late final IAuthService _authService;
 
   late TextEditingController _nameController;
-  late TextEditingController _descriptionController;
 
   final _isSaving = ValueNotifier<bool>(false);
 
@@ -69,15 +68,11 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet>
     _nameController = TextEditingController(
       text: widget.collection?.name ?? '',
     );
-    _descriptionController = TextEditingController(
-      text: widget.collection?.description ?? '',
-    );
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _descriptionController.dispose();
     _isSaving.dispose();
     super.dispose();
   }
@@ -105,7 +100,7 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet>
       final collection = Collection(
         id: widget.collection?.id ?? '',
         name: _nameController.text,
-        description: _descriptionController.text,
+        description: null,
         userId: userId,
         type: widget.type,
         productIds: widget.collection?.productIds ?? [],
@@ -122,9 +117,9 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save collection: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
       }
     } finally {
       if (mounted) {
@@ -157,21 +152,12 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet>
               controller: _nameController,
               autofocus: true,
               decoration: InputDecoration(
-                labelText: 'collection.name'.tr(),
+                labelText: 'common.name'.tr(),
                 border: const OutlineInputBorder(),
               ),
               validator: (value) => value == null || value.isEmpty
-                  ? 'collection.name_required'.tr()
+                  ? 'common.name_required'.tr()
                   : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _descriptionController,
-              decoration: InputDecoration(
-                labelText: 'collection.description'.tr(),
-                border: const OutlineInputBorder(),
-              ),
-              maxLines: 2,
             ),
             const SizedBox(height: 16),
             FilledButton(

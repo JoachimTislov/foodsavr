@@ -11,6 +11,7 @@ import '../widgets/product/product_card_compact.dart';
 import 'product_form_view.dart';
 import '../widgets/product/product_card_normal.dart';
 import '../widgets/product/product_card_details.dart';
+import '../utils/product_add_helper.dart';
 import '../utils/view_mode_helper.dart';
 import 'product_detail_view.dart';
 
@@ -269,14 +270,13 @@ class _ProductListViewState extends State<ProductListView>
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'product_list_fab',
         onPressed: () async {
-          final result = await ProductFormView.show(context);
-          if (!mounted) return;
-          if (result == true) {
-            _refreshProducts();
+          final result = await ProductAddHelper.startAddProductFlow(context);
+          if (result == true && mounted) {
+            await _refreshProducts();
           }
         },
-        icon: const Icon(Icons.add),
-        label: Text('product.add'.tr()),
+        icon: const Icon(Icons.qr_code_scanner),
+        label: Text('product.scanBarcode'.tr()),
       ),
     );
   }

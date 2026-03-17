@@ -120,35 +120,50 @@ class _LandingPageViewState extends State<LandingPageView>
                         ),
                       ),
 
+                      const SizedBox(height: 12),
+
+                      OutlinedButton(
+                        onPressed: _controller.isLoading
+                            ? null
+                            : _controller.signInAsGuest,
+                        child: Text('auth.social.continue_guest'.tr()),
+                      ),
+
                       const SizedBox(height: 32),
 
                       // Footer
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(
-                            'auth.toggle.no_account'.tr(),
-                            style: TextStyle(
-                              color: colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w500,
+                          Flexible(
+                            child: Text(
+                              'auth.toggle.no_account'.tr(),
+                              style: TextStyle(
+                                color: colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              textAlign: TextAlign.center,
                             ),
                           ),
-                          TextButton(
-                            onPressed: _controller.isLoading
-                                ? null
-                                : () {
-                                    context.go(
-                                      Uri(
-                                        path: '/auth',
-                                        queryParameters: {'mode': 'signup'},
-                                      ).toString(),
-                                    );
-                                  },
-                            child: Text(
-                              'auth.toggle.sign_up'.tr(),
-                              style: TextStyle(
-                                color: colorScheme.primary,
-                                fontWeight: FontWeight.bold,
+                          Flexible(
+                            child: TextButton(
+                              onPressed: _controller.isLoading
+                                  ? null
+                                  : () {
+                                      context.go(
+                                        Uri(
+                                          path: '/auth',
+                                          queryParameters: {'mode': 'signup'},
+                                        ).toString(),
+                                      );
+                                    },
+                              child: Text(
+                                'auth.toggle.sign_up'.tr(),
+                                style: TextStyle(
+                                  color: colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
                               ),
                             ),
                           ),

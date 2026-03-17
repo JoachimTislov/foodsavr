@@ -5,16 +5,18 @@ import 'package:watch_it/watch_it.dart';
 import '../models/collection_model.dart';
 import '../models/product_model.dart';
 import '../utils/collection_types.dart';
+import '../utils/product_add_helper.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
+import '../services/collection_service.dart';
 import '../interfaces/i_auth_service.dart';
 import '../widgets/collection/collection_header.dart';
 import '../widgets/common/empty_state_widget.dart';
 import 'add_product_to_collection_view.dart';
-import 'product_form_view.dart';
 import '../widgets/common/error_state_widget.dart';
 import '../widgets/product/product_card_normal.dart';
 import 'product_detail_view.dart';
+import 'collection_form_view.dart';
 
 class CollectionDetailView extends StatefulWidget {
   final Collection collection;
@@ -29,13 +31,17 @@ class _CollectionDetailViewState extends State<CollectionDetailView>
     with WatchItStatefulWidgetMixin {
   late final ValueNotifier<Future<List<Product>>> _productsFuture;
   late final ProductService _productService;
+  late final CollectionService _collectionService;
   late final IAuthService _authService;
+  late Collection _currentCollection;
 
   @override
   void initState() {
     super.initState();
     _productService = getIt<ProductService>();
+    _collectionService = getIt<CollectionService>();
     _authService = getIt<IAuthService>();
+    _currentCollection = widget.collection;
     _productsFuture = ValueNotifier<Future<List<Product>>>(_fetchProducts());
   }
 
@@ -49,6 +55,61 @@ class _CollectionDetailViewState extends State<CollectionDetailView>
     _productsFuture.value = _fetchProducts();
   }
 
+  Future<void> _refreshCollection() async {
+    final updated = await _collectionService.getCollection(
+      _currentCollection.id,
+    );
+    if (updated != null && mounted) {
+      setState(() {
+        _currentCollection = updated;
+      });
+      _refreshProducts();
+    }
+  }
+
+  Future<void> _deleteCollection() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('common.delete'.tr()),
+        content: Text(
+          'product.deleteConfirmMessage'.tr(
+            namedArgs: {'name': _currentCollection.name},
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('common.cancel'.tr()),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('common.delete'.tr()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await _collectionService.deleteCollection(_currentCollection.id);
+        if (mounted) {
+          Navigator.of(context).pop(true);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final productsFuture = watch(_productsFuture).value;
@@ -59,6 +120,53 @@ class _CollectionDetailViewState extends State<CollectionDetailView>
         backgroundColor: colorScheme.surface,
         elevation: 0,
         actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              if (value == 'edit') {
+                final result = await CollectionFormView.show(
+                  context,
+                  type: _currentCollection.type,
+                  collection: _currentCollection,
+                );
+                if (result == true) {
+                  _refreshCollection();
+                }
+              } else if (value == 'delete') {
+                _deleteCollection();
+              }
+            },
+            itemBuilder: (BuildContext context) {
+              return [
+                PopupMenuItem<String>(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.edit, size: 20),
+                      const SizedBox(width: 8),
+                      Text('common.edit'.tr()),
+                    ],
+                  ),
+                ),
+                PopupMenuItem<String>(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline,
+                        size: 20,
+                        color: colorScheme.error,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'common.delete'.tr(),
+                        style: TextStyle(color: colorScheme.error),
+                      ),
+                    ],
+                  ),
+                ),
+              ];
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => _authService.signOut(),
@@ -68,25 +176,25 @@ class _CollectionDetailViewState extends State<CollectionDetailView>
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CollectionHeader(collection: widget.collection),
+          CollectionHeader(collection: _currentCollection),
           Expanded(
             child: _buildProductsList(productsFuture),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        heroTag: 'collection_detail_fab_${widget.collection.id}',
+        heroTag: 'collection_detail_fab_${_currentCollection.id}',
         onPressed: () async {
           bool? result;
-          if (widget.collection.type == CollectionType.shoppingList) {
+          if (_currentCollection.type == CollectionType.shoppingList) {
             result = await AddProductToCollectionView.show(
               context,
-              widget.collection.id,
+              _currentCollection.id,
             );
           } else {
-            result = await ProductFormView.show(
+            result = await ProductAddHelper.startAddProductFlow(
               context,
-              collectionId: widget.collection.id,
+              collectionId: _currentCollection.id,
             );
           }
           if (!mounted) return;
@@ -136,7 +244,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView>
   }
 
   Future<List<Product>> _fetchProducts() async {
-    final productIds = widget.collection.productIds;
+    final productIds = _currentCollection.productIds;
     if (productIds.isEmpty) return [];
     final products = <Product>[];
     for (final id in productIds) {

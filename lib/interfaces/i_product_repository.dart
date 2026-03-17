@@ -8,5 +8,8 @@ abstract class IProductRepository extends IRepository<Product, int> {
   Future<List<Product>> getProducts(
     String userId,
   ); // Get user-specific products
+  Future<List<Product>> getPersonalProducts(
+    String userId,
+  ); // Get user-specific personal registry products
   Future<List<Product>> getGlobalProducts(); // Get global catalog products
 }

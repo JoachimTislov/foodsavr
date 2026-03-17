@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
@@ -56,6 +58,7 @@ class _AddProductSheet extends StatefulWidget {
 
 class _AddProductSheetState extends State<_AddProductSheet>
     with WatchItStatefulWidgetMixin {
+  static final Random _random = Random();
   late final ProductService _productService;
   late final CollectionService _collectionService;
   late final IAuthService _authService;
@@ -83,21 +86,43 @@ class _AddProductSheetState extends State<_AddProductSheet>
   Future<List<Product>> _loadProducts() async {
     final userId = _authService.getUserId();
     if (userId == null) return [];
-    final products = await _productService.getProducts(userId);
-    final collection = await _collectionService.getCollection(
-      widget.collectionId,
-    );
-    final existingIds = collection?.productIds.toSet() ?? {};
-    return products.where((p) => !existingIds.contains(p.id)).toList();
+    final results = await Future.wait([
+      _productService.getPersonalProducts(userId),
+      _productService.getAllProducts(),
+    ]);
+    final personalProducts = results[0];
+    final globalProducts = results[1];
+    return [...personalProducts, ...globalProducts];
   }
 
   Future<void> _addSelected() async {
-    if (_selectedIds.value.isEmpty) return;
+    final selectedIds = _selectedIds.value;
+    if (selectedIds.isEmpty) return;
+    final userId = _authService.getUserId();
+    if (userId == null) return;
     _isSaving.value = true;
     try {
+      final registryProducts = await _productsFuture.value;
+      final selectedProducts = registryProducts
+          .where((product) => selectedIds.contains(product.id))
+          .toList();
+      final createdProductIds = <int>[];
+      for (final sourceProduct in selectedProducts) {
+        final currentProduct = Product(
+          id: _generateProductId(),
+          name: sourceProduct.name,
+          description: sourceProduct.description,
+          userId: userId,
+          category: sourceProduct.category,
+          registryType: 'current',
+          mappedFromProductId: sourceProduct.id,
+        );
+        await _productService.addProduct(currentProduct);
+        createdProductIds.add(currentProduct.id);
+      }
       await _collectionService.addProductsToCollection(
         widget.collectionId,
-        _selectedIds.value.toList(),
+        createdProductIds,
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
@@ -109,6 +134,11 @@ class _AddProductSheetState extends State<_AddProductSheet>
     } finally {
       if (mounted) _isSaving.value = false;
     }
+  }
+
+  int _generateProductId() {
+    return (DateTime.now().microsecondsSinceEpoch * 1000) +
+        _random.nextInt(1000);
   }
 
   @override

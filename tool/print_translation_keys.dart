@@ -1,6 +1,6 @@
 // Prints all translation keys from a JSON translation file in dot notation.
 // Usage: dart run tool/print_translation_keys.dart [path]
-// Default path: assets/translations/en-US.json
+// Default path: assets/translations/en.json
 
 // ignore_for_file: avoid_print
 
@@ -19,7 +19,7 @@ void printKeys(Map<String, dynamic> map, [String prefix = '']) {
 }
 
 void main(List<String> args) {
-  final path = args.isNotEmpty ? args[0] : 'assets/translations/en-US.json';
+  final path = args.isNotEmpty ? args[0] : 'assets/translations/en.json';
   final file = File(path);
   if (!file.existsSync()) {
     stderr.writeln('File not found: $path');

@@ -23,6 +23,7 @@ import 'package:foodsavr/services/auth_service.dart' as _i277;
 import 'package:foodsavr/services/collection_service.dart' as _i122;
 import 'package:foodsavr/services/product_service.dart' as _i898;
 import 'package:foodsavr/services/seeding_service.dart' as _i464;
+import 'package:foodsavr/services/shelf_life_service.dart' as _i1071;
 import 'package:get_it/get_it.dart' as _i174;
 import 'package:google_sign_in/google_sign_in.dart' as _i116;
 import 'package:injectable/injectable.dart' as _i526;
@@ -43,6 +44,7 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i116.GoogleSignIn>(() => registerModule.googleSignIn);
     gh.lazySingleton<_i806.FacebookAuth>(() => registerModule.facebookAuth);
     gh.lazySingleton<_i974.Logger>(() => registerModule.logger);
+    gh.lazySingleton<_i1071.ShelfLifeService>(() => _i1071.ShelfLifeService());
     gh.factory<bool>(
       () => registerModule.supportsPersistence,
       instanceName: 'supportsPersistence',
@@ -53,6 +55,7 @@ extension GetItInjectableX on _i174.GetIt {
         googleSignIn: gh<_i116.GoogleSignIn>(),
         facebookAuth: gh<_i806.FacebookAuth>(),
         supportsPersistence: gh<bool>(instanceName: 'supportsPersistence'),
+        firestore: gh<_i974.FirebaseFirestore>(),
       ),
     );
     gh.lazySingleton<_i424.IProductRepository>(
@@ -75,17 +78,19 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i974.Logger>(),
       ),
     );
-    gh.factoryParam<_i882.AuthController, _i882.Translator?, dynamic>(
-      (translate, _) => _i882.AuthController(
-        gh<_i794.IAuthService>(),
-        gh<_i974.Logger>(),
-        translate: translate,
-      ),
-    );
     gh.lazySingleton<_i898.ProductService>(
       () => _i898.ProductService(
         gh<_i424.IProductRepository>(),
+        gh<_i1071.ShelfLifeService>(),
         gh<_i974.Logger>(),
+      ),
+    );
+    gh.factoryParam<_i882.AuthController, _i882.Translator?, dynamic>(
+      (translate, _) => _i882.AuthController(
+        gh<_i794.IAuthService>(),
+        gh<_i122.CollectionService>(),
+        gh<_i974.Logger>(),
+        translate: translate,
       ),
     );
     return this;

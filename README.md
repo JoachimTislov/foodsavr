@@ -11,6 +11,8 @@ what you have and what you need.
   reminders to use items before they spoil.
 - **Save time:** Eliminate the need for manual inventory checks by 
   synchronizing your stock with recipes and meal plans.
+- **Speed up inventory input:** Scan product barcodes directly from the camera
+  to quickly add products to your list.
 - **Increase control:** Gain a clear overview of your food supplies and 
   spending habits across multiple storage locations.
 
@@ -52,6 +54,18 @@ unnecessary cloud costs and ensure a consistent environment.
     ```
     The application connects to the emulators when `ENVIRONMENT=development` is 
     set in `assets/.env`.
+
+### Anonymous auth (guest mode)
+
+FoodSavr supports "Continue as guest" using Firebase Anonymous Authentication.
+For local and production auth providers, ensure **Anonymous** sign-in is enabled
+in Firebase Authentication (Sign-in method).
+
+When a guest creates an account, FoodSavr upgrades the same Firebase user by
+linking credentials (instead of creating a second user), which preserves the
+guest user's existing app data.
+
+Reference: https://firebase.google.com/docs/auth/web/anonymous-auth
 
 ### Common commands
 

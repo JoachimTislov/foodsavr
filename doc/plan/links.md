@@ -1,0 +1,32 @@
+# Resource links
+
+This document provides a collection of external resources, documentation, and tools used in the development of `foodsavr`.
+
+## Frameworks and libraries
+
+- [Material 3: Design guidelines](https://m3.material.io/develop)
+- [Firebase: Official documentation](https://firebase.google.com/docs)
+- [Flutter: Developer guides](https://flutter.dev/docs)
+- [Dart: Language documentation](https://dart.dev/guides)
+
+## Development and deployment
+
+- [Flutter: Build modes](https://docs.flutter.dev/testing/build-modes)
+- [GitHub: Copilot instructions](../../.github/copilot-instructions.md)
+- [Gemini Instructions](../../GEMINI.md)
+
+## Gemini CLI and tools
+
+- [Gemini CLI: Configuration examples](https://github.com/google-gemini/gemini-cli/blob/main/.gemini/)
+- [Gemini CLI: Best practices and tips](https://www.youtube.com/watch?v=KrnyAJyjVG4)
+- [run-gemini-cli-in-actions](https://github.com/google-github-actions/run-gemini-cli)
+
+## Resources
+
+- [Connecting Physical Devices to Your Firebase Emulator](https://medium.com/@Toglefritz/connecting-physical-devices-to-your-firebase-emulator-dae629c6d192)
+- [Open food facts](https://world.openfoodfacts.org/)
+    - [data](https://world.openfoodfacts.org/data)
+    - [docs](https://openfoodfacts.github.io/documentation/docs/)
+- [Rema 1000 vendor guide](https://www.rema.no/wordpress/wp-content/uploads/2023/11/Vendor-guide.pdf)
+- [GS1 Norway](https://www.gs1.no/)
+    - [All informasjon i en strekkode](https://gs1.no/all-informasjonen-i-en-strekkode/)

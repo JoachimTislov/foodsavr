@@ -2,29 +2,8 @@
 
 Project architecture, principles, and rules for `foodsavr` (Flutter SDK >=3.32.0).
 
-## 0. SDK & Dependency Constraints
-
-> ⚠️ **Always verify API availability against the minimum supported versions below before using any Flutter/Dart API.**
-> Using APIs introduced after these minimums will compile locally but break on older runtimes.
-
-| Constraint | Value | Source |
-| :--- | :--- | :--- |
-| **Dart SDK** | `^3.10.7` (min `3.10.7`) | `pubspec.yaml › environment.sdk` |
-| **Flutter** | `>=3.32.0` | `pubspec.yaml › environment.flutter` |
-
-### Known API availability relative to Flutter `3.32.0`
-
-| API | Available since | Notes |
-| :--- | :--- | :--- |
-| `Color.withValues(...)` | Flutter 3.27.0 ✅ | Replacement for `withOpacity` |
-| `WidgetStateProperty<T>` | Flutter 3.22.0 ✅ | Replacement for `MaterialStateProperty` |
-| `CardThemeData` | Flutter 3.32.0 ✅ | Required — `ThemeData.cardTheme` is now typed `CardThemeData?` |
-| `DialogThemeData` | Flutter 3.32.0 ✅ | Required — `ThemeData.dialogTheme` is now typed `DialogThemeData?` |
-| `TabBarThemeData` | Flutter 3.32.0 ✅ | Required — `ThemeData.tabBarTheme` is now typed `TabBarThemeData?` |
-
 ### Rule
 When reviewing or writing code, **check [pub.dev](https://pub.dev) or the [Flutter breaking-changes doc](https://docs.flutter.dev/release/breaking-changes) if unsure** whether an API exists at the minimum Flutter version. If a newer API is used, either raise the minimum version in `pubspec.yaml` or use the older equivalent.
-
 
 - **Tech Stack**: Dart, Firebase (Auth/Firestore), GetIt (DI), logger, easy_localization.
 - **Pattern**: 3-tier Layered Architecture
@@ -59,11 +38,13 @@ When reviewing or writing code, **check [pub.dev](https://pub.dev) or the [Flutt
 - `make check`: Run full suite (analyze, format, test). **Required before commit**.
 
 ## 4. **Workflow**:
+- **Meta-Task Branch Rule**: Reserve the main working branch (default folder) for "meta" tasks (agents, documentation, research, system-level updates). All source code modifications must be made in separate Git worktrees.
+- **Task Ordering Rule**: Prioritize tasks in the following order: (1) handle existing PRs, (2) handle open issues, (3) create new issues systematically from the `TODO.md` / TODO folder backlog.
+- **TODO Prioritization Rule**: TODOs from local backlog files should only be tackled when there are no open issues and no open PRs available.
 - **Task Completion Rule**: After each completed task (or tight related batch), commit and push immediately.
 - **Commit Message Rule**: Use clear descriptive messages; prefer Conventional Commits (e.g., `fix(router): handle auth redirect`).
-- **Execution Loop Rule**: Gather context (code/tests/PR comments/docs/rules/skills), check for missing context, implement minimal fix, run `make check`, add/update tests, run `make check` until green, run `make push`; if `make push` fails, fix and repeat from `make check`.
+- **Execution Loop Rule**: Gather context (code/tests/PR comments/docs/rules/skills), check for missing context, implement minimal fix, run `make check`, add/update tests, run `make check` until green, run `make push`; if `make check` fails two times in a row, STOP and ask the instructor for guidance; if `make push` fails, fix and repeat from `make check`.
 - **Introspection Rule**: Re-evaluate context after each major step and keep only task-relevant information.
-- **PR Script Rule**: Use one-thread-per-run PR scripts to keep context narrow and avoid bulk actions.
 - **Future Improvement Logging Rule**: Log follow-ups in `log/review-thread-followups.log` only when improvement is still needed (id, remaining gap, next action).
 - **Implementation Rationale Rule**: Record a concise reason (1-2 lines) for why the chosen approach was used.
 - **Quality Risk Logging Rule**: If quality may be weak at current stage, log task/risk/impact/follow-up in `log/implementation-risks.log`.

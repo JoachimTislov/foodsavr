@@ -18,10 +18,13 @@ import 'package:foodsavr/models/collection_model.dart'; // Import Collection
 import 'package:foodsavr/views/landing_page_view.dart';
 import 'package:foodsavr/views/dashboard_view.dart';
 import 'package:foodsavr/services/collection_service.dart'; // Import CollectionService
+import 'package:foodsavr/services/shelf_life_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class _MockShelfLifeService extends Mock implements ShelfLifeService {}
 
 class _FakeCollectionRepository implements ICollectionRepository {
   @override
@@ -69,6 +72,8 @@ class _FakeProductRepository implements IProductRepository {
   Future<List<Product>> getAll() async => [];
   @override
   Future<List<Product>> getProducts(String userId) async => [];
+  @override
+  Future<List<Product>> getPersonalProducts(String userId) async => [];
   @override
   Future<List<Product>> getGlobalProducts() async => [];
 }
@@ -130,6 +135,12 @@ class _FakeAuthService implements IAuthService {
   }
 
   @override
+  Future<UserCredential> signInAsGuest() {
+    signInForTest('test-user');
+    return Future.value(_MockUserCredential());
+  }
+
+  @override
   Future<void> sendPasswordResetEmail(String email) {
     throw UnimplementedError();
   }
@@ -171,8 +182,11 @@ void main() {
       router = createAppRouter(authService);
       getIt.registerLazySingleton<IAuthService>(() => authService);
       getIt.registerLazySingleton<ProductService>(
-        () =>
-            ProductService(_FakeProductRepository(), Logger(level: Level.off)),
+        () => ProductService(
+          _FakeProductRepository(),
+          _MockShelfLifeService(),
+          Logger(level: Level.off),
+        ),
       );
       getIt.registerLazySingleton<CollectionService>(
         () => CollectionService(
@@ -183,6 +197,7 @@ void main() {
       getIt.registerFactory<AuthController>(
         () => AuthController(
           getIt<IAuthService>(),
+          getIt<CollectionService>(),
           Logger(level: Level.off),
           translate: (String key) => key,
         ),
@@ -217,15 +232,16 @@ void main() {
 
         await tester.pumpWidget(
           EasyLocalization(
-            supportedLocales: const [Locale('en', 'US'), Locale('nb', 'NO')],
+            supportedLocales: const [Locale('en'), Locale('nb')],
             path: 'assets/translations',
-            fallbackLocale: const Locale('en', 'US'),
+            fallbackLocale: const Locale('en'),
             child: _TestApp(router: router),
           ),
         );
         await tester.pumpAndSettle();
 
         expect(find.byType(LandingPageView), findsOneWidget);
+        expect(find.text('Continue as guest'), findsOneWidget);
 
         authService.signInForTest('uid-123');
         await tester.pumpAndSettle();

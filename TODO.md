@@ -1,7 +1,38 @@
 # TODO
 
-Look into
+## remaining prototype tasks
 
+- [ ] add/test mobile auth?
+- [ ] only allow expiry entries for products
+
+### UI
+- [ ] move local emulators toggle to login screen
+- [ ] expand "continue as guest" button
+- [ ] Handle guest logins in settings by either omit or adapting content
+- [ ] shopping list items should not have an expiry date
+    - [ ] "Conversion Prompt" card
+    - [ ] create two separate models where there's one source of truth for the product information (e.g., name, category, etc.) and separate models for inventory and shopping list items that reference the product and have their own fields (e.g., quantity, expiration date for inventory items)
+- [ ] do not render empty string fields, e.g. description
+- [ ] avoid duplicate low value info/displayment...
+- [ ] remove top navbar, migrate/ingrate actions in the pages, if any
+- [ ] NEVER have arrows on the right in cards (remove them all)
+    - replace them with elevation or subtle border highlights
+- [ ] add an overview page all products registered/related to a user
+    - need to figure out / design a good overview/dashboard. Add quick action to view all, probably just reimplement the View all link in dashboard.
+
+#### Web specific
+- [ ] Add X in right corner of modal when on web
+- [ ] only have barcode available for devices with a valid camera, not web
+
+### Locales
+- [ ] dashboard - myInventory and shoppingList is missing. Which means bad script - locale-check
+
+---
+
+## General
+
+- [x] Seed database when using Firebase emulator for testing and development.
+    - Added `make seed` target and `tool/seed_database.dart` script.
 - [ ] "Cloud Firestore emulator" Flutter integration test
 - [ ] "flutter test" "firebase emulator" CI GitHub Actions
 - [ ] "firestore.rules" best practices Flutter app
@@ -61,6 +92,7 @@ actions:
 - [x] Create .gemini/commands folder with .toml files for custom commands and templates
     - [x] Iteration command for fixing issues in flutter analyze until no issues remain
         - [x] Also one for Test, should be template
+    - [x] Research command for fetching and presenting data from the internet safely
     - [ ] Screenshot of page for reference to give better context to the LLM when adjusting UI
         - [ ] UI healing, grading in terms of user feeling, accessibility, material 3 compliance, etc.
     - [ ] Locales command
@@ -95,7 +127,7 @@ actions:
 
 ## Features & Functionality
 - [ ] Scanning products to ease the process of adding items to the inventory.
-    - [ ] Barcode
+    - [x] Barcode
     - [ ] QR code
     - [ ] Picture ? (need to explore ML options for this)
 - [ ] Add support for push/app/internal notifications (e.g., expiring products, meal plan reminders).
@@ -146,6 +178,10 @@ actions:
 - [ ] Implement error logging and monitoring (e.g., Sentry integration).
 
 ## Commercialization & Next Steps
+- [ ] create a new firestore project or setup a backend for production use
+    Firestore specific:
+    - [ ] read flutter, android/ios/web platform specific and firebase launch todo lists
+    - [ ] use a support email
 - [ ] Create company and legal entity for the app.
 - [ ] Set up app store accounts (Apple Developer, Google Play Console).
 - [ ] Branding and app icon design.
