@@ -35,15 +35,34 @@ This rule governs access to the `users` collection, where private user informati
 **Rule:**
 ```
 match /users/{userId} {
-  // A user can only read or write their own document.
-  // This is crucial for protecting personal information.
-  allow read, write: if request.auth != null && request.auth.uid == userId;
+  // A user can read their own document. Admins can read any user document.
+  allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+  
+  // A user can create their own document during initialization.
+  // We enforce that they cannot set their own role to anything other than 'user'.
+  allow create: if request.auth != null && request.auth.uid == userId
+                && request.resource.data.uid == userId
+                && request.resource.data.role == 'user'
+                && request.resource.data.keys().hasAll(['email', 'name', 'role', 'uid']);
+  
+  // A user can update their own document, but sensitive fields are immutable.
+  // Admins have full update access.
+  allow update: if request.auth != null && (request.auth.uid == userId || isAdmin())
+                && (isAdmin() || (
+                  request.resource.data.role == resource.data.role &&
+                  request.resource.data.uid == resource.data.uid &&
+                  request.resource.data.createdAt == resource.data.createdAt
+                ));
+
+  // Deletion is restricted to admins or a specialized process.
+  allow delete: if isAdmin();
 }
 ```
 **Explanation:**
-*   `allow read, write`: This rule applies to both reading and writing data.
-*   `if request.auth != null`: Ensures that the user is logged in.
-*   `&& request.auth.uid == userId`: Ensures that the logged-in user's UID matches the ID of the document they are trying to access.
+*   `allow read`: Limited to the owner or an administrator.
+*   `allow create`: Enforces that the `userId` matches the authenticated user, the role is forced to `user`, and mandatory fields are present.
+*   `allow update`: Prevents users from changing their `role`, `uid`, or `createdAt` timestamp.
+*   `allow delete`: Restricted to administrators to prevent accidental or malicious data loss from the client side.
 
 #### 2. User Subcollections
 
