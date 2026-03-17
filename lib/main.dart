@@ -43,7 +43,9 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Load preferences early to determine environment
+  // TODO: "This is a legacy API. For new code, consider [SharedPreferencesAsync] or [SharedPreferencesWithCache]."
   final prefs = await SharedPreferences.getInstance();
+  getIt.registerSingleton<SharedPreferences>(prefs);
 
   // Environment Priority:
   // 1. Production build -> always remote
