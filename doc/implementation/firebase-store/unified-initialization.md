@@ -4,7 +4,9 @@ This document defines the standard for ensuring that a user's Firestore document
 
 ## 1. Core Philosophy
 
-To maintain **dev/prod parity**, the application is responsible for its own state initialization. We avoid "test-only" magic or manual seeding. If a user is authenticated via Firebase Auth but their corresponding Firestore document is missing, the application must automatically and explicitly initialize it.
+To maintain **dev/prod parity**, the application is responsible for its own state initialization. We avoid "test-only" magic or manual seeding by default. If a user is authenticated via Firebase Auth but their corresponding Firestore document is missing, the application must automatically and explicitly initialize it using the standard `UserInitializationService`.
+
+**Exception:** Complex data seeding (e.g., pre-populating a development inventory) is permitted in development and test environments ONLY if the `ENABLE_AUTO_SEED` flag is explicitly enabled. Use of this flag must be documented.
 
 ## 2. Implementation Strategy
 
@@ -38,7 +40,9 @@ Future<UserCredential> signIn(...) async {
   final credential = await _firebaseAuth.signInWithEmailAndPassword(...);
   
   // 💡 Ensure Firestore state is ready BEFORE returning
-  await _userInitService.initializeUser(credential.user!);
+  if (credential.user != null) {
+    await _userInitService.initializeUser(credential.user!);
+  }
   
   return credential;
 }
@@ -58,4 +62,9 @@ Future<UserCredential> signIn(...) async {
 1.  **Service Creation:** Implement `UserInitializationService` with `getIt` registration.
 2.  **Auth Integration:** Update `AuthService` methods (`signIn`, `signUp`, `signInWithGoogle`, etc.) to call the initialization service.
 3.  **Verification:** Add an integration test that deletes a user's Firestore document, logs them in again, and verifies the document is restored.
-4.  **Security Rules:** Ensure Security Rules allow the user to create their own document (`allow write: if request.auth.uid == userId`).
+4. **Security Rules:** Security Rules must enforce granular access.
+    *   **Create:** `allow create: if request.auth.uid == userId && request.resource.data.role == 'user';` (forces the user role).
+    *   **Update:** `allow update: if request.auth.uid == userId && request.resource.data.role == resource.data.role;` (prevents role escalation).
+    *   **Delete:** Restricted to administrators or a managed account-deletion process.
+    *   *See [rules.md](./rules.md) for the complete, production-hardened implementation.*
+

@@ -53,12 +53,12 @@ Firestore has built-in persistence, but some actions require "Live" confirmation
 
 ### Local Emulator (`development`)
 *   **Guard Verbosity:** Log every guard failure with full stack traces.
-*   **Fallback:** If a required document is missing, the Service may automatically trigger a "Seed Task" to create placeholder data for a smoother developer experience.
+*   **Fallback:** No "test-only" magic seeding. If a required document is missing, the system should follow the standard `UserInitializationService` flow to restore the baseline document. Advanced data seeding (e.g., populating fake inventory items) is strictly prohibited unless the `ENABLE_AUTO_SEED` developer flag is explicitly active.
 *   **Connection:** Guard against a missing emulator connection by checking `FirebaseFirestore.instance.settings.host`.
 
 ### Production (`production`)
 *   **Guard Verbosity:** Silent failures in the UI; detailed logging in the background (Sentry/Crashlytics).
-*   **Fallback:** Never auto-seed data. Show a clear "Data Error" or "Not Found" state to the user.
+*   **Fallback:** Never seed data. If the `UserInitializationService` fails to restore a missing document, show a clear "Data Error" or "Not Found" state to the user.
 *   **Security:** Strict Security Rules are the ultimate guard.
 
 ---
