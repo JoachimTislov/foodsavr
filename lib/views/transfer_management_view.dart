@@ -3,57 +3,44 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:watch_it/watch_it.dart';
 
+import '../interfaces/i_auth_service.dart';
+import '../models/collection_model.dart';
 import '../models/product_model.dart';
+import '../service_locator.dart';
+import '../services/collection_service.dart';
 import '../widgets/product/product_select_item.dart';
-
-class _LocationOption {
-  final String id;
-  final String name;
-  final IconData icon;
-
-  const _LocationOption({
-    required this.id,
-    required this.name,
-    required this.icon,
-  });
-}
 
 class TransferManagementView extends WatchingWidget {
   const TransferManagementView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // TODO(feat): replace with locations fetched from a LocationService when available
-    const List<_LocationOption> fromOptions = [
-      _LocationOption(
-        id: 'main_fridge',
-        name: 'Main Fridge',
-        icon: Icons.kitchen,
-      ),
-      _LocationOption(id: 'pantry', name: 'Pantry', icon: Icons.shelves),
-    ];
+    final collectionService = getIt<CollectionService>();
+    final authService = getIt<IAuthService>();
 
-    const List<_LocationOption> toOptions = [
-      _LocationOption(
-        id: 'main_fridge',
-        name: 'Main Fridge',
-        icon: Icons.kitchen,
-      ),
-      _LocationOption(id: 'pantry', name: 'Pantry', icon: Icons.shelves),
-      _LocationOption(id: 'freezer', name: 'Freezer', icon: Icons.ac_unit),
-    ];
-
-    final fromLocation = createOnce(
-      () => ValueNotifier<_LocationOption?>(null),
+    final collectionsFutureNotifier = createOnce(
+      () => ValueNotifier<Future<List<Collection>>?>(null),
     );
-    final toLocation = createOnce(() => ValueNotifier<_LocationOption?>(null));
+    final fromLocation = createOnce(() => ValueNotifier<Collection?>(null));
+    final toLocation = createOnce(() => ValueNotifier<Collection?>(null));
     final selectedProducts = createOnce(() => ValueNotifier<List<Product>>([]));
     final isTransferring = createOnce(() => ValueNotifier<bool>(false));
 
+    final collectionsFuture = watch(collectionsFutureNotifier).value;
     final from = watch(fromLocation).value;
     final to = watch(toLocation).value;
     final products = watch(selectedProducts).value;
     final transferring = watch(isTransferring).value;
+
+    Future<void> loadCollections() async {
+      final userId = authService.getUserId();
+      if (userId == null) return;
+      collectionsFutureNotifier.value = collectionService.getCollectionsForUser(
+        userId,
+      );
+    }
+
+    callOnce((_) => loadCollections());
 
     Future<void> pickProducts() async {
       if (from == null || to == null) return;
@@ -72,8 +59,11 @@ class TransferManagementView extends WatchingWidget {
 
       isTransferring.value = true;
       try {
-        // TODO(feat): Implement actual transfer logic in a service
-        await Future.delayed(const Duration(seconds: 1));
+        await collectionService.transferProducts(
+          fromCollectionId: from.id,
+          toCollectionId: to.id,
+          productIds: products.map((p) => p.id).toList(),
+        );
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -103,78 +93,96 @@ class TransferManagementView extends WatchingWidget {
 
     return Scaffold(
       appBar: AppBar(title: Text('transfer.title'.tr())),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'transfer.configure_transfer'.tr(),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // From Location
-            _buildLocationPicker(
-              context,
-              label: 'transfer.from'.tr(),
-              selected: from,
-              options: fromOptions,
-              onChanged: (val) {
-                fromLocation.value = val;
-                selectedProducts.value = [];
-              },
-            ),
-
-            const SizedBox(height: 16),
-            const Center(child: Icon(Icons.arrow_downward, size: 24)),
-            const SizedBox(height: 16),
-
-            // To Location
-            _buildLocationPicker(
-              context,
-              label: 'transfer.to'.tr(),
-              selected: to,
-              options: toOptions,
-              onChanged: (val) {
-                toLocation.value = val;
-                if (val?.id == from?.id) {
-                  fromLocation.value = null;
-                  selectedProducts.value = [];
+      body: collectionsFuture == null
+          ? const Center(child: CircularProgressIndicator())
+          : FutureBuilder<List<Collection>>(
+              future: collectionsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
                 }
+                final collections = snapshot.data ?? [];
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'transfer.configure_transfer'.tr(),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // From Location
+                      _buildLocationPicker(
+                        context,
+                        label: 'transfer.from'.tr(),
+                        selected: from,
+                        options: collections,
+                        onChanged: (val) {
+                          fromLocation.value = val;
+                          selectedProducts.value = [];
+                        },
+                      ),
+
+                      const SizedBox(height: 16),
+                      const Center(child: Icon(Icons.arrow_downward, size: 24)),
+                      const SizedBox(height: 16),
+
+                      // To Location
+                      _buildLocationPicker(
+                        context,
+                        label: 'transfer.to'.tr(),
+                        selected: to,
+                        options: collections,
+                        onChanged: (val) {
+                          toLocation.value = val;
+                          if (val?.id == from?.id) {
+                            fromLocation.value = null;
+                            selectedProducts.value = [];
+                          }
+                        },
+                      ),
+
+                      const SizedBox(height: 40),
+
+                      // Product Selection Section
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'transfer.products_to_transfer'.tr(),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: from != null && to != null
+                                ? pickProducts
+                                : null,
+                            icon: const Icon(Icons.add),
+                            label: Text('common.select'.tr()),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      if (products.isEmpty)
+                        _buildEmptyProductsState(context)
+                      else
+                        _buildSelectedProductsList(
+                          context,
+                          products,
+                          selectedProducts,
+                        ),
+                    ],
+                  ),
+                );
               },
             ),
-
-            const SizedBox(height: 40),
-
-            // Product Selection Section
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'transfer.products_to_transfer'.tr(),
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: from != null && to != null ? pickProducts : null,
-                  icon: const Icon(Icons.add),
-                  label: Text('common.select'.tr()),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            if (products.isEmpty)
-              _buildEmptyProductsState(context)
-            else
-              _buildSelectedProductsList(context, products, selectedProducts),
-          ],
-        ),
-      ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -211,16 +219,16 @@ class TransferManagementView extends WatchingWidget {
   Widget _buildLocationPicker(
     BuildContext context, {
     required String label,
-    required _LocationOption? selected,
-    required List<_LocationOption> options,
-    required ValueChanged<_LocationOption?> onChanged,
+    required Collection? selected,
+    required List<Collection> options,
+    required ValueChanged<Collection?> onChanged,
   }) {
-    return DropdownButtonFormField<_LocationOption>(
+    return DropdownButtonFormField<Collection>(
       initialValue: selected,
       decoration: InputDecoration(
         labelText: label,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        prefixIcon: Icon(selected?.icon ?? Icons.location_on_outlined),
+        prefixIcon: const Icon(Icons.location_on_outlined),
       ),
       items: options.map((opt) {
         return DropdownMenuItem(value: opt, child: Text(opt.name));

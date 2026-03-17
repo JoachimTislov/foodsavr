@@ -200,4 +200,26 @@ class CollectionService {
       rethrow;
     }
   }
+
+  /// Transfer products from one collection to another.
+  Future<void> transferProducts({
+    required String fromCollectionId,
+    required String toCollectionId,
+    required List<int> productIds,
+  }) async {
+    _logger.i(
+      'Transferring ${productIds.length} products from $fromCollectionId to $toCollectionId',
+    );
+    try {
+      // In a real implementation with Firestore, this would be a transaction
+      for (final pid in productIds) {
+        await _collectionRepository.removeProduct(fromCollectionId, pid);
+      }
+      await _collectionRepository.addProducts(toCollectionId, productIds);
+      _logger.i('Successfully transferred products');
+    } catch (e) {
+      _logger.e('Error transferring products: $e');
+      rethrow;
+    }
+  }
 }

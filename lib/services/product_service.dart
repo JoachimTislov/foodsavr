@@ -284,6 +284,13 @@ class ProductService {
     }
   }
 
+  /// Generates a unique integer ID for a product.
+  int generateId() {
+    // Combine timestamp with random to minimize collision risk for local generation
+    return (DateTime.now().microsecondsSinceEpoch % 1000000000) * 1000 +
+        Random().nextInt(1000);
+  }
+
   /// Fetches all products within a specific collection.
   Future<List<Product>> getProductsInCollection(String collectionId) async {
     _logger.i('Fetching products for collection: $collectionId');

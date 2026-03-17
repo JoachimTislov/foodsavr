@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
@@ -71,11 +69,6 @@ class _AddProductSheet extends WatchingWidget {
       productsFutureNotifier.value = loadProducts();
     });
 
-    int generateProductId() {
-      return (DateTime.now().microsecondsSinceEpoch * 1000) +
-          Random().nextInt(1000);
-    }
-
     Future<void> addSelected() async {
       if (currentSelectedIds.isEmpty) return;
       final userId = authService.getUserId();
@@ -91,7 +84,7 @@ class _AddProductSheet extends WatchingWidget {
         final createdProductIds = <int>[];
         for (final sourceProduct in selectedProducts) {
           final currentProduct = Product(
-            id: generateProductId(),
+            id: productService.generateId(),
             name: sourceProduct.name,
             description: sourceProduct.description,
             userId: userId,

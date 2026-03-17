@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
@@ -74,11 +72,6 @@ class _ProductFormContent extends WatchingWidget {
     final currentExpiries = watch(expiries).value;
     final saving = watch(isSaving).value;
 
-    int generateProductId() {
-      return (DateTime.now().microsecondsSinceEpoch * 1000) +
-          Random().nextInt(1000);
-    }
-
     Future<void> save() async {
       if (!formKey.currentState!.validate()) return;
 
@@ -97,9 +90,9 @@ class _ProductFormContent extends WatchingWidget {
           );
           await productService.updateProduct(updated);
         } else {
-          final personalProductId = generateProductId();
+          final personalProductId = productService.generateId();
           final newProduct = Product(
-            id: generateProductId(),
+            id: productService.generateId(),
             name: nameController.text,
             description: descriptionController.text,
             userId: userId,
