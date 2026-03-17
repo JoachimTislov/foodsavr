@@ -5,71 +5,52 @@ import 'package:watch_it/watch_it.dart';
 import '../models/product_model.dart';
 import '../service_locator.dart';
 import '../services/collection_service.dart';
-import '../services/product_service.dart';
 import '../interfaces/i_auth_service.dart';
+import '../constants/product_categories.dart';
 
-class ProductDetailView extends StatefulWidget with WatchItStatefulWidgetMixin {
+class ProductDetailView extends WatchingWidget {
   final Product product;
 
   const ProductDetailView({super.key, required this.product});
 
   @override
-  State<ProductDetailView> createState() => _ProductDetailViewState();
-}
+  Widget build(BuildContext context) {
+    final collectionService = getIt<CollectionService>();
+    final authService = getIt<IAuthService>();
 
-class _ProductDetailViewState extends State<ProductDetailView>
-    with WatchItMixin {
-  late final CollectionService _collectionService;
-  late final ProductService _productService;
-  late final IAuthService _authService;
-  final _inventoryNames = ValueNotifier<List<String>?>(null);
-  final _isLoadingInventories = ValueNotifier<bool>(false);
+    final inventoryNamesNotifier = createOnce(() => ValueNotifier<List<String>?>(null));
+    final isLoadingInventoriesNotifier = createOnce(() => ValueNotifier<bool>(false));
 
-  @override
-  void initState() {
-    super.initState();
-    _collectionService = getIt<CollectionService>();
-    _productService = getIt<ProductService>();
-    _authService = getIt<IAuthService>();
-    _loadInventories();
-  }
+    final inventoryNames = watch(inventoryNamesNotifier).value;
+    final isLoadingInventories = watch(isLoadingInventoriesNotifier).value;
 
-  @override
-  void dispose() {
-    _inventoryNames.dispose();
-    _isLoadingInventories.dispose();
-    super.dispose();
-  }
+    Future<void> loadInventories() async {
+      final userId = authService.getUserId();
+      if (userId == null) return;
 
-  Future<void> _loadInventories() async {
-    final userId = _authService.getUserId();
-    if (userId == null) return;
+      isLoadingInventoriesNotifier.value = true;
+      try {
+        final collections = await collectionService.getCollectionsForUser(userId);
+        final registries = collections.where((c) {
+          return c.productIds.contains(product.id);
+        }).toList();
 
-    _isLoadingInventories.value = true;
-    try {
-      final collections = await _collectionService.getCollectionsForUser(userId);
-      final registries = collections.where((c) {
-        return c.productIds.contains(widget.product.id);
-      }).toList();
-
-      if (mounted) {
-        _inventoryNames.value = registries.map((c) => c.name).toList();
-      }
-    } catch (e) {
-      if (mounted) {
-        _inventoryNames.value = [];
-      }
-    } finally {
-      if (mounted) {
-        _isLoadingInventories.value = false;
+        if (context.mounted) {
+          inventoryNamesNotifier.value = registries.map((c) => c.name).toList();
+        }
+      } catch (e) {
+        if (context.mounted) {
+          inventoryNamesNotifier.value = [];
+        }
+      } finally {
+        if (context.mounted) {
+          isLoadingInventoriesNotifier.value = false;
+        }
       }
     }
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    final inventoryNames = watch(_inventoryNames).value;
-    final isLoadingInventories = watch(_isLoadingInventories).value;
+    callOnce((_) => loadInventories());
+
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -98,7 +79,7 @@ class _ProductDetailViewState extends State<ProductDetailView>
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                widget.product.category ?? '',
+                product.category ?? ProductCategory.general,
                 style: theme.textTheme.labelMedium?.copyWith(
                   color: colorScheme.onPrimaryContainer,
                   fontWeight: FontWeight.bold,
@@ -108,30 +89,31 @@ class _ProductDetailViewState extends State<ProductDetailView>
             const SizedBox(height: 16),
             // Product Name
             Text(
-              widget.product.name,
+              product.name,
               style: theme.textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
-            if (widget.product.description.isNotEmpty) ...[
+            if (product.description.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
-                widget.product.description,
+                product.description,
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
             const SizedBox(height: 32),
-            _buildSectionTitle('product.info'.tr()),
+            _buildSectionTitle(context, 'product.info'.tr()),
             const SizedBox(height: 16),
             _buildInfoRow(
+              context,
               Icons.qr_code_scanner,
               'product.id'.tr(),
-              widget.product.id.toString(),
+              product.id.toString(),
             ),
             const SizedBox(height: 32),
-            _buildSectionTitle('product.storage'.tr()),
+            _buildSectionTitle(context, 'product.storage'.tr()),
             const SizedBox(height: 16),
             if (isLoadingInventories)
               const Center(child: CircularProgressIndicator())
@@ -161,7 +143,7 @@ class _ProductDetailViewState extends State<ProductDetailView>
     );
   }
 
-  Widget _buildSectionTitle(String title) {
+  Widget _buildSectionTitle(BuildContext context, String title) {
     return Text(
       title,
       style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -171,7 +153,7 @@ class _ProductDetailViewState extends State<ProductDetailView>
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
+  Widget _buildInfoRow(BuildContext context, IconData icon, String label, String value) {
     final colorScheme = Theme.of(context).colorScheme;
     return Row(
       children: [

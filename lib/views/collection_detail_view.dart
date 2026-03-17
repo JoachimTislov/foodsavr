@@ -17,102 +17,91 @@ import 'add_product_to_collection_view.dart';
 import 'collection_form_view.dart';
 import 'product_detail_view.dart';
 
-class CollectionDetailView extends StatefulWidget with WatchItStatefulWidgetMixin {
+class CollectionDetailView extends WatchingWidget {
   final Collection collection;
 
   const CollectionDetailView({super.key, required this.collection});
 
   @override
-  State<CollectionDetailView> createState() => _CollectionDetailViewState();
-}
+  Widget build(BuildContext context) {
+    final productService = getIt<ProductService>();
+    final collectionService = getIt<CollectionService>();
+    final authService = getIt<IAuthService>();
 
-class _CollectionDetailViewState extends State<CollectionDetailView>
-    with WatchItMixin {
-  late final ValueNotifier<Future<List<Product>>> _productsFuture;
-  late final ProductService _productService;
-  late final CollectionService _collectionService;
-  late final IAuthService _authService;
-  late final ValueNotifier<Collection> _currentCollection;
+    final currentCollectionNotifier = createOnce(() => ValueNotifier<Collection>(collection));
+    final productsFutureNotifier = createOnce(() => ValueNotifier<Future<List<Product>>?>(null));
 
-  @override
-  void initState() {
-    super.initState();
-    _productService = getIt<ProductService>();
-    _collectionService = getIt<CollectionService>();
-    _authService = getIt<IAuthService>();
-    _currentCollection = ValueNotifier<Collection>(widget.collection);
-    _productsFuture = ValueNotifier<Future<List<Product>>>(_fetchProducts());
-  }
+    final currentCollection = watch(currentCollectionNotifier).value;
+    final productsFuture = watch(productsFutureNotifier).value;
 
-  @override
-  void dispose() {
-    _productsFuture.dispose();
-    _currentCollection.dispose();
-    super.dispose();
-  }
-
-  void _refreshProducts() {
-    _productsFuture.value = _fetchProducts();
-  }
-
-  Future<void> _refreshCollection() async {
-    final updated = await _collectionService.getCollection(
-      _currentCollection.value.id,
-    );
-    if (updated != null && mounted) {
-      _currentCollection.value = updated;
-      _refreshProducts();
+    Future<List<Product>> fetchProducts() async {
+      final productIds = currentCollection.productIds;
+      if (productIds.isEmpty) return [];
+      final products = <Product>[];
+      for (final id in productIds) {
+        final product = await productService.getProductById(id);
+        if (product != null) products.add(product);
+      }
+      return products;
     }
-  }
 
-  Future<void> _deleteCollection() async {
-    final currentCollection = _currentCollection.value;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('common.delete'.tr()),
-        content: Text(
-          'product.deleteConfirmMessage'.tr(
-            namedArgs: {'name': currentCollection.name},
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text('common.cancel'.tr()),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
+    void refreshProducts() {
+      productsFutureNotifier.value = fetchProducts();
+    }
+
+    Future<void> refreshCollection() async {
+      final updated = await collectionService.getCollection(currentCollection.id);
+      if (updated != null && context.mounted) {
+        currentCollectionNotifier.value = updated;
+        refreshProducts();
+      }
+    }
+
+    callOnce((_) => refreshProducts());
+
+    Future<void> deleteCollection() async {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('common.delete'.tr()),
+          content: Text(
+            'product.deleteConfirmMessage'.tr(
+              namedArgs: {'name': currentCollection.name},
             ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text('common.delete'.tr()),
           ),
-        ],
-      ),
-    );
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text('common.cancel'.tr()),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError,
+              ),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text('common.delete'.tr()),
+            ),
+          ],
+        ),
+      );
 
-    if (confirmed == true && mounted) {
-      try {
-        await _collectionService.deleteCollection(currentCollection.id);
-        if (mounted) {
-          Navigator.of(context).pop(true);
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
+      if (confirmed == true && context.mounted) {
+        try {
+          await collectionService.deleteCollection(currentCollection.id);
+          if (context.mounted) {
+            Navigator.of(context).pop(true);
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to delete: $e')),
+            );
+          }
         }
       }
     }
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    final productsFuture = watch(_productsFuture).value;
-    final currentCollection = watch(_currentCollection).value;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -129,10 +118,10 @@ class _CollectionDetailViewState extends State<CollectionDetailView>
                   collection: currentCollection,
                 );
                 if (result == true) {
-                  _refreshCollection();
+                  refreshCollection();
                 }
               } else if (value == 'delete') {
-                _deleteCollection();
+                deleteCollection();
               }
             },
             itemBuilder: (BuildContext context) {
@@ -169,7 +158,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView>
           ),
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => _authService.signOut(),
+            onPressed: () => authService.signOut(),
           ),
         ],
       ),
@@ -178,7 +167,51 @@ class _CollectionDetailViewState extends State<CollectionDetailView>
         children: [
           CollectionHeader(collection: currentCollection),
           Expanded(
-            child: _buildProductsList(productsFuture),
+            child: productsFuture == null
+                ? const Center(child: CircularProgressIndicator())
+                : FutureBuilder<List<Product>>(
+                    future: productsFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      if (snapshot.hasError) {
+                        return ErrorStateWidget(
+                          message: 'common.error_loading_data'.tr(),
+                          onRetry: refreshProducts,
+                        );
+                      }
+
+                      final products = snapshot.data ?? [];
+
+                      if (products.isEmpty) {
+                        return Center(
+                          child: Text(
+                            'product.noProductsFound'.tr(),
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                        );
+                      }
+
+                      return ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: products.length,
+                        itemBuilder: (context, index) {
+                          final product = products[index];
+                          return ProductCardNormal(
+                            product: product,
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    ProductDetailView(product: product),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -197,72 +230,11 @@ class _CollectionDetailViewState extends State<CollectionDetailView>
               collectionId: currentCollection.id,
             );
           }
-          if (!mounted) return;
           if (result == true) {
-            _refreshProducts();
+            refreshProducts();
           }
         },
         child: const Icon(Icons.add),
-      ),
-    );
-  }
-
-  Widget _buildProductsList(Future<List<Product>> productsFuture) {
-    return FutureBuilder<List<Product>>(
-      future: productsFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (snapshot.hasError) {
-          return ErrorStateWidget(
-            message: 'common.error_loading_data'.tr(),
-            onRetry: _refreshProducts,
-          );
-        }
-
-        final products = snapshot.data ?? [];
-
-        if (products.isEmpty) {
-          return Center(
-            child: Text(
-              'product.noProductsFound'.tr(),
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-          );
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: products.length,
-          itemBuilder: (context, index) {
-            final product = products[index];
-            return ProductCardNormal(
-              product: product,
-              onTap: () => _navigateToProductDetail(product),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<List<Product>> _fetchProducts() async {
-    final productIds = _currentCollection.value.productIds;
-    if (productIds.isEmpty) return [];
-    final products = <Product>[];
-    for (final id in productIds) {
-      final product = await _productService.getProductById(id);
-      if (product != null) products.add(product);
-    }
-    return products;
-  }
-
-  void _navigateToProductDetail(Product product) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => ProductDetailView(product: product),
       ),
     );
   }

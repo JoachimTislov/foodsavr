@@ -34,104 +34,87 @@ class AddProductToCollectionView extends StatelessWidget {
   }
 }
 
-class _AddProductSheet extends StatefulWidget with WatchItStatefulWidgetMixin {
+class _AddProductSheet extends WatchingWidget {
   final String collectionId;
 
-  const _AddProductSheet({required this.collectionId});
-
-  @override
-  State<_AddProductSheet> createState() => _AddProductSheetState();
-}
-
-class _AddProductSheetState extends State<_AddProductSheet> with WatchItMixin {
-  static final Random _random = Random();
-  late final ProductService _productService;
-  late final CollectionService _collectionService;
-  late final IAuthService _authService;
-  late final ValueNotifier<Future<List<Product>>> _productsFuture;
-  final _selectedIds = ValueNotifier<Set<int>>(<int>{});
-  final _isSaving = ValueNotifier<bool>(false);
-
-  @override
-  void initState() {
-    super.initState();
-    _productService = getIt<ProductService>();
-    _collectionService = getIt<CollectionService>();
-    _authService = getIt<IAuthService>();
-    _productsFuture = ValueNotifier<Future<List<Product>>>(_loadProducts());
-  }
-
-  @override
-  void dispose() {
-    _productsFuture.dispose();
-    _selectedIds.dispose();
-    _isSaving.dispose();
-    super.dispose();
-  }
-
-  Future<List<Product>> _loadProducts() async {
-    final userId = _authService.getUserId();
-    if (userId == null) return [];
-    final results = await Future.wait([
-      _productService.getPersonalProducts(userId),
-      _productService.getAllProducts(),
-    ]);
-    final personalProducts = results[0];
-    final globalProducts = results[1];
-    return [...personalProducts, ...globalProducts];
-  }
-
-  Future<void> _addSelected() async {
-    final selectedIds = _selectedIds.value;
-    if (selectedIds.isEmpty) return;
-    final userId = _authService.getUserId();
-    if (userId == null) return;
-    _isSaving.value = true;
-    try {
-      final registryProducts = await _productsFuture.value;
-      final selectedProducts = registryProducts
-          .where((product) => selectedIds.contains(product.id))
-          .toList();
-      final createdProductIds = <int>[];
-      for (final sourceProduct in selectedProducts) {
-        final currentProduct = Product(
-          id: _generateProductId(),
-          name: sourceProduct.name,
-          description: sourceProduct.description,
-          userId: userId,
-          category: sourceProduct.category,
-          registryType: 'current',
-          mappedFromProductId: sourceProduct.id,
-        );
-        await _productService.addProduct(currentProduct);
-        createdProductIds.add(currentProduct.id);
-      }
-      await _collectionService.addProductsToCollection(
-        widget.collectionId,
-        createdProductIds,
-      );
-      if (mounted) Navigator.of(context).pop(true);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('common.error_loading_data'.tr())),
-        );
-      }
-    } finally {
-      if (mounted) _isSaving.value = false;
-    }
-  }
-
-  int _generateProductId() {
-    return (DateTime.now().microsecondsSinceEpoch * 1000) +
-        _random.nextInt(1000);
-  }
+  const _AddProductSheet({super.key, required this.collectionId});
 
   @override
   Widget build(BuildContext context) {
-    final productsFuture = watch(_productsFuture).value;
-    final selectedIds = watch(_selectedIds).value;
-    final isSaving = watch(_isSaving).value;
+    final productService = getIt<ProductService>();
+    final collectionService = getIt<CollectionService>();
+    final authService = getIt<IAuthService>();
+
+    final productsFutureNotifier = createOnce(() => ValueNotifier<Future<List<Product>>?>(null));
+    final selectedIds = createOnce(() => ValueNotifier<Set<int>>(<int>{}));
+    final isSaving = createOnce(() => ValueNotifier<bool>(false));
+
+    final currentProductsFuture = watch(productsFutureNotifier).value;
+    final currentSelectedIds = watch(selectedIds).value;
+    final currentIsSaving = watch(isSaving).value;
+
+    Future<List<Product>> loadProducts() async {
+      final userId = authService.getUserId();
+      if (userId == null) return [];
+      final results = await Future.wait([
+        productService.getPersonalProducts(userId),
+        productService.getAllProducts(),
+      ]);
+      final personalProducts = results[0];
+      final globalProducts = results[1];
+      return [...personalProducts, ...globalProducts];
+    }
+
+    callOnce((_) {
+      productsFutureNotifier.value = loadProducts();
+    });
+
+    int generateProductId() {
+      return (DateTime.now().microsecondsSinceEpoch * 1000) +
+          Random().nextInt(1000);
+    }
+
+    Future<void> addSelected() async {
+      if (currentSelectedIds.isEmpty) return;
+      final userId = authService.getUserId();
+      if (userId == null) return;
+      
+      isSaving.value = true;
+      try {
+        final registryProducts = await currentProductsFuture!;
+        final selectedProducts = registryProducts
+            .where((product) => currentSelectedIds.contains(product.id))
+            .toList();
+        
+        final createdProductIds = <int>[];
+        for (final sourceProduct in selectedProducts) {
+          final currentProduct = Product(
+            id: generateProductId(),
+            name: sourceProduct.name,
+            description: sourceProduct.description,
+            userId: userId,
+            category: sourceProduct.category,
+            registryType: 'current',
+            mappedFromProductId: sourceProduct.id,
+          );
+          await productService.addProduct(currentProduct);
+          createdProductIds.add(currentProduct.id);
+        }
+        await collectionService.addProductsToCollection(
+          collectionId,
+          createdProductIds,
+        );
+        if (context.mounted) Navigator.of(context).pop(true);
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('common.error_loading_data'.tr())),
+          );
+        }
+      } finally {
+        if (context.mounted) isSaving.value = false;
+      }
+    }
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
@@ -141,52 +124,54 @@ class _AddProductSheetState extends State<_AddProductSheet> with WatchItMixin {
       ),
       child: Column(
         children: [
-          _buildHeader(),
+          _buildHeader(context),
           Expanded(
-            child: FutureBuilder<List<Product>>(
-              future: productsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('common.error_loading_data'.tr()));
-                }
-                final products = snapshot.data ?? [];
-                if (products.isEmpty) {
-                  return Center(child: Text('product.noProductsFound'.tr()));
-                }
-                return ListView.builder(
-                  itemCount: products.length,
-                  itemBuilder: (context, index) {
-                    final product = products[index];
-                    final isSelected = selectedIds.contains(product.id);
-                    return CheckboxListTile(
-                      title: Text(product.name),
-                      subtitle: Text(product.category),
-                      value: isSelected,
-                      onChanged: (val) {
-                        final newSet = Set<int>.from(_selectedIds.value);
-                        if (val == true) {
-                          newSet.add(product.id);
-                        } else {
-                          newSet.remove(product.id);
-                        }
-                        _selectedIds.value = newSet;
+            child: currentProductsFuture == null 
+              ? const Center(child: CircularProgressIndicator())
+              : FutureBuilder<List<Product>>(
+                  future: currentProductsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(child: Text('common.error_loading_data'.tr()));
+                    }
+                    final products = snapshot.data ?? [];
+                    if (products.isEmpty) {
+                      return Center(child: Text('product.noProductsFound'.tr()));
+                    }
+                    return ListView.builder(
+                      itemCount: products.length,
+                      itemBuilder: (context, index) {
+                        final product = products[index];
+                        final isSelected = currentSelectedIds.contains(product.id);
+                        return CheckboxListTile(
+                          title: Text(product.name),
+                          subtitle: Text(product.category ?? ''),
+                          value: isSelected,
+                          onChanged: (val) {
+                            final newSet = Set<int>.from(currentSelectedIds);
+                            if (val == true) {
+                              newSet.add(product.id);
+                            } else {
+                              newSet.remove(product.id);
+                            }
+                            selectedIds.value = newSet;
+                          },
+                        );
                       },
                     );
                   },
-                );
-              },
-            ),
+                ),
           ),
-          _buildFooter(selectedIds.length, isSaving),
+          _buildFooter(context, currentSelectedIds.length, currentIsSaving, addSelected),
         ],
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Row(
@@ -205,13 +190,13 @@ class _AddProductSheetState extends State<_AddProductSheet> with WatchItMixin {
     );
   }
 
-  Widget _buildFooter(int selectedCount, bool isSaving) {
+  Widget _buildFooter(BuildContext context, int selectedCount, bool isSaving, VoidCallback onAdd) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: SizedBox(
         width: double.infinity,
         child: FilledButton(
-          onPressed: selectedCount > 0 && !isSaving ? _addSelected : null,
+          onPressed: selectedCount > 0 && !isSaving ? onAdd : null,
           child: isSaving
               ? const SizedBox(
                   height: 20,

@@ -14,84 +14,67 @@ import '../widgets/product/product_card_compact.dart';
 import '../utils/product_add_helper.dart';
 import 'product_detail_view.dart';
 
-class ProductListView extends StatefulWidget with WatchItStatefulWidgetMixin {
+class ProductListView extends WatchingWidget {
   final bool showGlobalProducts;
 
   const ProductListView({super.key, this.showGlobalProducts = false});
 
   @override
-  State<ProductListView> createState() => _ProductListViewState();
-}
-
-class _ProductListViewState extends State<ProductListView> with WatchItMixin {
-  late final ValueNotifier<Future<List<Product>>> _productsFuture;
-  late final ProductService _productService;
-  late final CollectionService _collectionService;
-  late final IAuthService _authService;
-  final _viewMode = ValueNotifier<ProductViewMode>(ProductViewMode.normal);
-  final _isSigningOut = ValueNotifier<bool>(false);
-  final _productInventories = ValueNotifier<Map<int, List<String>>>({});
-
-  @override
-  void initState() {
-    super.initState();
-    _productService = getIt<ProductService>();
-    _collectionService = getIt<CollectionService>();
-    _authService = getIt<IAuthService>();
-    _productsFuture = ValueNotifier<Future<List<Product>>>(_fetchProducts());
-  }
-
-  @override
-  void dispose() {
-    _productsFuture.dispose();
-    _viewMode.dispose();
-    _isSigningOut.dispose();
-    _productInventories.dispose();
-    super.dispose();
-  }
-
-  void _refreshProducts() {
-    _productsFuture.value = _fetchProducts();
-  }
-
-  Future<List<Product>> _fetchProducts() async {
-    if (widget.showGlobalProducts) {
-      return _productService.getAllProducts();
-    }
-    final userId = _authService.getUserId();
-    if (userId == null) return [];
-    final products = await _productService.getPersonalProducts(userId);
-
-    // Fetch collections to show which inventories products are in
-    final collections = await _collectionService.getCollectionsForUser(userId);
-    final inventoryMap = <int, List<String>>{};
-    for (final product in products) {
-      final names = collections
-          .where((c) => c.productIds.contains(product.id))
-          .map((c) => c.name)
-          .toList();
-      if (names.isNotEmpty) {
-        inventoryMap[product.id] = names;
-      }
-    }
-    if (mounted) {
-      _productInventories.value = inventoryMap;
-    }
-
-    return products;
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final productsFuture = watch(_productsFuture).value;
-    final viewMode = watch(_viewMode).value;
-    final isSigningOut = watch(_isSigningOut).value;
-    final productInventories = watch(_productInventories).value;
+    final productService = getIt<ProductService>();
+    final collectionService = getIt<CollectionService>();
+    final authService = getIt<IAuthService>();
+
+    final productsFutureNotifier =
+        createOnce(() => ValueNotifier<Future<List<Product>>?>(null));
+    final viewModeNotifier =
+        createOnce(() => ValueNotifier<ProductViewMode>(ProductViewMode.normal));
+    final isSigningOutNotifier = createOnce(() => ValueNotifier<bool>(false));
+    final productInventoriesNotifier =
+        createOnce(() => ValueNotifier<Map<int, List<String>>>({}));
+
+    final productsFuture = watch(productsFutureNotifier).value;
+    final viewMode = watch(viewModeNotifier).value;
+    final isSigningOut = watch(isSigningOutNotifier).value;
+    final productInventories = watch(productInventoriesNotifier).value;
+
+    Future<List<Product>> fetchProducts() async {
+      if (showGlobalProducts) {
+        return productService.getAllProducts();
+      }
+      final userId = authService.getUserId();
+      if (userId == null) return [];
+      final products = await productService.getPersonalProducts(userId);
+
+      // Fetch collections to show which inventories products are in
+      final collections = await collectionService.getCollectionsForUser(userId);
+      final inventoryMap = <int, List<String>>{};
+      for (final product in products) {
+        final names = collections
+            .where((c) => c.productIds.contains(product.id))
+            .map((c) => c.name)
+            .toList();
+        if (names.isNotEmpty) {
+          inventoryMap[product.id] = names;
+        }
+      }
+      if (context.mounted) {
+        productInventoriesNotifier.value = inventoryMap;
+      }
+
+      return products;
+    }
+
+    void refreshProducts() {
+      productsFutureNotifier.value = fetchProducts();
+    }
+
+    callOnce((_) => refreshProducts());
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.showGlobalProducts
+          showGlobalProducts
               ? 'product.globalTitle'.tr()
               : 'product.personalTitle'.tr(),
         ),
@@ -104,7 +87,7 @@ class _ProductListViewState extends State<ProductListView> with WatchItMixin {
                 ProductViewMode.compact => ProductViewMode.details,
                 ProductViewMode.details => ProductViewMode.normal,
               };
-              _viewMode.value = nextMode;
+              viewModeNotifier.value = nextMode;
             },
           ),
           IconButton(
@@ -118,45 +101,52 @@ class _ProductListViewState extends State<ProductListView> with WatchItMixin {
             onPressed: isSigningOut
                 ? null
                 : () async {
-                    _isSigningOut.value = true;
-                    await _authService.signOut();
-                    if (mounted) _isSigningOut.value = false;
+                    isSigningOutNotifier.value = true;
+                    await authService.signOut();
+                    if (context.mounted) isSigningOutNotifier.value = false;
                   },
           ),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async => _refreshProducts(),
-        child: FutureBuilder<List<Product>>(
-          future: productsFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text('common.error_loading_data'.tr()));
-            }
-            final products = snapshot.data ?? [];
-            if (products.isEmpty) {
-              return Center(child: Text('product.noProductsFound'.tr()));
-            }
+        onRefresh: () async => refreshProducts(),
+        child: productsFuture == null
+            ? const Center(child: CircularProgressIndicator())
+            : FutureBuilder<List<Product>>(
+                future: productsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Text('common.error_loading_data'.tr()));
+                  }
+                  final products = snapshot.data ?? [];
+                  if (products.isEmpty) {
+                    return Center(child: Text('product.noProductsFound'.tr()));
+                  }
 
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: products.length,
-              itemBuilder: (context, index) {
-                final product = products[index];
-                return _buildProductCard(product, viewMode, productInventories);
-              },
-            );
-          },
-        ),
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: products.length,
+                    itemBuilder: (context, index) {
+                      final product = products[index];
+                      return _buildProductCard(
+                        context,
+                        product,
+                        viewMode,
+                        productInventories,
+                      );
+                    },
+                  );
+                },
+              ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final result = await ProductAddHelper.startAddProductFlow(context);
           if (result == true) {
-            _refreshProducts();
+            refreshProducts();
           }
         },
         child: const Icon(Icons.add),
@@ -165,32 +155,33 @@ class _ProductListViewState extends State<ProductListView> with WatchItMixin {
   }
 
   Widget _buildProductCard(
+    BuildContext context,
     Product product,
     ProductViewMode viewMode,
     Map<int, List<String>> productInventories,
   ) {
+    void navigateToDetail(Product p) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => ProductDetailView(product: p),
+        ),
+      );
+    }
+
     return switch (viewMode) {
       ProductViewMode.compact => ProductCardCompact(
           product: product,
-          onTap: () => _navigateToDetail(product),
+          onTap: () => navigateToDetail(product),
         ),
       ProductViewMode.normal => ProductCardNormal(
           product: product,
-          onTap: () => _navigateToDetail(product),
+          onTap: () => navigateToDetail(product),
         ),
       ProductViewMode.details => ProductCardDetails(
           product: product,
           inventoryNames: productInventories[product.id],
-          onTap: () => _navigateToDetail(product),
+          onTap: () => navigateToDetail(product),
         ),
     };
-  }
-
-  void _navigateToDetail(Product product) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => ProductDetailView(product: product),
-      ),
-    );
   }
 }

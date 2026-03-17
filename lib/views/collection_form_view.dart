@@ -30,87 +30,66 @@ class CollectionFormView extends StatelessWidget {
   }
 }
 
-class _CollectionFormSheet extends StatefulWidget with WatchItStatefulWidgetMixin {
+class _CollectionFormSheet extends WatchingWidget {
   final CollectionType type;
   final Collection? collection;
 
   const _CollectionFormSheet({required this.type, this.collection});
 
   @override
-  State<_CollectionFormSheet> createState() => _CollectionFormSheetState();
-}
-
-class _CollectionFormSheetState extends State<_CollectionFormSheet> with WatchItMixin {
-  final _formKey = GlobalKey<FormState>();
-  late final CollectionService _collectionService;
-  late final IAuthService _authService;
-
-  late TextEditingController _nameController;
-  final _isSaving = ValueNotifier<bool>(false);
-
-  @override
-  void initState() {
-    super.initState();
-    _collectionService = getIt<CollectionService>();
-    _authService = getIt<IAuthService>();
-    _nameController =
-        TextEditingController(text: widget.collection?.name ?? '');
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _isSaving.dispose();
-    super.dispose();
-  }
-
-  String _title() {
-    if (widget.collection != null) {
-      return 'collection.editTitle'.tr();
-    }
-    return widget.type == CollectionType.inventory
-        ? 'collection.createInventoryTitle'.tr()
-        : 'collection.createShoppingListTitle'.tr();
-  }
-
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final userId = _authService.getUserId();
-    if (userId == null) return;
-
-    _isSaving.value = true;
-    try {
-      if (widget.collection != null) {
-        final updated = widget.collection!.copyWith(
-          name: _nameController.text,
-        );
-        await _collectionService.updateCollection(updated);
-      } else {
-        final collection = Collection(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          name: _nameController.text,
-          userId: userId,
-          type: widget.type,
-          productIds: [],
-        );
-        await _collectionService.addCollection(collection);
-      }
-      if (mounted) Navigator.of(context).pop(true);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('common.error_loading_data'.tr())),
-        );
-      }
-    } finally {
-      if (mounted) _isSaving.value = false;
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final isSaving = watch(_isSaving).value;
+    final collectionService = getIt<CollectionService>();
+    final authService = getIt<IAuthService>();
+
+    final nameController = createOnce(() => TextEditingController(text: collection?.name ?? ''));
+    final isSaving = createOnce(() => ValueNotifier<bool>(false));
+    final formKey = createOnce(() => GlobalKey<FormState>());
+
+    final saving = watch(isSaving).value;
+
+    String title() {
+      if (collection != null) {
+        return 'collection.editTitle'.tr();
+      }
+      return type == CollectionType.inventory
+          ? 'collection.createInventoryTitle'.tr()
+          : 'collection.createShoppingListTitle'.tr();
+    }
+
+    Future<void> save() async {
+      if (!formKey.currentState!.validate()) return;
+
+      final userId = authService.getUserId();
+      if (userId == null) return;
+
+      isSaving.value = true;
+      try {
+        if (collection != null) {
+          final updated = collection!.copyWith(
+            name: nameController.text,
+          );
+          await collectionService.updateCollection(updated);
+        } else {
+          final newCollection = Collection(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            name: nameController.text,
+            userId: userId,
+            type: type,
+            productIds: [],
+          );
+          await collectionService.addCollection(newCollection);
+        }
+        if (context.mounted) Navigator.of(context).pop(true);
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('common.error_loading_data'.tr())),
+          );
+        }
+      } finally {
+        if (context.mounted) isSaving.value = false;
+      }
+    }
 
     return Container(
       padding: EdgeInsets.only(
@@ -127,15 +106,15 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet> with WatchIt
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              _title(),
+              title(),
               style: Theme.of(context).textTheme.titleLarge,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
             Form(
-              key: _formKey,
+              key: formKey,
               child: TextFormField(
-                controller: _nameController,
+                controller: nameController,
                 autofocus: true,
                 decoration: InputDecoration(
                   labelText: 'common.name'.tr(),
@@ -151,15 +130,15 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet> with WatchIt
             ),
             const SizedBox(height: 24),
             FilledButton(
-              onPressed: isSaving ? null : _save,
-              child: isSaving
+              onPressed: saving ? null : save,
+              child: saving
                   ? const SizedBox(
                       height: 20,
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : Text(
-                      widget.collection != null
+                      collection != null
                           ? 'common.save'.tr()
                           : 'common.create'.tr(),
                     ),

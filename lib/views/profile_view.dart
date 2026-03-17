@@ -122,7 +122,7 @@ class ProfileView extends WatchingWidget {
   }
 
   void _showDeleteAccountConfirmation(BuildContext context) {
-    final _authService = getIt<IAuthService>();
+    final authService = getIt<IAuthService>();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -167,10 +167,10 @@ class ProfileView extends WatchingWidget {
             ),
             const SizedBox(height: 32),
             ElevatedButton(
-              // TODO(profile): Call _authService.deleteAccount() once implemented
+              // TODO(profile): Call authService.deleteAccount() once implemented
               onPressed: () async {
                 Navigator.pop(context);
-                _authService.signOut();
+                authService.signOut();
               },
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size.fromHeight(56),

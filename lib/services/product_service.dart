@@ -293,10 +293,7 @@ class ProductService {
       // Note: This requires access to collection repository or service.
       // For now, let's assume we use the product repository if it supports it, 
       // or we just use getProductById for each.
-      final products = <Product>[];
-      // This is a bit inefficient without a dedicated repo method, but follows current pattern
-      // Better: add getProductsByCollection to IProductRepository
-      final allUserProducts = await _productRepository.getAll(); // Or filtered by userId
+      
       // However, current product_model doesn't have collectionId, 
       // it's the collection_model that has productIds.
       // So this method might be better placed in a higher level service or

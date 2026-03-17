@@ -9,7 +9,7 @@ import '../services/select_products_controller.dart';
 import '../widgets/product/compact_location_card.dart';
 import '../widgets/product/product_select_item.dart';
 
-class SelectProductsView extends WatchingStatefulWidget {
+class SelectProductsView extends WatchingWidget {
   final String fromLocationId;
   final String toLocationId;
 
@@ -20,50 +20,25 @@ class SelectProductsView extends WatchingStatefulWidget {
   });
 
   @override
-  State<SelectProductsView> createState() => _SelectProductsViewState();
-}
-
-class _SelectProductsViewState extends State<SelectProductsView>
-    with WatchItMixin {
-  late final ProductService _productService;
-  late final IAuthService _authService;
-  late final SelectProductsController _controller;
-  late final TextEditingController _searchController;
-
-  @override
-  void initState() {
-    super.initState();
-    _productService = getIt<ProductService>();
-    _authService = getIt<IAuthService>();
-    _controller = getIt<SelectProductsController>();
-    _searchController = TextEditingController();
-
-    _loadProducts();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadProducts() async {
-    final userId = _authService.getUserId();
-    if (userId == null) return;
-
-    _controller.setLoading(true);
-    // Note: getProductsInCollection was implemented as placeholder returning empty list
-    // In a real app this would fetch the actual products.
-    final products =
-        await _productService.getProductsInCollection(widget.fromLocationId);
-    if (mounted) {
-      _controller.setAvailableProducts(products);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    watch(_controller);
+    final productService = getIt<ProductService>();
+    final authService = getIt<IAuthService>();
+    final controller = watchIt<SelectProductsController>();
+    final searchController = createOnce(() => TextEditingController());
+
+    Future<void> loadProducts() async {
+      final userId = authService.getUserId();
+      if (userId == null) return;
+
+      controller.setLoading(true);
+      final products = await productService.getProductsInCollection(fromLocationId);
+      if (context.mounted) {
+        controller.setAvailableProducts(products);
+      }
+    }
+
+    callOnce((_) => loadProducts());
+
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -81,7 +56,7 @@ class _SelectProductsViewState extends State<SelectProductsView>
                     Expanded(
                       child: CompactLocationCard(
                         label: 'transfer.from'.tr(),
-                        locationName: widget.fromLocationId,
+                        locationName: fromLocationId,
                         isActive: true,
                       ),
                     ),
@@ -92,7 +67,7 @@ class _SelectProductsViewState extends State<SelectProductsView>
                     Expanded(
                       child: CompactLocationCard(
                         label: 'transfer.to'.tr(),
-                        locationName: widget.toLocationId,
+                        locationName: toLocationId,
                         isActive: false,
                       ),
                     ),
@@ -102,7 +77,7 @@ class _SelectProductsViewState extends State<SelectProductsView>
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: TextField(
-                  controller: _searchController,
+                  controller: searchController,
                   decoration: InputDecoration(
                     hintText: 'product.searchHint'.tr(),
                     prefixIcon: const Icon(Icons.search),
@@ -111,16 +86,16 @@ class _SelectProductsViewState extends State<SelectProductsView>
                     ),
                     contentPadding: const EdgeInsets.symmetric(vertical: 0),
                   ),
-                  onChanged: (value) => _controller.setSearchQuery(value),
+                  onChanged: (value) => controller.setSearchQuery(value),
                 ),
               ),
             ],
           ),
         ),
       ),
-      body: _controller.isLoading
+      body: controller.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _controller.filteredProducts.isEmpty
+          : controller.filteredProducts.isEmpty
               ? Center(
                   child: Text(
                     'transfer.no_products_available'.tr(),
@@ -131,13 +106,13 @@ class _SelectProductsViewState extends State<SelectProductsView>
                 )
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: _controller.filteredProducts.length,
+                  itemCount: controller.filteredProducts.length,
                   itemBuilder: (context, index) {
-                    final product = _controller.filteredProducts[index];
+                    final product = controller.filteredProducts[index];
                     return ProductSelectItem(
                       product: product,
-                      isSelected: _controller.isSelected(product.id),
-                      onToggle: () => _controller.toggleSelection(product.id),
+                      isSelected: controller.isSelected(product.id),
+                      onToggle: () => controller.toggleSelection(product.id),
                     );
                   },
                 ),
@@ -145,10 +120,10 @@ class _SelectProductsViewState extends State<SelectProductsView>
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: FilledButton(
-            onPressed: _controller.selectedIds.isEmpty
+            onPressed: controller.selectedIds.isEmpty
                 ? null
                 : () {
-                    Navigator.of(context).pop(_controller.selectedProducts);
+                    Navigator.of(context).pop(controller.selectedProducts);
                   },
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(56),
@@ -158,7 +133,7 @@ class _SelectProductsViewState extends State<SelectProductsView>
             ),
             child: Text(
               'transfer.confirm_selection'.tr(
-                namedArgs: {'count': _controller.selectedIds.length.toString()},
+                namedArgs: {'count': controller.selectedIds.length.toString()},
               ),
             ),
           ),

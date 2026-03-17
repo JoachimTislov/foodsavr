@@ -3,11 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:watch_it/watch_it.dart';
 
-import '../interfaces/i_auth_service.dart';
 import '../models/product_model.dart';
-import '../service_locator.dart';
-import '../services/collection_service.dart';
-import '../services/product_service.dart';
 import '../widgets/product/product_select_item.dart';
 
 class _LocationOption {
@@ -22,128 +18,94 @@ class _LocationOption {
   });
 }
 
-class TransferManagementView extends WatchingStatefulWidget {
+class TransferManagementView extends WatchingWidget {
   const TransferManagementView({super.key});
 
   @override
-  State<TransferManagementView> createState() => _TransferManagementViewState();
-}
-
-class _TransferManagementViewState extends State<TransferManagementView>
-    with WatchItMixin {
-  // TODO(feat): replace with locations fetched from a LocationService when available
-  static const List<_LocationOption> _fromOptions = [
-    _LocationOption(
-      id: 'main_fridge',
-      name: 'Main Fridge',
-      icon: Icons.kitchen,
-    ),
-    _LocationOption(
-      id: 'pantry',
-      name: 'Pantry',
-      icon: Icons.shelves,
-    ),
-  ];
-
-  static const List<_LocationOption> _toOptions = [
-    _LocationOption(
-      id: 'main_fridge',
-      name: 'Main Fridge',
-      icon: Icons.kitchen,
-    ),
-    _LocationOption(
-      id: 'pantry',
-      name: 'Pantry',
-      icon: Icons.shelves,
-    ),
-    _LocationOption(
-      id: 'freezer',
-      name: 'Freezer',
-      icon: Icons.ac_unit,
-    ),
-  ];
-
-  late final ProductService _productService;
-  late final CollectionService _collectionService;
-  late final IAuthService _authService;
-
-  final _fromLocation = ValueNotifier<_LocationOption?>(null);
-  final _toLocation = ValueNotifier<_LocationOption?>(null);
-  final _selectedProducts = ValueNotifier<List<Product>>([]);
-  final _isTransferring = ValueNotifier<bool>(false);
-
-  @override
-  void initState() {
-    super.initState();
-    _productService = getIt<ProductService>();
-    _collectionService = getIt<CollectionService>();
-    _authService = getIt<IAuthService>();
-  }
-
-  @override
-  void dispose() {
-    _fromLocation.dispose();
-    _toLocation.dispose();
-    _selectedProducts.dispose();
-    _isTransferring.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickProducts() async {
-    final from = _fromLocation.value;
-    final to = _toLocation.value;
-    if (from == null || to == null) return;
-
-    final result = await context.push<List<Product>>(
-      '/transfer/select?from=${from.id}&to=${to.id}',
-    );
-
-    if (result != null && mounted) {
-      _selectedProducts.value = result;
-    }
-  }
-
-  Future<void> _performTransfer() async {
-    final from = _fromLocation.value;
-    final to = _toLocation.value;
-    final products = _selectedProducts.value;
-
-    if (from == null || to == null || products.isEmpty) return;
-
-    _isTransferring.value = true;
-    try {
-      // TODO(feat): Implement actual transfer logic in a service
-      // This would involve updating registry mapping or moving between physical locations
-      await Future.delayed(const Duration(seconds: 1));
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('transfer.success_message'.tr(
-              namedArgs: {'count': products.length.toString()},
-            )),
-            backgroundColor: Colors.green,
-          ),
-        );
-        context.pop();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('common.error_loading_data'.tr())),
-        );
-      }
-    } finally {
-      if (mounted) _isTransferring.value = false;
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final from = watch(_fromLocation).value;
-    final to = watch(_toLocation).value;
-    final products = watch(_selectedProducts).value;
-    final transferring = watch(_isTransferring).value;
+    // TODO(feat): replace with locations fetched from a LocationService when available
+    const List<_LocationOption> fromOptions = [
+      _LocationOption(
+        id: 'main_fridge',
+        name: 'Main Fridge',
+        icon: Icons.kitchen,
+      ),
+      _LocationOption(
+        id: 'pantry',
+        name: 'Pantry',
+        icon: Icons.shelves,
+      ),
+    ];
+
+    const List<_LocationOption> toOptions = [
+      _LocationOption(
+        id: 'main_fridge',
+        name: 'Main Fridge',
+        icon: Icons.kitchen,
+      ),
+      _LocationOption(
+        id: 'pantry',
+        name: 'Pantry',
+        icon: Icons.shelves,
+      ),
+      _LocationOption(
+        id: 'freezer',
+        name: 'Freezer',
+        icon: Icons.ac_unit,
+      ),
+    ];
+
+    final fromLocation = createOnce(() => ValueNotifier<_LocationOption?>(null));
+    final toLocation = createOnce(() => ValueNotifier<_LocationOption?>(null));
+    final selectedProducts = createOnce(() => ValueNotifier<List<Product>>([]));
+    final isTransferring = createOnce(() => ValueNotifier<bool>(false));
+
+    final from = watch(fromLocation).value;
+    final to = watch(toLocation).value;
+    final products = watch(selectedProducts).value;
+    final transferring = watch(isTransferring).value;
+
+    Future<void> pickProducts() async {
+      if (from == null || to == null) return;
+
+      final result = await context.push<List<Product>>(
+        '/transfer/select?from=${from.id}&to=${to.id}',
+      );
+
+      if (result != null && context.mounted) {
+        selectedProducts.value = result;
+      }
+    }
+
+    Future<void> performTransfer() async {
+      if (from == null || to == null || products.isEmpty) return;
+
+      isTransferring.value = true;
+      try {
+        // TODO(feat): Implement actual transfer logic in a service
+        await Future.delayed(const Duration(seconds: 1));
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('transfer.success_message'.tr(
+                namedArgs: {'count': products.length.toString()},
+              )),
+              backgroundColor: Colors.green,
+            ),
+          );
+          context.pop();
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('common.error_loading_data'.tr())),
+          );
+        }
+      } finally {
+        if (context.mounted) isTransferring.value = false;
+      }
+    }
 
     final theme = Theme.of(context);
 
@@ -166,12 +128,13 @@ class _TransferManagementViewState extends State<TransferManagementView>
 
             // From Location
             _buildLocationPicker(
+              context,
               label: 'transfer.from'.tr(),
               selected: from,
-              options: _fromOptions,
+              options: fromOptions,
               onChanged: (val) {
-                _fromLocation.value = val;
-                _selectedProducts.value = [];
+                fromLocation.value = val;
+                selectedProducts.value = [];
               },
             ),
 
@@ -181,16 +144,15 @@ class _TransferManagementViewState extends State<TransferManagementView>
 
             // To Location
             _buildLocationPicker(
+              context,
               label: 'transfer.to'.tr(),
               selected: to,
-              options: _toOptions,
+              options: toOptions,
               onChanged: (val) {
-                _toLocation.value = val;
-                // Don't reset products if only 'to' changed,
-                // but usually we want to ensure from != to
+                toLocation.value = val;
                 if (val?.id == from?.id) {
-                  _fromLocation.value = null;
-                  _selectedProducts.value = [];
+                  fromLocation.value = null;
+                  selectedProducts.value = [];
                 }
               },
             ),
@@ -208,7 +170,7 @@ class _TransferManagementViewState extends State<TransferManagementView>
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: from != null && to != null ? _pickProducts : null,
+                  onPressed: from != null && to != null ? pickProducts : null,
                   icon: const Icon(Icons.add),
                   label: Text('common.select'.tr()),
                 ),
@@ -217,9 +179,9 @@ class _TransferManagementViewState extends State<TransferManagementView>
             const SizedBox(height: 16),
 
             if (products.isEmpty)
-              _buildEmptyProductsState()
+              _buildEmptyProductsState(context)
             else
-              _buildSelectedProductsList(products),
+              _buildSelectedProductsList(context, products, selectedProducts),
           ],
         ),
       ),
@@ -231,7 +193,7 @@ class _TransferManagementViewState extends State<TransferManagementView>
                     to != null &&
                     products.isNotEmpty &&
                     !transferring
-                ? _performTransfer
+                ? performTransfer
                 : null,
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(56),
@@ -255,7 +217,8 @@ class _TransferManagementViewState extends State<TransferManagementView>
     );
   }
 
-  Widget _buildLocationPicker({
+  Widget _buildLocationPicker(
+    BuildContext context, {
     required String label,
     required _LocationOption? selected,
     required List<_LocationOption> options,
@@ -278,7 +241,7 @@ class _TransferManagementViewState extends State<TransferManagementView>
     );
   }
 
-  Widget _buildEmptyProductsState() {
+  Widget _buildEmptyProductsState(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
@@ -304,7 +267,11 @@ class _TransferManagementViewState extends State<TransferManagementView>
     );
   }
 
-  Widget _buildSelectedProductsList(List<Product> products) {
+  Widget _buildSelectedProductsList(
+    BuildContext context,
+    List<Product> products,
+    ValueNotifier<List<Product>> notifier,
+  ) {
     return Column(
       children: products.map((p) {
         return Padding(
@@ -313,9 +280,9 @@ class _TransferManagementViewState extends State<TransferManagementView>
             product: p,
             isSelected: true,
             onToggle: () {
-              final newList = List<Product>.from(_selectedProducts.value);
+              final newList = List<Product>.from(notifier.value);
               newList.removeWhere((item) => item.id == p.id);
-              _selectedProducts.value = newList;
+              notifier.value = newList;
             },
           ),
         );

@@ -2,29 +2,15 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:watch_it/watch_it.dart';
-import '../service_locator.dart';
 import '../services/auth_controller.dart';
 import '../widgets/auth/social_auth_section.dart';
 
-class LandingPageView extends StatefulWidget with WatchItStatefulWidgetMixin {
+class LandingPageView extends WatchingWidget {
   const LandingPageView({super.key});
 
   @override
-  State<LandingPageView> createState() => _LandingPageViewState();
-}
-
-class _LandingPageViewState extends State<LandingPageView> with WatchItMixin {
-  late final AuthController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = getIt<AuthController>();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    watch(_controller);
+    final controller = watchIt<AuthController>();
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -88,16 +74,16 @@ class _LandingPageViewState extends State<LandingPageView> with WatchItMixin {
                 const Spacer(),
                 // Auth Actions
                 SocialAuthSection(
-                  isLoading: _controller.isLoading,
-                  onGooglePressed: () => _controller.signInWithGoogle(),
-                  onFacebookPressed: () => _controller.signInWithFacebook(),
+                  isLoading: controller.isLoading,
+                  onGooglePressed: () => controller.signInWithGoogle(),
+                  onFacebookPressed: () => controller.signInWithFacebook(),
                 ),
                 const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: _controller.isLoading
+                        onPressed: controller.isLoading
                             ? null
                             : () => context.go('/auth?mode=login'),
                         style: OutlinedButton.styleFrom(
@@ -112,7 +98,7 @@ class _LandingPageViewState extends State<LandingPageView> with WatchItMixin {
                     const SizedBox(width: 16),
                     Expanded(
                       child: FilledButton(
-                        onPressed: _controller.isLoading
+                        onPressed: controller.isLoading
                             ? null
                             : () => context.go('/auth?mode=signup'),
                         style: FilledButton.styleFrom(
@@ -128,9 +114,9 @@ class _LandingPageViewState extends State<LandingPageView> with WatchItMixin {
                 ),
                 const SizedBox(height: 16),
                 TextButton(
-                  onPressed: _controller.isLoading
+                  onPressed: controller.isLoading
                       ? null
-                      : () => _controller.signInAsGuest(),
+                      : () => controller.signInAsGuest(),
                   child: Text(
                     'landing.continue_as_guest'.tr(),
                     style: TextStyle(

@@ -157,6 +157,8 @@ class Product {
     String? barcode,
     bool? isGlobal,
     List<String>? tags,
+    String? registryType,
+    int? mappedFromProductId,
   }) {
     return Product(
       id: id ?? this.id,
@@ -170,6 +172,8 @@ class Product {
       barcode: barcode ?? this.barcode,
       isGlobal: isGlobal ?? this.isGlobal,
       tags: tags ?? this.tags,
+      registryType: registryType ?? this.registryType,
+      mappedFromProductId: mappedFromProductId ?? this.mappedFromProductId,
     );
   }
 

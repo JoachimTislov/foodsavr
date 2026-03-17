@@ -10,50 +10,35 @@ import '../utils/collection_types.dart';
 import 'collection_detail_view.dart';
 import 'collection_list_view.dart';
 
-class DynamicCollectionView extends StatefulWidget with WatchItStatefulWidgetMixin {
+class DynamicCollectionView extends WatchingWidget {
   final CollectionType type;
 
   const DynamicCollectionView({super.key, required this.type});
 
   @override
-  State<DynamicCollectionView> createState() => _DynamicCollectionViewState();
-}
-
-class _DynamicCollectionViewState extends State<DynamicCollectionView> with WatchItMixin {
-  late final ValueNotifier<Future<List<Collection>>> _collectionsFuture;
-  late final CollectionService _collectionService;
-  late final IAuthService _authService;
-
-  @override
-  void initState() {
-    super.initState();
-    _collectionService = getIt<CollectionService>();
-    _authService = getIt<IAuthService>();
-    _collectionsFuture = ValueNotifier<Future<List<Collection>>>(
-      _fetchCollections(),
-    );
-  }
-
-  @override
-  void dispose() {
-    _collectionsFuture.dispose();
-    super.dispose();
-  }
-
-  Future<List<Collection>> _fetchCollections() async {
-    final userId = _authService.getUserId();
-    if (userId == null) return [];
-    final all = await _collectionService.getCollectionsForUser(userId);
-    return all.where((c) => c.type == widget.type).toList();
-  }
-
-  void _refreshCollections() {
-    _collectionsFuture.value = _fetchCollections();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final collectionsFuture = watch(_collectionsFuture).value;
+    final collectionService = getIt<CollectionService>();
+    final authService = getIt<IAuthService>();
+
+    final collectionsFutureNotifier = createOnce(() => ValueNotifier<Future<List<Collection>>?>(null));
+    final collectionsFuture = watch(collectionsFutureNotifier).value;
+
+    Future<List<Collection>> fetchCollections() async {
+      final userId = authService.getUserId();
+      if (userId == null) return [];
+      final all = await collectionService.getCollectionsForUser(userId);
+      return all.where((c) => c.type == type).toList();
+    }
+
+    callOnce((_) {
+      collectionsFutureNotifier.value = fetchCollections();
+    });
+
+    if (collectionsFuture == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return FutureBuilder<List<Collection>>(
       future: collectionsFuture,
@@ -73,12 +58,12 @@ class _DynamicCollectionViewState extends State<DynamicCollectionView> with Watc
         return Scaffold(
           appBar: AppBar(
             title: Text(
-              widget.type == CollectionType.inventory
+              type == CollectionType.inventory
                   ? 'collection.inventories'.tr()
                   : 'collection.shoppingLists'.tr(),
             ),
           ),
-          body: CollectionListView(typeFilter: widget.type),
+          body: CollectionListView(typeFilter: type),
         );
       },
     );
