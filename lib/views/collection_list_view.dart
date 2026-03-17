@@ -21,7 +21,9 @@ class CollectionListView extends WatchingWidget {
     final collectionService = getIt<CollectionService>();
     final authService = getIt<IAuthService>();
 
-    final collectionsFutureNotifier = createOnce(() => ValueNotifier<Future<List<Collection>>?>(null));
+    final collectionsFutureNotifier = createOnce(
+      () => ValueNotifier<Future<List<Collection>>?>(null),
+    );
     final collectionsFuture = watch(collectionsFutureNotifier).value;
 
     Future<List<Collection>> fetchCollections() async {
@@ -31,7 +33,9 @@ class CollectionListView extends WatchingWidget {
       final all = await collectionService.getCollectionsForUser(userId);
       if (typeFilter == null) return all;
 
-      return all.where((c) => collectionTypeFromJson(c.type.name) == typeFilter).toList();
+      return all
+          .where((c) => collectionTypeFromJson(c.type.name) == typeFilter)
+          .toList();
     }
 
     void refreshCollections() {
@@ -41,11 +45,14 @@ class CollectionListView extends WatchingWidget {
     callOnce((_) => refreshCollections());
 
     void navigateToDetail(Collection collection) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => CollectionDetailView(collection: collection),
-        ),
-      ).then((_) => refreshCollections());
+      Navigator.of(context)
+          .push(
+            MaterialPageRoute(
+              builder: (context) =>
+                  CollectionDetailView(collection: collection),
+            ),
+          )
+          .then((_) => refreshCollections());
     }
 
     final colorScheme = Theme.of(context).colorScheme;

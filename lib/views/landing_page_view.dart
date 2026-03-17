@@ -65,7 +65,7 @@ class LandingPageView extends WatchingWidget {
                 const SizedBox(height: 16),
                 // Tagline
                 Text(
-                  'landing.tagline'.tr(),
+                  'auth.landing.subtitle'.tr(),
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     color: colorScheme.onSurfaceVariant,
@@ -92,7 +92,7 @@ class LandingPageView extends WatchingWidget {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: Text('auth.login.title'.tr()),
+                        child: Text('auth.toggle.login'.tr()),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -107,7 +107,7 @@ class LandingPageView extends WatchingWidget {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: Text('auth.signup.title'.tr()),
+                        child: Text('auth.toggle.sign_up'.tr()),
                       ),
                     ),
                   ],
@@ -118,7 +118,7 @@ class LandingPageView extends WatchingWidget {
                       ? null
                       : () => controller.signInAsGuest(),
                   child: Text(
-                    'landing.continue_as_guest'.tr(),
+                    'auth.social.continue_guest'.tr(),
                     style: TextStyle(
                       color: colorScheme.secondary,
                       fontWeight: FontWeight.w600,

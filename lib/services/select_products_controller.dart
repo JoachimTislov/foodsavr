@@ -20,7 +20,7 @@ class SelectProductsController extends ChangeNotifier {
   int get selectedCount => _selectedIds.length;
   bool get isLoading => _isLoading;
   Set<int> get selectedIds => _selectedIds;
-  
+
   List<Product> get selectedProducts {
     return _allProducts.where((p) => _selectedIds.contains(p.id)).toList();
   }

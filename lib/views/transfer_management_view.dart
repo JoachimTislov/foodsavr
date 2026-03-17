@@ -30,11 +30,7 @@ class TransferManagementView extends WatchingWidget {
         name: 'Main Fridge',
         icon: Icons.kitchen,
       ),
-      _LocationOption(
-        id: 'pantry',
-        name: 'Pantry',
-        icon: Icons.shelves,
-      ),
+      _LocationOption(id: 'pantry', name: 'Pantry', icon: Icons.shelves),
     ];
 
     const List<_LocationOption> toOptions = [
@@ -43,19 +39,13 @@ class TransferManagementView extends WatchingWidget {
         name: 'Main Fridge',
         icon: Icons.kitchen,
       ),
-      _LocationOption(
-        id: 'pantry',
-        name: 'Pantry',
-        icon: Icons.shelves,
-      ),
-      _LocationOption(
-        id: 'freezer',
-        name: 'Freezer',
-        icon: Icons.ac_unit,
-      ),
+      _LocationOption(id: 'pantry', name: 'Pantry', icon: Icons.shelves),
+      _LocationOption(id: 'freezer', name: 'Freezer', icon: Icons.ac_unit),
     ];
 
-    final fromLocation = createOnce(() => ValueNotifier<_LocationOption?>(null));
+    final fromLocation = createOnce(
+      () => ValueNotifier<_LocationOption?>(null),
+    );
     final toLocation = createOnce(() => ValueNotifier<_LocationOption?>(null));
     final selectedProducts = createOnce(() => ValueNotifier<List<Product>>([]));
     final isTransferring = createOnce(() => ValueNotifier<bool>(false));
@@ -88,9 +78,11 @@ class TransferManagementView extends WatchingWidget {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('transfer.success_message'.tr(
-                namedArgs: {'count': products.length.toString()},
-              )),
+              content: Text(
+                'transfer.success_message'.tr(
+                  namedArgs: {'count': products.length.toString()},
+                ),
+              ),
               backgroundColor: Colors.green,
             ),
           );
@@ -110,9 +102,7 @@ class TransferManagementView extends WatchingWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('transfer.title'.tr()),
-      ),
+      appBar: AppBar(title: Text('transfer.title'.tr())),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -189,7 +179,8 @@ class TransferManagementView extends WatchingWidget {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: FilledButton(
-            onPressed: from != null &&
+            onPressed:
+                from != null &&
                     to != null &&
                     products.isNotEmpty &&
                     !transferring
@@ -225,17 +216,14 @@ class TransferManagementView extends WatchingWidget {
     required ValueChanged<_LocationOption?> onChanged,
   }) {
     return DropdownButtonFormField<_LocationOption>(
-      value: selected,
+      initialValue: selected,
       decoration: InputDecoration(
         labelText: label,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         prefixIcon: Icon(selected?.icon ?? Icons.location_on_outlined),
       ),
       items: options.map((opt) {
-        return DropdownMenuItem(
-          value: opt,
-          child: Text(opt.name),
-        );
+        return DropdownMenuItem(value: opt, child: Text(opt.name));
       }).toList(),
       onChanged: onChanged,
     );
@@ -253,14 +241,17 @@ class TransferManagementView extends WatchingWidget {
       ),
       child: Column(
         children: [
-          Icon(Icons.inventory_2_outlined,
-              size: 48, color: colorScheme.outline),
+          Icon(
+            Icons.inventory_2_outlined,
+            size: 48,
+            color: colorScheme.outline,
+          ),
           const SizedBox(height: 16),
           Text(
             'transfer.no_products_selected'.tr(),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),

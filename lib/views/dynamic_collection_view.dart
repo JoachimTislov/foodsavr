@@ -20,7 +20,9 @@ class DynamicCollectionView extends WatchingWidget {
     final collectionService = getIt<CollectionService>();
     final authService = getIt<IAuthService>();
 
-    final collectionsFutureNotifier = createOnce(() => ValueNotifier<Future<List<Collection>>?>(null));
+    final collectionsFutureNotifier = createOnce(
+      () => ValueNotifier<Future<List<Collection>>?>(null),
+    );
     final collectionsFuture = watch(collectionsFutureNotifier).value;
 
     Future<List<Collection>> fetchCollections() async {
@@ -35,9 +37,7 @@ class DynamicCollectionView extends WatchingWidget {
     });
 
     if (collectionsFuture == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return FutureBuilder<List<Collection>>(

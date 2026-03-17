@@ -37,7 +37,7 @@ class AddProductToCollectionView extends StatelessWidget {
 class _AddProductSheet extends WatchingWidget {
   final String collectionId;
 
-  const _AddProductSheet({super.key, required this.collectionId});
+  const _AddProductSheet({required this.collectionId});
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +45,9 @@ class _AddProductSheet extends WatchingWidget {
     final collectionService = getIt<CollectionService>();
     final authService = getIt<IAuthService>();
 
-    final productsFutureNotifier = createOnce(() => ValueNotifier<Future<List<Product>>?>(null));
+    final productsFutureNotifier = createOnce(
+      () => ValueNotifier<Future<List<Product>>?>(null),
+    );
     final selectedIds = createOnce(() => ValueNotifier<Set<int>>(<int>{}));
     final isSaving = createOnce(() => ValueNotifier<bool>(false));
 
@@ -78,14 +80,14 @@ class _AddProductSheet extends WatchingWidget {
       if (currentSelectedIds.isEmpty) return;
       final userId = authService.getUserId();
       if (userId == null) return;
-      
+
       isSaving.value = true;
       try {
         final registryProducts = await currentProductsFuture!;
         final selectedProducts = registryProducts
             .where((product) => currentSelectedIds.contains(product.id))
             .toList();
-        
+
         final createdProductIds = <int>[];
         for (final sourceProduct in selectedProducts) {
           final currentProduct = Product(
@@ -126,46 +128,57 @@ class _AddProductSheet extends WatchingWidget {
         children: [
           _buildHeader(context),
           Expanded(
-            child: currentProductsFuture == null 
-              ? const Center(child: CircularProgressIndicator())
-              : FutureBuilder<List<Product>>(
-                  future: currentProductsFuture,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (snapshot.hasError) {
-                      return Center(child: Text('common.error_loading_data'.tr()));
-                    }
-                    final products = snapshot.data ?? [];
-                    if (products.isEmpty) {
-                      return Center(child: Text('product.noProductsFound'.tr()));
-                    }
-                    return ListView.builder(
-                      itemCount: products.length,
-                      itemBuilder: (context, index) {
-                        final product = products[index];
-                        final isSelected = currentSelectedIds.contains(product.id);
-                        return CheckboxListTile(
-                          title: Text(product.name),
-                          subtitle: Text(product.category ?? ''),
-                          value: isSelected,
-                          onChanged: (val) {
-                            final newSet = Set<int>.from(currentSelectedIds);
-                            if (val == true) {
-                              newSet.add(product.id);
-                            } else {
-                              newSet.remove(product.id);
-                            }
-                            selectedIds.value = newSet;
-                          },
+            child: currentProductsFuture == null
+                ? const Center(child: CircularProgressIndicator())
+                : FutureBuilder<List<Product>>(
+                    future: currentProductsFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Text('common.error_loading_data'.tr()),
                         );
-                      },
-                    );
-                  },
-                ),
+                      }
+                      final products = snapshot.data ?? [];
+                      if (products.isEmpty) {
+                        return Center(
+                          child: Text('product.noProductsFound'.tr()),
+                        );
+                      }
+                      return ListView.builder(
+                        itemCount: products.length,
+                        itemBuilder: (context, index) {
+                          final product = products[index];
+                          final isSelected = currentSelectedIds.contains(
+                            product.id,
+                          );
+                          return CheckboxListTile(
+                            title: Text(product.name),
+                            subtitle: Text(product.category ?? ''),
+                            value: isSelected,
+                            onChanged: (val) {
+                              final newSet = Set<int>.from(currentSelectedIds);
+                              if (val == true) {
+                                newSet.add(product.id);
+                              } else {
+                                newSet.remove(product.id);
+                              }
+                              selectedIds.value = newSet;
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
           ),
-          _buildFooter(context, currentSelectedIds.length, currentIsSaving, addSelected),
+          _buildFooter(
+            context,
+            currentSelectedIds.length,
+            currentIsSaving,
+            addSelected,
+          ),
         ],
       ),
     );
@@ -190,7 +203,12 @@ class _AddProductSheet extends WatchingWidget {
     );
   }
 
-  Widget _buildFooter(BuildContext context, int selectedCount, bool isSaving, VoidCallback onAdd) {
+  Widget _buildFooter(
+    BuildContext context,
+    int selectedCount,
+    bool isSaving,
+    VoidCallback onAdd,
+  ) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: SizedBox(

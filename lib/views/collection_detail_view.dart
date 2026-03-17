@@ -28,8 +28,12 @@ class CollectionDetailView extends WatchingWidget {
     final collectionService = getIt<CollectionService>();
     final authService = getIt<IAuthService>();
 
-    final currentCollectionNotifier = createOnce(() => ValueNotifier<Collection>(collection));
-    final productsFutureNotifier = createOnce(() => ValueNotifier<Future<List<Product>>?>(null));
+    final currentCollectionNotifier = createOnce(
+      () => ValueNotifier<Collection>(collection),
+    );
+    final productsFutureNotifier = createOnce(
+      () => ValueNotifier<Future<List<Product>>?>(null),
+    );
 
     final currentCollection = watch(currentCollectionNotifier).value;
     final productsFuture = watch(productsFutureNotifier).value;
@@ -50,7 +54,9 @@ class CollectionDetailView extends WatchingWidget {
     }
 
     Future<void> refreshCollection() async {
-      final updated = await collectionService.getCollection(currentCollection.id);
+      final updated = await collectionService.getCollection(
+        currentCollection.id,
+      );
       if (updated != null && context.mounted) {
         currentCollectionNotifier.value = updated;
         refreshProducts();
@@ -94,9 +100,9 @@ class CollectionDetailView extends WatchingWidget {
           }
         } catch (e) {
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to delete: $e')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
           }
         }
       }

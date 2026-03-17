@@ -18,8 +18,12 @@ class ProductDetailView extends WatchingWidget {
     final collectionService = getIt<CollectionService>();
     final authService = getIt<IAuthService>();
 
-    final inventoryNamesNotifier = createOnce(() => ValueNotifier<List<String>?>(null));
-    final isLoadingInventoriesNotifier = createOnce(() => ValueNotifier<bool>(false));
+    final inventoryNamesNotifier = createOnce(
+      () => ValueNotifier<List<String>?>(null),
+    );
+    final isLoadingInventoriesNotifier = createOnce(
+      () => ValueNotifier<bool>(false),
+    );
 
     final inventoryNames = watch(inventoryNamesNotifier).value;
     final isLoadingInventories = watch(isLoadingInventoriesNotifier).value;
@@ -30,7 +34,9 @@ class ProductDetailView extends WatchingWidget {
 
       isLoadingInventoriesNotifier.value = true;
       try {
-        final collections = await collectionService.getCollectionsForUser(userId);
+        final collections = await collectionService.getCollectionsForUser(
+          userId,
+        );
         final registries = collections.where((c) {
           return c.productIds.contains(product.id);
         }).toList();
@@ -147,13 +153,18 @@ class ProductDetailView extends WatchingWidget {
     return Text(
       title,
       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.primary,
-          ),
+        fontWeight: FontWeight.bold,
+        color: Theme.of(context).colorScheme.primary,
+      ),
     );
   }
 
-  Widget _buildInfoRow(BuildContext context, IconData icon, String label, String value) {
+  Widget _buildInfoRow(
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value,
+  ) {
     final colorScheme = Theme.of(context).colorScheme;
     return Row(
       children: [
@@ -161,16 +172,16 @@ class ProductDetailView extends WatchingWidget {
         const SizedBox(width: 12),
         Text(
           '$label:',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
         ),
         const SizedBox(width: 8),
         Text(
           value,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
       ],
     );

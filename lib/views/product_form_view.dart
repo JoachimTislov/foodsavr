@@ -16,8 +16,11 @@ class ProductFormView extends StatelessWidget {
 
   const ProductFormView({super.key, this.product, this.initialCollectionId});
 
-  static Future<bool?> show(BuildContext context,
-      {Product? product, String? initialCollectionId}) {
+  static Future<bool?> show(
+    BuildContext context, {
+    Product? product,
+    String? initialCollectionId,
+  }) {
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -47,17 +50,22 @@ class _ProductFormContent extends WatchingWidget {
     final collectionService = getIt<CollectionService>();
     final authService = getIt<IAuthService>();
 
-    final nameController = createOnce(() => TextEditingController(text: product?.name ?? ''));
-    final descriptionController = createOnce(() => TextEditingController(text: product?.description ?? ''));
-    final selectedCategory = createOnce(() => ValueNotifier<String?>(
-      product?.category ?? ProductCategory.general,
-    ));
-    final nonExpiringQuantity = createOnce(() => ValueNotifier<int>(
-      product?.nonExpiringQuantity ?? 1,
-    ));
-    final expiries = createOnce(() => ValueNotifier<List<ExpiryEntry>>(
-      product?.expiries ?? [],
-    ));
+    final nameController = createOnce(
+      () => TextEditingController(text: product?.name ?? ''),
+    );
+    final descriptionController = createOnce(
+      () => TextEditingController(text: product?.description ?? ''),
+    );
+    final selectedCategory = createOnce(
+      () =>
+          ValueNotifier<String?>(product?.category ?? ProductCategory.general),
+    );
+    final nonExpiringQuantity = createOnce(
+      () => ValueNotifier<int>(product?.nonExpiringQuantity ?? 1),
+    );
+    final expiries = createOnce(
+      () => ValueNotifier<List<ExpiryEntry>>(product?.expiries ?? []),
+    );
     final isSaving = createOnce(() => ValueNotifier<bool>(false));
     final formKey = createOnce(() => GlobalKey<FormState>());
 
@@ -196,23 +204,29 @@ class _ProductFormContent extends WatchingWidget {
                       ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
-                        value: currentCategory,
+                        initialValue: currentCategory,
                         decoration: InputDecoration(
                           labelText: 'product.category'.tr(),
                           border: const OutlineInputBorder(),
                         ),
                         items: ProductCategory.allNames.map((cat) {
-                          return DropdownMenuItem(
-                            value: cat,
-                            child: Text(cat),
-                          );
+                          return DropdownMenuItem(value: cat, child: Text(cat));
                         }).toList(),
                         onChanged: (val) => selectedCategory.value = val,
                       ),
                       const SizedBox(height: 24),
-                      _buildQuantitySection(context, currentNonExpiringQuantity, nonExpiringQuantity),
+                      _buildQuantitySection(
+                        context,
+                        currentNonExpiringQuantity,
+                        nonExpiringQuantity,
+                      ),
                       const SizedBox(height: 24),
-                      _buildExpirySection(context, currentExpiries, expiries, addExpiry),
+                      _buildExpirySection(
+                        context,
+                        currentExpiries,
+                        expiries,
+                        addExpiry,
+                      ),
                     ],
                   ),
                 ),
@@ -235,7 +249,11 @@ class _ProductFormContent extends WatchingWidget {
     );
   }
 
-  Widget _buildQuantitySection(BuildContext context, int quantity, ValueNotifier<int> notifier) {
+  Widget _buildQuantitySection(
+    BuildContext context,
+    int quantity,
+    ValueNotifier<int> notifier,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -251,8 +269,10 @@ class _ProductFormContent extends WatchingWidget {
                   ? () => notifier.value = quantity - 1
                   : null,
             ),
-            Text(quantity.toString(),
-                style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              quantity.toString(),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             IconButton(
               icon: const Icon(Icons.add),
               onPressed: () => notifier.value = quantity + 1,
@@ -263,7 +283,12 @@ class _ProductFormContent extends WatchingWidget {
     );
   }
 
-  Widget _buildExpirySection(BuildContext context, List<ExpiryEntry> currentExpiries, ValueNotifier<List<ExpiryEntry>> notifier, VoidCallback onAdd) {
+  Widget _buildExpirySection(
+    BuildContext context,
+    List<ExpiryEntry> currentExpiries,
+    ValueNotifier<List<ExpiryEntry>> notifier,
+    VoidCallback onAdd,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

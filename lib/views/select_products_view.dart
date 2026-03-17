@@ -31,7 +31,9 @@ class SelectProductsView extends WatchingWidget {
       if (userId == null) return;
 
       controller.setLoading(true);
-      final products = await productService.getProductsInCollection(fromLocationId);
+      final products = await productService.getProductsInCollection(
+        fromLocationId,
+      );
       if (context.mounted) {
         controller.setAvailableProducts(products);
       }
@@ -50,7 +52,10 @@ class SelectProductsView extends WatchingWidget {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -96,26 +101,26 @@ class SelectProductsView extends WatchingWidget {
       body: controller.isLoading
           ? const Center(child: CircularProgressIndicator())
           : controller.filteredProducts.isEmpty
-              ? Center(
-                  child: Text(
-                    'transfer.no_products_available'.tr(),
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: controller.filteredProducts.length,
-                  itemBuilder: (context, index) {
-                    final product = controller.filteredProducts[index];
-                    return ProductSelectItem(
-                      product: product,
-                      isSelected: controller.isSelected(product.id),
-                      onToggle: () => controller.toggleSelection(product.id),
-                    );
-                  },
+          ? Center(
+              child: Text(
+                'transfer.no_products_available'.tr(),
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
                 ),
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: controller.filteredProducts.length,
+              itemBuilder: (context, index) {
+                final product = controller.filteredProducts[index];
+                return ProductSelectItem(
+                  product: product,
+                  isSelected: controller.isSelected(product.id),
+                  onToggle: () => controller.toggleSelection(product.id),
+                );
+              },
+            ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),

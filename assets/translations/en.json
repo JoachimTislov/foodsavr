@@ -17,24 +17,16 @@
     "form": {
       "remember_me": "Remember me",
       "forgot_password": "Forgot Password?",
-      "email": {
-        "label": "Email Address",
-        "hint": "name@example.com",
-        "required": "Please enter your email"
-      },
-      "password": {
-        "label": "Password",
-        "hint": "Enter your password",
-        "required": "Please enter your password"
-      }
+      "email": "Email Address",
+      "email_hint": "name@example.com",
+      "password": "Password",
+      "password_hint": "Enter your password"
     },
     "social": {
       "continue_google": "Continue with Google",
-      "continue_email": "Continue with Email",
       "continue_guest": "Continue as guest"
     },
     "landing": {
-      "title": "Inventory Login",
       "subtitle": "Track, manage, and scale your stock with efficiency."
     },
     "toggle": {
@@ -45,6 +37,12 @@
     },
     "submit": {
       "register": "Register"
+    },
+    "validation": {
+      "email_required": "Please enter your email",
+      "email_invalid": "The email address is not valid.",
+      "password_required": "Please enter your password",
+      "password_too_short": "The password provided is too weak."
     },
     "error": {
       "user_not_found": "No user found for that email.",
@@ -67,16 +65,17 @@
     "cancel": "Cancel",
     "edit": "Edit",
     "name": "Name",
-    "name_required": "Please enter a name",
+    "required": "Required",
     "add": "Add",
     "ok": "OK",
     "save": "Save",
     "create": "Create",
     "delete": "Delete",
-    "from": "From",
-    "to": "To",
     "unknown": "Unknown",
-    "error_loading_data": "Error loading data"
+    "error_loading_data": "Error loading data",
+    "retry": "Retry",
+    "select": "Select",
+    "description": "Description"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -98,24 +97,14 @@
     "errorLoading": "Error loading data"
   },
   "product": {
-    "compact": "Compact",
-    "normal": "Normal",
     "details": "Product Details",
-    "expiredDaysAgo": "Expired {days} days ago",
-    "daysRemaining": "{days} days remaining",
-    "select": "Select Products",
-    "errorLoading": "Error loading products",
     "noProductsFound": "No products found",
-    "addFirst": "Add your first product to get started",
-    "add": "Add Product",
-    "edit": "Edit Product",
-    "name": "Product Name",
-    "name_required": "Please enter product name",
-    "description": "Description",
+    "addTitle": "Add Product",
+    "editTitle": "Edit Product",
     "category": "Category",
-    "inventory": "Inventory",
     "non_expiring_quantity": "Non-expiring Quantity",
     "expiries": "Expiries",
+    "addExpiry": "Add Expiry",
     "add_expiry": "Add Expiry",
     "quantity_units": "{} units",
     "scanBarcode": "Scan Barcode",
@@ -128,43 +117,51 @@
     "barcodeAddError": "Could not add scanned barcode: {error}",
     "enterBarcodeManually": "Enter barcode manually",
     "barcodeNotFound": "Product not found. Be the first to add it!",
-    "availableIn": "Available in: {inventories}",
-    "delete": "Delete Product",
-    "search_hint": "Search your pantry...",
-    "available_stock": "AVAILABLE STOCK",
+    "searchHint": "Search your pantry...",
     "status": "Status",
-    "locations": "Locations",
     "deleteConfirmMessage": "Are you sure you want to delete \"{name}\"?",
-    "deleted": "{name} deleted",
-    "deleteError": "Error deleting product: {error}",
-    "inventoryLoadError": "Failed to load inventory info: {error}",
     "status_expired": "Expired",
     "status_today": "Today",
     "status_days_remaining": "{days}d remaining",
+    "status_compact_exp": "Exp",
+    "total_quantity": "Total Quantity",
+    "global_product": "Global Product",
+    "status_fresh": "Fresh",
+    "status_expires_soon": "Expires Soon",
+    "personal_product": "Personal Product",
+    "globalTitle": "Global Products",
+    "personalTitle": "My Products",
+    "id": "Product ID",
+    "info": "Product Information",
+    "storage": "Storage",
+    "noInventoriesFound": "No inventories found",
+    "quantity": "Quantity",
+    "registryTitle": "Product Registry",
+    "type": "Type",
+    "locations": "Locations",
+    "units": "units",
+    "expirations": "Expirations",
+    "expiration_breakdown": "Expiration Breakdown",
+    "soonest_expiration": "Soonest Expiration",
+    "days_until_soonest_expiry": "Days Until Soonest Expiry",
+    "na": "N/A",
     "status_days": "{days} days",
     "status_expired_days_ago": "Expired {days} days ago",
     "status_expires_today": "Expires today",
-    "status_days_left": "{days}d left",
-    "status_compact_exp": "Exp",
-    "total_quantity": "Total Quantity",
-    "expirations": "Expirations",
-    "units": "units",
-    "global_product": "Global Product",
-    "type": "Type",
-    "status_fresh": "Fresh",
-    "status_expires_soon": "Expires Soon",
-    "soonest_expiration": "Soonest Expiration",
-    "days_until_soonest_expiry": "Days Until Soonest Expiry",
-    "expiration_breakdown": "Expiration Breakdown",
-    "personal_product": "Personal Product",
-    "na": "N/A"
+    "status_days_left": "{days}d left"
   },
   "transfer": {
     "title": "Transfer Inventory",
-    "selectProducts": "Select products",
-    "fromLocation": "From Location",
-    "toLocation": "To Location",
-    "transfer_items": "Transfer {count} items"
+    "configure_transfer": "Configure Transfer",
+    "from": "From",
+    "to": "To",
+    "products_to_transfer": "Products to transfer",
+    "no_products_selected": "No products selected",
+    "no_products_available": "No products available in this location",
+    "select_products": "Select Products",
+    "confirm_selection": "Confirm Selection ({count})",
+    "start_transfer": "Start Transfer",
+    "success_message": "Successfully transferred {count} items"
   },
   "profile": {
     "title": "Profile",
@@ -180,20 +177,18 @@
     "delete_account_description": "Permanently delete your account and all associated data. This action cannot be undone."
   },
   "collection": {
-    "errorLoadingProducts": "Error loading products",
-    "noProducts": "No products in this collection",
-    "add_inventory": "Add Inventory",
-    "add_shopping_list": "Add Shopping List",
-    "edit_inventory": "Edit Inventory",
-    "edit_shopping_list": "Edit Shopping List",
-    "loadError": "Error loading collections",
-    "emptyTitle": "Nothing found",
-    "emptySubtitle": "Create one to get started",
     "items_count": "{count} items",
+    "createInventory": "Create Inventory",
+    "createShoppingList": "Create Shopping List",
+    "createInventoryTitle": "New Inventory",
+    "createShoppingListTitle": "New Shopping List",
+    "editTitle": "Edit Collection",
+    "inventories": "Inventories",
+    "shoppingLists": "Shopping Lists",
+    "noInventories": "No inventories found",
+    "noShoppingLists": "No shopping lists found",
     "type_inventory": "Inventory",
-    "type_shopping": "Shopping",
-    "create_inventory": "Create Inventory",
-    "create_shopping_list": "Create Shopping List"
+    "type_shopping": "Shopping"
   },
   "generated": {
     "100_42": "1.0.0 (42)"

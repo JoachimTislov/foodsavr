@@ -25,13 +25,16 @@ class ProductListView extends WatchingWidget {
     final collectionService = getIt<CollectionService>();
     final authService = getIt<IAuthService>();
 
-    final productsFutureNotifier =
-        createOnce(() => ValueNotifier<Future<List<Product>>?>(null));
-    final viewModeNotifier =
-        createOnce(() => ValueNotifier<ProductViewMode>(ProductViewMode.normal));
+    final productsFutureNotifier = createOnce(
+      () => ValueNotifier<Future<List<Product>>?>(null),
+    );
+    final viewModeNotifier = createOnce(
+      () => ValueNotifier<ProductViewMode>(ProductViewMode.normal),
+    );
     final isSigningOutNotifier = createOnce(() => ValueNotifier<bool>(false));
-    final productInventoriesNotifier =
-        createOnce(() => ValueNotifier<Map<int, List<String>>>({}));
+    final productInventoriesNotifier = createOnce(
+      () => ValueNotifier<Map<int, List<String>>>({}),
+    );
 
     final productsFuture = watch(productsFutureNotifier).value;
     final viewMode = watch(viewModeNotifier).value;
@@ -119,7 +122,9 @@ class ProductListView extends WatchingWidget {
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
-                    return Center(child: Text('common.error_loading_data'.tr()));
+                    return Center(
+                      child: Text('common.error_loading_data'.tr()),
+                    );
                   }
                   final products = snapshot.data ?? [];
                   if (products.isEmpty) {
@@ -162,26 +167,24 @@ class ProductListView extends WatchingWidget {
   ) {
     void navigateToDetail(Product p) {
       Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => ProductDetailView(product: p),
-        ),
+        MaterialPageRoute(builder: (context) => ProductDetailView(product: p)),
       );
     }
 
     return switch (viewMode) {
       ProductViewMode.compact => ProductCardCompact(
-          product: product,
-          onTap: () => navigateToDetail(product),
-        ),
+        product: product,
+        onTap: () => navigateToDetail(product),
+      ),
       ProductViewMode.normal => ProductCardNormal(
-          product: product,
-          onTap: () => navigateToDetail(product),
-        ),
+        product: product,
+        onTap: () => navigateToDetail(product),
+      ),
       ProductViewMode.details => ProductCardDetails(
-          product: product,
-          inventoryNames: productInventories[product.id],
-          onTap: () => navigateToDetail(product),
-        ),
+        product: product,
+        inventoryNames: productInventories[product.id],
+        onTap: () => navigateToDetail(product),
+      ),
     };
   }
 }

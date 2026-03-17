@@ -22,7 +22,10 @@ class ProductAddHelper {
     }
 
     if (scannedBarcode == 'MANUAL_ENTRY') {
-      return await ProductFormView.show(context, initialCollectionId: collectionId);
+      return await ProductFormView.show(
+        context,
+        initialCollectionId: collectionId,
+      );
     }
 
     final authService = getIt<IAuthService>();

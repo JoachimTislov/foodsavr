@@ -25,9 +25,7 @@ class AuthFormFields extends WatchingWidget {
             labelText: 'auth.form.email'.tr(),
             hintText: 'auth.form.email_hint'.tr(),
             prefixIcon: const Icon(Icons.email_outlined),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
           keyboardType: TextInputType.emailAddress,
           validator: (value) {
@@ -49,15 +47,11 @@ class AuthFormFields extends WatchingWidget {
             prefixIcon: const Icon(Icons.lock_outline),
             suffixIcon: IconButton(
               icon: Icon(
-                passwordVisible
-                    ? Icons.visibility
-                    : Icons.visibility_off,
+                passwordVisible ? Icons.visibility : Icons.visibility_off,
               ),
               onPressed: () => isPasswordVisible.value = !passwordVisible,
             ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
           obscureText: !passwordVisible,
           validator: (value) {

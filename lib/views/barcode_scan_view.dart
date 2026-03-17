@@ -19,12 +19,14 @@ class BarcodeScanView extends WatchingWidget {
   Widget build(BuildContext context) {
     final barcodeScannerService = getIt<BarcodeScannerService>();
     final isCameraReady = createOnce(() => ValueNotifier<bool>(false));
-    final multipleBarcodesDetected =
-        createOnce(() => ValueNotifier<bool>(false));
+    final multipleBarcodesDetected = createOnce(
+      () => ValueNotifier<bool>(false),
+    );
     final isFlashOn = createOnce(() => ValueNotifier<bool>(false));
     final errorMessage = createOnce(() => ValueNotifier<String?>(null));
-    final cameraControllerNotifier =
-        createOnce(() => ValueNotifier<CameraController?>(null));
+    final cameraControllerNotifier = createOnce(
+      () => ValueNotifier<CameraController?>(null),
+    );
 
     final cameraController = watch(cameraControllerNotifier).value;
     final ready = watch(isCameraReady).value;
@@ -260,7 +262,10 @@ class _BarcodeLifecycleObserver extends WidgetsBindingObserver {
   final VoidCallback onResumed;
   final VoidCallback onInactive;
 
-  _BarcodeLifecycleObserver({required this.onResumed, required this.onInactive});
+  _BarcodeLifecycleObserver({
+    required this.onResumed,
+    required this.onInactive,
+  });
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {

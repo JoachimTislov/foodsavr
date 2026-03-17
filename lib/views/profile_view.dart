@@ -20,7 +20,8 @@ class ProfileView extends WatchingWidget {
       initialValue: authService.currentUser,
     ).data;
 
-    final displayName = user?.displayName ?? user?.email?.split('@').first ?? '';
+    final displayName =
+        user?.displayName ?? user?.email?.split('@').first ?? '';
     final email = user?.email ?? '';
     final photoUrl = user?.photoURL;
 

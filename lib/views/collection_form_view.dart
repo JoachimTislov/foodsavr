@@ -13,8 +13,11 @@ class CollectionFormView extends StatelessWidget {
 
   const CollectionFormView({super.key, required this.type, this.collection});
 
-  static Future<bool?> show(BuildContext context,
-      {required CollectionType type, Collection? collection}) {
+  static Future<bool?> show(
+    BuildContext context, {
+    required CollectionType type,
+    Collection? collection,
+  }) {
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -41,7 +44,9 @@ class _CollectionFormSheet extends WatchingWidget {
     final collectionService = getIt<CollectionService>();
     final authService = getIt<IAuthService>();
 
-    final nameController = createOnce(() => TextEditingController(text: collection?.name ?? ''));
+    final nameController = createOnce(
+      () => TextEditingController(text: collection?.name ?? ''),
+    );
     final isSaving = createOnce(() => ValueNotifier<bool>(false));
     final formKey = createOnce(() => GlobalKey<FormState>());
 
@@ -65,9 +70,7 @@ class _CollectionFormSheet extends WatchingWidget {
       isSaving.value = true;
       try {
         if (collection != null) {
-          final updated = collection!.copyWith(
-            name: nameController.text,
-          );
+          final updated = collection!.copyWith(name: nameController.text);
           await collectionService.updateCollection(updated);
         } else {
           final newCollection = Collection(

@@ -291,10 +291,10 @@ class ProductService {
       // In this architecture, we usually get the collection first to get the IDs
       // but since we need a single call from the view, we implement it here.
       // Note: This requires access to collection repository or service.
-      // For now, let's assume we use the product repository if it supports it, 
+      // For now, let's assume we use the product repository if it supports it,
       // or we just use getProductById for each.
-      
-      // However, current product_model doesn't have collectionId, 
+
+      // However, current product_model doesn't have collectionId,
       // it's the collection_model that has productIds.
       // So this method might be better placed in a higher level service or
       // require the collection to be passed.

@@ -85,11 +85,11 @@ class AuthView extends WatchingWidget {
                           onPressed: controller.isLoading
                               ? null
                               : () => _authenticate(
-                                    controller,
-                                    formKey,
-                                    emailController,
-                                    passwordController,
-                                  ),
+                                  controller,
+                                  formKey,
+                                  emailController,
+                                  passwordController,
+                                ),
                         ),
                       ],
                     ),

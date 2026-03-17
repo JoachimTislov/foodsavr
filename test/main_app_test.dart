@@ -38,24 +38,28 @@ void main() {
     ) async {
       await tester.pumpWidget(
         EasyLocalization(
-          supportedLocales: const [Locale('en', 'US')],
+          supportedLocales: const [Locale('en')],
           path: 'assets/translations',
-          fallbackLocale: const Locale('en', 'US'),
+          fallbackLocale: const Locale('en'),
           child: MyApp(router: router),
         ),
       );
       await tester.pumpAndSettle();
 
+      final materialAppFinder = find.byWidgetPredicate(
+        (widget) => widget is MaterialApp,
+      );
+
       expect(
-        tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode,
+        tester.widget<MaterialApp>(materialAppFinder).themeMode,
         ThemeMode.system,
       );
 
       await themeNotifier.setTheme(ThemeMode.dark);
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       expect(
-        tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode,
+        tester.widget<MaterialApp>(materialAppFinder).themeMode,
         ThemeMode.dark,
       );
     });
