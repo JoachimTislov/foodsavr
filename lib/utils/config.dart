@@ -9,9 +9,9 @@ class Config {
   static const String? environment = isDevelopment ? 'development' : appFlavor;
 
   static bool get isProduction => appFlavor == 'production';
-  bool get useEmulators => !Config.isProduction && _userPrefersEmulators;
+  static bool get useEmulators => !Config.isProduction && _userPrefersEmulators;
 
-  final bool _userPrefersEmulators =
+  static final bool _userPrefersEmulators =
       getIt<SharedPreferences>().getBool(useEmulatorsKey) ??
       Config.isDevelopment;
 
