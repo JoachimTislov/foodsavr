@@ -64,7 +64,8 @@ class CollectionCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    if (collection.description != null)
+                    if (collection.description != null &&
+                        collection.description!.isNotEmpty)
                       Text(
                         collection.description!,
                         style: theme.textTheme.bodyMedium?.copyWith(

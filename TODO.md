@@ -12,7 +12,7 @@
 - [ ] shopping list items should not have an expiry date
     - [ ] "Conversion Prompt" card
     - [ ] create two separate models where there's one source of truth for the product information (e.g., name, category, etc.) and separate models for inventory and shopping list items that reference the product and have their own fields (e.g., quantity, expiration date for inventory items)
-- [ ] do not render empty string fields, e.g. description
+- [x] do not render empty string fields, e.g. description
 - [ ] avoid duplicate low value info/displayment...
 - [x] remove top navbar, migrate/ingrate actions in the pages, if any
 - [x] NEVER have arrows on the right in cards (remove them all)

@@ -216,20 +216,22 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                     ),
                   ),
                   // Description section
-                  Text(
-                    'product.description'.tr(),
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
+                  if (product.description.isNotEmpty) ...[
+                    Text(
+                      'product.description'.tr(),
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    product.description,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                      height: 1.5,
+                    const SizedBox(height: 8),
+                    Text(
+                      product.description,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        height: 1.5,
+                      ),
                     ),
-                  ),
+                  ],
                   if (_isLoadingInventories)
                     const Padding(
                       padding: EdgeInsets.only(top: 12),
