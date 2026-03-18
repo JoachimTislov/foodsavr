@@ -13,7 +13,9 @@ class ProductListItem extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: ListTile(
         title: Text(product.name),
-        subtitle: product.description.isNotEmpty ? Text(product.description) : null,
+        subtitle: product.description.isNotEmpty
+            ? Text(product.description)
+            : null,
         // Add more details or actions here if needed
       ),
     );
