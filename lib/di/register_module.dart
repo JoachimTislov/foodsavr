@@ -5,6 +5,7 @@ import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 @module
 abstract class RegisterModule {
@@ -22,6 +23,12 @@ abstract class RegisterModule {
 
   @lazySingleton
   Logger get logger => Logger(level: kReleaseMode ? Level.warning : Level.all);
+
+  @lazySingleton
+  Future<SharedPreferences> get sharedPreferences async {
+    // TODO: "This is a legacy API. For new code, consider [SharedPreferencesAsync] or [SharedPreferencesWithCache]."
+    return await SharedPreferences.getInstance();
+  }
 
   @Named('supportsPersistence')
   bool get supportsPersistence => kIsWeb;

@@ -42,25 +42,6 @@ void main() async {
   }
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load preferences early to determine environment
-  // TODO: "This is a legacy API. For new code, consider [SharedPreferencesAsync] or [SharedPreferencesWithCache]."
-  final prefs = await SharedPreferences.getInstance();
-  getIt.registerSingleton<SharedPreferences>(prefs);
-
-  // Environment Priority:
-  // 1. Production build -> always remote
-  // 2. Environment variable -> use if present
-  // 3. User preference -> use if present
-  // 4. Fallback -> default to development mode
-  final bool forceEmulators = const bool.fromEnvironment(
-    'USE_EMULATORS',
-    defaultValue: false,
-  );
-  final bool userPrefersEmulators =
-      prefs.getBool(Config.useEmulatorsKey) ?? Config.isDevelopment;
-  final bool useEmulators =
-      !Config.isProduction && (forceEmulators || userPrefersEmulators);
-
   OpenFoodAPIConfiguration.userAgent = UserAgent(
     name: 'FoodSavr',
     system: 'Flutter',
@@ -70,12 +51,14 @@ void main() async {
   await serviceLocator.registerDependencies();
 
   final logger = getIt<Logger>();
-  logger.i('Running in ${Config.environment} mode (Emulators: $useEmulators)');
+  logger.i(
+    'Running in ${Config.environment} mode (Emulators: ${Config.useEmulators})',
+  );
 
   // init Firebase app if not already initialized
   try {
     await Firebase.initializeApp(
-      options: useEmulators
+      options: Config.useEmulators
           ? dummyOptions
           : DefaultFirebaseOptions.currentPlatform,
     );
@@ -84,7 +67,7 @@ void main() async {
     logger.i('Firebase app already initialized, skipping...');
   }
 
-  if (useEmulators) {
+  if (Config.useEmulators) {
     await serviceLocator.setupDevelopment();
   }
 
@@ -92,7 +75,10 @@ void main() async {
   const nbLocale = Locale('nb');
   await EasyLocalization.ensureInitialized();
 
-  getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
+  // TODO: move to register module
+  getIt.registerSingleton<ThemeNotifier>(
+    ThemeNotifier(getIt<SharedPreferences>()),
+  );
   if (!getIt.isRegistered<BarcodeScannerService>()) {
     getIt.registerLazySingleton<BarcodeScannerService>(
       () => BarcodeScannerService(),

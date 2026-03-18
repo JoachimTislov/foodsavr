@@ -174,7 +174,7 @@ class _AuthStreamListenable extends ChangeNotifier {
     });
 
     // Safety fallback for initialization
-    Future.delayed(const Duration(seconds: 2), () {
+    Future.delayed(const Duration(seconds: 1), () {
       if (!_isInitialized && !_isDisposed) {
         _isInitialized = true;
         notifyListeners();

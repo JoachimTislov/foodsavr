@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:foodsavr/injection.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class Config {
   // isDevelopment is default when appFlavor isn't set
@@ -7,6 +9,11 @@ class Config {
   static const String? environment = isDevelopment ? 'development' : appFlavor;
 
   static bool get isProduction => appFlavor == 'production';
+  bool get useEmulators => !Config.isProduction && _userPrefersEmulators;
+
+  final bool _userPrefersEmulators =
+      getIt<SharedPreferences>().getBool(useEmulatorsKey) ??
+      Config.isDevelopment;
 
   /// Key used in SharedPreferences to store the environment preference.
   static const String useEmulatorsKey = 'use_local_emulators';
