@@ -85,17 +85,6 @@ generate-di: deps
 preflight:
 	@echo "Running preflight sync checks..."
 	@git fetch --quiet
-	@if ! git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then \
-		branch=$$(git rev-parse --abbrev-ref HEAD); \
-		if git show-ref --verify --quiet refs/remotes/origin/$$branch; then \
-			echo "Setting upstream to origin/$$branch"; \
-			git branch --set-upstream-to=origin/$$branch; \
-		else \
-			echo "Upstream not set and remote branch not found. Skipping upstream check."; \
-		fi \
-	else \
-		echo "Upstream already set."; \
-	fi
 	@if [ -n "$$(git status --porcelain)" ]; then \
 		echo "Preflight failed: working tree is not clean."; \
 		exit 1; \
