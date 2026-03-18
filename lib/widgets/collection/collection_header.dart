@@ -6,8 +6,19 @@ import '../../models/collection_model.dart';
 /// Header widget for collection detail view
 class CollectionHeader extends StatelessWidget {
   final Collection collection;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final VoidCallback? onLogout;
+  final VoidCallback? onBack;
 
-  const CollectionHeader({super.key, required this.collection});
+  const CollectionHeader({
+    super.key,
+    required this.collection,
+    this.onEdit,
+    this.onDelete,
+    this.onLogout,
+    this.onBack,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +27,12 @@ class CollectionHeader extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.only(
+        left: 24,
+        top: MediaQuery.of(context).padding.top + 16,
+        right: 24,
+        bottom: 24,
+      ),
       decoration: BoxDecoration(
         color: CollectionConfig.getColor(collection.type, colorScheme),
         borderRadius: const BorderRadius.only(
@@ -27,6 +43,50 @@ class CollectionHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              if (onBack != null)
+                IconButton(
+                  icon: Icon(
+                    Icons.arrow_back,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+                  onPressed: onBack,
+                )
+              else
+                const SizedBox.shrink(),
+              Row(
+                children: [
+                  if (onEdit != null)
+                    IconButton(
+                      icon: Icon(
+                        Icons.edit,
+                        color: colorScheme.onPrimaryContainer,
+                      ),
+                      onPressed: onEdit,
+                    ),
+                  if (onDelete != null)
+                    IconButton(
+                      icon: Icon(
+                        Icons.delete_outline,
+                        color: colorScheme.onPrimaryContainer,
+                      ),
+                      onPressed: onDelete,
+                    ),
+                  if (onLogout != null)
+                    IconButton(
+                      icon: Icon(
+                        Icons.logout,
+                        color: colorScheme.onPrimaryContainer,
+                      ),
+                      onPressed: onLogout,
+                    ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
           Row(
             children: [
               Icon(
@@ -46,7 +106,8 @@ class CollectionHeader extends StatelessWidget {
                         color: colorScheme.onPrimaryContainer,
                       ),
                     ),
-                    if (collection.description != null)
+                    if (collection.description != null &&
+                        collection.description!.isNotEmpty)
                       Text(
                         collection.description!,
                         style: theme.textTheme.bodyLarge?.copyWith(

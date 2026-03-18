@@ -37,109 +37,145 @@ class _CollectionListViewState extends State<CollectionListView> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    final title = widget.typeFilter == CollectionType.shoppingList
+        ? 'dashboard.shoppingList'.tr()
+        : 'dashboard.myInventory'.tr();
+
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: colorScheme.surface,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _authService.signOut(),
+      body: Column(
+        children: [
+          // Custom Header
+          Container(
+            padding: EdgeInsets.only(
+              left: 24,
+              top: MediaQuery.of(context).padding.top + 16,
+              right: 16,
+              bottom: 16,
+            ),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(24),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  onPressed: () => _authService.signOut(),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: FutureBuilder<List<Collection>>(
+              future: _collectionsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: colorScheme.error,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'collection.loadError'.tr(),
+                          style: theme.textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${snapshot.error}',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  );
+                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          widget.typeFilter == CollectionType.shoppingList
+                              ? Icons.shopping_cart_outlined
+                              : Icons.inventory_2_outlined,
+                          size: 64,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'collection.emptyTitle'.tr(),
+                          style: theme.textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'collection.emptySubtitle'.tr(),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 24),
+                        FilledButton.icon(
+                          onPressed: () async {
+                            final result = await CollectionFormView.show(
+                              context,
+                              type:
+                                  widget.typeFilter ?? CollectionType.inventory,
+                            );
+                            if (!mounted) return;
+                            if (result == true) {
+                              _refreshCollections();
+                            }
+                          },
+                          icon: const Icon(Icons.add),
+                          label: Text(
+                            widget.typeFilter == CollectionType.shoppingList
+                                ? 'collection.create_shopping_list'.tr()
+                                : 'collection.create_inventory'.tr(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                } else {
+                  final collections = snapshot.data!;
+                  return RefreshIndicator(
+                    onRefresh: _refreshCollections,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.only(top: 12, bottom: 20),
+                      itemCount: collections.length,
+                      itemBuilder: (context, index) {
+                        final collection = collections[index];
+                        return CollectionCard(
+                          collection: collection,
+                          onTap: () => _navigateToCollectionDetail(collection),
+                        );
+                      },
+                    ),
+                  );
+                }
+              },
+            ),
           ),
         ],
-      ),
-      body: FutureBuilder<List<Collection>>(
-        future: _collectionsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error_outline, size: 64, color: colorScheme.error),
-                  const SizedBox(height: 16),
-                  Text(
-                    'collection.loadError'.tr(),
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${snapshot.error}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            );
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    widget.typeFilter == CollectionType.shoppingList
-                        ? Icons.shopping_cart_outlined
-                        : Icons.inventory_2_outlined,
-                    size: 64,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'collection.emptyTitle'.tr(),
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'collection.emptySubtitle'.tr(),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: () async {
-                      final result = await CollectionFormView.show(
-                        context,
-                        type: widget.typeFilter ?? CollectionType.inventory,
-                      );
-                      if (!mounted) return;
-                      if (result == true) {
-                        _refreshCollections();
-                      }
-                    },
-                    icon: const Icon(Icons.add),
-                    label: Text(
-                      widget.typeFilter == CollectionType.shoppingList
-                          ? 'collection.create_shopping_list'.tr()
-                          : 'collection.create_inventory'.tr(),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          } else {
-            final collections = snapshot.data!;
-            return RefreshIndicator(
-              onRefresh: _refreshCollections,
-              child: ListView.builder(
-                padding: const EdgeInsets.only(top: 12, bottom: 20),
-                itemCount: collections.length,
-                itemBuilder: (context, index) {
-                  final collection = collections[index];
-                  return CollectionCard(
-                    collection: collection,
-                    onTap: () => _navigateToCollectionDetail(collection),
-                  );
-                },
-              ),
-            );
-          }
-        },
       ),
       floatingActionButton: FutureBuilder<List<Collection>>(
         future: _collectionsFuture,

@@ -110,67 +110,27 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: colorScheme.surface,
-        elevation: 0,
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (value) async {
-              if (value == 'edit') {
-                final result = await CollectionFormView.show(
-                  context,
-                  type: _currentCollection.type,
-                  collection: _currentCollection,
-                );
-                if (result == true) {
-                  _refreshCollection();
-                }
-              } else if (value == 'delete') {
-                _deleteCollection();
-              }
-            },
-            itemBuilder: (BuildContext context) {
-              return [
-                PopupMenuItem<String>(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      const Icon(Icons.edit, size: 20),
-                      const SizedBox(width: 8),
-                      Text('common.edit'.tr()),
-                    ],
-                  ),
-                ),
-                PopupMenuItem<String>(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.delete_outline,
-                        size: 20,
-                        color: colorScheme.error,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'common.delete'.tr(),
-                        style: TextStyle(color: colorScheme.error),
-                      ),
-                    ],
-                  ),
-                ),
-              ];
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _authService.signOut(),
-          ),
-        ],
-      ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CollectionHeader(collection: _currentCollection),
+          CollectionHeader(
+            collection: _currentCollection,
+            onBack: Navigator.of(context).canPop()
+                ? () => Navigator.of(context).pop()
+                : null,
+            onEdit: () async {
+              final result = await CollectionFormView.show(
+                context,
+                type: _currentCollection.type,
+                collection: _currentCollection,
+              );
+              if (result == true) {
+                _refreshCollection();
+              }
+            },
+            onDelete: () => _deleteCollection(),
+            onLogout: () => _authService.signOut(),
+          ),
           Expanded(child: _buildProductsList(theme, colorScheme)),
         ],
       ),

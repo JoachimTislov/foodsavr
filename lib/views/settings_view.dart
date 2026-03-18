@@ -46,9 +46,13 @@ class _SettingsViewState extends State<SettingsView> {
               initialData: _authService.currentUser,
               builder: (context, snapshot) {
                 final user = snapshot.data;
-                final displayName =
-                    user?.displayName ?? user?.email?.split('@').first ?? '';
-                final email = user?.email ?? '';
+                final isAnonymous = user?.isAnonymous ?? false;
+                final displayName = isAnonymous
+                    ? 'settings.guest_user'.tr()
+                    : (user?.displayName ??
+                          user?.email?.split('@').first ??
+                          '');
+                final email = isAnonymous ? '' : (user?.email ?? '');
 
                 return _SettingsSection(
                   title: 'settings.account'.tr(),
@@ -57,10 +61,10 @@ class _SettingsViewState extends State<SettingsView> {
                       leading: CircleAvatar(
                         radius: 20,
                         backgroundColor: colorScheme.primaryContainer,
-                        backgroundImage: user?.photoURL != null
+                        backgroundImage: !isAnonymous && user?.photoURL != null
                             ? NetworkImage(user!.photoURL!)
                             : null,
-                        child: user?.photoURL == null
+                        child: isAnonymous || user?.photoURL == null
                             ? Icon(
                                 Icons.person_outline,
                                 size: 20,

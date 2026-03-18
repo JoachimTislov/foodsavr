@@ -50,10 +50,12 @@ class _ProfileViewState extends State<ProfileView> {
         initialData: _authService.currentUser,
         builder: (context, snapshot) {
           final user = snapshot.data;
-          final displayName =
-              user?.displayName ?? user?.email?.split('@').first ?? '';
-          final email = user?.email ?? '';
-          final photoUrl = user?.photoURL;
+          final isAnonymous = user?.isAnonymous ?? false;
+          final displayName = isAnonymous
+              ? 'settings.guest_user'.tr()
+              : (user?.displayName ?? user?.email?.split('@').first ?? '');
+          final email = isAnonymous ? '' : (user?.email ?? '');
+          final photoUrl = isAnonymous ? null : user?.photoURL;
 
           return CustomScrollView(
             slivers: [

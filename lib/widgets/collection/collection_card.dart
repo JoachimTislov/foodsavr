@@ -118,12 +118,6 @@ class CollectionCard extends StatelessWidget {
                   ],
                 ),
               ),
-              // Arrow icon
-              Icon(
-                Icons.arrow_forward_ios,
-                size: 20,
-                color: colorScheme.onSurfaceVariant,
-              ),
             ],
           ),
         ),

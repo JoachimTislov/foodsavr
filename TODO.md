@@ -8,14 +8,14 @@
 ### UI
 - [x] move local emulators toggle to login screen
 - [x] expand "continue as guest" button
-- [ ] Handle guest logins in settings by either omit or adapting content
+- [x] Handle guest logins in settings by either omit or adapting content
 - [ ] shopping list items should not have an expiry date
     - [ ] "Conversion Prompt" card
     - [ ] create two separate models where there's one source of truth for the product information (e.g., name, category, etc.) and separate models for inventory and shopping list items that reference the product and have their own fields (e.g., quantity, expiration date for inventory items)
 - [ ] do not render empty string fields, e.g. description
 - [ ] avoid duplicate low value info/displayment...
-- [ ] remove top navbar, migrate/ingrate actions in the pages, if any
-- [ ] NEVER have arrows on the right in cards (remove them all)
+- [x] remove top navbar, migrate/ingrate actions in the pages, if any
+- [x] NEVER have arrows on the right in cards (remove them all)
     - replace them with elevation or subtle border highlights
 - [ ] add an overview page all products registered/related to a user
     - need to figure out / design a good overview/dashboard. Add quick action to view all, probably just reimplement the View all link in dashboard.
