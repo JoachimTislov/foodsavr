@@ -2,6 +2,12 @@
 
 ## remaining prototype tasks
 
+- [ ] split CI into the following steps:
+    - analyze
+    - tests (Unit and integration tests with emulators)
+    - build
+    - locale-check
+    - LATER: deploy (to internal testing track on Play Store)
 - [ ] add/test mobile auth?
 - [ ] only allow expiry entries for products
 
