@@ -176,8 +176,10 @@ void main() {
 
     setUp(() async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
+      final prefs = await SharedPreferences.getInstance();
       await EasyLocalization.ensureInitialized();
       await getIt.reset();
+      getIt.registerSingleton<SharedPreferences>(prefs);
       authService = _FakeAuthService();
       router = createAppRouter(authService);
       getIt.registerLazySingleton<IAuthService>(() => authService);

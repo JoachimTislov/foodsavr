@@ -1,8 +1,11 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../service_locator.dart';
 import '../services/auth_controller.dart';
+import '../utils/config.dart';
 import '../widgets/auth/social_auth_section.dart';
 
 class LandingPageView extends StatefulWidget {
@@ -19,6 +22,29 @@ class _LandingPageViewState extends State<LandingPageView> {
   void initState() {
     super.initState();
     _controller = getIt<AuthController>();
+  }
+
+  Future<void> _toggleEmulators(BuildContext context, bool value) async {
+    final prefs = getIt<SharedPreferences>();
+    await prefs.setBool(Config.useEmulatorsKey, value);
+    if (!context.mounted) return;
+
+    setState(() {});
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text('settings.restart_required'.tr()),
+        content: Text('settings.restart_message'.tr()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('common.ok'.tr()),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -85,48 +111,47 @@ class _LandingPageViewState extends State<LandingPageView> {
 
                       const SizedBox(height: 24),
 
-                      // Divider Section (Manual for Landing Page)
-                      // No need to repeat the divider if SocialAuthSection already has one,
-                      // but LandingPageView original had its own layout.
-                      // Actually SocialAuthSection includes the divider at the TOP.
-                      // Let's see how it looks.
-                      const SizedBox(height: 24),
-
                       // Email Button (Primary)
-                      ElevatedButton(
-                        onPressed: _controller.isLoading
-                            ? null
-                            : () {
-                                context.go(
-                                  Uri(
-                                    path: '/auth',
-                                    queryParameters: {'mode': 'login'},
-                                  ).toString(),
-                                );
-                              },
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.mail_outline),
-                            const SizedBox(width: 8),
-                            Text(
-                              'auth.social.continue_email'.tr(),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _controller.isLoading
+                              ? null
+                              : () {
+                                  context.go(
+                                    Uri(
+                                      path: '/auth',
+                                      queryParameters: {'mode': 'login'},
+                                    ).toString(),
+                                  );
+                                },
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.mail_outline),
+                              const SizedBox(width: 8),
+                              Text(
+                                'auth.social.continue_email'.tr(),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
 
                       const SizedBox(height: 12),
 
-                      OutlinedButton(
-                        onPressed: _controller.isLoading
-                            ? null
-                            : _controller.signInAsGuest,
-                        child: Text('auth.social.continue_guest'.tr()),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: _controller.isLoading
+                              ? null
+                              : _controller.signInAsGuest,
+                          child: Text('auth.social.continue_guest'.tr()),
+                        ),
                       ),
 
                       const SizedBox(height: 32),
@@ -169,6 +194,32 @@ class _LandingPageViewState extends State<LandingPageView> {
                           ),
                         ],
                       ),
+
+                      // Emulator Toggle (Developer Tools)
+                      if (!Config.isProduction) ...[
+                        const SizedBox(height: 48),
+                        const Divider(),
+                        const SizedBox(height: 16),
+                        SwitchListTile(
+                          title: Text('settings.use_emulators'.tr()),
+                          subtitle: Text(
+                            getIt<SharedPreferences>().getBool(
+                                      Config.useEmulatorsKey,
+                                    ) ??
+                                    Config.isDevelopment
+                                ? 'Local Emulator'
+                                : 'Remote Cloud',
+                          ),
+                          value:
+                              getIt<SharedPreferences>().getBool(
+                                Config.useEmulatorsKey,
+                              ) ??
+                              Config.isDevelopment,
+                          onChanged: (value) =>
+                              _toggleEmulators(context, value),
+                          secondary: const Icon(Icons.bug_report_outlined),
+                        ),
+                      ],
                     ],
                   );
                 },

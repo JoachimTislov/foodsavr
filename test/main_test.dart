@@ -32,6 +32,7 @@ void main() {
     setupFirebaseCoreMocks();
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
+    getIt.registerSingleton<SharedPreferences>(prefs);
     getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
 
     // Increase surface size to avoid overflows in tests
@@ -86,6 +87,7 @@ void main() {
       await getIt.reset();
 
       getIt.registerSingleton<Logger>(Logger(level: Level.off));
+      getIt.registerSingleton<SharedPreferences>(prefs);
       getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
       mockAuthService = MockAuthService();
       when(

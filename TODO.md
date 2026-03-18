@@ -6,8 +6,8 @@
 - [ ] only allow expiry entries for products
 
 ### UI
-- [ ] move local emulators toggle to login screen
-- [ ] expand "continue as guest" button
+- [x] move local emulators toggle to login screen
+- [x] expand "continue as guest" button
 - [ ] Handle guest logins in settings by either omit or adapting content
 - [ ] shopping list items should not have an expiry date
     - [ ] "Conversion Prompt" card

@@ -112,28 +112,6 @@ class _SettingsViewState extends State<SettingsView> {
             ),
             const SizedBox(height: 24),
 
-            // Developer Tools Section (Non-production only)
-            if (!Config.isProduction) ...[
-              _SettingsSection(
-                title: 'settings.developer_tools'.tr(),
-                children: [
-                  _SettingsTile(
-                    icon: Icons.bug_report_outlined,
-                    title: 'settings.use_emulators'.tr(),
-                    trailing: Switch(
-                      value:
-                          getIt<SharedPreferences>().getBool(
-                            Config.useEmulatorsKey,
-                          ) ??
-                          Config.isDevelopment,
-                      onChanged: (value) => _toggleEmulators(context, value),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-            ],
-
             // Legal & Info Section
             _SettingsSection(
               title: 'settings.about'.tr(),
@@ -202,29 +180,6 @@ class _SettingsViewState extends State<SettingsView> {
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Text('common.close'.tr()),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _toggleEmulators(BuildContext context, bool value) async {
-    final prefs = getIt<SharedPreferences>();
-    await prefs.setBool(Config.useEmulatorsKey, value);
-    if (!context.mounted) return;
-
-    setState(() {});
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text('settings.restart_required'.tr()),
-        content: Text('settings.restart_message'.tr()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('common.ok'.tr()),
           ),
         ],
       ),
