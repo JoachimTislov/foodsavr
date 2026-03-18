@@ -97,6 +97,7 @@
     "errorLoading": "Feil ved lasting av data"
   },
   "product": {
+    "all_products": "Alle produkter",
     "compact": "Kompakt",
     "normal": "Normal",
     "details": "Produktdetaljer",

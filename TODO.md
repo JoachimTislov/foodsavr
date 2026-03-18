@@ -13,11 +13,11 @@
     - [ ] "Conversion Prompt" card
     - [ ] create two separate models where there's one source of truth for the product information (e.g., name, category, etc.) and separate models for inventory and shopping list items that reference the product and have their own fields (e.g., quantity, expiration date for inventory items)
 - [x] do not render empty string fields, e.g. description
-- [ ] avoid duplicate low value info/displayment...
+- [x] avoid duplicate low value info/displayment...
 - [x] remove top navbar, migrate/ingrate actions in the pages, if any
 - [x] NEVER have arrows on the right in cards (remove them all)
     - replace them with elevation or subtle border highlights
-- [ ] add an overview page all products registered/related to a user
+- [x] add an overview page all products registered/related to a user
     - need to figure out / design a good overview/dashboard. Add quick action to view all, probably just reimplement the View all link in dashboard.
 
 #### Web specific

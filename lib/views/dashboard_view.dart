@@ -157,6 +157,13 @@ class _DashboardViewState extends State<DashboardView> {
                 final inventories = snapshot.data ?? [];
 
                 final cards = <Widget>[
+                  OverviewCard(
+                    title: 'product.all_products'.tr(),
+                    subtitle: 'dashboard.browseProducts'.tr(),
+                    icon: Icons.inventory_outlined,
+                    iconColor: colorScheme.primary,
+                    onTap: () => context.push('/product-list'),
+                  ),
                   if (inventories.length > 1)
                     OverviewCard(
                       title: 'dashboard.transfer'.tr(),

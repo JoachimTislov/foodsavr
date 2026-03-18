@@ -125,12 +125,6 @@ class ProductCardNormal extends StatelessWidget {
                     Row(
                       children: [
                         if (product.category != null) ...[
-                          Icon(
-                            ProductCategory.getIcon(product.category),
-                            size: 14,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 4),
                           Text(
                             product.category!,
                             style: theme.textTheme.bodySmall?.copyWith(

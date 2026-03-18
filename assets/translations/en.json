@@ -97,6 +97,7 @@
     "errorLoading": "Error loading data"
   },
   "product": {
+    "all_products": "All Products",
     "compact": "Compact",
     "normal": "Normal",
     "details": "Product Details",
