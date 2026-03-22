@@ -48,7 +48,7 @@ void main() async {
   );
 
   final serviceLocator = ServiceLocator();
-  await serviceLocator.registerDependencies();
+  serviceLocator.registerDependencies();
 
   final logger = getIt<Logger>();
   logger.i(
@@ -67,25 +67,12 @@ void main() async {
     logger.i('Firebase app already initialized, skipping...');
   }
 
-  if (Config.useEmulators) {
-    await serviceLocator.setupDevelopment();
-  }
+  if (Config.useEmulators) await serviceLocator.setupDevelopment();
 
   const enLocale = Locale('en');
   const nbLocale = Locale('nb');
   await EasyLocalization.ensureInitialized();
 
-  // TODO: move to register module
-  getIt.registerSingleton<ThemeNotifier>(
-    ThemeNotifier(getIt<SharedPreferences>()),
-  );
-  if (!getIt.isRegistered<BarcodeScannerService>()) {
-    getIt.registerLazySingleton<BarcodeScannerService>(
-      () => BarcodeScannerService(),
-      dispose: (service) => service.close(),
-    );
-  }
-  final router = createAppRouter(getIt<IAuthService>());
   runApp(
     EasyLocalization(
       supportedLocales: const [enLocale, nbLocale],
@@ -93,7 +80,7 @@ void main() async {
       fallbackLocale: enLocale,
       startLocale: enLocale,
       useFallbackTranslations: true,
-      child: MyApp(router: router),
+      child: MyApp(router: createAppRouter(getIt<IAuthService>())),
     ),
   );
 }

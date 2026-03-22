@@ -20,14 +20,17 @@ import 'package:foodsavr/repositories/collection_repository.dart' as _i92;
 import 'package:foodsavr/repositories/product_repository.dart' as _i318;
 import 'package:foodsavr/services/auth_controller.dart' as _i882;
 import 'package:foodsavr/services/auth_service.dart' as _i277;
+import 'package:foodsavr/services/barcode_scanner_service.dart' as _i397;
 import 'package:foodsavr/services/collection_service.dart' as _i122;
 import 'package:foodsavr/services/product_service.dart' as _i898;
 import 'package:foodsavr/services/seeding_service.dart' as _i464;
 import 'package:foodsavr/services/shelf_life_service.dart' as _i1071;
+import 'package:foodsavr/services/theme_notifier.dart' as _i921;
 import 'package:get_it/get_it.dart' as _i174;
 import 'package:google_sign_in/google_sign_in.dart' as _i116;
 import 'package:injectable/injectable.dart' as _i526;
 import 'package:logger/logger.dart' as _i974;
+import 'package:shared_preferences/shared_preferences.dart' as _i460;
 
 extension GetItInjectableX on _i174.GetIt {
   // initializes the registration of main-scope dependencies inside of GetIt
@@ -37,6 +40,9 @@ extension GetItInjectableX on _i174.GetIt {
   }) {
     final gh = _i526.GetItHelper(this, environment, environmentFilter);
     final registerModule = _$RegisterModule();
+    gh.factory<_i397.BarcodeScannerService>(
+      () => _i397.BarcodeScannerService(),
+    );
     gh.lazySingleton<_i59.FirebaseAuth>(() => registerModule.firebaseAuth);
     gh.lazySingleton<_i974.FirebaseFirestore>(
       () => registerModule.firebaseFirestore,
@@ -44,6 +50,12 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i116.GoogleSignIn>(() => registerModule.googleSignIn);
     gh.lazySingleton<_i806.FacebookAuth>(() => registerModule.facebookAuth);
     gh.lazySingleton<_i974.Logger>(() => registerModule.logger);
+    gh.lazySingletonAsync<_i460.SharedPreferences>(
+      () => registerModule.sharedPreferences,
+    );
+    gh.lazySingletonAsync<_i921.ThemeNotifier>(
+      () => registerModule.themeNotifier,
+    );
     gh.lazySingleton<_i1071.ShelfLifeService>(() => _i1071.ShelfLifeService());
     gh.factory<bool>(
       () => registerModule.supportsPersistence,

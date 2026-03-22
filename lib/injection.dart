@@ -6,7 +6,7 @@ import 'injection.config.dart';
 final getIt = GetIt.instance;
 
 @InjectableInit()
-Future<void> configureDependencies() async {
+void configureDependencies() {
   // Allow reassignment to handle hot reload and full restart gracefully
   getIt.allowReassignment = true;
   getIt.init();

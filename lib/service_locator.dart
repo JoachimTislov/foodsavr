@@ -10,7 +10,7 @@ import 'utils/config.dart';
 export 'injection.dart' show getIt;
 
 class ServiceLocator {
-  Future<void> registerDependencies() async => await configureDependencies();
+  void registerDependencies() => configureDependencies();
 
   Future<void> setupDevelopment() async {
     const host = Config.emulatorHost;

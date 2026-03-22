@@ -20,7 +20,7 @@ version: 1.0.0+1
 
 environment:
   sdk: ^3.10.7
-  flutter: '>=3.32.0'
+  flutter: ">=3.32.0"
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -66,6 +66,9 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   mocktail: ^1.0.4
+  # TODO: research why this fails make build-android
+  # it should be accessible through the sdk
+  # error: package dev.flutter.plugins.integration_test does not exist
   integration_test:
     sdk: flutter
   injectable_generator: ^2.12.0
@@ -89,7 +92,6 @@ flutter:
     - path: assets/images/
       transformers:
         - package: vector_graphics_compiler
-
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
