@@ -41,8 +41,11 @@ GoRouter createAppRouter(IAuthService authService) {
       final isAuthRoute = state.uri.path == '/auth';
       final isLandingRoute = state.uri.path == '/';
 
-      if (!isLoggedIn && !isLandingRoute && !isAuthRoute) {
-        return '/';
+      if (!isLoggedIn) {
+        if (!isLandingRoute && !isAuthRoute) {
+          return '/';
+        }
+        return null;
       } else if (isLandingRoute || (isAuthRoute && !isAnonymousUser)) {
         return '/dashboard';
       }
