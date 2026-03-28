@@ -40,15 +40,15 @@ extension GetItInjectableX on _i174.GetIt {
   }) async {
     final gh = _i526.GetItHelper(this, environment, environmentFilter);
     final registerModule = _$RegisterModule();
-    await gh.factoryAsync<_i460.SharedPreferencesWithCache>(
-      () => registerModule.prefs,
-      preResolve: true,
-    );
-    gh.factory<_i921.ThemeNotifier>(() => registerModule.themeNotifier);
     gh.factory<_i397.BarcodeScannerService>(
       () => _i397.BarcodeScannerService(),
     );
     gh.singleton<_i974.Logger>(() => registerModule.logger);
+    await gh.singletonAsync<_i460.SharedPreferencesWithCache>(
+      () => registerModule.prefs,
+      preResolve: true,
+    );
+    gh.singleton<_i921.ThemeNotifier>(() => registerModule.themeNotifier);
     gh.lazySingleton<_i806.FacebookAuth>(() => registerModule.facebookAuth);
     gh.lazySingleton<_i59.FirebaseAuth>(() => registerModule.firebaseAuth);
     gh.lazySingleton<_i974.FirebaseFirestore>(

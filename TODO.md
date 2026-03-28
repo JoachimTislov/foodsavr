@@ -30,10 +30,6 @@
 - [ ] Add X in right corner of modal when on web
 - [ ] only have barcode available for devices with a valid camera, not web
 
-### Locales
-- [ ] dashboard - myInventory and shoppingList is missing. Which means bad script - locale-check
-    - Correction, its the AuthController defaulting to (key) => key, doing no translation / lookup
-
 ---
 
 ## General

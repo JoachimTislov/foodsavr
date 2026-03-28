@@ -27,6 +27,7 @@ abstract class RegisterModule {
   Logger get logger => Logger(level: kReleaseMode ? Level.warning : Level.all);
 
   @preResolve
+  @singleton
   Future<SharedPreferencesWithCache> get prefs =>
       SharedPreferencesWithCache.create(
         cacheOptions: SharedPreferencesWithCacheOptions(
@@ -37,6 +38,7 @@ abstract class RegisterModule {
   @Named('supportsPersistence')
   bool get supportsPersistence => kIsWeb;
 
+  @singleton
   ThemeNotifier get themeNotifier =>
       ThemeNotifier(getIt<SharedPreferencesWithCache>());
 }
