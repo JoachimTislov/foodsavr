@@ -87,67 +87,17 @@ class _ProductDetailViewState extends State<ProductDetailView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Hero image section
-            Container(
-              width: double.infinity,
-              height: 200,
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
-                ),
-              ),
-              child: Center(
-                child: Icon(
-                  ProductCategory.getIcon(product.category),
-                  size: 100,
-                  color: colorScheme.onPrimaryContainer,
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            // Content
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title and actions
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          product.name,
-                          style: theme.textTheme.displaySmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.edit),
-                        onPressed: () async {
-                          final result = await ProductFormView.show(
-                            context,
-                            product: _currentProduct,
-                          );
-                          if (result == true && mounted) {
-                            final updatedProduct = await _productService
-                                .getProductById(_currentProduct.id);
-                            if (updatedProduct != null) {
-                              setState(() {
-                                _currentProduct = updatedProduct;
-                              });
-                              _loadInventories();
-                            }
-                          }
-                        },
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.delete, color: colorScheme.error),
-                        onPressed: () => _showDeleteConfirmation(product),
-                      ),
-                    ],
+                  Text(
+                    product.name,
+                    style: theme.textTheme.displaySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 28,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   if (product.category != null)
@@ -266,11 +216,40 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                   ],
                   const SizedBox(height: 32),
                   // Details section
-                  Text(
-                    'product.details'.tr(),
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'product.details'.tr(),
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit),
+                        onPressed: () async {
+                          final result = await ProductFormView.show(
+                            context,
+                            product: _currentProduct,
+                          );
+                          if (result == true && mounted) {
+                            final updatedProduct = await _productService
+                                .getProductById(_currentProduct.id);
+                            if (updatedProduct != null) {
+                              setState(() {
+                                _currentProduct = updatedProduct;
+                              });
+                              _loadInventories();
+                            }
+                          }
+                        },
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.delete, color: colorScheme.error),
+                        onPressed: () => _showDeleteConfirmation(product),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   ProductDetailsCard(product: product),
