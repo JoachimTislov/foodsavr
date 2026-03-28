@@ -72,7 +72,7 @@ class _SettingsViewState extends State<SettingsView> {
                       ),
                       title: displayName,
                       subtitle: email,
-                      onTap: () => context.push('/profile'),
+                      onTap: () => context.push('/settings/profile'),
                     ),
                   ],
                 );

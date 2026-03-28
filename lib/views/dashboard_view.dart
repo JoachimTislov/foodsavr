@@ -122,7 +122,7 @@ class _DashboardViewState extends State<DashboardView> {
                     subtitle: 'dashboard.browseProducts'.tr(),
                     icon: Icons.inventory_outlined,
                     iconColor: colorScheme.primary,
-                    onTap: () => context.push('/product-list'),
+                    onTap: () => context.go('/dashboard/product-list'),
                   ),
                   if (inventories.length > 1)
                     OverviewCard(
@@ -130,14 +130,14 @@ class _DashboardViewState extends State<DashboardView> {
                       subtitle: 'dashboard.moveItems'.tr(),
                       icon: Icons.move_up,
                       iconColor: colorScheme.primary,
-                      onTap: () => context.push('/transfer'),
+                      onTap: () => context.go('/transfer'),
                     ),
                   OverviewCard(
                     title: 'dashboard.globalProducts'.tr(),
                     subtitle: 'dashboard.browseProducts'.tr(),
                     icon: Icons.public_outlined,
                     iconColor: colorScheme.primary,
-                    onTap: () => context.push('/global-products'),
+                    onTap: () => context.go('/dashboard/global-products'),
                   ),
                 ];
 
@@ -209,7 +209,7 @@ class _ExpiringSoonSection extends StatelessWidget {
               ),
             ),
             TextButton(
-              onPressed: () => context.push('/product-list'),
+              onPressed: () => context.push('/dashboard/product-list'),
               child: Text('common.viewAll'.tr()),
             ),
           ],

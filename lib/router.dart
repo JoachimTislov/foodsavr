@@ -41,17 +41,12 @@ GoRouter createAppRouter(IAuthService authService) {
       final isAuthRoute = state.uri.path == '/auth';
       final isLandingRoute = state.uri.path == '/';
 
-      if (!isLoggedIn) {
-        if (!isLandingRoute && !isAuthRoute) {
-          return '/';
-        }
-        return null;
-      } else {
-        if (isLandingRoute || (isAuthRoute && !isAnonymousUser)) {
-          return '/products';
-        }
-        return null;
+      if (!isLoggedIn && !isLandingRoute && !isAuthRoute) {
+        return '/';
+      } else if (isLandingRoute || (isAuthRoute && !isAnonymousUser)) {
+        return '/dashboard';
       }
+      return null;
     },
     routes: <RouteBase>[
       GoRoute(
@@ -77,7 +72,7 @@ GoRouter createAppRouter(IAuthService authService) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/products',
+                path: '/dashboard',
                 builder: (context, state) => const DashboardView(),
                 routes: [
                   GoRoute(
