@@ -7,9 +7,7 @@ class Config {
   static const String? environment = isDevelopment ? 'development' : appFlavor;
 
   static bool get isProduction => appFlavor == 'production';
-
-  /// Key used in SharedPreferences to store the environment preference.
-  static const String useEmulatorsKey = 'use_local_emulators';
+  static bool get useEmulators => !isProduction;
 
   /// The IP address for local development emulators.
   ///

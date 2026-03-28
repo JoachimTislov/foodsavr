@@ -14,7 +14,10 @@ void main() {
 
   setUp(() {
     mockRepository = MockICollectionRepository();
-    collectionService = CollectionService(mockRepository, Logger());
+    collectionService = CollectionService(
+      mockRepository,
+      Logger(level: Level.off),
+    );
   });
 
   test('getInventoriesByProductId returns correct inventories', () async {

@@ -1,9 +1,9 @@
 #!/bin/bash
 # Adds multiple key-value pairs to all JSON files in assets/translations/
-# Usage: ./tool/add_locale_key.sh "key1" "value1" "key2" "value2" ...
+# Usage: ./tool/locale/add_locale_key.sh "key1" "value1" "key2" "value2" ...
 
 if [ "$#" -lt 2 ] || [ $(($# % 2)) -ne 0 ]; then
-  echo "Usage: ./tool/add_locale_key.sh \"key1\" \"value1\" [\"key2\" \"value2\" ...]"
+  echo "Usage: ./tool/locale/add_locale_key.sh \"key1\" \"value1\" [\"key2\" \"value2\" ...]"
   exit 1
 fi
 

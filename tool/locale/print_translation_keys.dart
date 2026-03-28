@@ -1,5 +1,5 @@
 // Prints all translation keys from a JSON translation file in dot notation.
-// Usage: dart run tool/print_translation_keys.dart [path]
+// Usage: dart run tool/locale/print_translation_keys.dart [path]
 // Default path: assets/translations/en.json
 
 // ignore_for_file: avoid_print

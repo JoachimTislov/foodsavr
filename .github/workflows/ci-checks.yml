@@ -1,4 +1,4 @@
-name: Flutter Analyze
+name: Format, Analyze, Check Localizations and Run Tests
 
 on:
   push:
@@ -7,27 +7,31 @@ on:
       - "**.dart"
       - "lib/**"
       - "test/**"
+      - "assets/**"
+      - "pubspec.yaml"
   pull_request:
     branches: [main]
     paths:
       - "**.dart"
       - "lib/**"
       - "test/**"
+      - "assets/**"
+      - "pubspec.yaml"
   workflow_dispatch:
 
 jobs:
-  analyze:
-    name: Analyze Flutter Code
+  check:
+    name: Check & Test
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.41.0" # Use stable version compatible with SDK ^3.10.7
+          flutter-version: 3.41.6
           channel: "stable"
           cache: true
 
@@ -38,11 +42,13 @@ jobs:
         run: dart format --output=none --set-exit-if-changed .
 
       - name: Write firebase_options.dart
-        shell: bash
-        env:
-          FIREBASE_OPTIONS: ${{ secrets.FIREBASE_OPTIONS }}
-        run: |
-          echo $FIREBASE_OPTIONS > lib/firebase_options.dart
+        run: echo "${{ secrets.FIREBASE_OPTIONS }}" > lib/firebase_options.dart
 
-      - name: Check code
-        run: make check
+      - name: Analyze code
+        run: flutter analyze --fatal-infos --fatal-warnings --no-pub
+
+      - name: Localization check
+        run: dart run tool/locale/check_localizations.dart
+
+      - name: Run tests
+        run: flutter test --no-pub

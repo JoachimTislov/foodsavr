@@ -20,30 +20,41 @@ import 'package:foodsavr/repositories/collection_repository.dart' as _i92;
 import 'package:foodsavr/repositories/product_repository.dart' as _i318;
 import 'package:foodsavr/services/auth_controller.dart' as _i882;
 import 'package:foodsavr/services/auth_service.dart' as _i277;
+import 'package:foodsavr/services/barcode_scanner_service.dart' as _i397;
 import 'package:foodsavr/services/collection_service.dart' as _i122;
 import 'package:foodsavr/services/product_service.dart' as _i898;
 import 'package:foodsavr/services/seeding_service.dart' as _i464;
 import 'package:foodsavr/services/shelf_life_service.dart' as _i1071;
+import 'package:foodsavr/services/theme_notifier.dart' as _i921;
 import 'package:get_it/get_it.dart' as _i174;
 import 'package:google_sign_in/google_sign_in.dart' as _i116;
 import 'package:injectable/injectable.dart' as _i526;
 import 'package:logger/logger.dart' as _i974;
+import 'package:shared_preferences/shared_preferences.dart' as _i460;
 
 extension GetItInjectableX on _i174.GetIt {
   // initializes the registration of main-scope dependencies inside of GetIt
-  _i174.GetIt init({
+  Future<_i174.GetIt> init({
     String? environment,
     _i526.EnvironmentFilter? environmentFilter,
-  }) {
+  }) async {
     final gh = _i526.GetItHelper(this, environment, environmentFilter);
     final registerModule = _$RegisterModule();
+    gh.factory<_i397.BarcodeScannerService>(
+      () => _i397.BarcodeScannerService(),
+    );
+    gh.singleton<_i974.Logger>(() => registerModule.logger);
+    await gh.singletonAsync<_i460.SharedPreferencesWithCache>(
+      () => registerModule.prefs,
+      preResolve: true,
+    );
+    gh.singleton<_i921.ThemeNotifier>(() => registerModule.themeNotifier);
+    gh.lazySingleton<_i806.FacebookAuth>(() => registerModule.facebookAuth);
     gh.lazySingleton<_i59.FirebaseAuth>(() => registerModule.firebaseAuth);
     gh.lazySingleton<_i974.FirebaseFirestore>(
       () => registerModule.firebaseFirestore,
     );
     gh.lazySingleton<_i116.GoogleSignIn>(() => registerModule.googleSignIn);
-    gh.lazySingleton<_i806.FacebookAuth>(() => registerModule.facebookAuth);
-    gh.lazySingleton<_i974.Logger>(() => registerModule.logger);
     gh.lazySingleton<_i1071.ShelfLifeService>(() => _i1071.ShelfLifeService());
     gh.factory<bool>(
       () => registerModule.supportsPersistence,
@@ -56,6 +67,13 @@ extension GetItInjectableX on _i174.GetIt {
         facebookAuth: gh<_i806.FacebookAuth>(),
         supportsPersistence: gh<bool>(instanceName: 'supportsPersistence'),
         firestore: gh<_i974.FirebaseFirestore>(),
+      ),
+    );
+    gh.factoryParam<_i882.AuthController, _i882.Translator?, dynamic>(
+      (translate, _) => _i882.AuthController(
+        gh<_i794.IAuthService>(),
+        gh<_i974.Logger>(),
+        translate: translate,
       ),
     );
     gh.lazySingleton<_i424.IProductRepository>(
@@ -83,14 +101,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i424.IProductRepository>(),
         gh<_i1071.ShelfLifeService>(),
         gh<_i974.Logger>(),
-      ),
-    );
-    gh.factoryParam<_i882.AuthController, _i882.Translator?, dynamic>(
-      (translate, _) => _i882.AuthController(
-        gh<_i794.IAuthService>(),
-        gh<_i122.CollectionService>(),
-        gh<_i974.Logger>(),
-        translate: translate,
       ),
     );
     return this;

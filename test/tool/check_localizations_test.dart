@@ -53,7 +53,7 @@ void main() {
 
   Future<ProcessResult> runCheck() async {
     return Process.run('dart', [
-      File('tool/check_localizations.dart').absolute.path,
+      File('tool/locale/check_localizations.dart').absolute.path,
     ], workingDirectory: tempDir.path);
   }
 

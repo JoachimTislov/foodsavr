@@ -1,29 +1,26 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 
 import '../interfaces/i_auth_service.dart';
 import '../utils/auth_error_handler.dart';
-import '../services/collection_service.dart';
-import '../models/collection_model.dart';
-import '../utils/collection_types.dart';
 
 typedef Translator = String Function(String);
+
+// TODO: Remove translate arg in constructor and use context-based translation in tests instead. read easy_localization docs to find the best approach
 
 @injectable
 class AuthController extends ChangeNotifier {
   final IAuthService _authService;
-  final CollectionService _collectionService;
   final Logger _logger;
   final Translator _tr;
 
   AuthController(
     this._authService,
-    this._collectionService,
     this._logger, {
     @factoryParam Translator? translate,
-  }) : _tr = translate ?? ((key) => key);
+  }) : _tr = translate ?? ((key) => tr(key));
 
   bool _isLogin = true;
   bool _isLoading = false;
@@ -60,39 +57,6 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _initializeDefaultCollections(String userId) async {
-    try {
-      final existing = await _collectionService.getCollectionsForUser(userId);
-      if (existing.isNotEmpty) {
-        _logger.i(
-          'Collections already exist for user $userId, skipping initialization.',
-        );
-        return;
-      }
-
-      await _collectionService.addCollection(
-        Collection(
-          id: '',
-          name: _tr('dashboard.myInventory'),
-          userId: userId,
-          type: CollectionType.inventory,
-          productIds: [],
-        ),
-      );
-      await _collectionService.addCollection(
-        Collection(
-          id: '',
-          name: _tr('dashboard.shoppingList'),
-          userId: userId,
-          type: CollectionType.shoppingList,
-          productIds: [],
-        ),
-      );
-    } catch (e) {
-      _logger.e('Failed to initialize default collections: $e');
-    }
-  }
-
   Future<void> authenticate({
     required String email,
     required String password,
@@ -107,21 +71,17 @@ class AuthController extends ChangeNotifier {
 
     _setLoading(true);
     try {
-      final UserCredential credential;
       if (_isLogin) {
-        credential = await _authService.signIn(
+        await _authService.signIn(
           email: email.trim(),
           password: password.trim(),
           rememberMe: _rememberMe,
         );
       } else {
-        credential = await _authService.signUp(
+        await _authService.signUp(
           email: email.trim(),
           password: password.trim(),
         );
-      }
-      if (credential.user != null) {
-        await _initializeDefaultCollections(credential.user!.uid);
       }
     } catch (e) {
       _logger.e('Auth error: $e');
@@ -135,10 +95,7 @@ class AuthController extends ChangeNotifier {
     if (_isLoading) return;
     _setLoading(true);
     try {
-      final credential = await _authService.signInWithGoogle();
-      if (credential.user != null) {
-        await _initializeDefaultCollections(credential.user!.uid);
-      }
+      await _authService.signInWithGoogle();
     } catch (e) {
       _logger.e('Google Sign-in error: $e');
       _errorMessage = AuthErrorHandler.getErrorMessage(e);
@@ -151,10 +108,7 @@ class AuthController extends ChangeNotifier {
     if (_isLoading) return;
     _setLoading(true);
     try {
-      final credential = await _authService.signInWithFacebook();
-      if (credential.user != null) {
-        await _initializeDefaultCollections(credential.user!.uid);
-      }
+      await _authService.signInWithFacebook();
     } catch (e) {
       _logger.e('Facebook Sign-in error: $e');
       _errorMessage = AuthErrorHandler.getErrorMessage(e);
@@ -167,10 +121,7 @@ class AuthController extends ChangeNotifier {
     if (_isLoading) return;
     _setLoading(true);
     try {
-      final credential = await _authService.signInAsGuest();
-      if (credential.user != null) {
-        await _initializeDefaultCollections(credential.user!.uid);
-      }
+      await _authService.signInAsGuest();
     } catch (e) {
       _logger.e('Guest sign-in error: $e');
       _errorMessage = AuthErrorHandler.getErrorMessage(e);

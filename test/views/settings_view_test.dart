@@ -1,15 +1,17 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:foodsavr/views/settings_view.dart';
-import 'package:foodsavr/services/theme_notifier.dart';
+import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/services/auth_controller.dart';
 import 'package:foodsavr/services/collection_service.dart';
+import 'package:foodsavr/services/theme_notifier.dart';
+import 'package:foodsavr/views/settings_view.dart';
 import 'package:logger/logger.dart';
-import 'package:foodsavr/service_locator.dart';
-import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 class _MockAuthService extends Mock implements IAuthService {}
 
@@ -33,7 +35,7 @@ class _TestWrapper extends StatelessWidget {
   }
 }
 
-void main() {
+void main() async {
   TestWidgetsFlutterBinding.ensureInitialized();
   EasyLocalization.logger.enableBuildModes = [];
   EasyLocalization.logger.enableLevels = [];
@@ -58,13 +60,20 @@ void main() {
     late _MockAuthService mockAuthService;
 
     setUp(() async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      await EasyLocalization.ensureInitialized();
       await getIt.reset();
-
-      getIt.registerSingleton<Logger>(Logger(level: Level.off));
+      SharedPreferences.setMockInitialValues({});
+      await EasyLocalization.ensureInitialized();
+      SharedPreferencesAsyncPlatform.instance =
+          InMemorySharedPreferencesAsync.withData({});
+      final prefs = await SharedPreferencesWithCache.create(
+        cacheOptions: SharedPreferencesWithCacheOptions(
+          allowList: {ThemeNotifier.kThemeModeKey},
+        ),
+      );
+      getIt.registerSingleton<SharedPreferencesWithCache>(prefs);
       getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
+      getIt.registerSingleton<Logger>(Logger(level: Level.off));
+
       mockAuthService = _MockAuthService();
       when(
         () => mockAuthService.authStateChanges,
@@ -81,7 +90,6 @@ void main() {
       when(() => mockAuthController.rememberMe).thenReturn(false);
       when(() => mockAuthController.agreedToTerms).thenReturn(false);
       getIt.registerSingleton<AuthController>(mockAuthController);
-      getIt.registerSingleton<SharedPreferences>(prefs);
     });
 
     testWidgets('renders all settings sections', (tester) async {

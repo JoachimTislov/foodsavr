@@ -33,9 +33,12 @@ When reviewing or writing code, **check [pub.dev](https://pub.dev) or the [Flutt
 - **No Python Scripts**: Use Dart scripts in `tool/` for any project tooling. Do not use Python.
 
 ## Commands
-- make push: Push to remote repository
+- `make push`: Push to remote repository
 - `make deps`: Fetch dependencies.
 - `make check`: Run full suite (analyze, format, test). **Required before commit**.
+- `make locale-check`: Validate all localization keys are present and used.
+- `make locale-clean`: Remove all unused localization keys from JSON files.
+- `make generate-locales`: Generate stubs for missing localization keys.
 
 ## 4. **Workflow**:
 - **Meta-Task Branch Rule**: Reserve the main working branch (default folder) for "meta" tasks (agents, documentation, research, system-level updates). All source code modifications must be made in separate Git worktrees.
