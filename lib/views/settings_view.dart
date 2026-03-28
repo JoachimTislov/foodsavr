@@ -50,7 +50,7 @@ class _SettingsViewState extends State<SettingsView> {
                     : (user?.displayName ??
                           user?.email?.split('@').first ??
                           '');
-                final email = isAnonymous ? '' : (user?.email ?? '');
+                final email = isAnonymous ? null : (user?.email);
 
                 return _SettingsSection(
                   title: 'settings.account'.tr(),

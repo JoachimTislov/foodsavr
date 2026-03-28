@@ -79,6 +79,21 @@ GoRouter createAppRouter(IAuthService authService) {
               GoRoute(
                 path: '/products',
                 builder: (context, state) => const DashboardView(),
+                routes: [
+                  GoRoute(
+                    path: '/product-list',
+                    builder: (context, state) => const ProductListView(),
+                  ),
+                  GoRoute(
+                    path: '/global-products',
+                    builder: (context, state) =>
+                        const ProductListView(showGlobalProducts: true),
+                  ),
+                  GoRoute(
+                    path: '/transfer',
+                    builder: (context, state) => const TransferManagementView(),
+                  ),
+                ],
               ),
             ],
           ),
@@ -106,14 +121,16 @@ GoRouter createAppRouter(IAuthService authService) {
               GoRoute(
                 path: '/settings',
                 builder: (context, state) => const SettingsView(),
+                routes: [
+                  GoRoute(
+                    path: '/profile',
+                    builder: (context, state) => const ProfileView(),
+                  ),
+                ],
               ),
             ],
           ),
         ],
-      ),
-      GoRoute(
-        path: '/product-list',
-        builder: (context, state) => const ProductListView(),
       ),
       GoRoute(
         path: '/collection-list',
@@ -126,15 +143,6 @@ GoRouter createAppRouter(IAuthService authService) {
         },
       ),
       GoRoute(
-        path: '/global-products',
-        builder: (context, state) =>
-            const ProductListView(showGlobalProducts: true),
-      ),
-      GoRoute(
-        path: '/transfer',
-        builder: (context, state) => const TransferManagementView(),
-      ),
-      GoRoute(
         path: '/select-products',
         builder: (context, state) {
           final extra = state.extra as Map<String, String>? ?? {};
@@ -143,10 +151,6 @@ GoRouter createAppRouter(IAuthService authService) {
             toLocationId: extra['toLocationId'] ?? '',
           );
         },
-      ),
-      GoRoute(
-        path: '/profile',
-        builder: (context, state) => const ProfileView(),
       ),
       GoRoute(
         path: '/barcode-scan',
