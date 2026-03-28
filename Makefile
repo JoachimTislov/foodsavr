@@ -73,11 +73,15 @@ locales:
 
 locale-check: deps
 	@echo "Checking localization keys..."
-	@dart run tool/check_localizations.dart
+	@dart run tool/locale/check_localizations.dart
 
-generate-di: deps
-	@echo "Generating injectable code..."
-	@dart run build_runner build --delete-conflicting-outputs
+locale-clean: deps
+	@echo "Removing unused localization keys..."
+	@dart run tool/locale/remove_unused_locales.dart
+
+generate-locales: deps
+	@echo "Generating localization stubs..."
+	@dart run tool/locale/generate_localizations.dart
 
 preflight:
 	@echo "Running preflight sync checks..."
