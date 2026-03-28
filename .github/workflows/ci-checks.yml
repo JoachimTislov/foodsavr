@@ -22,7 +22,7 @@ on:
 jobs:
   check:
     name: Check & Test
-    runs-on: ubuntu-latestsubosito/flutter-action@v2
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
