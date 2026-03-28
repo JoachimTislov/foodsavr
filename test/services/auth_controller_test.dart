@@ -40,12 +40,6 @@ void main() {
 
     when(() => mockUser.uid).thenReturn('test-uid');
     when(() => mockUserCredential.user).thenReturn(mockUser);
-    when(
-      () => mockCollectionService.getCollectionsForUser(any()),
-    ).thenAnswer((_) async => []);
-    when(
-      () => mockCollectionService.addCollection(any()),
-    ).thenAnswer((invocation) async => invocation.positionalArguments[0]);
 
     authController = AuthController(
       mockAuthService,

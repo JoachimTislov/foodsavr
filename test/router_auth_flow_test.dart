@@ -19,10 +19,13 @@ import 'package:foodsavr/views/landing_page_view.dart';
 import 'package:foodsavr/views/dashboard_view.dart';
 import 'package:foodsavr/services/collection_service.dart'; // Import CollectionService
 import 'package:foodsavr/services/shelf_life_service.dart';
+import 'package:foodsavr/services/theme_notifier.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 class _MockShelfLifeService extends Mock implements ShelfLifeService {}
 
@@ -175,11 +178,18 @@ void main() {
     late GoRouter router;
 
     setUp(() async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      final prefs = await SharedPreferences.getInstance();
+      SharedPreferencesAsyncPlatform.instance =
+          InMemorySharedPreferencesAsync.withData({});
+      final prefs = await SharedPreferencesWithCache.create(
+        cacheOptions: const SharedPreferencesWithCacheOptions(),
+      );
+      SharedPreferences.setMockInitialValues({});
       await EasyLocalization.ensureInitialized();
       await getIt.reset();
-      getIt.registerSingleton<SharedPreferences>(prefs);
+
+      getIt.registerSingleton<SharedPreferencesWithCache>(prefs);
+      getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
+
       authService = _FakeAuthService();
       router = createAppRouter(authService);
       getIt.registerLazySingleton<IAuthService>(() => authService);

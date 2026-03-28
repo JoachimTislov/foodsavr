@@ -7,18 +7,14 @@ import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/main.dart';
 import 'package:foodsavr/router.dart';
 import 'package:foodsavr/service_locator.dart';
-import 'package:foodsavr/services/theme_notifier.dart';
 import 'package:foodsavr/services/auth_controller.dart';
 import 'package:foodsavr/services/collection_service.dart';
+import 'package:foodsavr/services/theme_notifier.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-class MockAuthService extends Mock implements IAuthService {}
-
-class MockAuthController extends Mock implements AuthController {}
-
-class MockCollectionService extends Mock implements CollectionService {}
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -27,17 +23,9 @@ void main() {
   EasyLocalization.logger.enableBuildModes = [];
   EasyLocalization.logger.enableLevels = [];
 
-  setUpAll(() async {
+  setUpAll(() {
     // Setup Firebase mocking
     setupFirebaseCoreMocks();
-    final prefs = await SharedPreferencesWithCache.create(
-      cacheOptions: SharedPreferencesWithCacheOptions(
-        allowList: {ThemeNotifier.kThemeModeKey},
-      ),
-    );
-    getIt.registerSingleton<SharedPreferencesWithCache>(prefs);
-    getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
-
     // Increase surface size to avoid overflows in tests
     final binding = TestWidgetsFlutterBinding.ensureInitialized();
     binding.platformDispatcher.views.first.physicalSize = const Size(
@@ -84,18 +72,19 @@ void main() {
     late MockAuthService mockAuthService;
 
     setUp(() async {
+      await getIt.reset();
       SharedPreferences.setMockInitialValues({});
+      await EasyLocalization.ensureInitialized();
+      SharedPreferencesAsyncPlatform.instance =
+          InMemorySharedPreferencesAsync.empty();
       final prefs = await SharedPreferencesWithCache.create(
         cacheOptions: SharedPreferencesWithCacheOptions(
           allowList: {ThemeNotifier.kThemeModeKey},
         ),
       );
-      await EasyLocalization.ensureInitialized();
-      await getIt.reset();
-
-      getIt.registerSingleton<Logger>(Logger(level: Level.off));
       getIt.registerSingleton<SharedPreferencesWithCache>(prefs);
       getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
+      getIt.registerSingleton<Logger>(Logger(level: Level.off));
       mockAuthService = MockAuthService();
       when(
         () => mockAuthService.authStateChanges,
@@ -474,3 +463,9 @@ void setupFirebaseCoreMocks() {
         },
       );
 }
+
+class MockAuthController extends Mock implements AuthController {}
+
+class MockAuthService extends Mock implements IAuthService {}
+
+class MockCollectionService extends Mock implements CollectionService {}
