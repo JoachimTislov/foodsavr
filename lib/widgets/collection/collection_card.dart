@@ -64,7 +64,8 @@ class CollectionCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    if (collection.description != null)
+                    if (collection.description != null &&
+                        collection.description!.isNotEmpty)
                       Text(
                         collection.description!,
                         style: theme.textTheme.bodyMedium?.copyWith(
@@ -117,12 +118,6 @@ class CollectionCard extends StatelessWidget {
                     ),
                   ],
                 ),
-              ),
-              // Arrow icon
-              Icon(
-                Icons.arrow_forward_ios,
-                size: 20,
-                color: colorScheme.onSurfaceVariant,
               ),
             ],
           ),

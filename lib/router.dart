@@ -46,12 +46,10 @@ GoRouter createAppRouter(IAuthService authService) {
           return '/';
         }
         return null;
-      } else {
-        if (isLandingRoute || (isAuthRoute && !isAnonymousUser)) {
-          return '/products';
-        }
-        return null;
+      } else if (isLandingRoute || (isAuthRoute && !isAnonymousUser)) {
+        return '/dashboard';
       }
+      return null;
     },
     routes: <RouteBase>[
       GoRoute(
@@ -77,8 +75,23 @@ GoRouter createAppRouter(IAuthService authService) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/products',
+                path: '/dashboard',
                 builder: (context, state) => const DashboardView(),
+                routes: [
+                  GoRoute(
+                    path: '/product-list',
+                    builder: (context, state) => const ProductListView(),
+                  ),
+                  GoRoute(
+                    path: '/global-products',
+                    builder: (context, state) =>
+                        const ProductListView(showGlobalProducts: true),
+                  ),
+                  GoRoute(
+                    path: '/transfer',
+                    builder: (context, state) => const TransferManagementView(),
+                  ),
+                ],
               ),
             ],
           ),
@@ -106,14 +119,16 @@ GoRouter createAppRouter(IAuthService authService) {
               GoRoute(
                 path: '/settings',
                 builder: (context, state) => const SettingsView(),
+                routes: [
+                  GoRoute(
+                    path: '/profile',
+                    builder: (context, state) => const ProfileView(),
+                  ),
+                ],
               ),
             ],
           ),
         ],
-      ),
-      GoRoute(
-        path: '/product-list',
-        builder: (context, state) => const ProductListView(),
       ),
       GoRoute(
         path: '/collection-list',
@@ -126,15 +141,6 @@ GoRouter createAppRouter(IAuthService authService) {
         },
       ),
       GoRoute(
-        path: '/global-products',
-        builder: (context, state) =>
-            const ProductListView(showGlobalProducts: true),
-      ),
-      GoRoute(
-        path: '/transfer',
-        builder: (context, state) => const TransferManagementView(),
-      ),
-      GoRoute(
         path: '/select-products',
         builder: (context, state) {
           final extra = state.extra as Map<String, String>? ?? {};
@@ -143,10 +149,6 @@ GoRouter createAppRouter(IAuthService authService) {
             toLocationId: extra['toLocationId'] ?? '',
           );
         },
-      ),
-      GoRoute(
-        path: '/profile',
-        builder: (context, state) => const ProfileView(),
       ),
       GoRoute(
         path: '/barcode-scan',
@@ -174,7 +176,7 @@ class _AuthStreamListenable extends ChangeNotifier {
     });
 
     // Safety fallback for initialization
-    Future.delayed(const Duration(seconds: 2), () {
+    Future.delayed(const Duration(seconds: 1), () {
       if (!_isInitialized && !_isDisposed) {
         _isInitialized = true;
         notifyListeners();

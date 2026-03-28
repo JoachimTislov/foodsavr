@@ -40,16 +40,9 @@ void main() {
 
     when(() => mockUser.uid).thenReturn('test-uid');
     when(() => mockUserCredential.user).thenReturn(mockUser);
-    when(
-      () => mockCollectionService.getCollectionsForUser(any()),
-    ).thenAnswer((_) async => []);
-    when(
-      () => mockCollectionService.addCollection(any()),
-    ).thenAnswer((invocation) async => invocation.positionalArguments[0]);
 
     authController = AuthController(
       mockAuthService,
-      mockCollectionService,
       mockLogger,
       translate: (String key) => key,
     );
@@ -90,10 +83,10 @@ void main() {
           rememberMe: false,
         ),
       ).called(1);
-      verify(
+      verifyNever(
         () => mockCollectionService.getCollectionsForUser('test-uid'),
-      ).called(1);
-      verify(() => mockCollectionService.addCollection(any())).called(2);
+      );
+      verifyNever(() => mockCollectionService.addCollection(any()));
       expect(authController.isLoading, false);
     });
 
@@ -114,10 +107,10 @@ void main() {
         verify(
           () => mockAuthService.signUp(email: email, password: password),
         ).called(1);
-        verify(
+        verifyNever(
           () => mockCollectionService.getCollectionsForUser('test-uid'),
-        ).called(1);
-        verify(() => mockCollectionService.addCollection(any())).called(2);
+        );
+        verifyNever(() => mockCollectionService.addCollection(any()));
       },
     );
 
@@ -150,10 +143,10 @@ void main() {
       await authController.signInAsGuest();
 
       verify(() => mockAuthService.signInAsGuest()).called(1);
-      verify(
+      verifyNever(
         () => mockCollectionService.getCollectionsForUser('test-uid'),
-      ).called(1);
-      verify(() => mockCollectionService.addCollection(any())).called(2);
+      );
+      verifyNever(() => mockCollectionService.addCollection(any()));
       expect(authController.isLoading, false);
       expect(authController.errorMessage, null);
     });

@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../service_locator.dart';
 import '../services/auth_controller.dart';
 import '../widgets/auth/social_auth_section.dart';
@@ -85,48 +86,47 @@ class _LandingPageViewState extends State<LandingPageView> {
 
                       const SizedBox(height: 24),
 
-                      // Divider Section (Manual for Landing Page)
-                      // No need to repeat the divider if SocialAuthSection already has one,
-                      // but LandingPageView original had its own layout.
-                      // Actually SocialAuthSection includes the divider at the TOP.
-                      // Let's see how it looks.
-                      const SizedBox(height: 24),
-
                       // Email Button (Primary)
-                      ElevatedButton(
-                        onPressed: _controller.isLoading
-                            ? null
-                            : () {
-                                context.go(
-                                  Uri(
-                                    path: '/auth',
-                                    queryParameters: {'mode': 'login'},
-                                  ).toString(),
-                                );
-                              },
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.mail_outline),
-                            const SizedBox(width: 8),
-                            Text(
-                              'auth.social.continue_email'.tr(),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _controller.isLoading
+                              ? null
+                              : () {
+                                  context.go(
+                                    Uri(
+                                      path: '/auth',
+                                      queryParameters: {'mode': 'login'},
+                                    ).toString(),
+                                  );
+                                },
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.mail_outline),
+                              const SizedBox(width: 8),
+                              Text(
+                                'auth.social.continue_email'.tr(),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
 
                       const SizedBox(height: 12),
 
-                      OutlinedButton(
-                        onPressed: _controller.isLoading
-                            ? null
-                            : _controller.signInAsGuest,
-                        child: Text('auth.social.continue_guest'.tr()),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: _controller.isLoading
+                              ? null
+                              : _controller.signInAsGuest,
+                          child: Text('auth.social.continue_guest'.tr()),
+                        ),
                       ),
 
                       const SizedBox(height: 32),

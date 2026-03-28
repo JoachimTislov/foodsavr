@@ -35,7 +35,7 @@ class _ProfileViewState extends State<ProfileView> {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/products');
+              context.go('/dashboard');
             }
           },
         ),
@@ -50,10 +50,12 @@ class _ProfileViewState extends State<ProfileView> {
         initialData: _authService.currentUser,
         builder: (context, snapshot) {
           final user = snapshot.data;
-          final displayName =
-              user?.displayName ?? user?.email?.split('@').first ?? '';
-          final email = user?.email ?? '';
-          final photoUrl = user?.photoURL;
+          final isAnonymous = user?.isAnonymous ?? false;
+          final displayName = isAnonymous
+              ? 'settings.guest_user'.tr()
+              : (user?.displayName ?? user?.email?.split('@').first ?? '');
+          final email = isAnonymous ? null : user?.email;
+          final photoUrl = isAnonymous ? null : user?.photoURL;
 
           return CustomScrollView(
             slivers: [
@@ -213,14 +215,11 @@ class _ProfileViewState extends State<ProfileView> {
 
 class _ProfileHeader extends StatelessWidget {
   final String name;
-  final String email;
+  final String? _email;
   final String? avatarUrl;
 
-  const _ProfileHeader({
-    required this.name,
-    required this.email,
-    this.avatarUrl,
-  });
+  const _ProfileHeader({required this.name, email, this.avatarUrl})
+    : _email = email;
 
   @override
   Widget build(BuildContext context) {
@@ -278,12 +277,13 @@ class _ProfileHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            email,
-            style: textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
+          if (_email != null)
+            Text(
+              _email,
+              style: textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
-          ),
         ],
       ),
     );

@@ -9,5 +9,5 @@ final getIt = GetIt.instance;
 Future<void> configureDependencies() async {
   // Allow reassignment to handle hot reload and full restart gracefully
   getIt.allowReassignment = true;
-  getIt.init();
+  await getIt.init();
 }

@@ -14,6 +14,8 @@ This document provides a collection of external resources, documentation, and to
 - [Flutter: Build modes](https://docs.flutter.dev/testing/build-modes)
 - [GitHub: Copilot instructions](../../.github/copilot-instructions.md)
 - [Gemini Instructions](../../GEMINI.md)
+- [Configure VM acceleration for Android (Linux)](https://developer.android.com/studio/run/emulator-acceleration#vm-linux)
+    - [qemu](https://wiki.archlinux.org/title/QEMU)
 
 ## Gemini CLI and tools
 

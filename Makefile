@@ -1,4 +1,4 @@
-.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps codegen locale-check generate-di preflight push
+.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps di locale-check generate-di preflight push
 
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
 
@@ -10,9 +10,6 @@ dev-chrome-prod: deps
 
 dev-chrome: deps start-firebase-emulators
 	@flutter run -d chrome --no-pub $(DOTENV_FLAGS)
-
-dev-android: deps start-firebase-emulators
-	@flutter run -d android --no-pub $(DOTENV_FLAGS)
 
 start-firebase-emulators:
 	@if ! lsof -ti :9099 -sTCP:LISTEN > /dev/null; then \
@@ -37,7 +34,7 @@ deps: .deps-stamp
 	@flutter pub get > /dev/null
 	@touch .deps-stamp
 
-codegen:
+di:
 	@dart run build_runner build --delete-conflicting-outputs
 
 # Code quality commands
@@ -76,26 +73,19 @@ locales:
 
 locale-check: deps
 	@echo "Checking localization keys..."
-	@dart run tool/check_localizations.dart
+	@dart run tool/locale/check_localizations.dart
 
-generate-di: deps
-	@echo "Generating injectable code..."
-	@dart run build_runner build --delete-conflicting-outputs
+locale-clean: deps
+	@echo "Removing unused localization keys..."
+	@dart run tool/locale/remove_unused_locales.dart
+
+generate-locales: deps
+	@echo "Generating localization stubs..."
+	@dart run tool/locale/generate_localizations.dart
 
 preflight:
 	@echo "Running preflight sync checks..."
 	@git fetch --quiet
-	@if ! git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then \
-		branch=$$(git rev-parse --abbrev-ref HEAD); \
-		if git show-ref --verify --quiet refs/remotes/origin/$$branch; then \
-			echo "Setting upstream to origin/$$branch"; \
-			git branch --set-upstream-to=origin/$$branch; \
-		else \
-			echo "Upstream not set and remote branch not found. Skipping upstream check."; \
-		fi \
-	else \
-		echo "Upstream already set."; \
-	fi
 	@if [ -n "$$(git status --porcelain)" ]; then \
 		echo "Preflight failed: working tree is not clean."; \
 		exit 1; \

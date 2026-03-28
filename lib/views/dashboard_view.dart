@@ -55,75 +55,46 @@ class _DashboardViewState extends State<DashboardView> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
-    final today = DateFormat('EEEE, MMM d, yyyy').format(DateTime.now());
+    final today = DateFormat.yMMMMEEEEd(
+      context.locale.toString(),
+    ).format(DateTime.now());
 
     return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('dashboard.title'.tr()),
-            Text(
-              today,
-              style: textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: colorScheme.surface,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _authService.signOut(),
-          ),
-        ],
-      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.only(
+          left: 24,
+          top: MediaQuery.of(context).padding.top + 24,
+          right: 24,
+          bottom: 24,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _ExpiringSoonSection(expiringSoonFuture: _expiringSoonFuture),
-            const SizedBox(height: 24),
-            Text(
-              'dashboard.actions'.tr(),
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _ActionChip(
-                  icon: Icons.add_box_outlined,
-                  label: 'dashboard.createProduct'.tr(),
-                  color: colorScheme.primary,
-                  onTap: () => ProductAddHelper.startAddProductFlow(context),
-                ),
-                const SizedBox(width: 8),
-                _ActionChip(
-                  icon: Icons.inventory_2_outlined,
-                  label: 'dashboard.createInventory'.tr(),
-                  color: colorScheme.tertiary,
-                  onTap: () => CollectionFormView.show(
-                    context,
-                    type: CollectionType.inventory,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _ActionChip(
-                  icon: Icons.shopping_cart_outlined,
-                  label: 'dashboard.createShoppingList'.tr(),
-                  color: colorScheme.secondary,
-                  onTap: () => CollectionFormView.show(
-                    context,
-                    type: CollectionType.shoppingList,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'dashboard.title'.tr(),
+                      style: textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    Text(
+                      today,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
+            const SizedBox(height: 32),
+            _ExpiringSoonSection(expiringSoonFuture: _expiringSoonFuture),
             const SizedBox(height: 24),
             Text(
               'dashboard.overview'.tr(),
@@ -146,27 +117,27 @@ class _DashboardViewState extends State<DashboardView> {
                 final inventories = snapshot.data ?? [];
 
                 final cards = <Widget>[
+                  OverviewCard(
+                    title: 'product.all_products'.tr(),
+                    subtitle: 'dashboard.browseProducts'.tr(),
+                    icon: Icons.inventory_outlined,
+                    iconColor: colorScheme.primary,
+                    onTap: () => context.go('/dashboard/product-list'),
+                  ),
                   if (inventories.length > 1)
                     OverviewCard(
                       title: 'dashboard.transfer'.tr(),
                       subtitle: 'dashboard.moveItems'.tr(),
                       icon: Icons.move_up,
                       iconColor: colorScheme.primary,
-                      onTap: () => context.push('/transfer'),
+                      onTap: () => context.go('/transfer'),
                     ),
                   OverviewCard(
                     title: 'dashboard.globalProducts'.tr(),
                     subtitle: 'dashboard.browseProducts'.tr(),
                     icon: Icons.public_outlined,
                     iconColor: colorScheme.primary,
-                    onTap: () => context.push('/global-products'),
-                  ),
-                  OverviewCard(
-                    title: 'dashboard.statistics'.tr(),
-                    subtitle: 'dashboard.statisticsSubtitle'.tr(),
-                    icon: Icons.bar_chart_outlined,
-                    iconColor: colorScheme.primary,
-                    onTap: () {},
+                    onTap: () => context.go('/dashboard/global-products'),
                   ),
                 ];
 
@@ -180,6 +151,34 @@ class _DashboardViewState extends State<DashboardView> {
                   children: cards,
                 );
               },
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'dashboard.actions'.tr(),
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _ActionChip(
+                  icon: Icons.add_box_outlined,
+                  label: 'dashboard.createProduct'.tr(),
+                  color: colorScheme.primary,
+                  onTap: () => ProductAddHelper.startAddProductFlow(context),
+                ),
+                const SizedBox(width: 8),
+                _ActionChip(
+                  icon: Icons.shopping_cart_outlined,
+                  label: 'dashboard.createShoppingList'.tr(),
+                  color: colorScheme.secondary,
+                  onTap: () => CollectionFormView.show(
+                    context,
+                    type: CollectionType.shoppingList,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -210,7 +209,7 @@ class _ExpiringSoonSection extends StatelessWidget {
               ),
             ),
             TextButton(
-              onPressed: () => context.push('/product-list'),
+              onPressed: () => context.push('/dashboard/product-list'),
               child: Text('common.viewAll'.tr()),
             ),
           ],

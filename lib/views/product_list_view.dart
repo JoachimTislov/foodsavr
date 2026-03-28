@@ -29,7 +29,6 @@ class _ProductListViewState extends State<ProductListView> {
   late final CollectionService _collectionService;
   late final IAuthService _authService;
   ProductViewMode _viewMode = ProductViewMode.normal;
-  bool _isSigningOut = false;
   Map<int, List<String>> _productInventories = {};
 
   @override
@@ -95,167 +94,206 @@ class _ProductListViewState extends State<ProductListView> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    final title = widget.showGlobalProducts
+        ? 'dashboard.globalProducts'.tr()
+        : 'product.all_products'.tr();
+
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: colorScheme.surface,
-        elevation: 0,
-        actions: [
-          // View mode toggle
-          PopupMenuButton<ProductViewMode>(
-            icon: Icon(
-              ViewModeHelper.getViewModeIcon(_viewMode),
-              color: colorScheme.primary,
+      body: Column(
+        children: [
+          // Custom Header
+          Container(
+            padding: EdgeInsets.only(
+              left: 16,
+              top: MediaQuery.of(context).padding.top + 16,
+              right: 16,
+              bottom: 16,
             ),
-            onSelected: (mode) {
-              setState(() {
-                _viewMode = mode;
-              });
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: ProductViewMode.compact,
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.view_headline,
-                      color: _viewMode == ProductViewMode.compact
-                          ? colorScheme.primary
-                          : null,
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(24),
+              ),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
                     ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'product.compact'.tr(),
-                      style: TextStyle(
-                        fontWeight: _viewMode == ProductViewMode.compact
-                            ? FontWeight.w600
-                            : FontWeight.normal,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                // View mode toggle
+                PopupMenuButton<ProductViewMode>(
+                  icon: Icon(
+                    ViewModeHelper.getViewModeIcon(_viewMode),
+                    color: colorScheme.primary,
+                  ),
+                  onSelected: (mode) {
+                    setState(() {
+                      _viewMode = mode;
+                    });
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: ProductViewMode.compact,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.view_headline,
+                            color: _viewMode == ProductViewMode.compact
+                                ? colorScheme.primary
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'product.compact'.tr(),
+                            style: TextStyle(
+                              fontWeight: _viewMode == ProductViewMode.compact
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: ProductViewMode.normal,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.view_agenda,
+                            color: _viewMode == ProductViewMode.normal
+                                ? colorScheme.primary
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'product.normal'.tr(),
+                            style: TextStyle(
+                              fontWeight: _viewMode == ProductViewMode.normal
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: ProductViewMode.details,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.view_day,
+                            color: _viewMode == ProductViewMode.details
+                                ? colorScheme.primary
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'product.details'.tr(),
+                            style: TextStyle(
+                              fontWeight: _viewMode == ProductViewMode.details
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-              PopupMenuItem(
-                value: ProductViewMode.normal,
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.view_agenda,
-                      color: _viewMode == ProductViewMode.normal
-                          ? colorScheme.primary
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'product.normal'.tr(),
-                      style: TextStyle(
-                        fontWeight: _viewMode == ProductViewMode.normal
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: ProductViewMode.details,
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.view_day,
-                      color: _viewMode == ProductViewMode.details
-                          ? colorScheme.primary
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'product.details'.tr(),
-                      style: TextStyle(
-                        fontWeight: _viewMode == ProductViewMode.details
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _isSigningOut ? null : _handleSignOut,
+          Expanded(
+            child: FutureBuilder<List<Product>>(
+              future: _productsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: colorScheme.error,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'product.errorLoading'.tr(),
+                          style: theme.textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${snapshot.error}',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  );
+                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 64,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'product.noProductsFound'.tr(),
+                          style: theme.textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'product.addFirst'.tr(),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                } else {
+                  final products = snapshot.data!;
+                  return RefreshIndicator(
+                    onRefresh: _refreshProducts,
+                    child: ListView.builder(
+                      padding: EdgeInsets.only(
+                        top: _viewMode == ProductViewMode.compact ? 4 : 8,
+                        bottom: 80,
+                      ),
+                      itemCount: products.length,
+                      itemBuilder: (context, index) {
+                        final product = products[index];
+                        return _buildProductCard(product);
+                      },
+                    ),
+                  );
+                }
+              },
+            ),
           ),
         ],
-      ),
-      body: FutureBuilder<List<Product>>(
-        future: _productsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error_outline, size: 64, color: colorScheme.error),
-                  const SizedBox(height: 16),
-                  Text(
-                    'product.errorLoading'.tr(),
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${snapshot.error}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            );
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.inventory_2_outlined,
-                    size: 64,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'product.noProductsFound'.tr(),
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'product.addFirst'.tr(),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          } else {
-            final products = snapshot.data!;
-            return RefreshIndicator(
-              onRefresh: _refreshProducts,
-              child: ListView.builder(
-                padding: EdgeInsets.only(
-                  top: _viewMode == ProductViewMode.compact ? 4 : 8,
-                  bottom: 80,
-                ),
-                itemCount: products.length,
-                itemBuilder: (context, index) {
-                  final product = products[index];
-                  return _buildProductCard(product);
-                },
-              ),
-            );
-          }
-        },
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'product_list_fab',
@@ -365,25 +403,5 @@ class _ProductListViewState extends State<ProductListView> {
     setState(() {
       _productsFuture = _fetchProducts();
     });
-  }
-
-  Future<void> _handleSignOut() async {
-    setState(() {
-      _isSigningOut = true;
-    });
-    try {
-      await _authService.signOut();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Sign out failed: $e')));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSigningOut = false;
-        });
-      }
-    }
   }
 }
