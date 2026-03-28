@@ -2,14 +2,12 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants/privacy_notice.dart';
 import '../constants/terms_of_service.dart';
 import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
 import '../services/theme_notifier.dart';
-import '../utils/config.dart';
 
 class SettingsView extends StatefulWidget {
   const SettingsView({super.key});
@@ -144,24 +142,6 @@ class _SettingsViewState extends State<SettingsView> {
                   trailing: Text('generated.100_42'.tr()),
                   onTap: null,
                 ),
-                if (!Config.isProduction)
-                  _SettingsTile(
-                    icon: Icons.analytics_outlined,
-                    title: 'Environment',
-                    trailing: Text(
-                      getIt<SharedPreferences>().getBool(
-                                Config.useEmulatorsKey,
-                              ) ??
-                              Config.isDevelopment
-                          ? 'Local Emulator'
-                          : 'Remote Cloud',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.secondary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    onTap: null,
-                  ),
               ],
             ),
           ],

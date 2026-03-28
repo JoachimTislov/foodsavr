@@ -89,52 +89,10 @@ class _DashboardViewState extends State<DashboardView> {
                     ),
                   ],
                 ),
-                IconButton(
-                  icon: const Icon(Icons.logout),
-                  onPressed: () => _authService.signOut(),
-                ),
               ],
             ),
             const SizedBox(height: 32),
             _ExpiringSoonSection(expiringSoonFuture: _expiringSoonFuture),
-            const SizedBox(height: 24),
-            Text(
-              'dashboard.actions'.tr(),
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                _ActionChip(
-                  icon: Icons.add_box_outlined,
-                  label: 'dashboard.createProduct'.tr(),
-                  color: colorScheme.primary,
-                  onTap: () => ProductAddHelper.startAddProductFlow(context),
-                ),
-                const SizedBox(width: 8),
-                _ActionChip(
-                  icon: Icons.inventory_2_outlined,
-                  label: 'dashboard.createInventory'.tr(),
-                  color: colorScheme.tertiary,
-                  onTap: () => CollectionFormView.show(
-                    context,
-                    type: CollectionType.inventory,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _ActionChip(
-                  icon: Icons.shopping_cart_outlined,
-                  label: 'dashboard.createShoppingList'.tr(),
-                  color: colorScheme.secondary,
-                  onTap: () => CollectionFormView.show(
-                    context,
-                    type: CollectionType.shoppingList,
-                  ),
-                ),
-              ],
-            ),
             const SizedBox(height: 24),
             Text(
               'dashboard.overview'.tr(),
@@ -179,13 +137,6 @@ class _DashboardViewState extends State<DashboardView> {
                     iconColor: colorScheme.primary,
                     onTap: () => context.push('/global-products'),
                   ),
-                  OverviewCard(
-                    title: 'dashboard.statistics'.tr(),
-                    subtitle: 'dashboard.statisticsSubtitle'.tr(),
-                    icon: Icons.bar_chart_outlined,
-                    iconColor: colorScheme.primary,
-                    onTap: () {},
-                  ),
                 ];
 
                 return GridView.count(
@@ -198,6 +149,34 @@ class _DashboardViewState extends State<DashboardView> {
                   children: cards,
                 );
               },
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'dashboard.actions'.tr(),
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _ActionChip(
+                  icon: Icons.add_box_outlined,
+                  label: 'dashboard.createProduct'.tr(),
+                  color: colorScheme.primary,
+                  onTap: () => ProductAddHelper.startAddProductFlow(context),
+                ),
+                const SizedBox(width: 8),
+                _ActionChip(
+                  icon: Icons.shopping_cart_outlined,
+                  label: 'dashboard.createShoppingList'.tr(),
+                  color: colorScheme.secondary,
+                  onTap: () => CollectionFormView.show(
+                    context,
+                    type: CollectionType.shoppingList,
+                  ),
+                ),
+              ],
             ),
           ],
         ),

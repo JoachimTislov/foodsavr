@@ -8,7 +8,6 @@ import '../utils/product_add_helper.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
 import '../services/collection_service.dart';
-import '../interfaces/i_auth_service.dart';
 import '../widgets/collection/collection_header.dart';
 import '../widgets/common/empty_state_widget.dart';
 import 'add_product_to_collection_view.dart';
@@ -30,7 +29,6 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
   late Future<List<Product>> _productsFuture;
   late final ProductService _productService;
   late final CollectionService _collectionService;
-  late final IAuthService _authService;
   late Collection _currentCollection;
 
   @override
@@ -38,7 +36,6 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     super.initState();
     _productService = getIt<ProductService>();
     _collectionService = getIt<CollectionService>();
-    _authService = getIt<IAuthService>();
     _currentCollection = widget.collection;
     _productsFuture = _fetchProducts();
   }
@@ -129,7 +126,6 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
               }
             },
             onDelete: () => _deleteCollection(),
-            onLogout: () => _authService.signOut(),
           ),
           Expanded(child: _buildProductsList(theme, colorScheme)),
         ],

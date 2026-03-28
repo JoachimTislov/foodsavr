@@ -22,12 +22,7 @@ environment:
   sdk: ^3.10.7
   flutter: ">=3.32.0"
 
-# Dependencies specify other packages that your package needs in order to work.
-# To automatically upgrade your package dependencies to the latest versions
-# consider running `flutter pub upgrade --major-versions`. Alternatively,
-# dependencies can be manually updated by changing the version numbers below to
-# the latest version available on pub.dev. To see which dependencies have newer
-# versions available, run `flutter pub outdated`.
+# Flutter sdk license: BSD-3-Clause
 dependencies:
   flutter:
     sdk: flutter
@@ -36,24 +31,25 @@ dependencies:
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
-  firebase_core: ^4.4.0
-  firebase_auth: ^6.1.4
-  cloud_firestore: ^6.1.2
-  easy_localization: ^3.0.0
-  logger: ^2.6.2
-  get_it: ^9.2.0
-  intl: ^0.20.2
-  google_sign_in: ^7.2.0
-  flutter_facebook_auth: ^7.1.5
-  go_router: ^17.1.0
-  injectable: ^2.7.1+4
-  vector_graphics: ^1.1.19
-  shared_preferences: ^2.3.0
-  camera: ^0.11.0+2
-  google_mlkit_barcode_scanning: ^0.14.1
-  http: ^1.2.0
-  openfoodfacts: ^3.30.2
+  cupertino_icons: ^1.0.8 # MIT
+  firebase_core: ^4.4.0 # BSD-3-Clause
+  firebase_auth: ^6.1.4 # BSD-3-Clause
+  cloud_firestore: ^6.1.2 # BSD-3-Clause
+  easy_localization: ^3.0.0 # MIT
+  logger: ^2.6.2 # MIT
+  get_it: ^9.2.0 # MIT
+  intl: ^0.20.2 # BSD-3-Clause
+  google_sign_in: ^7.2.0 # BSD-3-Clause
+  flutter_facebook_auth: ^7.1.5 # MIT
+  go_router: ^17.1.0 # BSD-3-Clause
+  injectable: ^2.7.1+4 # MIT
+  vector_graphics: ^1.1.19 # BSD-3-Clause
+  shared_preferences: ^2.3.0 # BSD-3-Clause
+  camera: ^0.12.0+1 # BSD-3-Clause
+  google_mlkit_barcode_scanning: ^0.14.1 # MIT
+  http: ^1.2.0 # BSD-3-Clause
+  openfoodfacts: ^3.30.2 # Apache-2.0
+  google_mlkit_text_recognition: ^0.15.1 # MIT
 
 dev_dependencies:
   flutter_test:
@@ -71,11 +67,11 @@ dev_dependencies:
   # error: package dev.flutter.plugins.integration_test does not exist
   integration_test:
     sdk: flutter
-  injectable_generator: ^2.12.0
-  build_runner: ^2.11.1
-  vector_graphics_compiler: ^1.1.20
-  test: ^1.28.0
-  path: ^1.9.1
+  injectable_generator: ^2.12.0 # MIT
+  build_runner: ^2.11.1 # BSD-3-Clause
+  vector_graphics_compiler: ^1.1.20 # BSD-3-Clause
+  test: ^1.28.0 # BSD-3-Clause
+  path: ^1.9.1 # BSD-3-Clause
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

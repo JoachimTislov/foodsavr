@@ -1,15 +1,13 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:foodsavr/views/settings_view.dart';
-import 'package:foodsavr/services/theme_notifier.dart';
+import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/services/auth_controller.dart';
 import 'package:foodsavr/services/collection_service.dart';
+import 'package:foodsavr/views/settings_view.dart';
 import 'package:logger/logger.dart';
-import 'package:foodsavr/service_locator.dart';
-import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockAuthService extends Mock implements IAuthService {}
 
@@ -58,13 +56,10 @@ void main() {
     late _MockAuthService mockAuthService;
 
     setUp(() async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
       await EasyLocalization.ensureInitialized();
       await getIt.reset();
 
       getIt.registerSingleton<Logger>(Logger(level: Level.off));
-      getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
       mockAuthService = _MockAuthService();
       when(
         () => mockAuthService.authStateChanges,
@@ -81,7 +76,6 @@ void main() {
       when(() => mockAuthController.rememberMe).thenReturn(false);
       when(() => mockAuthController.agreedToTerms).thenReturn(false);
       getIt.registerSingleton<AuthController>(mockAuthController);
-      getIt.registerSingleton<SharedPreferences>(prefs);
     });
 
     testWidgets('renders all settings sections', (tester) async {

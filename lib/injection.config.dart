@@ -34,28 +34,27 @@ import 'package:shared_preferences/shared_preferences.dart' as _i460;
 
 extension GetItInjectableX on _i174.GetIt {
   // initializes the registration of main-scope dependencies inside of GetIt
-  _i174.GetIt init({
+  Future<_i174.GetIt> init({
     String? environment,
     _i526.EnvironmentFilter? environmentFilter,
-  }) {
+  }) async {
     final gh = _i526.GetItHelper(this, environment, environmentFilter);
     final registerModule = _$RegisterModule();
+    await gh.factoryAsync<_i460.SharedPreferencesWithCache>(
+      () => registerModule.prefs,
+      preResolve: true,
+    );
+    gh.factory<_i921.ThemeNotifier>(() => registerModule.themeNotifier);
     gh.factory<_i397.BarcodeScannerService>(
       () => _i397.BarcodeScannerService(),
     );
+    gh.singleton<_i974.Logger>(() => registerModule.logger);
+    gh.lazySingleton<_i806.FacebookAuth>(() => registerModule.facebookAuth);
     gh.lazySingleton<_i59.FirebaseAuth>(() => registerModule.firebaseAuth);
     gh.lazySingleton<_i974.FirebaseFirestore>(
       () => registerModule.firebaseFirestore,
     );
     gh.lazySingleton<_i116.GoogleSignIn>(() => registerModule.googleSignIn);
-    gh.lazySingleton<_i806.FacebookAuth>(() => registerModule.facebookAuth);
-    gh.lazySingleton<_i974.Logger>(() => registerModule.logger);
-    gh.lazySingletonAsync<_i460.SharedPreferences>(
-      () => registerModule.sharedPreferences,
-    );
-    gh.lazySingletonAsync<_i921.ThemeNotifier>(
-      () => registerModule.themeNotifier,
-    );
     gh.lazySingleton<_i1071.ShelfLifeService>(() => _i1071.ShelfLifeService());
     gh.factory<bool>(
       () => registerModule.supportsPersistence,
@@ -68,6 +67,13 @@ extension GetItInjectableX on _i174.GetIt {
         facebookAuth: gh<_i806.FacebookAuth>(),
         supportsPersistence: gh<bool>(instanceName: 'supportsPersistence'),
         firestore: gh<_i974.FirebaseFirestore>(),
+      ),
+    );
+    gh.factoryParam<_i882.AuthController, _i882.Translator?, dynamic>(
+      (translate, _) => _i882.AuthController(
+        gh<_i794.IAuthService>(),
+        gh<_i974.Logger>(),
+        translate: translate,
       ),
     );
     gh.lazySingleton<_i424.IProductRepository>(
@@ -95,14 +101,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i424.IProductRepository>(),
         gh<_i1071.ShelfLifeService>(),
         gh<_i974.Logger>(),
-      ),
-    );
-    gh.factoryParam<_i882.AuthController, _i882.Translator?, dynamic>(
-      (translate, _) => _i882.AuthController(
-        gh<_i794.IAuthService>(),
-        gh<_i122.CollectionService>(),
-        gh<_i974.Logger>(),
-        translate: translate,
       ),
     );
     return this;

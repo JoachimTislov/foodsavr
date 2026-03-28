@@ -30,9 +30,12 @@ void main() {
   setUpAll(() async {
     // Setup Firebase mocking
     setupFirebaseCoreMocks();
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    getIt.registerSingleton<SharedPreferences>(prefs);
+    final prefs = await SharedPreferencesWithCache.create(
+      cacheOptions: SharedPreferencesWithCacheOptions(
+        allowList: {ThemeNotifier.kThemeModeKey},
+      ),
+    );
+    getIt.registerSingleton<SharedPreferencesWithCache>(prefs);
     getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
 
     // Increase surface size to avoid overflows in tests
@@ -82,12 +85,16 @@ void main() {
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferencesWithCache.create(
+        cacheOptions: SharedPreferencesWithCacheOptions(
+          allowList: {ThemeNotifier.kThemeModeKey},
+        ),
+      );
       await EasyLocalization.ensureInitialized();
       await getIt.reset();
 
       getIt.registerSingleton<Logger>(Logger(level: Level.off));
-      getIt.registerSingleton<SharedPreferences>(prefs);
+      getIt.registerSingleton<SharedPreferencesWithCache>(prefs);
       getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
       mockAuthService = MockAuthService();
       when(

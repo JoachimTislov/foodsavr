@@ -46,7 +46,7 @@ void main() async {
   );
 
   final serviceLocator = ServiceLocator();
-  serviceLocator.registerDependencies();
+  await serviceLocator.registerDependencies();
 
   final logger = getIt<Logger>();
   logger.i(

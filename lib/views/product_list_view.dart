@@ -29,7 +29,6 @@ class _ProductListViewState extends State<ProductListView> {
   late final CollectionService _collectionService;
   late final IAuthService _authService;
   ProductViewMode _viewMode = ProductViewMode.normal;
-  bool _isSigningOut = false;
   Map<int, List<String>> _productInventories = {};
 
   @override
@@ -213,10 +212,6 @@ class _ProductListViewState extends State<ProductListView> {
                       ),
                     ),
                   ],
-                ),
-                IconButton(
-                  icon: const Icon(Icons.logout),
-                  onPressed: _isSigningOut ? null : _handleSignOut,
                 ),
               ],
             ),
@@ -408,25 +403,5 @@ class _ProductListViewState extends State<ProductListView> {
     setState(() {
       _productsFuture = _fetchProducts();
     });
-  }
-
-  Future<void> _handleSignOut() async {
-    setState(() {
-      _isSigningOut = true;
-    });
-    try {
-      await _authService.signOut();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Sign out failed: $e')));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSigningOut = false;
-        });
-      }
-    }
   }
 }

@@ -37,10 +37,6 @@ class _CollectionListViewState extends State<CollectionListView> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final title = widget.typeFilter == CollectionType.shoppingList
-        ? 'dashboard.shoppingList'.tr()
-        : 'dashboard.myInventory'.tr();
-
     return Scaffold(
       body: Column(
         children: [
@@ -62,15 +58,13 @@ class _CollectionListViewState extends State<CollectionListView> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  title,
+                  widget.typeFilter == CollectionType.shoppingList
+                      ? 'dashboard.shoppingList'.tr()
+                      : 'dashboard.myInventory'.tr(),
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: colorScheme.onSurface,
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.logout),
-                  onPressed: () => _authService.signOut(),
                 ),
               ],
             ),

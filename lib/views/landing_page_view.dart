@@ -1,11 +1,9 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../service_locator.dart';
 import '../services/auth_controller.dart';
-import '../utils/config.dart';
 import '../widgets/auth/social_auth_section.dart';
 
 class LandingPageView extends StatefulWidget {
@@ -22,29 +20,6 @@ class _LandingPageViewState extends State<LandingPageView> {
   void initState() {
     super.initState();
     _controller = getIt<AuthController>();
-  }
-
-  Future<void> _toggleEmulators(BuildContext context, bool value) async {
-    final prefs = getIt<SharedPreferences>();
-    await prefs.setBool(Config.useEmulatorsKey, value);
-    if (!context.mounted) return;
-
-    setState(() {});
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text('settings.restart_required'.tr()),
-        content: Text('settings.restart_message'.tr()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('common.ok'.tr()),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -194,32 +169,6 @@ class _LandingPageViewState extends State<LandingPageView> {
                           ),
                         ],
                       ),
-
-                      // Emulator Toggle (Developer Tools)
-                      if (!Config.isProduction) ...[
-                        const SizedBox(height: 48),
-                        const Divider(),
-                        const SizedBox(height: 16),
-                        SwitchListTile(
-                          title: Text('settings.use_emulators'.tr()),
-                          subtitle: Text(
-                            getIt<SharedPreferences>().getBool(
-                                      Config.useEmulatorsKey,
-                                    ) ??
-                                    Config.isDevelopment
-                                ? 'Local Emulator'
-                                : 'Remote Cloud',
-                          ),
-                          value:
-                              getIt<SharedPreferences>().getBool(
-                                Config.useEmulatorsKey,
-                              ) ??
-                              Config.isDevelopment,
-                          onChanged: (value) =>
-                              _toggleEmulators(context, value),
-                          secondary: const Icon(Icons.bug_report_outlined),
-                        ),
-                      ],
                     ],
                   );
                 },

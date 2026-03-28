@@ -8,7 +8,6 @@ class CollectionHeader extends StatelessWidget {
   final Collection collection;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
-  final VoidCallback? onLogout;
   final VoidCallback? onBack;
 
   const CollectionHeader({
@@ -16,7 +15,6 @@ class CollectionHeader extends StatelessWidget {
     required this.collection,
     this.onEdit,
     this.onDelete,
-    this.onLogout,
     this.onBack,
   });
 
@@ -44,57 +42,7 @@ class CollectionHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              if (onBack != null)
-                IconButton(
-                  icon: Icon(
-                    Icons.arrow_back,
-                    color: colorScheme.onPrimaryContainer,
-                  ),
-                  onPressed: onBack,
-                )
-              else
-                const SizedBox.shrink(),
-              Row(
-                children: [
-                  if (onEdit != null)
-                    IconButton(
-                      icon: Icon(
-                        Icons.edit,
-                        color: colorScheme.onPrimaryContainer,
-                      ),
-                      onPressed: onEdit,
-                    ),
-                  if (onDelete != null)
-                    IconButton(
-                      icon: Icon(
-                        Icons.delete_outline,
-                        color: colorScheme.onPrimaryContainer,
-                      ),
-                      onPressed: onDelete,
-                    ),
-                  if (onLogout != null)
-                    IconButton(
-                      icon: Icon(
-                        Icons.logout,
-                        color: colorScheme.onPrimaryContainer,
-                      ),
-                      onPressed: onLogout,
-                    ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Icon(
-                CollectionConfig.getIcon(collection.type),
-                size: 48,
-                color: colorScheme.onPrimaryContainer,
-              ),
-              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,38 +65,60 @@ class CollectionHeader extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox.shrink(),
+              Row(
+                children: [
+                  if (onEdit != null)
+                    IconButton(
+                      icon: Icon(
+                        Icons.edit,
+                        color: colorScheme.onPrimaryContainer,
+                      ),
+                      onPressed: onEdit,
+                    ),
+                  if (onDelete != null)
+                    IconButton(
+                      icon: Icon(
+                        Icons.delete_outline,
+                        color: colorScheme.onPrimaryContainer,
+                      ),
+                      onPressed: onDelete,
+                    ),
+                ],
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: colorScheme.surface.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.inventory_2_outlined,
-                  size: 18,
-                  color: colorScheme.primary,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'collection.items_count'.tr(
-                    namedArgs: {
-                      'count': collection.productIds.length.toString(),
-                    },
-                  ),
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
+          if (collection.productIds.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: colorScheme.surface.withValues(alpha: 0.9),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.inventory_2_outlined,
+                    size: 18,
                     color: colorScheme.primary,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 6),
+                  Text(
+                    'collection.items_count'.tr(
+                      namedArgs: {
+                        'count': collection.productIds.length.toString(),
+                      },
+                    ),
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );

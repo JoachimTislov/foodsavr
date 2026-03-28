@@ -199,7 +199,6 @@ void main() {
       getIt.registerFactory<AuthController>(
         () => AuthController(
           getIt<IAuthService>(),
-          getIt<CollectionService>(),
           Logger(level: Level.off),
           translate: (String key) => key,
         ),

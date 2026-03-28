@@ -181,7 +181,7 @@
   },
   "collection": {
     "errorLoadingProducts": "Feil ved lasting av produkter",
-    "noProducts": "Ingen produkter i denne samlingen",
+    "noProducts": "Ingen produkter",
     "add_inventory": "Legg til lager",
     "add_shopping_list": "Legg til handleliste",
     "edit_inventory": "Rediger lager",
@@ -204,7 +204,6 @@
     "app_version": "App-versjon",
     "appearance": "Utseende",
     "guest_user": "Gjestebruker",
-    "use_emulators": "Bruk lokale emulatorer",
     "restart_required": "Restart påkrevd",
     "restart_message": "En manuell omstart av appen kreves for å bytte mellom lokale og eksterne miljøer.",
     "language": "Språk",

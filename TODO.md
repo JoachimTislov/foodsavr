@@ -32,6 +32,7 @@
 
 ### Locales
 - [ ] dashboard - myInventory and shoppingList is missing. Which means bad script - locale-check
+    - Correction, its the AuthController defaulting to (key) => key, doing no translation / lookup
 
 ---
 
@@ -138,6 +139,7 @@ actions:
     - [ ] Picture ? (need to explore ML options for this)
 - [ ] Add support for push/app/internal notifications (e.g., expiring products, meal plan reminders).
 -  [ ] Transfer products between inventories
+- [ ] Statistics and insights on inventory usage, waste reduction, etc.
 - [ ] Support export/import (CSV/JSON) for user inventory.
 - [ ] Support sharing meal plans and shopping lists with other users (e.g., family members).
     - [ ] Create shared (family/group) collections

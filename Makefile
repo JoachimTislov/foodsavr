@@ -1,4 +1,4 @@
-.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps codegen locale-check generate-di preflight push
+.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps di locale-check generate-di preflight push
 
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
 
@@ -10,9 +10,6 @@ dev-chrome-prod: deps
 
 dev-chrome: deps start-firebase-emulators
 	@flutter run -d chrome --no-pub $(DOTENV_FLAGS)
-
-dev-android: deps start-firebase-emulators
-	@flutter run -d android --no-pub $(DOTENV_FLAGS)
 
 start-firebase-emulators:
 	@if ! lsof -ti :9099 -sTCP:LISTEN > /dev/null; then \
@@ -37,7 +34,7 @@ deps: .deps-stamp
 	@flutter pub get > /dev/null
 	@touch .deps-stamp
 
-codegen:
+di:
 	@dart run build_runner build --delete-conflicting-outputs
 
 # Code quality commands
