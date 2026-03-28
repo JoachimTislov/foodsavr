@@ -96,9 +96,7 @@ List<File> _getLocaleFiles(Directory localeDir) {
 
 void main() {
   final sourceDirs = ['lib', 'integration_test', 'test'];
-  final ignorePaths = [
-    p.normalize('test/tool/'),
-  ];
+  final ignorePaths = [p.normalize('test/tool/')];
   final repoRoot = Directory.current.path;
   final localeDir = Directory('$repoRoot/assets/translations');
 

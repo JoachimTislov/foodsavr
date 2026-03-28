@@ -1,224 +1,218 @@
 {
-  "auth": {
-    "terms": {
-      "required": "Du må godta vilkårene for bruk og personvernerklæringen.",
-      "prefix": "Jeg godtar "
+    "auth": {
+        "error": {
+            "email_already_in_use": "Kontoen finnes allerede for denne e-posten.",
+            "invalid_email": "E-postadressen er ikke gyldig.",
+            "operation_not_allowed": "Operasjonen er ikke tillatt.",
+            "unknown": "En udefinert feil oppstod.",
+            "user_disabled": "Brukerkontoen er deaktivert.",
+            "user_not_found": "Ingen bruker funnet for denne e-posten.",
+            "weak_password": "Passordet er for svakt.",
+            "wrong_password": "Feil passord oppgitt for denne brukeren."
+        },
+        "form": {
+            "email": {
+                "hint": "navn@eksempel.no",
+                "label": "E-postadresse",
+                "required": "Vennligst skriv inn e-postadressen din"
+            },
+            "forgot_password": "Glemt passord?",
+            "password": {
+                "hint": "Skriv inn passordet ditt",
+                "label": "Passord",
+                "required": "Vennligst skriv inn passordet ditt"
+            },
+            "remember_me": "Husk meg"
+        },
+        "header": {
+            "create_account": "Opprett konto",
+            "sign_in_subtitle": "Logg inn for å administrere lageret ditt.",
+            "sign_up_subtitle": "Registrer deg for å begynne å spare tid og penger.",
+            "welcome_back": "Velkommen tilbake"
+        },
+        "landing": {
+            "subtitle": "Spor, administrer og skaler lageret ditt effektivt.",
+            "title": "Lagerinnlogging"
+        },
+        "reset": {
+            "email_prompt": "Vennligst skriv inn e-postadressen din for å tilbakestille passordet.",
+            "email_sent": "E-post for tilbakestilling av passord sendt. Sjekk innboksen din."
+        },
+        "social": {
+            "continue_email": "Fortsett med e-post",
+            "continue_google": "Fortsett med Google",
+            "continue_guest": "Fortsett som gjest"
+        },
+        "submit": {
+            "register": "Registrer"
+        },
+        "terms": {
+            "prefix": "Jeg godtar ",
+            "required": "Du må godta vilkårene for bruk og personvernerklæringen."
+        },
+        "toggle": {
+            "already_have_account": "Har du allerede en konto?",
+            "login": "Logg inn",
+            "no_account": "Har du ikke en konto?",
+            "sign_up": "Registrer deg"
+        }
     },
-    "reset": {
-      "email_prompt": "Vennligst skriv inn e-postadressen din for å tilbakestille passordet.",
-      "email_sent": "E-post for tilbakestilling av passord sendt. Sjekk innboksen din."
+    "collection": {
+        "add_inventory": "Legg til lager",
+        "add_shopping_list": "Legg til handleliste",
+        "create_inventory": "Opprett beholdning",
+        "create_shopping_list": "Opprett handleliste",
+        "edit_inventory": "Rediger lager",
+        "edit_shopping_list": "Rediger handleliste",
+        "emptySubtitle": "Opprett en for å komme i gang",
+        "emptyTitle": "Ingenting funnet",
+        "errorLoadingProducts": "Feil ved lasting av produkter",
+        "items_count": "{count} varer",
+        "loadError": "Feil ved lasting av lister",
+        "noProducts": "Ingen produkter",
+        "type_inventory": "Beholdning",
+        "type_shopping": "Handleliste"
     },
-    "header": {
-      "welcome_back": "Velkommen tilbake",
-      "create_account": "Opprett konto",
-      "sign_in_subtitle": "Logg inn for å administrere lageret ditt.",
-      "sign_up_subtitle": "Registrer deg for å begynne å spare tid og penger."
+    "common": {
+        "add": "Legg til",
+        "and": " og ",
+        "cancel": "Avbryt",
+        "close": "Lukk",
+        "create": "Opprett",
+        "delete": "Slett",
+        "error_loading_data": "Feil ved lasting av data",
+        "from": "Fra",
+        "name": "Navn",
+        "name_required": "Vennligst oppgi et navn",
+        "or": "ELLER",
+        "privacy_notice": "Personvernerklæring",
+        "save": "Lagre",
+        "terms_of_service": "Vilkår for bruk",
+        "to": "Til",
+        "unknown": "Ukjent",
+        "viewAll": "Se alle"
     },
-    "form": {
-      "remember_me": "Husk meg",
-      "forgot_password": "Glemt passord?",
-      "email": {
-        "label": "E-postadresse",
-        "hint": "navn@eksempel.no",
-        "required": "Vennligst skriv inn e-postadressen din"
-      },
-      "password": {
-        "label": "Passord",
-        "hint": "Skriv inn passordet ditt",
-        "required": "Vennligst skriv inn passordet ditt"
-      }
+    "dashboard": {
+        "actions": "Hurtighandlinger",
+        "browseProducts": "Bla gjennom produkter",
+        "createProduct": "Nytt produkt",
+        "createShoppingList": "Ny Handleliste",
+        "errorLoading": "Feil ved lasting av data",
+        "expiringSoon": "Utløper snart",
+        "globalProducts": "Globale produkter",
+        "moveItems": "Flytt varer mellom lagre",
+        "myInventory": "Mitt lager",
+        "noProductsExpiringSoon": "Ingen produkter utløper snart.",
+        "overview": "Oversikt",
+        "shoppingList": "Handleliste",
+        "title": "Dashbord",
+        "transfer": "Overføring"
     },
-    "social": {
-      "continue_google": "Fortsett med Google",
-      "continue_email": "Fortsett med e-post",
-      "continue_guest": "Fortsett som gjest"
+    "generated": {
+        "100_42": "1.0.0 (42)"
     },
-    "landing": {
-      "title": "Lagerinnlogging",
-      "subtitle": "Spor, administrer og skaler lageret ditt effektivt."
+    "product": {
+        "add": "Legg til produkt",
+        "addFirst": "Legg til ditt første produkt for å komme i gang",
+        "add_expiry": "Legg til utløpsdato",
+        "all_products": "Alle produkter",
+        "availableIn": "Tilgjengelig i {inventories}",
+        "available_stock": "TILGJENGELIG LAGER",
+        "barcodeAddError": "Kunne ikke legge til skannet strekkode: {error}",
+        "barcodeAssumedExpiry": ". Antar utløp om {days} dager. Trykk for å endre.",
+        "barcodeCreated": "Opprettet nytt produkt \"{name}\"",
+        "barcodeMatched": "Oppdaterte eksisterende produkt \"{name}\"",
+        "barcodeNotFound": "Produktet ble ikke funnet. Vær den første til å legge det til!",
+        "category": "Kategori",
+        "compact": "Kompakt",
+        "daysRemaining": "{days} dager igjen",
+        "days_until_soonest_expiry": "Dager til nærmeste utløp",
+        "delete": "Slett produkt",
+        "deleteConfirmMessage": "Er du sikker på at du vil slette \"{name}\"?",
+        "deleteError": "Feil ved sletting av produkt: {error}",
+        "deleted": "{name} slettet",
+        "description": "Beskrivelse",
+        "details": "Produktdetaljer",
+        "edit": "Rediger produkt",
+        "enterBarcodeManually": "Skriv inn strekkode manuelt",
+        "errorLoading": "Feil ved lasting av produkter",
+        "expiration_breakdown": "Utløpsoversikt",
+        "expirations": "Utløpsdatoer",
+        "expiredDaysAgo": "Utløpt for {days} dager siden",
+        "expiries": "Utløpsdatoer",
+        "global_product": "Globalt produkt",
+        "inventory": "Lager",
+        "inventoryLoadError": "Feil ved lasting av inventarinfo: {error}",
+        "locations": "Plasseringer",
+        "na": "N/A",
+        "name": "Produktnavn",
+        "name_required": "Vennligst oppgi produktnavn",
+        "noProductsFound": "Ingen produkter funnet",
+        "non_expiring_quantity": "Mengde uten utløpsdato",
+        "normal": "Normal",
+        "personal_product": "Personlig produkt",
+        "quantity_units": "{} enheter",
+        "scanBarcode": "Skann strekkode",
+        "scanBarcodeHint": "Juster strekkoden innenfor rammen",
+        "scanSingleBarcodeHint": "Flere strekkoder oppdaget. Fokuser på én strekkode.",
+        "scanUnavailable": "Strekkodeskanner utilgjengelig: {error}",
+        "search_hint": "Søk i matskapet ditt...",
+        "select": "Velg produkter",
+        "soonest_expiration": "Nærmeste utløpsdato",
+        "status": "Status",
+        "status_compact_exp": "Utgått",
+        "status_days": "{days} dager",
+        "status_days_left": "{days}d igjen",
+        "status_days_remaining": "{days}d igjen",
+        "status_expired": "Utgått",
+        "status_expired_days_ago": "Utgått for {days} dager siden",
+        "status_expires_soon": "Utløper snart",
+        "status_expires_today": "Utløper i dag",
+        "status_fresh": "Frisk",
+        "status_today": "I dag",
+        "total_quantity": "Totalt antall",
+        "type": "Type",
+        "units": "enheter"
     },
-    "toggle": {
-      "no_account": "Har du ikke en konto?",
-      "sign_up": "Registrer deg",
-      "already_have_account": "Har du allerede en konto?",
-      "login": "Logg inn"
+    "profile": {
+        "account_settings": "Kontoinnstillinger",
+        "change_email": "Endre e-post",
+        "create_account": "Opprett konto",
+        "danger_zone": "Faresone",
+        "deleteAccountConfirmation": "Ja, slett konto",
+        "delete_account": "Slett konto",
+        "delete_account_description": "Slett kontoen din og alle tilknyttede data permanent. Denne handlingen kan ikke angres.",
+        "forgot_password": "Glemt passord",
+        "log_out": "Logg ut",
+        "title": "Profil",
+        "two_factor_auth": "To-faktor autentisering"
     },
-    "submit": {
-      "register": "Registrer"
+    "settings": {
+        "about": "Om",
+        "account": "Konto",
+        "app_version": "App-versjon",
+        "appearance": "Utseende",
+        "guest_user": "Gjestebruker",
+        "language": "Språk",
+        "languages": {
+            "en": "Engelsk",
+            "nb": "Norsk"
+        },
+        "privacy_policy": "Personvernregler",
+        "terms_of_service": "Vilkår for bruk",
+        "theme_mode": "Temamodus",
+        "themes": {
+            "dark": "Mørk",
+            "light": "Lys",
+            "system": "System"
+        },
+        "title": "Innstillinger"
     },
-    "error": {
-      "user_not_found": "Ingen bruker funnet for denne e-posten.",
-      "wrong_password": "Feil passord oppgitt for denne brukeren.",
-      "email_already_in_use": "Kontoen finnes allerede for denne e-posten.",
-      "invalid_email": "E-postadressen er ikke gyldig.",
-      "weak_password": "Passordet er for svakt.",
-      "operation_not_allowed": "Operasjonen er ikke tillatt.",
-      "user_disabled": "Brukerkontoen er deaktivert.",
-      "unknown": "En udefinert feil oppstod."
+    "transfer": {
+        "fromLocation": "Fra sted",
+        "selectProducts": "Velg produkter",
+        "title": "Overfør lager",
+        "toLocation": "Til sted",
+        "transfer_items": "Overfør {count} varer"
     }
-  },
-  "common": {
-    "privacy_notice": "Personvernerklæring",
-    "close": "Lukk",
-    "terms_of_service": "Vilkår for bruk",
-    "and": " og ",
-    "or": "ELLER",
-    "viewAll": "Se alle",
-    "cancel": "Avbryt",
-    "name": "Navn",
-    "name_required": "Vennligst oppgi et navn",
-    "add": "Legg til",
-    "ok": "OK",
-    "create": "Opprett",
-    "save": "Lagre",
-    "delete": "Slett",
-    "from": "Fra",
-    "to": "Til",
-    "unknown": "Ukjent",
-    "error_loading_data": "Feil ved lasting av data"
-  },
-  "dashboard": {
-    "title": "Dashbord",
-    "overview": "Oversikt",
-    "actions": "Hurtighandlinger",
-    "transfer": "Overføring",
-    "moveItems": "Flytt varer mellom lagre",
-    "createProduct": "Nytt produkt",
-    "createInventory": "Nytt lager",
-    "createShoppingList": "Ny Handleliste",
-    "statistics": "Statistikk",
-    "statisticsSubtitle": "Produktinnsikt",
-    "myInventory": "Mitt lager",
-    "shoppingList": "Handleliste",
-    "globalProducts": "Globale produkter",
-    "browseProducts": "Bla gjennom produkter",
-    "expiringSoon": "Utløper snart",
-    "noProductsExpiringSoon": "Ingen produkter utløper snart.",
-    "errorLoading": "Feil ved lasting av data"
-  },
-  "product": {
-    "all_products": "Alle produkter",
-    "compact": "Kompakt",
-    "normal": "Normal",
-    "details": "Produktdetaljer",
-    "expiredDaysAgo": "Utløpt for {days} dager siden",
-    "daysRemaining": "{days} dager igjen",
-    "select": "Velg produkter",
-    "errorLoading": "Feil ved lasting av produkter",
-    "noProductsFound": "Ingen produkter funnet",
-    "addFirst": "Legg til ditt første produkt for å komme i gang",
-    "add": "Legg til produkt",
-    "edit": "Rediger produkt",
-    "name": "Produktnavn",
-    "name_required": "Vennligst oppgi produktnavn",
-    "description": "Beskrivelse",
-    "category": "Kategori",
-    "inventory": "Lager",
-    "non_expiring_quantity": "Mengde uten utløpsdato",
-    "expiries": "Utløpsdatoer",
-    "add_expiry": "Legg til utløpsdato",
-    "quantity_units": "{} enheter",
-    "scanBarcode": "Skann strekkode",
-    "scanBarcodeHint": "Juster strekkoden innenfor rammen",
-    "scanSingleBarcodeHint": "Flere strekkoder oppdaget. Fokuser på én strekkode.",
-    "scanUnavailable": "Strekkodeskanner utilgjengelig: {error}",
-    "barcodeMatched": "Oppdaterte eksisterende produkt \"{name}\"",
-    "barcodeCreated": "Opprettet nytt produkt \"{name}\"",
-    "barcodeAssumedExpiry": ". Antar utløp om {days} dager. Trykk for å endre.",
-    "barcodeAddError": "Kunne ikke legge til skannet strekkode: {error}",
-    "enterBarcodeManually": "Skriv inn strekkode manuelt",
-    "barcodeNotFound": "Produktet ble ikke funnet. Vær den første til å legge det til!",
-    "availableIn": "Tilgjengelig i {inventories}",
-    "delete": "Slett produkt",
-    "search_hint": "Søk i matskapet ditt...",
-    "available_stock": "TILGJENGELIG LAGER",
-    "status": "Status",
-    "locations": "Plasseringer",
-    "deleteConfirmMessage": "Er du sikker på at du vil slette \"{name}\"?",
-    "deleted": "{name} slettet",
-    "deleteError": "Feil ved sletting av produkt: {error}",
-    "inventoryLoadError": "Feil ved lasting av inventarinfo: {error}",
-    "status_expired": "Utgått",
-    "status_today": "I dag",
-    "status_days_remaining": "{days}d igjen",
-    "status_days": "{days} dager",
-    "status_expired_days_ago": "Utgått for {days} dager siden",
-    "status_expires_today": "Utløper i dag",
-    "status_days_left": "{days}d igjen",
-    "status_compact_exp": "Utgått",
-    "total_quantity": "Totalt antall",
-    "expirations": "Utløpsdatoer",
-    "units": "enheter",
-    "global_product": "Globalt produkt",
-    "type": "Type",
-    "status_fresh": "Frisk",
-    "status_expires_soon": "Utløper snart",
-    "soonest_expiration": "Nærmeste utløpsdato",
-    "days_until_soonest_expiry": "Dager til nærmeste utløp",
-    "expiration_breakdown": "Utløpsoversikt",
-    "personal_product": "Personlig produkt",
-    "na": "N/A"
-  },
-  "transfer": {
-    "title": "Overfør lager",
-    "selectProducts": "Velg produkter",
-    "fromLocation": "Fra sted",
-    "toLocation": "Til sted",
-    "transfer_items": "Overfør {count} varer"
-  },
-  "profile": {
-    "title": "Profil",
-    "create_account": "Opprett konto",
-    "deleteAccountConfirmation": "Ja, slett konto",
-    "account_settings": "Kontoinnstillinger",
-    "forgot_password": "Glemt passord",
-    "change_email": "Endre e-post",
-    "two_factor_auth": "To-faktor autentisering",
-    "log_out": "Logg ut",
-    "danger_zone": "Faresone",
-    "delete_account": "Slett konto",
-    "delete_account_description": "Slett kontoen din og alle tilknyttede data permanent. Denne handlingen kan ikke angres."
-  },
-  "collection": {
-    "errorLoadingProducts": "Feil ved lasting av produkter",
-    "noProducts": "Ingen produkter",
-    "add_inventory": "Legg til lager",
-    "add_shopping_list": "Legg til handleliste",
-    "edit_inventory": "Rediger lager",
-    "edit_shopping_list": "Rediger handleliste",
-    "loadError": "Feil ved lasting av lister",
-    "emptyTitle": "Ingenting funnet",
-    "emptySubtitle": "Opprett en for å komme i gang",
-    "items_count": "{count} varer",
-    "type_inventory": "Beholdning",
-    "type_shopping": "Handleliste",
-    "create_inventory": "Opprett beholdning",
-    "create_shopping_list": "Opprett handleliste"
-  },
-  "generated": {
-    "100_42": "1.0.0 (42)"
-  },
-  "settings": {
-    "about": "Om",
-    "account": "Konto",
-    "app_version": "App-versjon",
-    "appearance": "Utseende",
-    "guest_user": "Gjestebruker",
-    "restart_required": "Restart påkrevd",
-    "restart_message": "En manuell omstart av appen kreves for å bytte mellom lokale og eksterne miljøer.",
-    "language": "Språk",
-    "languages": {
-      "en": "Engelsk",
-      "nb": "Norsk"
-    },
-    "privacy_policy": "Personvernregler",
-    "terms_of_service": "Vilkår for bruk",
-    "theme_mode": "Temamodus",
-    "themes": {
-      "dark": "Mørk",
-      "light": "Lys",
-      "system": "System"
-    },
-    "title": "Innstillinger"
-  }
 }
