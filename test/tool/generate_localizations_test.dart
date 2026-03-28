@@ -44,7 +44,7 @@ void main() {
 
   Future<ProcessResult> runGenerate() async {
     final scriptPath =
-        '${Directory.current.path}/tool/generate_localizations.dart';
+        '${Directory.current.path}/tool/locale/generate_localizations.dart';
     return Process.run('dart', [scriptPath], workingDirectory: tempDir.path);
   }
 
