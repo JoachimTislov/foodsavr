@@ -1,5 +1,6 @@
 # Miscellaneous
 stitch
+.deps-stamp
 .env
 windows
 ios
