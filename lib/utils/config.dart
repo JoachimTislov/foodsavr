@@ -7,7 +7,7 @@ class Config {
   static const String? environment = isDevelopment ? 'development' : appFlavor;
 
   static bool get isProduction => appFlavor == 'production';
-  static bool get useEmulators => !isProduction;
+  static bool get useEmulators => appFlavor == 'development';
 
   /// The IP address for local development emulators.
   ///

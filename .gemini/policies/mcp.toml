@@ -1,14 +1,17 @@
 [[rule]]
+toolName = "*"
 mcpName = "*"
 decision = "deny"
 priority = 100
 
 [[rule]]
+toolName = "*"
 mcpName = "stitch"
 decision = "allow"
 priority = 101
 
 [[rule]]
+toolName = "*"
 mcpName = "github"
 decision = "allow"
 priority = 101
