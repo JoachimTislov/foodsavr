@@ -50,6 +50,7 @@ dependencies:
   http: ^1.2.0 # BSD-3-Clause
   openfoodfacts: ^3.30.2 # Apache-2.0
   google_mlkit_text_recognition: ^0.15.1 # MIT
+  firebase_app_check: ^0.4.3
 
 dev_dependencies:
   flutter_test:

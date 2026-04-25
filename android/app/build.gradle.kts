@@ -19,7 +19,7 @@ val envProperties = Properties().apply {
 }
 
 android {
-    namespace = "com.example.app"
+    namespace = "com.foodsavr.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -33,8 +33,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.app"
+        applicationId = "com.foodsavr.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -49,10 +48,31 @@ android {
             manifestPlaceholders[k] = v
             resValue("string", k, v)
         }
+
         // Ensure EMULATOR_HOST has a default for the build to succeed if .env is missing
         if (!envProperties.containsKey("EMULATOR_HOST")) {
             manifestPlaceholders["EMULATOR_HOST"] = "10.0.2.2"
             resValue("string", "EMULATOR_HOST", "10.0.2.2")
+        }
+    }
+
+    flavorDimensions += "environment"
+
+    productFlavors {
+        create("development") {
+            applicationIdSuffix = ".development"
+            dimension = "environment"
+            versionNameSuffix = "-development"
+        }
+        create("staging") {
+            applicationIdSuffix = ".staging"
+            dimension = "environment"
+            versionNameSuffix = "-staging"
+        }
+        create("production") {
+            dimension = "environment"
+            applicationIdSuffix = ".production"
+            versionNameSuffix = "-production"
         }
     }
 
@@ -61,6 +81,9 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 }

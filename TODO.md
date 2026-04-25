@@ -12,19 +12,9 @@
 - [ ] only allow expiry entries for products
 
 ### UI
-- [x] move local emulators toggle to login screen
-- [x] expand "continue as guest" button
-- [x] Handle guest logins in settings by either omit or adapting content
 - [ ] shopping list items should not have an expiry date
     - [ ] "Conversion Prompt" card
     - [ ] create two separate models where there's one source of truth for the product information (e.g., name, category, etc.) and separate models for inventory and shopping list items that reference the product and have their own fields (e.g., quantity, expiration date for inventory items)
-- [x] do not render empty string fields, e.g. description
-- [x] avoid duplicate low value info/displayment...
-- [x] remove top navbar, migrate/ingrate actions in the pages, if any
-- [x] NEVER have arrows on the right in cards (remove them all)
-    - replace them with elevation or subtle border highlights
-- [x] add an overview page all products registered/related to a user
-    - need to figure out / design a good overview/dashboard. Add quick action to view all, probably just reimplement the View all link in dashboard.
 
 #### Web specific
 - [ ] Add X in right corner of modal when on web
@@ -34,10 +24,40 @@
 
 ## General
 
-- [x] Seed database when using Firebase emulator for testing and development.
-    - Added `make seed` target and `tool/seed_database.dart` script.
 - [ ] "Cloud Firestore emulator" Flutter integration test
 - [ ] "flutter test" "firebase emulator" CI GitHub Actions
+- [ ] **Firestore Standard Layout & Production Readiness**
+    - [ ] **Infrastructure & CLI**
+        - [ ] Create `firebase.json` for CLI and Emulator configuration.
+        - [ ] Implement `firestore.rules` using `rules_version = '2'`.
+        - [ ] Update `firestore.indexes.json` for all repository composite queries (deploy via CLI, not console).
+        - [ ] Configure TTL (Time-to-Live) policies for ephemeral data (e.g., old logs).
+    - [ ] **Environment Isolation**
+        - [ ] Support named databases (e.g., `(default)` for prod, `staging` for QA) using `FirebaseFirestore.instanceFor(databaseId: '...')`.
+        - [ ] Ensure security rules and indexes are synced across all database instances in `firebase.json`.
+    - [ ] **Data Modeling & Types**
+        - [ ] Migrate `Product` model to use Firestore `Timestamp` instead of ISO strings (supports native range queries/ordering).
+        - [ ] Implement `fromFirestore`/`toFirestore` in models for native `Timestamp` and `DocumentID` support.
+        - [ ] Refactor collections to use subcollections for security isolation (e.g., `/users/{userId}/inventory`) where hierarchical ownership is strict.
+    - [ ] **Security & Performance**
+        - [ ] Implement "Default Deny" pattern in rules with function-based logic (e.g., `isOwner(userId)`).
+        - [ ] Split `write` rules into `create`, `update`, `delete` for field-level immutability.
+        - [ ] Avoid hotspotting: ensure high-write collections use auto-generated IDs or hashed strings.
+        - [ ] Implement pagination using `limit()` and `startAfter()` in all repository `getAll` methods.
+    - [ ] **Monitoring & Deployment**
+        - [ ] Generate production `lib/firebase_options.dart` via `flutterfire configure`.
+        - [ ] Set up Firebase Usage and Budget Alerts in Google Cloud Console.
+        - [ ] Enable Data Access audit logs in GCP for sensitive user collections.
+- [ ] **Android Deployment (Technical Requirements)**
+    - [ ] Update `applicationId` to a unique production value (e.g., `com.foodsavr.app`).
+    - [ ] Configure `key.properties` and upload keystore for release signing.
+    - [ ] Set up `signingConfigs` in `android/app/build.gradle.kts`.
+    - [ ] Review and prune `AndroidManifest.xml` permissions (Camera, Internet, etc.).
+    - [ ] Configure ProGuard/R8 in `proguard-rules.pro` to shrink and obfuscate the app.
+    - [ ] Restrict Firebase/Google API keys in Google Cloud Console to the Android app's SHA-1 fingerprint.
+    - [ ] Ensure `versionCode` and `versionName` in `pubspec.yaml` are properly incremented for each build.
+    - [ ] Generate Android App Bundle (`.aab`) using `flutter build appbundle --flavor production`.
+    - [ ] Verify Splash Screen and App Icons meet Play Store adaptive icon requirements.
 - [ ] "firestore.rules" best practices Flutter app
 - [ ] "firestore.indexes.json" composite indexes guide
 
@@ -50,22 +70,9 @@
 - [ ] timezone
 - [ ] analyzer
 
-## Implemented packages
-
-- [x] injectable
-- [x] injectable_generator
-
 ## Testing Checklist (after #3)
-- [x] Test with Firebase emulator running
-- [x] Verify user-specific filtering (products shown only for logged-in user)
-- [x] Test all three view modes (compact, normal, details)
-- [x] Test product detail view navigation
-- [x] Test collection listing and detail views
-- [x] Verify expiration status indicators work correctly
-- [x] Test delete confirmation dialog
 - [-] Verify Material 3 theme in light and dark modes
 - [-] Test pull-to-refresh functionality
-- [x] Verify empty states display correctly
 
 notes:
 - Delete, edit and add is not functional
@@ -76,26 +83,8 @@ notes:
 - need to add a toggle in settings to switch between light/dark mode for testing
     - Shopping list routes to Collections with my inventory and shopping list
 
-actions:
-- [x] move edit and delete icons (allow sign out and setting to always be present)
-- [x] omit icons for product category and consider omitting mapping of product to categories
-- [x] 0d -> Today
-- [x] <0d -> Expired
-- [x] move expiration warning text to tooltip and only show icon, warning 6>3 days before expiration, expired products should be clearly marked as expired
-- [x] replace checked with info and align the warning with title
-- [x] consider omitting or replacing the banner with icon
-- [x] omit owner ID in product details view
-- [x] figure out dates and expiration date relationship, a product can have quantity and expiration date, but they are not necessarily linked (e.g., I can have 2 cans of beans that expire on different dates)
-    - [x] map expiration date to quantity, e.g., 2 cans of beans expiring on 2024-01-01 and 3 cans expiring on 2024-02-01
-
 ## Environment & Setup
-- [x] Install Flutter SDK (^3.10.7) and run `make get` to fetch dependencies.
-- [x] Create `assets/.env` with `ENVIRONMENT=development` and test credentials.
-- [x] Ensure `lib/firebase_options.dart` is generated via `flutterfire configure` for project `my-foodsavr-store`.
-- [x] Create .gemini/commands folder with .toml files for custom commands and templates
-    - [x] Iteration command for fixing issues in flutter analyze until no issues remain
-        - [x] Also one for Test, should be template
-    - [x] Research command for fetching and presenting data from the internet safely
+- [ ] Create .gemini/commands folder with .toml files for custom commands and templates
     - [ ] Screenshot of page for reference to give better context to the LLM when adjusting UI
         - [ ] UI healing, grading in terms of user feeling, accessibility, material 3 compliance, etc.
     - [ ] Locales command
@@ -107,10 +96,6 @@ actions:
 - [ ] Consider TDD approach
 
 ## Firebase & Emulator
-- [x] Install Firebase CLI (`npm i -g firebase-tools`) and log in.
-- [x] Configure `firebase.json` with emulators for Auth (9099) and Firestore (8080).
-- [x] Start emulators with `firebase emulators:start`.
-- [x] Seed emulated data (users, products, meal plans) via `SeedingService`.
 - [ ] Add offline support and sync for Firestore data.
 - [ ] Keep Firestore security rules in sync and validate against the emulator.
     - [ ] Create the initial set of rules for users, products, inventory, shopping lists, and meal plans.
@@ -124,13 +109,10 @@ actions:
 - [ ] Meal plans under `/users/{userId}/meal-plans/{mealPlanId}` referencing meals/recipes per docs.
 
 ## App Wiring
-- [x] Removed in-memory repositories - now using Firestore with emulators in development.
-- [x] Service locator connects to emulators when `ENVIRONMENT=development`.
 - [ ] Ensure widgets handle missing user docs gracefully.
 
 ## Features & Functionality
 - [ ] Scanning products to ease the process of adding items to the inventory.
-    - [x] Barcode
     - [ ] QR code
     - [ ] Picture ? (need to explore ML options for this)
 - [ ] Add support for push/app/internal notifications (e.g., expiring products, meal plan reminders).
@@ -173,15 +155,18 @@ actions:
 
 ## Testing & CI
 - [ ] Add emulator-backed integration tests for Auth and Firestore CRUD
-- [x] Run `make analyze` and `make test`; add emulator startup to CI before tests. (#3)
 - [ ] Write localization script to ensure all keys exists
 - [ ] Add end-to-end (E2E) tests for critical user flows.
     - onboarding, adding inventory items, creating meal plans, etc.
+- [ ] Set up GitHub Actions CI workflows for platform-specific build & run tests (when mature enough to justify emulator CI time):
+    - [ ] Web CI: Install Node/Java/Flutter, start Firebase Emulators, run `flutter build web`, and execute headless Chrome integration tests.
+    - [ ] Android CI: Run on `macos-latest` (for hardware virtualization), build APK, spin up Android Emulator via `reactivecircus/android-emulator-runner`, start Firebase Emulators, and run integration tests.
 
 ## Tempting integrations
 - [ ] Implement error logging and monitoring (e.g., Sentry integration).
 
 ## Commercialization & Next Steps
+- [ ] Choose and implement a "Source Available" license (e.g., PolyForm Noncommercial or BSL 1.1) to prevent unauthorized financial benefit by third parties.
 - [ ] create a new firestore project or setup a backend for production use
     Firestore specific:
     - [ ] read flutter, android/ios/web platform specific and firebase launch todo lists
