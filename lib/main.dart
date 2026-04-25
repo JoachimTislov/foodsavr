@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -55,7 +56,7 @@ void main() async {
     'Running in ${Config.environment} mode (Emulators: ${Config.useEmulators})',
   );
 
-  if (Config.useEmulators) {
+  if (Config.useEmulators && !kIsWeb) {
     try {
       // Check if Auth Emulator is reachable before continuing
       await http
@@ -81,14 +82,20 @@ void main() async {
     logger.i('Firebase app already initialized, skipping...');
   }
 
-  if (Config.useEmulators) {
-    await serviceLocator.setupDevelopment();
-    await FirebaseAppCheck.instance.activate(
-      providerWeb: ReCaptchaV3Provider('recaptcha-v3-site-key'),
-      providerAndroid: AndroidDebugProvider(),
+  try {
+    if (Config.useEmulators) {
+      await serviceLocator.setupDevelopment();
+      await FirebaseAppCheck.instance.activate(
+        providerWeb: ReCaptchaV3Provider('recaptcha-v3-site-key'),
+        providerAndroid: AndroidDebugProvider(),
+      );
+    } else {
+      await FirebaseAppCheck.instance.activate();
+    }
+  } catch (e) {
+    logger.w(
+      'Firebase/AppCheck initialization failed (likely due to hot restart): $e',
     );
-  } else {
-    await FirebaseAppCheck.instance.activate();
   }
 
   const enLocale = Locale('en');
