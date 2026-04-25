@@ -3,6 +3,7 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
 import 'package:openfoodfacts/openfoodfacts.dart';
 
@@ -53,6 +54,20 @@ void main() async {
   logger.i(
     'Running in ${Config.environment} mode (Emulators: ${Config.useEmulators})',
   );
+
+  if (Config.useEmulators) {
+    try {
+      // Check if Auth Emulator is reachable before continuing
+      await http
+          .get(Uri.parse('http://${Config.emulatorHost}:9099/'))
+          .timeout(const Duration(seconds: 2));
+    } catch (_) {
+      // If the GET request fails or times out, the emulators are likely offline.
+      throw Exception(
+        'Firebase Emulators are not running! Please run "make start-firebase-emulators" (see kill-firebase-emulators in Makefile for port details).',
+      );
+    }
+  }
 
   // init Firebase app if not already initialized
   try {
