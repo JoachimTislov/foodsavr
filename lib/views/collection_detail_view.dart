@@ -178,16 +178,20 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
   }
 
   Widget _buildProductList(List<Product> products) {
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 80),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        final product = products[index];
-        return ProductCardNormal(
-          product: product,
-          onTap: () => _navigateToProductDetail(product),
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: _refreshCollection,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 80),
+        itemCount: products.length,
+        itemBuilder: (context, index) {
+          final product = products[index];
+          return ProductCardNormal(
+            product: product,
+            onTap: () => _navigateToProductDetail(product),
+          );
+        },
+      ),
     );
   }
 

@@ -48,6 +48,13 @@ class _SelectProductsViewState extends State<SelectProductsView> {
     super.dispose();
   }
 
+  Future<void> _refreshProducts() async {
+    final products = await _productService.getProducts(
+      _authService.getUserId(),
+    );
+    _controller.loadProducts(products);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -146,18 +153,22 @@ class _SelectProductsViewState extends State<SelectProductsView> {
               listenable: _controller,
               builder: (context, _) {
                 final products = _controller.filteredProducts;
-                return ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: products.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final product = products[index];
-                    return ProductSelectItem(
-                      product: product,
-                      isSelected: _controller.isSelected(product.id),
-                      onToggle: () => _controller.toggleSelection(product.id),
-                    );
-                  },
+                return RefreshIndicator(
+                  onRefresh: _refreshProducts,
+                  child: ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: products.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final product = products[index];
+                      return ProductSelectItem(
+                        product: product,
+                        isSelected: _controller.isSelected(product.id),
+                        onToggle: () => _controller.toggleSelection(product.id),
+                      );
+                    },
+                  ),
                 );
               },
             ),
