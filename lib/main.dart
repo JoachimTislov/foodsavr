@@ -81,7 +81,8 @@ void main() async {
     logger.i('Firebase app already initialized, skipping...');
   }
 
-  if (Config.isDevelopment) {
+  if (Config.useEmulators) {
+    await serviceLocator.setupDevelopment();
     await FirebaseAppCheck.instance.activate(
       providerWeb: ReCaptchaV3Provider('recaptcha-v3-site-key'),
       providerAndroid: AndroidDebugProvider(),
@@ -89,8 +90,6 @@ void main() async {
   } else {
     await FirebaseAppCheck.instance.activate();
   }
-
-  if (Config.useEmulators) await serviceLocator.setupDevelopment();
 
   const enLocale = Locale('en');
   const nbLocale = Locale('nb');
