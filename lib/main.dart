@@ -68,7 +68,7 @@ void main() async {
 
   if (Config.isDevelopment) {
     await FirebaseAppCheck.instance.activate(
-      // providerWeb: ReCaptchaV3Provider('recaptcha-v3-site-key'),
+      providerWeb: ReCaptchaV3Provider('recaptcha-v3-site-key'),
       providerAndroid: AndroidDebugProvider(),
     );
   } else {
