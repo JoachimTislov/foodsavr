@@ -78,58 +78,15 @@ class _SelectProductsViewState extends State<SelectProductsView> {
       body: Column(
         children: [
           // Location display
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainer,
-              border: Border(
-                bottom: BorderSide(
-                  color: colorScheme.outlineVariant.withValues(alpha: 0.1),
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: CompactLocationCard(
-                    label: 'common.from'.tr(),
-                    locationName: widget.fromLocationId,
-                    isActive: true,
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: Icon(Icons.arrow_forward, size: 16),
-                ),
-                Expanded(
-                  child: CompactLocationCard(
-                    label: 'common.to'.tr(),
-                    locationName: widget.toLocationId,
-                    isActive: false,
-                  ),
-                ),
-              ],
-            ),
+          _LocationHeader(
+            fromLocationId: widget.fromLocationId,
+            toLocationId: widget.toLocationId,
           ),
 
           // Search bar
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _controller.updateQuery,
-              decoration: InputDecoration(
-                hintText: 'product.search_hint'.tr(),
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: colorScheme.surfaceContainerHigh,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
+          _SearchBar(
+            controller: _searchController,
+            onChanged: _controller.updateQuery,
           ),
 
           Padding(
@@ -225,6 +182,86 @@ class _SelectProductsViewState extends State<SelectProductsView> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LocationHeader extends StatelessWidget {
+  final String fromLocationId;
+  final String toLocationId;
+
+  const _LocationHeader({
+    required this.fromLocationId,
+    required this.toLocationId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainer,
+        border: Border(
+          bottom: BorderSide(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.1),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: CompactLocationCard(
+              label: 'common.from'.tr(),
+              locationName: fromLocationId,
+              isActive: true,
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: Icon(Icons.arrow_forward, size: 16),
+          ),
+          Expanded(
+            child: CompactLocationCard(
+              label: 'common.to'.tr(),
+              locationName: toLocationId,
+              isActive: false,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SearchBar extends StatelessWidget {
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  const _SearchBar({required this.controller, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          hintText: 'product.search_hint'.tr(),
+          prefixIcon: const Icon(Icons.search),
+          filled: true,
+          fillColor: colorScheme.surfaceContainerHigh,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        ),
       ),
     );
   }

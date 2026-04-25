@@ -41,10 +41,12 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     _productsFuture = _fetchProducts();
   }
 
-  void _refreshProducts() {
+  Future<void> _refreshProducts() async {
+    final future = _fetchProducts();
     setState(() {
-      _productsFuture = _fetchProducts();
+      _productsFuture = future;
     });
+    await future;
   }
 
   Future<void> _refreshCollection() async {
@@ -55,7 +57,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       setState(() {
         _currentCollection = updated;
       });
-      _refreshProducts();
+      await _refreshProducts();
     }
   }
 
@@ -104,9 +106,6 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
     return Scaffold(
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -128,7 +127,13 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
             },
             onDelete: () => _deleteCollection(),
           ),
-          Expanded(child: _buildProductsList(theme, colorScheme)),
+          Expanded(
+            child: _ProductsList(
+              productsFuture: _productsFuture,
+              onRefresh: _refreshCollection,
+              onProductTap: _navigateToProductDetail,
+            ),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -156,59 +161,6 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     );
   }
 
-  Widget _buildProductsList(ThemeData theme, ColorScheme colorScheme) {
-    return FutureBuilder<List<Product>>(
-      future: _productsFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return AppRefreshIndicator(
-            onRefresh: _refreshCollection,
-            isScrollable: false,
-            child: const Center(child: CircularProgressIndicator()),
-          );
-        } else if (snapshot.hasError) {
-          return AppRefreshIndicator(
-            onRefresh: _refreshCollection,
-            isScrollable: false,
-            child: ErrorStateWidget(
-              message: 'collection.errorLoadingProducts'.tr(),
-            ),
-          );
-        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return AppRefreshIndicator(
-            onRefresh: _refreshCollection,
-            isScrollable: false,
-            child: EmptyStateWidget(
-              icon: Icons.inventory_2_outlined,
-              title: 'collection.noProducts'.tr(),
-            ),
-          );
-        } else {
-          return AppRefreshIndicator(
-            onRefresh: _refreshCollection,
-            isScrollable: true,
-            child: _buildProductList(snapshot.data!),
-          );
-        }
-      },
-    );
-  }
-
-  Widget _buildProductList(List<Product> products) {
-    return ListView.builder(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: 80),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        final product = products[index];
-        return ProductCardNormal(
-          product: product,
-          onTap: () => _navigateToProductDetail(product),
-        );
-      },
-    );
-  }
-
   Future<List<Product>> _fetchProducts() async {
     final productIds = _currentCollection.productIds;
     if (productIds.isEmpty) return [];
@@ -225,6 +177,68 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       MaterialPageRoute(
         builder: (context) => ProductDetailView(product: product),
       ),
+    );
+  }
+}
+
+class _ProductsList extends StatelessWidget {
+  final Future<List<Product>> productsFuture;
+  final Future<void> Function() onRefresh;
+  final void Function(Product) onProductTap;
+
+  const _ProductsList({
+    required this.productsFuture,
+    required this.onRefresh,
+    required this.onProductTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Product>>(
+      future: productsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return AppRefreshIndicator(
+            onRefresh: onRefresh,
+            isScrollable: false,
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        } else if (snapshot.hasError) {
+          return AppRefreshIndicator(
+            onRefresh: onRefresh,
+            isScrollable: false,
+            child: ErrorStateWidget(
+              message: 'collection.errorLoadingProducts'.tr(),
+            ),
+          );
+        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return AppRefreshIndicator(
+            onRefresh: onRefresh,
+            isScrollable: false,
+            child: EmptyStateWidget(
+              icon: Icons.inventory_2_outlined,
+              title: 'collection.noProducts'.tr(),
+            ),
+          );
+        } else {
+          return AppRefreshIndicator(
+            onRefresh: onRefresh,
+            isScrollable: true,
+            child: ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 80),
+              itemCount: snapshot.data!.length,
+              itemBuilder: (context, index) {
+                final product = snapshot.data![index];
+                return ProductCardNormal(
+                  product: product,
+                  onTap: () => onProductTap(product),
+                );
+              },
+            ),
+          );
+        }
+      },
     );
   }
 }

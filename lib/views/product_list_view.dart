@@ -7,6 +7,8 @@ import '../services/product_service.dart';
 import '../services/collection_service.dart';
 import '../interfaces/i_auth_service.dart';
 import '../widgets/product/product_card_compact.dart';
+import '../widgets/common/empty_state_widget.dart';
+import '../widgets/common/error_state_widget.dart';
 import 'product_form_view.dart';
 import '../widgets/product/product_card_normal.dart';
 import '../widgets/product/product_card_details.dart';
@@ -134,85 +136,13 @@ class _ProductListViewState extends State<ProductListView> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                // View mode toggle
-                PopupMenuButton<ProductViewMode>(
-                  icon: Icon(
-                    ViewModeHelper.getViewModeIcon(_viewMode),
-                    color: colorScheme.primary,
-                  ),
-                  onSelected: (mode) {
+                _ViewModeToggle(
+                  viewMode: _viewMode,
+                  onModeChanged: (mode) {
                     setState(() {
                       _viewMode = mode;
                     });
                   },
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: ProductViewMode.compact,
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.view_headline,
-                            color: _viewMode == ProductViewMode.compact
-                                ? colorScheme.primary
-                                : null,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'product.compact'.tr(),
-                            style: TextStyle(
-                              fontWeight: _viewMode == ProductViewMode.compact
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: ProductViewMode.normal,
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.view_agenda,
-                            color: _viewMode == ProductViewMode.normal
-                                ? colorScheme.primary
-                                : null,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'product.normal'.tr(),
-                            style: TextStyle(
-                              fontWeight: _viewMode == ProductViewMode.normal
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: ProductViewMode.details,
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.view_day,
-                            color: _viewMode == ProductViewMode.details
-                                ? colorScheme.primary
-                                : null,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'product.details'.tr(),
-                            style: TextStyle(
-                              fontWeight: _viewMode == ProductViewMode.details
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),
@@ -231,59 +161,19 @@ class _ProductListViewState extends State<ProductListView> {
                   return AppRefreshIndicator(
                     onRefresh: _refreshProducts,
                     isScrollable: false,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            size: 64,
-                            color: colorScheme.error,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'product.errorLoading'.tr(),
-                            style: theme.textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '${snapshot.error}',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
+                    child: ErrorStateWidget(
+                      message: 'product.errorLoading'.tr(),
+                      details: '${snapshot.error}',
                     ),
                   );
                 } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return AppRefreshIndicator(
                     onRefresh: _refreshProducts,
                     isScrollable: false,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.inventory_2_outlined,
-                            size: 64,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'product.noProductsFound'.tr(),
-                            style: theme.textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'product.addFirst'.tr(),
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
+                    child: EmptyStateWidget(
+                      icon: Icons.inventory_2_outlined,
+                      title: 'product.noProductsFound'.tr(),
+                      subtitle: 'product.addFirst'.tr(),
                     ),
                   );
                 } else {
@@ -415,8 +305,74 @@ class _ProductListViewState extends State<ProductListView> {
   }
 
   Future<void> _refreshProducts() async {
+    final future = _fetchProducts();
     setState(() {
-      _productsFuture = _fetchProducts();
+      _productsFuture = future;
     });
+    await future;
+  }
+}
+
+class _ViewModeToggle extends StatelessWidget {
+  final ProductViewMode viewMode;
+  final ValueChanged<ProductViewMode> onModeChanged;
+
+  const _ViewModeToggle({required this.viewMode, required this.onModeChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return PopupMenuButton<ProductViewMode>(
+      icon: Icon(
+        ViewModeHelper.getViewModeIcon(viewMode),
+        color: colorScheme.primary,
+      ),
+      onSelected: onModeChanged,
+      itemBuilder: (context) => [
+        _buildMenuItem(
+          ProductViewMode.compact,
+          Icons.view_headline,
+          'product.compact'.tr(),
+          colorScheme,
+        ),
+        _buildMenuItem(
+          ProductViewMode.normal,
+          Icons.view_agenda,
+          'product.normal'.tr(),
+          colorScheme,
+        ),
+        _buildMenuItem(
+          ProductViewMode.details,
+          Icons.view_day,
+          'product.details'.tr(),
+          colorScheme,
+        ),
+      ],
+    );
+  }
+
+  PopupMenuItem<ProductViewMode> _buildMenuItem(
+    ProductViewMode mode,
+    IconData icon,
+    String label,
+    ColorScheme colorScheme,
+  ) {
+    final isSelected = viewMode == mode;
+    return PopupMenuItem(
+      value: mode,
+      child: Row(
+        children: [
+          Icon(icon, color: isSelected ? colorScheme.primary : null),
+          const SizedBox(width: 12),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
