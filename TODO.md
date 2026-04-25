@@ -158,6 +158,9 @@ notes:
 - [ ] Write localization script to ensure all keys exists
 - [ ] Add end-to-end (E2E) tests for critical user flows.
     - onboarding, adding inventory items, creating meal plans, etc.
+- [ ] Set up GitHub Actions CI workflows for platform-specific build & run tests (when mature enough to justify emulator CI time):
+    - [ ] Web CI: Install Node/Java/Flutter, start Firebase Emulators, run `flutter build web`, and execute headless Chrome integration tests.
+    - [ ] Android CI: Run on `macos-latest` (for hardware virtualization), build APK, spin up Android Emulator via `reactivecircus/android-emulator-runner`, start Firebase Emulators, and run integration tests.
 
 ## Tempting integrations
 - [ ] Implement error logging and monitoring (e.g., Sentry integration).
