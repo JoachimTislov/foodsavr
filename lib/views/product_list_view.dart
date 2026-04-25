@@ -10,6 +10,7 @@ import '../widgets/product/product_card_compact.dart';
 import 'product_form_view.dart';
 import '../widgets/product/product_card_normal.dart';
 import '../widgets/product/product_card_details.dart';
+import '../widgets/common/app_refresh_indicator.dart';
 import '../utils/product_add_helper.dart';
 import '../utils/view_mode_helper.dart';
 import 'product_detail_view.dart';
@@ -221,63 +222,77 @@ class _ProductListViewState extends State<ProductListView> {
               future: _productsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return AppRefreshIndicator(
+                    onRefresh: _refreshProducts,
+                    isScrollable: false,
+                    child: const Center(child: CircularProgressIndicator()),
+                  );
                 } else if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 64,
-                          color: colorScheme.error,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'product.errorLoading'.tr(),
-                          style: theme.textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${snapshot.error}',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
+                  return AppRefreshIndicator(
+                    onRefresh: _refreshProducts,
+                    isScrollable: false,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 64,
+                            color: colorScheme.error,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                          const SizedBox(height: 16),
+                          Text(
+                            'product.errorLoading'.tr(),
+                            style: theme.textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${snapshot.error}',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.inventory_2_outlined,
-                          size: 64,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'product.noProductsFound'.tr(),
-                          style: theme.textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'product.addFirst'.tr(),
-                          style: theme.textTheme.bodyMedium?.copyWith(
+                  return AppRefreshIndicator(
+                    onRefresh: _refreshProducts,
+                    isScrollable: false,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.inventory_2_outlined,
+                            size: 64,
                             color: colorScheme.onSurfaceVariant,
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 16),
+                          Text(
+                            'product.noProductsFound'.tr(),
+                            style: theme.textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'product.addFirst'.tr(),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 } else {
                   final products = snapshot.data!;
-                  return RefreshIndicator(
+                  return AppRefreshIndicator(
                     onRefresh: _refreshProducts,
+                    isScrollable: true,
                     child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       padding: EdgeInsets.only(
                         top: _viewMode == ProductViewMode.compact ? 4 : 8,
                         bottom: 80,

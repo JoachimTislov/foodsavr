@@ -8,6 +8,7 @@ import '../services/product_service.dart';
 import '../services/select_products_controller.dart';
 import '../widgets/product/compact_location_card.dart';
 import '../widgets/product/product_select_item.dart';
+import '../widgets/common/app_refresh_indicator.dart';
 
 class SelectProductsView extends StatefulWidget {
   final String fromLocationId;
@@ -153,8 +154,9 @@ class _SelectProductsViewState extends State<SelectProductsView> {
               listenable: _controller,
               builder: (context, _) {
                 final products = _controller.filteredProducts;
-                return RefreshIndicator(
+                return AppRefreshIndicator(
                   onRefresh: _refreshProducts,
+                  isScrollable: true,
                   child: ListView.separated(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(horizontal: 16),

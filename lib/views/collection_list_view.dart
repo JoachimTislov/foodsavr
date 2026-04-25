@@ -7,6 +7,7 @@ import '../services/collection_service.dart';
 import '../interfaces/i_auth_service.dart';
 import '../utils/collection_types.dart';
 import '../widgets/collection/collection_card.dart';
+import '../widgets/common/app_refresh_indicator.dart';
 import 'collection_detail_view.dart';
 import 'collection_form_view.dart';
 
@@ -74,86 +75,101 @@ class _CollectionListViewState extends State<CollectionListView> {
               future: _collectionsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return AppRefreshIndicator(
+                    onRefresh: _refreshCollections,
+                    isScrollable: false,
+                    child: const Center(child: CircularProgressIndicator()),
+                  );
                 } else if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 64,
-                          color: colorScheme.error,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'collection.loadError'.tr(),
-                          style: theme.textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${snapshot.error}',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
+                  return AppRefreshIndicator(
+                    onRefresh: _refreshCollections,
+                    isScrollable: false,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 64,
+                            color: colorScheme.error,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                          const SizedBox(height: 16),
+                          Text(
+                            'collection.loadError'.tr(),
+                            style: theme.textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${snapshot.error}',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          widget.typeFilter == CollectionType.shoppingList
-                              ? Icons.shopping_cart_outlined
-                              : Icons.inventory_2_outlined,
-                          size: 64,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'collection.emptyTitle'.tr(),
-                          style: theme.textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'collection.emptySubtitle'.tr(),
-                          style: theme.textTheme.bodyMedium?.copyWith(
+                  return AppRefreshIndicator(
+                    onRefresh: _refreshCollections,
+                    isScrollable: false,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            widget.typeFilter == CollectionType.shoppingList
+                                ? Icons.shopping_cart_outlined
+                                : Icons.inventory_2_outlined,
+                            size: 64,
                             color: colorScheme.onSurfaceVariant,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 24),
-                        FilledButton.icon(
-                          onPressed: () async {
-                            final result = await CollectionFormView.show(
-                              context,
-                              type:
-                                  widget.typeFilter ?? CollectionType.inventory,
-                            );
-                            if (!mounted) return;
-                            if (result == true) {
-                              _refreshCollections();
-                            }
-                          },
-                          icon: const Icon(Icons.add),
-                          label: Text(
-                            widget.typeFilter == CollectionType.shoppingList
-                                ? 'collection.create_shopping_list'.tr()
-                                : 'collection.create_inventory'.tr(),
+                          const SizedBox(height: 16),
+                          Text(
+                            'collection.emptyTitle'.tr(),
+                            style: theme.textTheme.titleLarge,
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          Text(
+                            'collection.emptySubtitle'.tr(),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 24),
+                          FilledButton.icon(
+                            onPressed: () async {
+                              final result = await CollectionFormView.show(
+                                context,
+                                type:
+                                    widget.typeFilter ??
+                                    CollectionType.inventory,
+                              );
+                              if (!mounted) return;
+                              if (result == true) {
+                                _refreshCollections();
+                              }
+                            },
+                            icon: const Icon(Icons.add),
+                            label: Text(
+                              widget.typeFilter == CollectionType.shoppingList
+                                  ? 'collection.create_shopping_list'.tr()
+                                  : 'collection.create_inventory'.tr(),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 } else {
                   final collections = snapshot.data!;
-                  return RefreshIndicator(
+                  return AppRefreshIndicator(
                     onRefresh: _refreshCollections,
+                    isScrollable: true,
                     child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.only(top: 12, bottom: 20),
                       itemCount: collections.length,
                       itemBuilder: (context, index) {

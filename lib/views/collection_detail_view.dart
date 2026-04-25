@@ -9,6 +9,7 @@ import '../service_locator.dart';
 import '../services/product_service.dart';
 import '../services/collection_service.dart';
 import '../widgets/collection/collection_header.dart';
+import '../widgets/common/app_refresh_indicator.dart';
 import '../widgets/common/empty_state_widget.dart';
 import 'add_product_to_collection_view.dart';
 import '../widgets/common/error_state_widget.dart';
@@ -160,38 +161,51 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       future: _productsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return AppRefreshIndicator(
+            onRefresh: _refreshCollection,
+            isScrollable: false,
+            child: const Center(child: CircularProgressIndicator()),
+          );
         } else if (snapshot.hasError) {
-          return ErrorStateWidget(
-            message: 'collection.errorLoadingProducts'.tr(),
+          return AppRefreshIndicator(
+            onRefresh: _refreshCollection,
+            isScrollable: false,
+            child: ErrorStateWidget(
+              message: 'collection.errorLoadingProducts'.tr(),
+            ),
           );
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return EmptyStateWidget(
-            icon: Icons.inventory_2_outlined,
-            title: 'collection.noProducts'.tr(),
+          return AppRefreshIndicator(
+            onRefresh: _refreshCollection,
+            isScrollable: false,
+            child: EmptyStateWidget(
+              icon: Icons.inventory_2_outlined,
+              title: 'collection.noProducts'.tr(),
+            ),
           );
         } else {
-          return _buildProductList(snapshot.data!);
+          return AppRefreshIndicator(
+            onRefresh: _refreshCollection,
+            isScrollable: true,
+            child: _buildProductList(snapshot.data!),
+          );
         }
       },
     );
   }
 
   Widget _buildProductList(List<Product> products) {
-    return RefreshIndicator(
-      onRefresh: _refreshCollection,
-      child: ListView.builder(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(bottom: 80),
-        itemCount: products.length,
-        itemBuilder: (context, index) {
-          final product = products[index];
-          return ProductCardNormal(
-            product: product,
-            onTap: () => _navigateToProductDetail(product),
-          );
-        },
-      ),
+    return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(bottom: 80),
+      itemCount: products.length,
+      itemBuilder: (context, index) {
+        final product = products[index];
+        return ProductCardNormal(
+          product: product,
+          onTap: () => _navigateToProductDetail(product),
+        );
+      },
     );
   }
 

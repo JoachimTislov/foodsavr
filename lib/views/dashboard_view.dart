@@ -11,6 +11,7 @@ import '../services/collection_service.dart';
 import '../utils/collection_types.dart'; // Import CollectionType
 import '../utils/product_add_helper.dart';
 import '../views/product_detail_view.dart';
+import '../widgets/common/app_refresh_indicator.dart';
 import '../widgets/dashboard/expiring_item_card.dart';
 import '../widgets/dashboard/overview_card.dart';
 import 'collection_form_view.dart';
@@ -73,8 +74,9 @@ class _DashboardViewState extends State<DashboardView> {
     ).format(DateTime.now());
 
     return Scaffold(
-      body: RefreshIndicator(
+      body: AppRefreshIndicator(
         onRefresh: _refreshDashboard,
+        isScrollable: true,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.only(
