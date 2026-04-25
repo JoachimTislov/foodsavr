@@ -2,12 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class Config {
-  // isDevelopment is default when appFlavor isn't set
-  static const bool isDevelopment = appFlavor == null;
-  static const String? environment = isDevelopment ? 'development' : appFlavor;
+  static const String environment = appFlavor ?? 'development';
 
+  static bool get isDevelopment => environment == 'development';
   static bool get isProduction => appFlavor == 'production';
-  static bool get useEmulators => appFlavor == 'development';
+  static bool get useEmulators => isDevelopment;
 
   /// The IP address for local development emulators.
   ///

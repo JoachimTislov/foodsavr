@@ -33,7 +33,6 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.foodsavr.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
@@ -49,6 +48,7 @@ android {
             manifestPlaceholders[k] = v
             resValue("string", k, v)
         }
+
         // Ensure EMULATOR_HOST has a default for the build to succeed if .env is missing
         if (!envProperties.containsKey("EMULATOR_HOST")) {
             manifestPlaceholders["EMULATOR_HOST"] = "10.0.2.2"
@@ -56,19 +56,22 @@ android {
         }
     }
 
-    flavorDimensions += "default"
+    flavorDimensions += "environment"
 
     productFlavors {
         create("development") {
-            dimension = "default"
-            versionNameSuffix = "-dev"
+            applicationIdSuffix = ".development"
+            dimension = "environment"
+            versionNameSuffix = "-development"
         }
         create("staging") {
-            dimension = "default"
+            applicationIdSuffix = ".staging"
+            dimension = "environment"
             versionNameSuffix = "-staging"
         }
         create("production") {
-            dimension = "default"
+            dimension = "environment"
+            applicationIdSuffix = ".production"
             versionNameSuffix = "-production"
         }
     }
@@ -77,8 +80,9 @@ android {
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
-            minifyEnabled = true
+            signingConfig = signingConfigs.getByName("release")
+
+            isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

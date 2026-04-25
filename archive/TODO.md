@@ -6,7 +6,7 @@
 - [x] Handle guest logins in settings by either omit or adapting content
 - [x] do not render empty string fields, e.g. description
 - [x] avoid duplicate low value info/displayment...
-- [x] remove top navbar, migrate/ingrate actions in the pages, if any
+- [x] remove top navbar, migrate/integrate actions in the pages, if any
 - [x] NEVER have arrows on the right in cards (remove them all)
     - replace them with elevation or subtle border highlights
 - [x] add an overview page all products registered/related to a user

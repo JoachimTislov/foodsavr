@@ -5,6 +5,16 @@ allprojects {
     }
 }
 
+dependencies {
+    // Import the BoM for the Firebase platform
+    implementation(platform("com.google.firebase:firebase-bom:34.12.0"))
+
+    // Add the dependencies for the App Check libraries
+    // When using the BoM, you don't specify versions in Firebase library dependencies
+    implementation("com.google.firebase:firebase-appcheck-debug")
+}
+
+
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")
