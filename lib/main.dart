@@ -1,4 +1,5 @@
 import 'package:easy_localization/easy_localization.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -63,6 +64,15 @@ void main() async {
   } on FirebaseException catch (e) {
     if (e.code != 'duplicate-app') rethrow;
     logger.i('Firebase app already initialized, skipping...');
+  }
+
+  if (Config.isDevelopment) {
+    await FirebaseAppCheck.instance.activate(
+      // providerWeb: ReCaptchaV3Provider('recaptcha-v3-site-key'),
+      providerAndroid: AndroidDebugProvider(),
+    );
+  } else {
+    await FirebaseAppCheck.instance.activate();
   }
 
   if (Config.useEmulators) await serviceLocator.setupDevelopment();

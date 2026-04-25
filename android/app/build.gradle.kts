@@ -91,13 +91,3 @@ android {
 flutter {
     source = "../.."
 }
-
-dependencies {
-    // START: Firebase App Check Configuration
-    // Import the BoM for the Firebase platform
-    implementation(platform("com.google.firebase:firebase-bom:34.12.0"))
-    // Add the dependencies for the App Check libraries
-    // When using the BoM, you don't specify versions in Firebase library dependencies
-    implementation("com.google.firebase:firebase-appcheck-debug")
-    // END: Firebase App Check Configuration
-}
