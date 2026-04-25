@@ -56,6 +56,9 @@ void main() async {
     'Running in ${Config.environment} mode (Emulators: ${Config.useEmulators})',
   );
 
+  // We skip this check on Web because making an HTTP GET request to the emulator
+  // from the browser triggers a CORS exception, which crashes the app before it
+  // can even render.
   if (Config.useEmulators && !kIsWeb) {
     try {
       // Check if Auth Emulator is reachable before continuing
@@ -82,6 +85,9 @@ void main() async {
     logger.i('Firebase app already initialized, skipping...');
   }
 
+  // We wrap AppCheck activation in a try-catch block because on Web hot-restarts,
+  // the JS SDK retains the initialized Firebase state, and calling `activate`
+  // a second time throws an "already initialized" error, freezing the app.
   try {
     if (Config.useEmulators) {
       await serviceLocator.setupDevelopment();
