@@ -7,17 +7,18 @@ import 'package:go_router/go_router.dart';
 import 'interfaces/i_auth_service.dart';
 import 'utils/collection_types.dart';
 import 'views/auth_view.dart';
-import 'views/landing_page_view.dart';
-import 'views/dashboard_view.dart';
-import 'views/product_list_view.dart';
+import 'views/barcode_scan_view.dart';
 import 'views/collection_list_view.dart';
-import 'views/transfer_management_view.dart';
+import 'views/dashboard_view.dart';
+import 'views/dynamic_collection_view.dart';
+import 'views/landing_page_view.dart';
+import 'views/main_navigation_view.dart';
+import 'views/product_list_view.dart';
+import 'views/profile_view.dart';
 import 'views/select_products_view.dart';
 import 'views/settings_view.dart';
-import 'views/profile_view.dart';
-import 'views/barcode_scan_view.dart';
-import 'views/main_navigation_view.dart';
-import 'views/dynamic_collection_view.dart';
+import 'views/splash_view.dart';
+import 'views/transfer_management_view.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -33,13 +34,23 @@ GoRouter createAppRouter(IAuthService authService) {
       // On web refresh, the initial state is 'not logged in' until Firebase initializes.
       // We check if we're still 'loading' the initial auth state.
       if (!authListenable.isInitialized) {
-        return null; // Stay on current route while loading
+        if (state.uri.path != '/splash') {
+          return '/splash?target=${Uri.encodeComponent(state.uri.toString())}';
+        }
+        return null; // Stay on splash while loading
       }
 
       final isLoggedIn = authService.getUserId() != null;
       final isAnonymousUser = authService.currentUser?.isAnonymous ?? false;
       final isAuthRoute = state.uri.path == '/auth';
       final isLandingRoute = state.uri.path == '/';
+      final isSplashRoute = state.uri.path == '/splash';
+
+      if (isSplashRoute) {
+        // Once initialized, proceed to the intended target.
+        // GoRouter will re-evaluate redirect for that target automatically.
+        return state.uri.queryParameters['target'] ?? '/';
+      }
 
       if (!isLoggedIn) {
         if (!isLandingRoute && !isAuthRoute) {
@@ -52,6 +63,12 @@ GoRouter createAppRouter(IAuthService authService) {
       return null;
     },
     routes: <RouteBase>[
+      GoRoute(
+        path: '/splash',
+        builder: (BuildContext context, GoRouterState state) {
+          return const SplashView();
+        },
+      ),
       GoRoute(
         path: '/',
         builder: (BuildContext context, GoRouterState state) {
