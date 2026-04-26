@@ -1,0 +1,20 @@
+{
+  "migrations": [
+    {
+      "collection": "products",
+      "removeFields": [
+        "expiries",
+        "nonExpiringQuantity",
+        "quantity"
+      ],
+      "addFields": {}
+    },
+    {
+      "collection": "collections",
+      "removeFields": [
+        "productIds"
+      ],
+      "addFields": {}
+    }
+  ]
+}
