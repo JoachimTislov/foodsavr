@@ -54,9 +54,17 @@ view-emulator:
 	@xdg-open http://localhost:8081
 
 # Code quality commands
-check: analyze test locale-check fix fmt
-	@echo "All checks passed! Caching result..."
-	@$(CHECK_HASH_CMD) > .check.sha256
+check:
+	@CURRENT_HASH=$$($(CHECK_HASH_CMD)); \
+	if [ -f .check.sha256 ] && [ "$$CURRENT_HASH" = "$$(cat .check.sha256)" ]; then \
+		echo "Code matches cached check. Skipping duplicate checks..."; \
+	else \
+		$(MAKE) _run-checks || exit 1; \
+		echo "All checks passed! Caching result..."; \
+		$(CHECK_HASH_CMD) > .check.sha256; \
+	fi
+
+_run-checks: analyze test locale-check fix fmt
 
 analyze: deps
 	@echo "Running Flutter analyze..."
@@ -170,18 +178,11 @@ push: deps preflight
 		echo "Upstream DI changes detected, running generate-di..."; \
 		$(MAKE) generate-di || { echo "generate-di failed, aborting push."; exit 1; }; \
 	fi
-	@CURRENT_HASH=$$($(CHECK_HASH_CMD)); \
-	if [ -f .check.sha256 ] && [ "$$CURRENT_HASH" = "$$(cat .check.sha256)" ]; then \
-		echo "Code matches cached check. Skipping duplicate make check..."; \
-	else \
-		$(MAKE) check || { echo "make check failed, aborting push."; exit 1; }; \
-	fi
+	@$(MAKE) check
 	@if [ -n "$$(git status --short)" ]; then \
-		git add .; \
-		git commit -m "format with dart"; \
-		git rev-parse HEAD >> .git-blame-ignore-revs; \
-		git add .git-blame-ignore-revs; \
-		git commit -m "add formatting changes to .git-blame-ignore-revs"; \
+		echo "Error: Uncommitted formatting or linting changes detected after 'make check'."; \
+		echo "Please include these changes in your commit before pushing."; \
+		exit 1; \
 	fi
 	@echo "Pushing to remote..."
 	@if ! git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then \
