@@ -40,16 +40,26 @@ Future<void> main(List<String> args) async {
   try {
     if (!isRemote && !await checkEmulator(client, host, port)) {
       print('❌ Error: Firebase Firestore Emulator is not running.');
-      print('   Please run "make start-firebase-emulators" first or use --remote.');
+      print(
+        '   Please run "make start-firebase-emulators" first or use --remote.',
+      );
       exit(1);
     }
 
     print('📦 Fetching all products...');
-    final products = await getDocuments(client, projectId, host, port, token, isRemote, 'products');
+    final products = await getDocuments(
+      client,
+      projectId,
+      host,
+      port,
+      token,
+      isRemote,
+      'products',
+    );
     for (final product in products) {
       final productId = product['name'].toString().split('/').last;
       final fields = product['fields'] as Map<String, dynamic>? ?? {};
-      
+
       bool needsUpdate = false;
       if (fields.containsKey('expiries')) {
         fields.remove('expiries');
@@ -63,28 +73,58 @@ Future<void> main(List<String> args) async {
         fields.remove('quantity');
         needsUpdate = true;
       }
-      
+
       if (needsUpdate) {
         print('🔄 Updating product $productId schema (removing old fields)...');
-        await updateDocument(client, projectId, host, port, token, isRemote, 'products', productId, fields);
+        await updateDocument(
+          client,
+          projectId,
+          host,
+          port,
+          token,
+          isRemote,
+          'products',
+          productId,
+          fields,
+        );
       }
     }
 
     print('📦 Fetching all collections...');
-    final collections = await getDocuments(client, projectId, host, port, token, isRemote, 'collections');
+    final collections = await getDocuments(
+      client,
+      projectId,
+      host,
+      port,
+      token,
+      isRemote,
+      'collections',
+    );
     for (final collection in collections) {
       final collectionId = collection['name'].toString().split('/').last;
       final fields = collection['fields'] as Map<String, dynamic>? ?? {};
-      
+
       bool needsUpdate = false;
       if (fields.containsKey('productIds')) {
         fields.remove('productIds');
         needsUpdate = true;
       }
-      
+
       if (needsUpdate) {
-        print('🔄 Updating collection $collectionId schema (removing old fields)...');
-        await updateDocument(client, projectId, host, port, token, isRemote, 'collections', collectionId, fields);
+        print(
+          '🔄 Updating collection $collectionId schema (removing old fields)...',
+        );
+        await updateDocument(
+          client,
+          projectId,
+          host,
+          port,
+          token,
+          isRemote,
+          'collections',
+          collectionId,
+          fields,
+        );
       }
     }
 
@@ -99,14 +139,22 @@ Future<void> main(List<String> args) async {
 
 Future<bool> checkEmulator(http.Client client, String host, String port) async {
   try {
-    final response = await client.get(Uri.parse('http://$host:$port/')).timeout(const Duration(seconds: 5));
+    final response = await client
+        .get(Uri.parse('http://$host:$port/'))
+        .timeout(const Duration(seconds: 5));
     return response.statusCode == 200 || response.statusCode == 404;
   } catch (e) {
     return false;
   }
 }
 
-String _buildUrl(String projectId, String host, String port, bool isRemote, String path) {
+String _buildUrl(
+  String projectId,
+  String host,
+  String port,
+  bool isRemote,
+  String path,
+) {
   final scheme = isRemote ? 'https' : 'http';
   final portPart = (isRemote && port == '443') ? '' : ':$port';
   return '$scheme://$host$portPart/v1/projects/$projectId/databases/(default)/documents/$path';
@@ -120,9 +168,20 @@ Map<String, String> _buildHeaders(bool isRemote, String token) {
   return headers;
 }
 
-Future<List<dynamic>> getDocuments(http.Client client, String projectId, String host, String port, String token, bool isRemote, String collectionPath) async {
+Future<List<dynamic>> getDocuments(
+  http.Client client,
+  String projectId,
+  String host,
+  String port,
+  String token,
+  bool isRemote,
+  String collectionPath,
+) async {
   final url = _buildUrl(projectId, host, port, isRemote, collectionPath);
-  final response = await client.get(Uri.parse(url), headers: _buildHeaders(isRemote, token));
+  final response = await client.get(
+    Uri.parse(url),
+    headers: _buildHeaders(isRemote, token),
+  );
 
   if (response.statusCode == 200) {
     final data = jsonDecode(response.body);
@@ -134,12 +193,32 @@ Future<List<dynamic>> getDocuments(http.Client client, String projectId, String 
   }
 }
 
-Future<void> updateDocument(http.Client client, String projectId, String host, String port, String token, bool isRemote, String collectionPath, String documentId, Map<String, dynamic> fields) async {
+Future<void> updateDocument(
+  http.Client client,
+  String projectId,
+  String host,
+  String port,
+  String token,
+  bool isRemote,
+  String collectionPath,
+  String documentId,
+  Map<String, dynamic> fields,
+) async {
   // To completely replace the document with only the provided fields, we DELETE and POST
-  final getUrl = _buildUrl(projectId, host, port, isRemote, '$collectionPath/$documentId');
-  await client.delete(Uri.parse(getUrl), headers: _buildHeaders(isRemote, token));
-  
-  final postUrl = '${_buildUrl(projectId, host, port, isRemote, collectionPath)}?documentId=$documentId';
+  final getUrl = _buildUrl(
+    projectId,
+    host,
+    port,
+    isRemote,
+    '$collectionPath/$documentId',
+  );
+  await client.delete(
+    Uri.parse(getUrl),
+    headers: _buildHeaders(isRemote, token),
+  );
+
+  final postUrl =
+      '${_buildUrl(projectId, host, port, isRemote, collectionPath)}?documentId=$documentId';
   final response = await client.post(
     Uri.parse(postUrl),
     headers: _buildHeaders(isRemote, token),
