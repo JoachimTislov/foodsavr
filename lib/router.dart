@@ -49,7 +49,14 @@ GoRouter createAppRouter(IAuthService authService) {
       if (isSplashRoute) {
         // Once initialized, proceed to the intended target.
         // GoRouter will re-evaluate redirect for that target automatically.
-        return state.uri.queryParameters['target'] ?? '/';
+        // Validate target to prevent infinite loops or open redirects
+        final target = state.uri.queryParameters['target'];
+        if (target != null &&
+            target.startsWith('/') &&
+            !target.startsWith('/splash')) {
+          return target;
+        }
+        return '/';
       }
 
       if (!isLoggedIn) {
