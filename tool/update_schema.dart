@@ -16,8 +16,48 @@ Future<void> main(List<String> args) async {
   final port =
       Platform.environment['FIRESTORE_PORT'] ?? (isRemote ? '443' : '8080');
   final token = Platform.environment['FIREBASE_TOKEN'] ?? '';
-  final isDryRun = Platform.environment['DRY_RUN'] == 'true';
+  final isDryRunEnv = Platform.environment['DRY_RUN'] == 'true';
+  bool isDryRun = isDryRunEnv;
+  final forceRun = Platform.environment['FORCE'] == 'true';
 
+  if (isRemote && !isDryRun && !forceRun) {
+    print(
+      '\n⚠️  WARNING: You are about to execute schema changes on a REMOTE database ($projectId).',
+    );
+    stdout.write(
+      '   Would you like to execute a DRY RUN first to preview changes? (Y/n): ',
+    );
+    final response = stdin.readLineSync()?.trim().toLowerCase();
+    if (response != 'n') {
+      isDryRun = true;
+      print('   -> Switching to DRY RUN mode.\n');
+    }
+  }
+
+  await runMigrationPhase(isRemote, projectId, host, port, token, isDryRun);
+
+  if (isRemote && isDryRun && !isDryRunEnv && !forceRun) {
+    print('\n========================================');
+    print('DRY RUN COMPLETE.');
+    stdout.write('Would you like to APPLY these changes now? (y/N): ');
+    final applyResponse = stdin.readLineSync()?.trim().toLowerCase();
+    if (applyResponse == 'y') {
+      print('\n🚀 Applying changes to REMOTE database ($projectId)...\n');
+      await runMigrationPhase(isRemote, projectId, host, port, token, false);
+    } else {
+      print('   -> Exiting without applying changes.');
+    }
+  }
+}
+
+Future<void> runMigrationPhase(
+  bool isRemote,
+  String projectId,
+  String host,
+  String port,
+  String token,
+  bool isDryRun,
+) async {
   if (isDryRun) {
     print(
       '⚠️  RUNNING IN DRY-RUN MODE: No changes will be written to the database.',
