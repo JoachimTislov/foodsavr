@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:foodsavr/main.dart' as main_app;
 import 'package:foodsavr/main.dart';
 import 'package:foodsavr/router.dart';
 import 'package:foodsavr/service_locator.dart';
@@ -42,18 +43,31 @@ void main() {
   });
 
   group('Main App Constants', () {
+    test('main function throws if flavor is not provided and not on web', () {
+      // By default in unit tests (Dart VM), appFlavor is null and kIsWeb is false.
+      // Therefore, the new flavor safeguard in main() should immediately throw.
+      expect(
+        () => main_app.main(),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('No app flavor provided. Please run the app using'),
+          ),
+        ),
+      );
+    });
+
     test('supportedFlavors contains expected values', () {
       expect(supportedFlavors, isNotEmpty);
       expect(supportedFlavors, contains('development'));
-      expect(supportedFlavors, contains('staging'));
       expect(supportedFlavors, contains('production'));
-      expect(supportedFlavors.length, 3);
+      expect(supportedFlavors.length, 2);
     });
 
     test('supportedFlavors list is in correct order', () {
       expect(supportedFlavors[0], 'development');
-      expect(supportedFlavors[1], 'staging');
-      expect(supportedFlavors[2], 'production');
+      expect(supportedFlavors[1], 'production');
     });
 
     test('dummyOptions has correct configuration', () {
