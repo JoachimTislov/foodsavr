@@ -135,6 +135,7 @@ Future<void> main(List<String> args) async {
             path,
             removeFields,
             addFields,
+            protectedFields,
           );
         } else if (targetType == 'document') {
           await processDocument(
@@ -147,6 +148,7 @@ Future<void> main(List<String> args) async {
             path,
             removeFields,
             addFields,
+            protectedFields,
           );
         } else if (targetType == 'subcollection') {
           // Syntax: parentCollection/*/subCollectionName
@@ -185,6 +187,7 @@ Future<void> main(List<String> args) async {
               '$relativeParentPath/$subCol',
               removeFields,
               addFields,
+              protectedFields,
             );
           }
         } else {
@@ -380,6 +383,7 @@ Future<void> processCollection(
   String collectionPath,
   List<String> removeFields,
   List<dynamic> addFields,
+  List<String> protectedFields,
 ) async {
   print('   Fetching docs in $collectionPath...');
   final docs = await getDocumentsPaginated(
@@ -404,6 +408,7 @@ Future<void> processCollection(
       fields,
       removeFields,
       addFields,
+      protectedFields,
     );
   }
 }
@@ -418,6 +423,7 @@ Future<void> processDocument(
   String docPath,
   List<String> removeFields,
   List<dynamic> addFields,
+  List<String> protectedFields,
 ) async {
   print('   Fetching doc $docPath...');
   final doc = await getDocument(
@@ -446,6 +452,7 @@ Future<void> processDocument(
     fields,
     removeFields,
     addFields,
+    protectedFields,
   );
 }
 
@@ -459,6 +466,7 @@ Future<void> _applyModifications(
   Map<String, dynamic> currentFields,
   List<String> removeFields,
   List<dynamic> addFields,
+  List<String> protectedFields,
 ) async {
   bool needsUpdate = false;
   final updatedFields = Map<String, dynamic>.from(currentFields);
@@ -471,15 +479,28 @@ Future<void> _applyModifications(
     }
   }
 
-  // Add fields safely (do not overwrite existing values)
+  // Add fields safely
   for (final addF in addFields) {
     final af = addF as Map<String, dynamic>;
     final name = af['name'] as String;
     final type = af['type'] as String;
     final value = af['value'];
 
-    if (!updatedFields.containsKey(name)) {
-      updatedFields[name] = _buildFirestoreValue(type, value);
+    if (updatedFields.containsKey(name)) {
+      // If the field exists AND it is a protected field, do NOT modify it.
+      if (protectedFields.contains(name)) {
+        print(
+          '      ⚠️  WARNING: Skipping modification of protected field "$name" on ${absoluteName.split('/').last}. Protected fields can be added but not modified.',
+        );
+        continue;
+      }
+    }
+
+    final newValue = _buildFirestoreValue(type, value);
+
+    if (!updatedFields.containsKey(name) ||
+        jsonEncode(updatedFields[name]) != jsonEncode(newValue)) {
+      updatedFields[name] = newValue;
       needsUpdate = true;
     }
   }
