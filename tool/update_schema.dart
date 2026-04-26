@@ -24,7 +24,7 @@ Future<void> main() async {
     for (final product in products) {
       final productId = product['name'].toString().split('/').last;
       final fields = product['fields'] as Map<String, dynamic>? ?? {};
-      
+
       bool needsUpdate = false;
       if (fields.containsKey('expiries')) {
         fields.remove('expiries');
@@ -38,7 +38,7 @@ Future<void> main() async {
         fields.remove('quantity');
         needsUpdate = true;
       }
-      
+
       if (needsUpdate) {
         print('🔄 Updating product $productId schema (removing old fields)...');
         await updateDocument(client, 'products', productId, fields);
@@ -50,15 +50,17 @@ Future<void> main() async {
     for (final collection in collections) {
       final collectionId = collection['name'].toString().split('/').last;
       final fields = collection['fields'] as Map<String, dynamic>? ?? {};
-      
+
       bool needsUpdate = false;
       if (fields.containsKey('productIds')) {
         fields.remove('productIds');
         needsUpdate = true;
       }
-      
+
       if (needsUpdate) {
-        print('🔄 Updating collection $collectionId schema (removing old fields)...');
+        print(
+          '🔄 Updating collection $collectionId schema (removing old fields)...',
+        );
         await updateDocument(client, 'collections', collectionId, fields);
       }
     }
@@ -74,15 +76,21 @@ Future<void> main() async {
 
 Future<bool> checkEmulator(http.Client client) async {
   try {
-    final response = await client.get(Uri.parse('http://$host:$firestorePort/')).timeout(const Duration(seconds: 5));
+    final response = await client
+        .get(Uri.parse('http://$host:$firestorePort/'))
+        .timeout(const Duration(seconds: 5));
     return response.statusCode == 200 || response.statusCode == 404;
   } catch (e) {
     return false;
   }
 }
 
-Future<List<dynamic>> getDocuments(http.Client client, String collectionPath) async {
-  final url = 'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collectionPath';
+Future<List<dynamic>> getDocuments(
+  http.Client client,
+  String collectionPath,
+) async {
+  final url =
+      'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collectionPath';
   final response = await client.get(Uri.parse(url));
 
   if (response.statusCode == 200) {
@@ -95,7 +103,12 @@ Future<List<dynamic>> getDocuments(http.Client client, String collectionPath) as
   }
 }
 
-Future<void> updateDocument(http.Client client, String collectionPath, String documentId, Map<String, dynamic> fields) async {
+Future<void> updateDocument(
+  http.Client client,
+  String collectionPath,
+  String documentId,
+  Map<String, dynamic> fields,
+) async {
   // To delete a field via the REST API using patch, we must use the updateMask.
   // The updateMask specifies which fields to update. If a field is in the mask but not in the payload, it gets deleted.
   // Wait, if we just want to replace the whole document, we can issue a PATCH with no updateMask? No, that just merges.
@@ -105,24 +118,26 @@ Future<void> updateDocument(http.Client client, String collectionPath, String do
   // To delete fields, we must include them in the updateMask but NOT in the document.
   // Wait, or we can just send the new fields and set the updateMask to the KEYS of the new fields, but that won't delete old fields.
   // To delete fields, we have to list ALL fields we want to keep in the updateMask, and since the old fields are NOT in the mask, they are deleted? No, updateMask defines what is updated. If we want to delete a field, we include it in the updateMask, but omit it from the document payload.
-  
+
   // However, an easier way to replace the entire document is to DELETE it and POST it again? No, the ID changes with POST. We can DELETE and recreate with specific ID.
   // Or we can just use the updateMask to specify the fields to delete.
-  
+
   // Let's specify the updateMask with the fields we want to KEEP, and ALSO the fields we want to DELETE?
   // Wait, if a field is in the updateMask, but NOT in the payload, it is deleted.
   // So updateMask should be ALL keys of the OLD document, and payload has the new fields.
-  
+
   // Actually, if we just use the REST API `patch` with `updateMask` containing ALL existing fields + the ones to delete, the ones missing in payload are deleted.
   // Wait, we don't have the old fields here, just the new fields. Let's just pass `updateMask` with all new fields, plus the deleted fields.
-  // But hardcoding the deleted fields might be fragile if they aren't there. 
+  // But hardcoding the deleted fields might be fragile if they aren't there.
   // Let's just delete the document and recreate it? That's safe and simple.
-  
-  final getUrl = 'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collectionPath/$documentId';
+
+  final getUrl =
+      'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collectionPath/$documentId';
   await client.delete(Uri.parse(getUrl));
-  
+
   // Now recreate it with the correct ID. To do this, we use POST with `documentId` query param to the parent collection.
-  final postUrl = 'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collectionPath?documentId=$documentId';
+  final postUrl =
+      'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collectionPath?documentId=$documentId';
   final response = await client.post(
     Uri.parse(postUrl),
     headers: {'Content-Type': 'application/json'},
