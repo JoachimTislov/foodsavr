@@ -7,24 +7,18 @@ import 'package:http/http.dart' as http;
 Future<void> main(List<String> args) async {
   print('🚀 Starting Firestore Rules Deployment...');
 
-  String projectId = 'demo-project';
-  String token = '';
-  String rulesFile = 'firestore.rules';
+  final isRemote = Platform.environment['FIRESTORE_REMOTE'] == 'true';
+  final projectId =
+      Platform.environment['FIREBASE_PROJECT_ID'] ?? 'demo-project';
+  final token = Platform.environment['FIREBASE_TOKEN'] ?? '';
+  final rulesFile =
+      Platform.environment['FIRESTORE_RULES_PATH'] ?? 'firestore.rules';
 
-  for (final arg in args) {
-    if (arg.startsWith('--project=')) {
-      projectId = arg.substring('--project='.length);
-    } else if (arg.startsWith('--token=')) {
-      token = arg.substring('--token='.length);
-    } else if (arg.startsWith('--rules=')) {
-      rulesFile = arg.substring('--rules='.length);
-    }
-  }
-
-  if (token.isEmpty) {
+  if (isRemote && token.isEmpty) {
     print(
-      '❌ Error: --token is required. Use `gcloud auth print-access-token` to get a token.',
+      '❌ Error: FIREBASE_TOKEN environment variable is required when FIRESTORE_REMOTE=true.',
     );
+    print('   Use `gcloud auth print-access-token` to get a token.');
     exit(1);
   }
 
