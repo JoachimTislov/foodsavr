@@ -29,6 +29,11 @@ const dummyOptions = FirebaseOptions(
 const List<String> supportedFlavors = <String>['development', 'production'];
 
 void main() async {
+  if (appFlavor == null && !kIsWeb) {
+    throw Exception(
+      'No app flavor provided. Please run the app using `make dev-android` or specify a flavor using `--flavor development`. See archive/issues/gradle-build-failed-apk-flavor.md for more info.',
+    );
+  }
   if (appFlavor != null && !supportedFlavors.contains(appFlavor)) {
     throw Exception(
       'Invalid app flavor: $appFlavor. Supported flavors: ${supportedFlavors.join(', ')}',
