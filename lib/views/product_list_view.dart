@@ -8,11 +8,10 @@ import '../services/collection_service.dart';
 import '../interfaces/i_auth_service.dart';
 import '../widgets/product/product_card_compact.dart';
 import '../widgets/common/empty_state_widget.dart';
-import '../widgets/common/error_state_widget.dart';
+import '../widgets/common/retry_scaffold.dart';
 import 'product_form_view.dart';
 import '../widgets/product/product_card_normal.dart';
 import '../widgets/product/product_card_details.dart';
-import '../widgets/common/app_refresh_indicator.dart';
 import '../utils/product_add_helper.dart';
 import '../utils/view_mode_helper.dart';
 import 'product_detail_view.dart';
@@ -27,7 +26,7 @@ class ProductListView extends StatefulWidget {
 }
 
 class _ProductListViewState extends State<ProductListView> {
-  late Future<List<Product>> _productsFuture;
+  List<Product> _products = [];
   late final ProductService _productService;
   late final CollectionService _collectionService;
   late final IAuthService _authService;
@@ -40,22 +39,24 @@ class _ProductListViewState extends State<ProductListView> {
     _productService = getIt<ProductService>();
     _collectionService = getIt<CollectionService>();
     _authService = getIt<IAuthService>();
-    _productsFuture = _fetchProducts();
   }
 
-  Future<List<Product>> _fetchProducts() async {
-    List<Product> products;
+  Future<void> _fetchProducts() async {
+    List<Product> fetchedProducts;
     if (widget.showGlobalProducts) {
-      products = await _productService.getAllProducts();
+      fetchedProducts = await _productService.getAllProducts();
     } else {
       final userId = _authService.getUserId();
-      if (userId == null) return [];
-      products = await _productService.getProducts(userId);
+      if (userId == null) {
+        if (mounted) setState(() => _products = []);
+        return;
+      }
+      fetchedProducts = await _productService.getProducts(userId);
     }
 
     if (!widget.showGlobalProducts) {
       try {
-        await _loadInventoryNames(products);
+        await _loadInventoryNames(fetchedProducts);
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -69,7 +70,11 @@ class _ProductListViewState extends State<ProductListView> {
       }
     }
 
-    return products;
+    if (mounted) {
+      setState(() {
+        _products = fetchedProducts;
+      });
+    }
   }
 
   Future<void> _loadInventoryNames(List<Product> products) async {
@@ -101,115 +106,92 @@ class _ProductListViewState extends State<ProductListView> {
         ? 'dashboard.globalProducts'.tr()
         : 'product.all_products'.tr();
 
-    return Scaffold(
-      body: Column(
-        children: [
-          // Custom Header
-          Container(
-            padding: EdgeInsets.only(
-              left: 16,
-              top: MediaQuery.of(context).padding.top + 16,
-              right: 16,
-              bottom: 16,
-            ),
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(24),
-              ),
-            ),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                _ViewModeToggle(
-                  viewMode: _viewMode,
-                  onModeChanged: (mode) {
-                    setState(() {
-                      _viewMode = mode;
-                    });
-                  },
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: FutureBuilder<List<Product>>(
-              future: _productsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return AppRefreshIndicator(
-                    onRefresh: _refreshProducts,
-                    isScrollable: false,
-                    child: const Center(child: CircularProgressIndicator()),
-                  );
-                } else if (snapshot.hasError) {
-                  return AppRefreshIndicator(
-                    onRefresh: _refreshProducts,
-                    isScrollable: false,
-                    child: ErrorStateWidget(
-                      message: 'product.errorLoading'.tr(),
-                      details: '${snapshot.error}',
-                    ),
-                  );
-                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return AppRefreshIndicator(
-                    onRefresh: _refreshProducts,
-                    isScrollable: false,
-                    child: EmptyStateWidget(
-                      icon: Icons.inventory_2_outlined,
-                      title: 'product.noProductsFound'.tr(),
-                      subtitle: 'product.addFirst'.tr(),
-                    ),
-                  );
-                } else {
-                  final products = snapshot.data!;
-                  return AppRefreshIndicator(
-                    onRefresh: _refreshProducts,
-                    isScrollable: true,
-                    child: ListView.builder(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: EdgeInsets.only(
-                        top: _viewMode == ProductViewMode.compact ? 4 : 8,
-                        bottom: 80,
-                      ),
-                      itemCount: products.length,
-                      itemBuilder: (context, index) {
-                        final product = products[index];
-                        return _buildProductCard(product);
-                      },
-                    ),
-                  );
-                }
-              },
-            ),
-          ),
-        ],
-      ),
+    return RetryScaffold(
+      onRefresh: _fetchProducts,
+      fetchOnInit: true,
+      isBodyScrollable: true,
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'product_list_fab',
         onPressed: () async {
           final result = await ProductAddHelper.startAddProductFlow(context);
           if (result == true && mounted) {
-            await _refreshProducts();
+            await _fetchProducts();
           }
         },
         icon: const Icon(Icons.qr_code_scanner),
         label: Text('product.scanBarcode'.tr()),
+      ),
+      body: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Container(
+              padding: EdgeInsets.only(
+                left: 16,
+                top: MediaQuery.of(context).padding.top + 16,
+                right: 16,
+                bottom: 16,
+              ),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(24),
+                ),
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  _ViewModeToggle(
+                    viewMode: _viewMode,
+                    onModeChanged: (mode) {
+                      setState(() {
+                        _viewMode = mode;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_products.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: EmptyStateWidget(
+                icon: Icons.inventory_2_outlined,
+                title: 'product.noProductsFound'.tr(),
+                subtitle: 'product.addFirst'.tr(),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: EdgeInsets.only(
+                top: _viewMode == ProductViewMode.compact ? 4 : 8,
+                bottom: 80,
+              ),
+              sliver: SliverList.builder(
+                itemCount: _products.length,
+                itemBuilder: (context, index) {
+                  final product = _products[index];
+                  return _buildProductCard(product);
+                },
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -238,7 +220,7 @@ class _ProductListViewState extends State<ProductListView> {
             );
             if (!mounted) return;
             if (result == true) {
-              _refreshProducts();
+              _fetchProducts();
             }
           },
           onDelete: () {
@@ -283,9 +265,7 @@ class _ProductListViewState extends State<ProductListView> {
                     ),
                   ),
                 );
-                setState(() {
-                  _productsFuture = _fetchProducts();
-                });
+                _fetchProducts();
               } catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -302,14 +282,6 @@ class _ProductListViewState extends State<ProductListView> {
         ],
       ),
     );
-  }
-
-  Future<void> _refreshProducts() async {
-    final future = _fetchProducts();
-    setState(() {
-      _productsFuture = future;
-    });
-    await future;
   }
 }
 

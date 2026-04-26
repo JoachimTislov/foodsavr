@@ -8,7 +8,7 @@ import '../services/product_service.dart';
 import '../services/select_products_controller.dart';
 import '../widgets/product/compact_location_card.dart';
 import '../widgets/product/product_select_item.dart';
-import '../widgets/common/app_refresh_indicator.dart';
+import '../widgets/common/retry_scaffold.dart';
 
 class SelectProductsView extends StatefulWidget {
   final String fromLocationId;
@@ -37,9 +37,6 @@ class _SelectProductsViewState extends State<SelectProductsView> {
     _authService = getIt<IAuthService>();
     _controller = SelectProductsController();
     _searchController = TextEditingController();
-    _productService
-        .getProducts(_authService.getUserId())
-        .then(_controller.loadProducts);
   }
 
   @override
@@ -50,9 +47,10 @@ class _SelectProductsViewState extends State<SelectProductsView> {
   }
 
   Future<void> _refreshProducts() async {
-    final products = await _productService.getProducts(
-      _authService.getUserId(),
-    );
+    final userId = _authService.getUserId();
+    if (userId == null) return;
+
+    final products = await _productService.getProducts(userId);
     _controller.loadProducts(products);
   }
 
@@ -61,7 +59,10 @@ class _SelectProductsViewState extends State<SelectProductsView> {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return Scaffold(
+    return RetryScaffold(
+      onRefresh: _refreshProducts,
+      fetchOnInit: true,
+      isBodyScrollable: true,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -77,62 +78,64 @@ class _SelectProductsViewState extends State<SelectProductsView> {
       ),
       body: Column(
         children: [
-          // Location display
-          _LocationHeader(
-            fromLocationId: widget.fromLocationId,
-            toLocationId: widget.toLocationId,
-          ),
-
-          // Search bar
-          _SearchBar(
-            controller: _searchController,
-            onChanged: _controller.updateQuery,
-          ),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: Row(
-              children: [
-                Text(
-                  'product.available_stock'.tr(),
-                  style: textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                    color: colorScheme.onSurfaceVariant,
+          Expanded(
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(
+                  child: _LocationHeader(
+                    fromLocationId: widget.fromLocationId,
+                    toLocationId: widget.toLocationId,
                   ),
                 ),
+                SliverToBoxAdapter(
+                  child: _SearchBar(
+                    controller: _searchController,
+                    onChanged: _controller.updateQuery,
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      'product.available_stock'.tr(),
+                      style: textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+                ListenableBuilder(
+                  listenable: _controller,
+                  builder: (context, _) {
+                    final products = _controller.filteredProducts;
+                    return SliverList.separated(
+                      itemCount: products.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final product = products[index];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: ProductSelectItem(
+                            product: product,
+                            isSelected: _controller.isSelected(product.id),
+                            onToggle: () =>
+                                _controller.toggleSelection(product.id),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+                const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
               ],
             ),
           ),
-
-          // Product list
-          Expanded(
-            child: ListenableBuilder(
-              listenable: _controller,
-              builder: (context, _) {
-                final products = _controller.filteredProducts;
-                return AppRefreshIndicator(
-                  onRefresh: _refreshProducts,
-                  isScrollable: true,
-                  child: ListView.separated(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: products.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final product = products[index];
-                      return ProductSelectItem(
-                        product: product,
-                        isSelected: _controller.isSelected(product.id),
-                        onToggle: () => _controller.toggleSelection(product.id),
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
-
           // CTA
           ListenableBuilder(
             listenable: _controller,
