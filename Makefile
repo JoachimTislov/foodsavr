@@ -1,18 +1,26 @@
 .PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps di locale-check generate-di preflight push
 
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
+FLUTTER_RUN_CMD := flutter run --no-pub $(DOTENV_FLAGS)
+FLUTTER_BUILD_APK_CMD := flutter build apk --no-pub $(DOTENV_FLAGS)
 
-run: deps start-firebase-emulators
-	@flutter run --no-pub $(DOTENV_FLAGS) --flavor development
+run-dev: deps start-firebase-emulators
+	@$(FLUTTER_RUN_CMD) --flavor development
 
-build-android: deps
-	@flutter build apk --no-pub $(DOTENV_FLAGS) --flavor development
+run-prod: deps start-firebase-emulators
+	@$(FLUTTER_RUN_CMD) --flavor production
+
+build-apk-debug: deps
+	@$(FLUTTER_BUILD_APK_CMD) --flavor development --debug
+
+build-apk-release: deps
+	@$(FLUTTER_BUILD_APK_CMD) --flavor production --release
 
 dev-chrome-prod: deps
-	@flutter run -d chrome --no-pub --flavor production $(DOTENV_FLAGS)
+	@$(FLUTTER_RUN_CMD) -d chrome --flavor production
 
 dev-chrome: deps start-firebase-emulators
-	@flutter run -d chrome --no-pub $(DOTENV_FLAGS)
+	@$(FLUTTER_RUN_CMD) -d chrome
 
 start-firebase-emulators:
 	@if ! lsof -ti :9099 -sTCP:LISTEN > /dev/null; then \
