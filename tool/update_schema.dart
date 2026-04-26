@@ -16,6 +16,13 @@ Future<void> main(List<String> args) async {
   final port =
       Platform.environment['FIRESTORE_PORT'] ?? (isRemote ? '443' : '8080');
   final token = Platform.environment['FIREBASE_TOKEN'] ?? '';
+  final isDryRun = Platform.environment['DRY_RUN'] == 'true';
+
+  if (isDryRun) {
+    print(
+      '⚠️  RUNNING IN DRY-RUN MODE: No changes will be written to the database.',
+    );
+  }
 
   final configPath =
       Platform.environment['MIGRATIONS_CONFIG'] ?? 'migrations/permanent.json';
@@ -132,6 +139,7 @@ Future<void> main(List<String> args) async {
             port,
             token,
             isRemote,
+            isDryRun,
             path,
             removeFields,
             addFields,
@@ -145,6 +153,7 @@ Future<void> main(List<String> args) async {
             port,
             token,
             isRemote,
+            isDryRun,
             path,
             removeFields,
             addFields,
@@ -184,6 +193,7 @@ Future<void> main(List<String> args) async {
               port,
               token,
               isRemote,
+              isDryRun,
               '$relativeParentPath/$subCol',
               removeFields,
               addFields,
@@ -197,16 +207,20 @@ Future<void> main(List<String> args) async {
       }
 
       // Mark as applied
-      await markMigrationApplied(
-        client,
-        projectId,
-        host,
-        port,
-        token,
-        isRemote,
-        scriptName,
-      );
-      print('✅ Migration $scriptName applied successfully!');
+      if (!isDryRun) {
+        await markMigrationApplied(
+          client,
+          projectId,
+          host,
+          port,
+          token,
+          isRemote,
+          scriptName,
+        );
+        print('✅ Migration $scriptName applied successfully!');
+      } else {
+        print('   [DRY RUN] Would mark migration $scriptName as applied.');
+      }
     }
 
     print('\n✨ All dynamic schema updates completed successfully!');
@@ -380,6 +394,7 @@ Future<void> processCollection(
   String port,
   String token,
   bool isRemote,
+  bool isDryRun,
   String collectionPath,
   List<String> removeFields,
   List<dynamic> addFields,
@@ -403,6 +418,7 @@ Future<void> processCollection(
       host,
       port,
       isRemote,
+      isDryRun,
       token,
       absoluteName,
       fields,
@@ -420,6 +436,7 @@ Future<void> processDocument(
   String port,
   String token,
   bool isRemote,
+  bool isDryRun,
   String docPath,
   List<String> removeFields,
   List<dynamic> addFields,
@@ -447,6 +464,7 @@ Future<void> processDocument(
     host,
     port,
     isRemote,
+    isDryRun,
     token,
     absoluteName,
     fields,
@@ -461,6 +479,7 @@ Future<void> _applyModifications(
   String host,
   String port,
   bool isRemote,
+  bool isDryRun,
   String token,
   String absoluteName,
   Map<String, dynamic> currentFields,
@@ -471,10 +490,14 @@ Future<void> _applyModifications(
   bool needsUpdate = false;
   final updatedFields = Map<String, dynamic>.from(currentFields);
 
+  List<String> actuallyRemoved = [];
+  Map<String, dynamic> actuallyAddedOrUpdated = {};
+
   // Remove fields
   for (final f in removeFields) {
     if (updatedFields.containsKey(f)) {
       updatedFields.remove(f);
+      actuallyRemoved.add(f);
       needsUpdate = true;
     }
   }
@@ -501,21 +524,32 @@ Future<void> _applyModifications(
     if (!updatedFields.containsKey(name) ||
         jsonEncode(updatedFields[name]) != jsonEncode(newValue)) {
       updatedFields[name] = newValue;
+      actuallyAddedOrUpdated[name] = value;
       needsUpdate = true;
     }
   }
 
   if (needsUpdate) {
-    print('      🔄 Patching ${absoluteName.split('/').last}...');
-    await _patchDocument(
-      client,
-      host,
-      port,
-      isRemote,
-      token,
-      absoluteName,
-      updatedFields,
-    );
+    if (isDryRun) {
+      print('      [DRY RUN] Would update ${absoluteName.split('/').last}:');
+      if (actuallyRemoved.isNotEmpty) {
+        print('         - Remove: ${actuallyRemoved.join(', ')}');
+      }
+      if (actuallyAddedOrUpdated.isNotEmpty) {
+        print('         - Set/Update: $actuallyAddedOrUpdated');
+      }
+    } else {
+      print('      🔄 Patching ${absoluteName.split('/').last}...');
+      await _patchDocument(
+        client,
+        host,
+        port,
+        isRemote,
+        token,
+        absoluteName,
+        updatedFields,
+      );
+    }
   }
 }
 
