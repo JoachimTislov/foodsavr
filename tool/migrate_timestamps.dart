@@ -4,25 +4,51 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 
-const String projectId = 'demo-project';
-const String host = 'localhost';
-const String firestorePort = '8080';
-
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   print('🚀 Starting Timestamp migration...');
+
+  final isRemote = Platform.environment['FIRESTORE_REMOTE'] == 'true';
+  final projectId =
+      Platform.environment['FIREBASE_PROJECT_ID'] ?? 'demo-project';
+  final host =
+      Platform.environment['FIRESTORE_HOST'] ??
+      (isRemote ? 'firestore.googleapis.com' : 'localhost');
+  final port =
+      Platform.environment['FIRESTORE_PORT'] ?? (isRemote ? '443' : '8080');
+  final token = Platform.environment['FIREBASE_TOKEN'] ?? '';
+
+  if (isRemote && token.isEmpty) {
+    print(
+      '❌ Error: FIREBASE_TOKEN environment variable is required when FIRESTORE_REMOTE=true.',
+    );
+    print('   Use `gcloud auth print-access-token` to get a token.');
+    exit(1);
+  }
 
   final client = http.Client();
 
   try {
-    if (!await checkEmulator(client)) {
+    if (!isRemote && !await checkEmulator(client, host, port)) {
       print('❌ Error: Firebase Firestore Emulator is not running.');
-      print('   Please run "make start-firebase-emulators" first.');
+      print(
+        '   Please run "make start-firebase-emulators" first or set FIRESTORE_REMOTE=true.',
+      );
       exit(1);
     }
 
-    print('📦 Fetching all products...');
-    final products = await getDocuments(client, 'products');
+    print('📦 Fetching all products from $projectId...');
+    final products = await getDocuments(
+      client,
+      projectId,
+      host,
+      port,
+      token,
+      isRemote,
+      'products',
+    );
     print('Found ${products.length} products.');
+
+    int migratedCount = 0;
 
     for (final product in products) {
       final productId = product['name'].toString().split('/').last;
@@ -69,11 +95,24 @@ Future<void> main() async {
           'arrayValue': {'values': updatedExpiries},
         };
 
-        await updateDocument(client, 'products', productId, updatedFields);
+        await updateDocument(
+          client,
+          projectId,
+          host,
+          port,
+          token,
+          isRemote,
+          'products',
+          productId,
+          updatedFields,
+        );
+        migratedCount++;
       }
     }
 
-    print('\n✨ Timestamp migration completed successfully!');
+    print(
+      '\n✨ Timestamp migration completed successfully! Migrated $migratedCount products.',
+    );
   } catch (e) {
     print('❌ Error during migration: $e');
     exit(1);
@@ -82,10 +121,10 @@ Future<void> main() async {
   }
 }
 
-Future<bool> checkEmulator(http.Client client) async {
+Future<bool> checkEmulator(http.Client client, String host, String port) async {
   try {
     final response = await client
-        .get(Uri.parse('http://$host:$firestorePort/'))
+        .get(Uri.parse('http://$host:$port/'))
         .timeout(const Duration(seconds: 5));
     return response.statusCode == 200 || response.statusCode == 404;
   } catch (e) {
@@ -93,13 +132,40 @@ Future<bool> checkEmulator(http.Client client) async {
   }
 }
 
+String _buildUrl(
+  String projectId,
+  String host,
+  String port,
+  bool isRemote,
+  String path,
+) {
+  final scheme = isRemote ? 'https' : 'http';
+  final portPart = (isRemote && port == '443') ? '' : ':$port';
+  return '$scheme://$host$portPart/v1/projects/$projectId/databases/(default)/documents/$path';
+}
+
+Map<String, String> _buildHeaders(bool isRemote, String token) {
+  final headers = {'Content-Type': 'application/json'};
+  if (isRemote) {
+    headers['Authorization'] = 'Bearer $token';
+  }
+  return headers;
+}
+
 Future<List<dynamic>> getDocuments(
   http.Client client,
+  String projectId,
+  String host,
+  String port,
+  String token,
+  bool isRemote,
   String collectionPath,
 ) async {
-  final url =
-      'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collectionPath';
-  final response = await client.get(Uri.parse(url));
+  final url = _buildUrl(projectId, host, port, isRemote, collectionPath);
+  final response = await client.get(
+    Uri.parse(url),
+    headers: _buildHeaders(isRemote, token),
+  );
 
   if (response.statusCode == 200) {
     final data = jsonDecode(response.body);
@@ -115,15 +181,25 @@ Future<List<dynamic>> getDocuments(
 
 Future<void> updateDocument(
   http.Client client,
+  String projectId,
+  String host,
+  String port,
+  String token,
+  bool isRemote,
   String collectionPath,
   String documentId,
   Map<String, dynamic> fields,
 ) async {
-  final url =
-      'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collectionPath/$documentId';
+  final url = _buildUrl(
+    projectId,
+    host,
+    port,
+    isRemote,
+    '$collectionPath/$documentId',
+  );
   final response = await client.patch(
     Uri.parse(url),
-    headers: {'Content-Type': 'application/json'},
+    headers: _buildHeaders(isRemote, token),
     body: jsonEncode({'fields': fields}),
   );
 

@@ -7,30 +7,20 @@ import 'package:http/http.dart' as http;
 Future<void> main(List<String> args) async {
   print('🚀 Starting schema update...');
 
-  bool isRemote = false;
-  String projectId = 'demo-project';
-  String host = 'localhost';
-  String port = '8080';
-  String token = '';
-
-  for (final arg in args) {
-    if (arg == '--remote') {
-      isRemote = true;
-      host = 'firestore.googleapis.com';
-      port = '443';
-    } else if (arg.startsWith('--project=')) {
-      projectId = arg.substring('--project='.length);
-    } else if (arg.startsWith('--token=')) {
-      token = arg.substring('--token='.length);
-    } else if (arg.startsWith('--host=')) {
-      host = arg.substring('--host='.length);
-    } else if (arg.startsWith('--port=')) {
-      port = arg.substring('--port='.length);
-    }
-  }
+  final isRemote = Platform.environment['FIRESTORE_REMOTE'] == 'true';
+  final projectId =
+      Platform.environment['FIREBASE_PROJECT_ID'] ?? 'demo-project';
+  final host =
+      Platform.environment['FIRESTORE_HOST'] ??
+      (isRemote ? 'firestore.googleapis.com' : 'localhost');
+  final port =
+      Platform.environment['FIRESTORE_PORT'] ?? (isRemote ? '443' : '8080');
+  final token = Platform.environment['FIREBASE_TOKEN'] ?? '';
 
   if (isRemote && token.isEmpty) {
-    print('❌ Error: --token is required when using --remote.');
+    print(
+      '❌ Error: FIREBASE_TOKEN environment variable is required when FIRESTORE_REMOTE=true.',
+    );
     print('   Use `gcloud auth print-access-token` to get a token.');
     exit(1);
   }
@@ -41,7 +31,7 @@ Future<void> main(List<String> args) async {
     if (!isRemote && !await checkEmulator(client, host, port)) {
       print('❌ Error: Firebase Firestore Emulator is not running.');
       print(
-        '   Please run "make start-firebase-emulators" first or use --remote.',
+        '   Please run "make start-firebase-emulators" first or set FIRESTORE_REMOTE=true.',
       );
       exit(1);
     }
