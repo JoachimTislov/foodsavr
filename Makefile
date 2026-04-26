@@ -3,6 +3,7 @@
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
 FLUTTER_RUN_CMD := flutter run --no-pub $(DOTENV_FLAGS)
 FLUTTER_BUILD_APK_CMD := flutter build apk --no-pub $(DOTENV_FLAGS)
+CHECK_HASH_CMD := find lib test pubspec.yaml analysis_options.yaml -type f 2>/dev/null | sort | xargs sha256sum | sha256sum | awk '{print $$1}'
 
 run-dev: deps start-firebase-emulators
 	@$(FLUTTER_RUN_CMD) --flavor development
@@ -54,6 +55,8 @@ view-emulator:
 
 # Code quality commands
 check: analyze test locale-check fix fmt
+	@echo "All checks passed! Caching result..."
+	@$(CHECK_HASH_CMD) > .check.sha256
 
 analyze: deps
 	@echo "Running Flutter analyze..."
@@ -80,7 +83,7 @@ test: deps
 clean:
 	@echo "Cleaning build artifacts..."
 	@flutter clean
-	@rm .deps-stamp 2>/dev/null
+	@rm .deps-stamp .check.sha256 2>/dev/null || true
 
 locales:
 	@echo "Extracting locales..."
@@ -167,7 +170,12 @@ push: deps preflight
 		echo "Upstream DI changes detected, running generate-di..."; \
 		$(MAKE) generate-di || { echo "generate-di failed, aborting push."; exit 1; }; \
 	fi
-	@$(MAKE) check
+	@CURRENT_HASH=$$($(CHECK_HASH_CMD)); \
+	if [ -f .check.sha256 ] && [ "$$CURRENT_HASH" = "$$(cat .check.sha256)" ]; then \
+		echo "Code matches cached check. Skipping duplicate make check..."; \
+	else \
+		$(MAKE) check || { echo "make check failed, aborting push."; exit 1; }; \
+	fi
 	@if [ -n "$$(git status --short)" ]; then \
 		git add .; \
 		git commit -m "format with dart"; \
