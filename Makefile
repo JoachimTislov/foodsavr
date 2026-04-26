@@ -132,6 +132,10 @@ preflight:
 		echo "No upstream branch found, skipping behind check."; \
 	fi
 
+migrate-test:
+	@echo "Running local database migrations..."
+	@dart run tool/deploy/deploy_schema.dart
+
 # --- Automation & Gemini Targets ---
 
 .PHONY: data feature research resolve-comments unit-tests integration-tests analyze-architecture

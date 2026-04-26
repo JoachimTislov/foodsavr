@@ -4,52 +4,54 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 
+import 'auth.dart';
+
 Future<void> main(List<String> args) async {
   print('🚀 Starting Firestore Rules Deployment...');
 
-  final projectId =
-      Platform.environment['FIREBASE_PROJECT_ID'] ?? 'demo-project';
-  final token = Platform.environment['FIREBASE_TOKEN'] ?? '';
-  final rulesFile =
-      Platform.environment['FIRESTORE_RULES_PATH'] ?? 'firestore.rules';
-
-  if (token.isEmpty) {
-    print('❌ Error: FIREBASE_TOKEN environment variable is required.');
-    print('   Use `gcloud auth print-access-token` to get a token.');
-    exit(1);
-  }
-
-  final file = File(rulesFile);
-  if (!await file.exists()) {
-    print('❌ Error: Rules file "$rulesFile" not found.');
-    exit(1);
-  }
-
-  final rulesContent = await file.readAsString();
-  if (rulesContent.trim().isEmpty) {
-    print('❌ Error: Rules file "$rulesFile" is empty.');
-    exit(1);
-  }
-  final client = http.Client();
-
   try {
-    print('📦 Creating Ruleset for $projectId...');
-    final rulesetName = await createRuleset(
-      client,
-      projectId,
-      token,
-      rulesContent,
-    );
-    print('✅ Ruleset created: $rulesetName');
+    final projectId = await getProjectId();
+    
+    if (projectId == 'demo-project' || projectId.startsWith('demo-')) {
+      print('ℹ️ Local deployment detected ($projectId). Skipping, as local deployment is handled automatically by the emulator.');
+      exit(0);
+    }
 
-    print('🚀 Updating Release "cloud.firestore"...');
-    await updateRelease(client, projectId, token, rulesetName);
-    print('✅ Successfully deployed Firestore rules to $projectId!');
+    final token = await getToken();
+    final rulesFile = await getRulesPath();
+
+    final file = File(rulesFile);
+    if (!await file.exists()) {
+      print('❌ Error: Rules file "$rulesFile" not found.');
+      exit(1);
+    }
+
+    final rulesContent = await file.readAsString();
+    if (rulesContent.trim().isEmpty) {
+      print('❌ Error: Rules file "$rulesFile" is empty.');
+      exit(1);
+    }
+    
+    final client = http.Client();
+    try {
+      print('📦 Creating Ruleset for $projectId...');
+      final rulesetName = await createRuleset(
+        client,
+        projectId,
+        token,
+        rulesContent,
+      );
+      print('✅ Ruleset created: $rulesetName');
+
+      print('🚀 Updating Release "cloud.firestore"...');
+      await updateRelease(client, projectId, token, rulesetName);
+      print('✅ Successfully deployed Firestore rules to $projectId!');
+    } finally {
+      client.close();
+    }
   } catch (e) {
     print('❌ Error deploying rules: $e');
     exit(1);
-  } finally {
-    client.close();
   }
 }
 
@@ -75,6 +77,7 @@ Future<String> createRuleset(
     headers: {
       'Authorization': 'Bearer $token',
       'Content-Type': 'application/json',
+      'X-Goog-User-Project': projectId,
     },
     body: jsonEncode(body),
   );
@@ -105,8 +108,15 @@ Future<void> updateRelease(
     headers: {
       'Authorization': 'Bearer $token',
       'Content-Type': 'application/json',
+      'X-Goog-User-Project': projectId,
     },
-    body: jsonEncode(body),
+    body: jsonEncode({
+      'release': {
+        'name': releaseName,
+        'rulesetName': rulesetName,
+      },
+      'updateMask': 'rulesetName',
+    }),
   );
 
   if (response.statusCode == 404) {
@@ -119,6 +129,7 @@ Future<void> updateRelease(
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
+        'X-Goog-User-Project': projectId,
       },
       body: jsonEncode(body),
     );

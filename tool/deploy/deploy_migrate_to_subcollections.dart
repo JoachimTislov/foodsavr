@@ -4,26 +4,28 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 
+import 'auth.dart';
+
 Future<void> main(List<String> args) async {
-  print('🚀 Starting data migration to subcollections...');
+  print('🚀 Starting subcollections migration...');
 
   final isRemote = Platform.environment['FIRESTORE_REMOTE'] == 'true';
-  final projectId =
-      Platform.environment['FIREBASE_PROJECT_ID'] ?? 'demo-project';
+  final String projectId;
+  final String token;
+
+  if (isRemote) {
+    projectId = await getProjectId();
+    token = await getToken();
+  } else {
+    projectId = Platform.environment['FIREBASE_PROJECT_ID'] ?? 'demo-project';
+    token = 'ya29.a.mock-token';
+  }
+
   final host =
       Platform.environment['FIRESTORE_HOST'] ??
       (isRemote ? 'firestore.googleapis.com' : 'localhost');
   final port =
       Platform.environment['FIRESTORE_PORT'] ?? (isRemote ? '443' : '8080');
-  final token = Platform.environment['FIREBASE_TOKEN'] ?? '';
-
-  if (isRemote && token.isEmpty) {
-    print(
-      '❌ Error: FIREBASE_TOKEN environment variable is required when FIRESTORE_REMOTE=true.',
-    );
-    print('   Use `gcloud auth print-access-token` to get a token.');
-    exit(1);
-  }
 
   final client = http.Client();
 
