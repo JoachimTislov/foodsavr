@@ -88,7 +88,7 @@ void main() {
       mockAuthService = MockAuthService();
       when(
         () => mockAuthService.authStateChanges,
-      ).thenAnswer((_) => const Stream.empty());
+      ).thenAnswer((_) => Stream.value(null));
       when(() => mockAuthService.currentUser).thenReturn(null);
       getIt.registerLazySingleton<IAuthService>(() => mockAuthService);
 
@@ -322,7 +322,7 @@ void main() {
         final mockAuthService = MockAuthService();
         when(
           () => mockAuthService.authStateChanges,
-        ).thenAnswer((_) => const Stream.empty());
+        ).thenAnswer((_) => Stream.value(null));
         when(() => mockAuthService.currentUser).thenReturn(null);
 
         final router = createAppRouter(mockAuthService);
@@ -359,7 +359,7 @@ void main() {
         final mockAuthService = MockAuthService();
         when(
           () => mockAuthService.authStateChanges,
-        ).thenAnswer((_) => const Stream.empty());
+        ).thenAnswer((_) => Stream.value(null));
         when(() => mockAuthService.currentUser).thenReturn(null);
 
         final router = createAppRouter(mockAuthService);
@@ -399,7 +399,7 @@ void main() {
         final mockAuthService = MockAuthService();
         when(
           () => mockAuthService.authStateChanges,
-        ).thenAnswer((_) => const Stream.empty());
+        ).thenAnswer((_) => Stream.value(null));
         when(() => mockAuthService.currentUser).thenReturn(null);
 
         final router = createAppRouter(mockAuthService);
