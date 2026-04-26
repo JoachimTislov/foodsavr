@@ -27,11 +27,13 @@ Future<void> main() async {
     for (final collection in collections) {
       final collectionId = collection['name'].toString().split('/').last;
       final fields = collection['fields'] as Map<String, dynamic>? ?? {};
-      
+
       final type = fields['type']?['stringValue'] as String? ?? 'inventory';
-      
-      final productIdsArray = fields['productIds']?['arrayValue']?['values'] as List<dynamic>? ?? [];
-      
+
+      final productIdsArray =
+          fields['productIds']?['arrayValue']?['values'] as List<dynamic>? ??
+          [];
+
       if (productIdsArray.isEmpty) {
         print('  - Collection $collectionId has no products. Skipping.');
         continue;
@@ -53,33 +55,35 @@ Future<void> main() async {
             'productId': {'integerValue': productId},
             'count': {'integerValue': '1'},
           };
-          
+
           await createDocument(
-            client, 
-            'collections/$collectionId/shopping_items', 
-            productId, 
-            shoppingItemFields
+            client,
+            'collections/$collectionId/shopping_items',
+            productId,
+            shoppingItemFields,
           );
         } else {
           // Defaulting inventory items to current expiries
-          final expiries = productFields['expiries']?['arrayValue'] ?? {'values': []};
-          final nonExpiringQuantity = productFields['nonExpiringQuantity']?['integerValue'] ?? '0';
-          
+          final expiries =
+              productFields['expiries']?['arrayValue'] ?? {'values': []};
+          final nonExpiringQuantity =
+              productFields['nonExpiringQuantity']?['integerValue'] ?? '0';
+
           final inventoryItemFields = {
             'productId': {'integerValue': productId},
             'expiries': {'arrayValue': expiries},
             'nonExpiringQuantity': {'integerValue': nonExpiringQuantity},
           };
-          
+
           await createDocument(
-            client, 
-            'collections/$collectionId/inventory_items', 
-            productId, 
-            inventoryItemFields
+            client,
+            'collections/$collectionId/inventory_items',
+            productId,
+            inventoryItemFields,
           );
         }
       }
-      
+
       // Optionally, we could remove the `productIds` field from the collection here,
       // but leaving it might be safer until the UI is fully migrated to use the subcollections.
     }
@@ -104,8 +108,12 @@ Future<bool> checkEmulator(http.Client client) async {
   }
 }
 
-Future<List<dynamic>> getDocuments(http.Client client, String collectionPath) async {
-  final url = 'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collectionPath';
+Future<List<dynamic>> getDocuments(
+  http.Client client,
+  String collectionPath,
+) async {
+  final url =
+      'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collectionPath';
   final response = await client.get(Uri.parse(url));
 
   if (response.statusCode == 200) {
@@ -114,12 +122,18 @@ Future<List<dynamic>> getDocuments(http.Client client, String collectionPath) as
   } else if (response.statusCode == 404) {
     return [];
   } else {
-    throw Exception('Failed to fetch documents from $collectionPath: ${response.body}');
+    throw Exception(
+      'Failed to fetch documents from $collectionPath: ${response.body}',
+    );
   }
 }
 
-Future<Map<String, dynamic>?> getDocument(http.Client client, String documentPath) async {
-  final url = 'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$documentPath';
+Future<Map<String, dynamic>?> getDocument(
+  http.Client client,
+  String documentPath,
+) async {
+  final url =
+      'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$documentPath';
   final response = await client.get(Uri.parse(url));
 
   if (response.statusCode == 200) {
@@ -131,8 +145,14 @@ Future<Map<String, dynamic>?> getDocument(http.Client client, String documentPat
   }
 }
 
-Future<void> createDocument(http.Client client, String collectionPath, String documentId, Map<String, dynamic> fields) async {
-  final url = 'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collectionPath?documentId=$documentId';
+Future<void> createDocument(
+  http.Client client,
+  String collectionPath,
+  String documentId,
+  Map<String, dynamic> fields,
+) async {
+  final url =
+      'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collectionPath?documentId=$documentId';
   final response = await client.post(
     Uri.parse(url),
     headers: {'Content-Type': 'application/json'},
@@ -142,15 +162,18 @@ Future<void> createDocument(http.Client client, String collectionPath, String do
   // 200 OK or 409 ALREADY_EXISTS (if we patch instead it would be 200)
   if (response.statusCode != 200 && response.statusCode != 409) {
     // If it fails, let's try PATCH (upsert) instead
-    final patchUrl = 'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collectionPath/$documentId';
+    final patchUrl =
+        'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collectionPath/$documentId';
     final patchResponse = await client.patch(
       Uri.parse(patchUrl),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'fields': fields}),
     );
-    
+
     if (patchResponse.statusCode != 200) {
-      throw Exception('Failed to create/update document $documentId in $collectionPath: ${patchResponse.body}');
+      throw Exception(
+        'Failed to create/update document $documentId in $collectionPath: ${patchResponse.body}',
+      );
     }
   }
 }
