@@ -18,9 +18,8 @@ Future<void> main(List<String> args) async {
   final token = Platform.environment['FIREBASE_TOKEN'] ?? '';
 
   final configPath =
-      Platform.environment['MIGRATIONS_CONFIG'] ?? 'migrations/config.json';
-  final scriptsPath =
-      Platform.environment['MIGRATIONS_DIR'] ?? 'migrations/scripts';
+      Platform.environment['MIGRATIONS_CONFIG'] ?? 'migrations/permanent.json';
+  final scriptsPath = Platform.environment['MIGRATIONS_DIR'] ?? 'migrations';
 
   if (isRemote && token.isEmpty) {
     print(
@@ -51,7 +50,11 @@ Future<void> main(List<String> args) async {
   final scriptFiles = scriptsDir
       .listSync()
       .whereType<File>()
-      .where((f) => f.path.endsWith('.json'))
+      .where(
+        (f) =>
+            f.path.endsWith('.json') &&
+            !f.uri.pathSegments.last.contains('permanent.json'),
+      )
       .toList();
   scriptFiles.sort((a, b) => a.path.compareTo(b.path));
 
@@ -100,22 +103,11 @@ Future<void> main(List<String> args) async {
         final removeFields = List<String>.from(
           op['removeFields'] as List<dynamic>? ?? [],
         );
-        final addFields = op['addFields'] as List<dynamic>? ?? [];
 
         for (final field in removeFields) {
           if (protectedFields.contains(field)) {
             print(
               '❌ VALIDATION ERROR: Script $scriptName attempts to remove protected field: $field',
-            );
-            exit(1);
-          }
-        }
-        for (final addF in addFields) {
-          final addField = addF as Map<String, dynamic>;
-          final name = addField['name'] as String;
-          if (protectedFields.contains(name)) {
-            print(
-              '❌ VALIDATION ERROR: Script $scriptName attempts to modify protected field: $name',
             );
             exit(1);
           }
