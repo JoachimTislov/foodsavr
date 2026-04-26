@@ -8,6 +8,7 @@ import '../services/product_service.dart';
 import '../services/select_products_controller.dart';
 import '../widgets/product/compact_location_card.dart';
 import '../widgets/product/product_select_item.dart';
+import '../widgets/common/app_refresh_indicator.dart';
 
 class SelectProductsView extends StatefulWidget {
   final String fromLocationId;
@@ -48,6 +49,13 @@ class _SelectProductsViewState extends State<SelectProductsView> {
     super.dispose();
   }
 
+  Future<void> _refreshProducts() async {
+    final products = await _productService.getProducts(
+      _authService.getUserId(),
+    );
+    _controller.loadProducts(products);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -70,58 +78,15 @@ class _SelectProductsViewState extends State<SelectProductsView> {
       body: Column(
         children: [
           // Location display
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainer,
-              border: Border(
-                bottom: BorderSide(
-                  color: colorScheme.outlineVariant.withValues(alpha: 0.1),
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: CompactLocationCard(
-                    label: 'common.from'.tr(),
-                    locationName: widget.fromLocationId,
-                    isActive: true,
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: Icon(Icons.arrow_forward, size: 16),
-                ),
-                Expanded(
-                  child: CompactLocationCard(
-                    label: 'common.to'.tr(),
-                    locationName: widget.toLocationId,
-                    isActive: false,
-                  ),
-                ),
-              ],
-            ),
+          _LocationHeader(
+            fromLocationId: widget.fromLocationId,
+            toLocationId: widget.toLocationId,
           ),
 
           // Search bar
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _controller.updateQuery,
-              decoration: InputDecoration(
-                hintText: 'product.search_hint'.tr(),
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: colorScheme.surfaceContainerHigh,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
+          _SearchBar(
+            controller: _searchController,
+            onChanged: _controller.updateQuery,
           ),
 
           Padding(
@@ -146,18 +111,23 @@ class _SelectProductsViewState extends State<SelectProductsView> {
               listenable: _controller,
               builder: (context, _) {
                 final products = _controller.filteredProducts;
-                return ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: products.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final product = products[index];
-                    return ProductSelectItem(
-                      product: product,
-                      isSelected: _controller.isSelected(product.id),
-                      onToggle: () => _controller.toggleSelection(product.id),
-                    );
-                  },
+                return AppRefreshIndicator(
+                  onRefresh: _refreshProducts,
+                  isScrollable: true,
+                  child: ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: products.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final product = products[index];
+                      return ProductSelectItem(
+                        product: product,
+                        isSelected: _controller.isSelected(product.id),
+                        onToggle: () => _controller.toggleSelection(product.id),
+                      );
+                    },
+                  ),
                 );
               },
             ),
@@ -212,6 +182,86 @@ class _SelectProductsViewState extends State<SelectProductsView> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LocationHeader extends StatelessWidget {
+  final String fromLocationId;
+  final String toLocationId;
+
+  const _LocationHeader({
+    required this.fromLocationId,
+    required this.toLocationId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainer,
+        border: Border(
+          bottom: BorderSide(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.1),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: CompactLocationCard(
+              label: 'common.from'.tr(),
+              locationName: fromLocationId,
+              isActive: true,
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: Icon(Icons.arrow_forward, size: 16),
+          ),
+          Expanded(
+            child: CompactLocationCard(
+              label: 'common.to'.tr(),
+              locationName: toLocationId,
+              isActive: false,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SearchBar extends StatelessWidget {
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  const _SearchBar({required this.controller, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          hintText: 'product.search_hint'.tr(),
+          prefixIcon: const Icon(Icons.search),
+          filled: true,
+          fillColor: colorScheme.surfaceContainerHigh,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        ),
       ),
     );
   }

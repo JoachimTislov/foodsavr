@@ -1,0 +1,22 @@
+{
+  "operations": [
+    {
+      "targetType": "collection",
+      "path": "products",
+      "removeFields": [
+        "expiries",
+        "nonExpiringQuantity",
+        "quantity"
+      ],
+      "addFields": []
+    },
+    {
+      "targetType": "collection",
+      "path": "collections",
+      "removeFields": [
+        "productIds"
+      ],
+      "addFields": []
+    }
+  ]
+}
