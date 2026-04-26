@@ -37,6 +37,10 @@ deps: .deps-stamp
 di:
 	@dart run build_runner build --delete-conflicting-outputs
 
+view-emulator:
+	@echo "Opening Firebase Emulator UI in browser..."
+	@xdg-open http://localhost:8081
+
 # Code quality commands
 check: analyze test locale-check fix fmt
 

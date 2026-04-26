@@ -107,16 +107,16 @@ GoRouter createAppRouter(IAuthService authService) {
                 builder: (context, state) => const DashboardView(),
                 routes: [
                   GoRoute(
-                    path: '/product-list',
+                    path: 'product-list',
                     builder: (context, state) => const ProductListView(),
                   ),
                   GoRoute(
-                    path: '/global-products',
+                    path: 'global-products',
                     builder: (context, state) =>
                         const ProductListView(showGlobalProducts: true),
                   ),
                   GoRoute(
-                    path: '/transfer',
+                    path: 'transfer',
                     builder: (context, state) => const TransferManagementView(),
                   ),
                 ],

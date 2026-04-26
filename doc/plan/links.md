@@ -12,6 +12,12 @@ This document provides a collection of external resources, documentation, and to
 ## Development and deployment
 
 - [Flutter: Build modes](https://docs.flutter.dev/testing/build-modes)
+- [Flutter: Build flavors](https://docs.flutter.dev/deployment/flavors)
+- [Android: Configure build variants](https://developer.android.com/build/build-variants)
+- [Firebase: Flutter setup](https://firebase.google.com/docs/flutter/setup)
+- [Firebase: CLI (flutterfire configure)](https://firebase.google.com/docs/flutter/setup?platform=android#install-cli)
+- [Firebase: Support multiple environments (Flavors)](https://firebase.google.com/docs/projects/multiprojects#support_multiple_environments_in_your_android_application)
+- [Firebase: Local Emulator Suite](https://firebase.google.com/docs/emulator-suite)
 - [GitHub: Copilot instructions](../../.github/copilot-instructions.md)
 - [Gemini Instructions](../../GEMINI.md)
 - [Configure VM acceleration for Android (Linux)](https://developer.android.com/studio/run/emulator-acceleration#vm-linux)

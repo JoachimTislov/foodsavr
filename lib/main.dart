@@ -24,16 +24,9 @@ const dummyOptions = FirebaseOptions(
 );
 
 /// List of supported flavor names.
-///
-/// - `development`: default; typically uses local emulators and
-///   verbose logging.
-/// - `staging`: optional; can be wired to a staging backend.
+/// - `development`: default; typically uses local emulators and verbose logging.
 /// - `production`: connects to the production backend.
-const List<String> supportedFlavors = <String>[
-  'development',
-  'staging',
-  'production',
-];
+const List<String> supportedFlavors = <String>['development', 'production'];
 
 void main() async {
   if (appFlavor != null && !supportedFlavors.contains(appFlavor)) {
