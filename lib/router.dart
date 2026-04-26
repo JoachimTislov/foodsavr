@@ -35,7 +35,10 @@ GoRouter createAppRouter(IAuthService authService) {
       // We check if we're still 'loading' the initial auth state.
       if (!authListenable.isInitialized) {
         if (state.uri.path != '/splash') {
-          return '/splash?target=${Uri.encodeComponent(state.uri.toString())}';
+          final originalUri = state.uri.toString();
+          return state.uri.path == '/'
+              ? '/splash'
+              : '/splash?target=${Uri.encodeComponent(originalUri)}';
         }
         return null; // Stay on splash while loading
       }
@@ -53,7 +56,8 @@ GoRouter createAppRouter(IAuthService authService) {
         final target = state.uri.queryParameters['target'];
         if (target != null &&
             target.startsWith('/') &&
-            !target.startsWith('/splash')) {
+            !target.startsWith('//') &&
+            target != '/splash') {
           return target;
         }
         return '/';
@@ -186,6 +190,7 @@ GoRouter createAppRouter(IAuthService authService) {
 class _AuthStreamListenable extends ChangeNotifier {
   final IAuthService _authService;
   late final StreamSubscription<User?> _subscription;
+  Timer? _fallbackTimer;
   bool _isDisposed = false;
   bool _isInitialized = false;
 
@@ -193,6 +198,8 @@ class _AuthStreamListenable extends ChangeNotifier {
 
   _AuthStreamListenable(this._authService) {
     _subscription = _authService.authStateChanges.listen((_) {
+      _fallbackTimer?.cancel();
+      _fallbackTimer = null;
       _isInitialized = true;
       if (!_isDisposed) {
         notifyListeners();
@@ -200,7 +207,7 @@ class _AuthStreamListenable extends ChangeNotifier {
     });
 
     // Safety fallback for initialization
-    Future.delayed(const Duration(seconds: 1), () {
+    _fallbackTimer = Timer(const Duration(seconds: 1), () {
       if (!_isInitialized && !_isDisposed) {
         _isInitialized = true;
         notifyListeners();
@@ -211,6 +218,7 @@ class _AuthStreamListenable extends ChangeNotifier {
   @override
   void dispose() {
     _isDisposed = true;
+    _fallbackTimer?.cancel();
     _subscription.cancel();
     super.dispose();
   }

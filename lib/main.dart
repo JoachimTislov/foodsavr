@@ -85,23 +85,41 @@ void main() async {
     logger.i('Firebase app already initialized, skipping...');
   }
 
+  if (Config.useEmulators) {
+    try {
+      await serviceLocator.setupDevelopment();
+    } catch (e) {
+      logger.w('Development setup failed: $e');
+    }
+  }
+
   // We wrap AppCheck activation in a try-catch block because on Web hot-restarts,
   // the JS SDK retains the initialized Firebase state, and calling `activate`
   // a second time throws an "already initialized" error, freezing the app.
   try {
+    const recaptchaKey = String.fromEnvironment(
+      'RECAPTCHA_V3_SITE_KEY',
+      defaultValue: 'dummy-key',
+    );
     if (Config.useEmulators) {
-      await serviceLocator.setupDevelopment();
       await FirebaseAppCheck.instance.activate(
-        providerWeb: ReCaptchaV3Provider('recaptcha-v3-site-key'),
+        providerWeb: ReCaptchaV3Provider(recaptchaKey),
         providerAndroid: AndroidDebugProvider(),
       );
     } else {
-      await FirebaseAppCheck.instance.activate();
+      await FirebaseAppCheck.instance.activate(
+        providerWeb: ReCaptchaV3Provider(recaptchaKey),
+      );
     }
   } catch (e) {
-    logger.w(
-      'Firebase/AppCheck initialization failed (likely due to hot restart): $e',
-    );
+    if (Config.useEmulators) {
+      logger.w(
+        'Firebase/AppCheck initialization failed (likely due to hot restart): $e',
+      );
+    } else {
+      logger.e('Firebase/AppCheck initialization failed: $e');
+      // TODO: Forward to crash reporting hook (e.g. Crashlytics)
+    }
   }
 
   const enLocale = Locale('en');
