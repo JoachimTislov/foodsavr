@@ -71,14 +71,19 @@ Future<void> main(List<String> args) async {
             expirationDateNode.containsKey('stringValue')) {
           // It's an ISO string, needs migration
           final isoString = expirationDateNode['stringValue'] as String;
-          needsMigration = true;
 
-          // Convert to timestamp
-          expiryFields['expirationDate'] = {
-            'timestampValue': isoString.endsWith('Z')
-                ? isoString
-                : '${isoString}Z',
-          };
+          try {
+            final dt = DateTime.parse(isoString).toUtc();
+            // Convert to timestamp
+            expiryFields['expirationDate'] = {
+              'timestampValue': dt.toIso8601String(),
+            };
+            needsMigration = true;
+          } catch (_) {
+            print(
+              'Warning: Failed to parse date "$isoString" for product $productId',
+            );
+          }
         }
 
         updatedExpiries.add({
@@ -161,22 +166,32 @@ Future<List<dynamic>> getDocuments(
   bool isRemote,
   String collectionPath,
 ) async {
-  final url = _buildUrl(projectId, host, port, isRemote, collectionPath);
-  final response = await client.get(
-    Uri.parse(url),
-    headers: _buildHeaders(isRemote, token),
-  );
+  final baseUrl = _buildUrl(projectId, host, port, isRemote, collectionPath);
+  final List<dynamic> allDocuments = [];
+  String? pageToken;
 
-  if (response.statusCode == 200) {
-    final data = jsonDecode(response.body);
-    return data['documents'] as List<dynamic>? ?? [];
-  } else if (response.statusCode == 404) {
-    return [];
-  } else {
-    throw Exception(
-      'Failed to fetch documents from $collectionPath: ${response.body}',
+  do {
+    final url = pageToken != null ? '$baseUrl?pageToken=$pageToken' : baseUrl;
+    final response = await client.get(
+      Uri.parse(url),
+      headers: _buildHeaders(isRemote, token),
     );
-  }
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final docs = data['documents'] as List<dynamic>? ?? [];
+      allDocuments.addAll(docs);
+      pageToken = data['nextPageToken'] as String?;
+    } else if (response.statusCode == 404) {
+      break;
+    } else {
+      throw Exception(
+        'Failed to fetch documents from $collectionPath: ${response.body}',
+      );
+    }
+  } while (pageToken != null && pageToken.isNotEmpty);
+
+  return allDocuments;
 }
 
 Future<void> updateDocument(

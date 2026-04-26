@@ -100,7 +100,7 @@ Future<void> runMigrationPhase(
       .where(
         (f) =>
             f.path.endsWith('.json') &&
-            !f.uri.pathSegments.last.contains('permanent.json'),
+            f.uri.pathSegments.last != 'permanent.json',
       )
       .toList();
   scriptFiles.sort((a, b) => a.path.compareTo(b.path));
@@ -325,8 +325,7 @@ Future<List<String>> getAppliedMigrations(
   } catch (e) {
     // Collection might not exist yet, which is fine
     if (e.toString().contains('404')) return [];
-    // Or if not paginated or some other error, swallow it and assume none
-    return [];
+    rethrow;
   }
 }
 
@@ -344,7 +343,7 @@ Future<void> markMigrationApplied(
     host,
     port,
     isRemote,
-    '_migrations?documentId=$scriptName',
+    '_migrations?documentId=${Uri.encodeQueryComponent(scriptName)}',
   );
   final body = {
     'fields': {
@@ -389,8 +388,6 @@ Future<List<dynamic>> getDocumentsPaginated(
       final docs = data['documents'] as List<dynamic>? ?? [];
       allDocs.addAll(docs);
       pageToken = data['nextPageToken'] as String?;
-    } else if (response.statusCode == 404) {
-      return allDocs; // Return what we have, collection might just be empty
     } else {
       throw Exception(
         'Failed to fetch documents: ${response.statusCode} - ${response.body}',
@@ -580,6 +577,7 @@ Future<void> _applyModifications(
       }
     } else {
       print('      🔄 Patching ${absoluteName.split('/').last}...');
+      final fieldsToMask = [...actuallyRemoved, ...actuallyAddedOrUpdated.keys];
       await _patchDocument(
         client,
         host,
@@ -588,6 +586,7 @@ Future<void> _applyModifications(
         token,
         absoluteName,
         updatedFields,
+        fieldsToMask,
       );
     }
   }
@@ -624,60 +623,28 @@ Future<void> _patchDocument(
   String token,
   String absoluteName,
   Map<String, dynamic> fields,
+  List<String> fieldsToMask,
 ) async {
   final scheme = isRemote ? 'https' : 'http';
   final portPart = (isRemote && port == '443') ? '' : ':$port';
 
-  // Create update mask based on keys we want to *keep*.
-  // Anything not in updateMask is ignored. Wait, if a field is in updateMask but not in payload, it's deleted.
-  // So updateMask must contain all keys in the new fields map, PLUS the keys we want to delete.
-  // Actually, wait: If we just list the keys of the `fields` map in the updateMask,
-  // fields NOT in the updateMask are preserved untouched in Firestore.
-  // Fields IN the updateMask but NOT in payload are deleted in Firestore.
-  // Since we want to delete some fields, they are NOT in the payload anymore, so we MUST include them in the updateMask so Firestore deletes them!
-  // Wait, if we use PATCH without updateMask, Firestore ONLY updates the fields in the payload and leaves others untouched. So we can't delete fields without updateMask.
-  // If we pass an updateMask containing ALL keys of the OLD document, and the payload only has the NEW keys, the missing ones get deleted.
-  // However, it's simpler: Firestore REST API `patch` with NO updateMask updates fields present.
-  // We can't delete easily via patch without updateMask.
-  // So to replace the document precisely with our modified `fields` map and discard anything else, we must list ALL fields in `fields.keys` as the updateMask.
-  // Wait! If a key was removed, it is NOT in `fields.keys`. So it won't be deleted in Firestore if we only pass `fields.keys` in updateMask.
-  // Workaround: Use DELETE + POST if we want to replace the whole document?
-  // No, better workaround: pass the deleted fields in the updateMask but not in the payload.
-  // Actually, we can just fetch the existing document, get its keys, and pass ALL existing keys in the updateMask.
+  String patchUrl = '$scheme://$host$portPart/v1/$absoluteName';
+  if (fieldsToMask.isNotEmpty) {
+    final maskParams = fieldsToMask
+        .map((f) => 'updateMask.fieldPaths=${Uri.encodeQueryComponent(f)}')
+        .join('&');
+    patchUrl += '?$maskParams';
+  }
 
-  // Wait, let's just make the updateMask equal to `fields.keys.join('&')` and for deleted fields, we can just send them as null?
-  // No, `nullValue: null` is a literal null field.
-  // Let's implement full document overwrite via REST correctly: We GET it, so we know what keys it currently has.
-  // But wait, the `updateMask` feature is exactly for this.
-  // We don't have the original keys easily accessible here unless we pass them.
-  // Let's just pass `updateMask` for the fields we WANT to update/delete.
-  // Since we only do additions and removals:
-  // We could just pass the `removeFields` keys and the `addFields` keys in the updateMask.
-  // But wait, it's easier to simply DELETE and re-POST the document with the exact new state.
-  // BUT DELETE/POST can break subcollections? Actually, deleting a parent doc in Firestore does NOT delete its subcollections.
-  // BUT the Firestore REST API `DELETE` on a document doesn't affect subcollections either.
-  // Wait, posting a document to a specific ID replaces it completely and safely preserves subcollections.
-  // Let's do that. It's atomic enough for this script and guarantees structural purity.
-
-  final getUrl = '$scheme://$host$portPart/v1/$absoluteName';
-  await client.delete(
-    Uri.parse(getUrl),
-    headers: _buildHeaders(isRemote, token),
-  );
-
-  final parentPath = absoluteName.substring(0, absoluteName.lastIndexOf('/'));
-  final docId = absoluteName.split('/').last;
-
-  final postUrl = '$scheme://$host$portPart/v1/$parentPath?documentId=$docId';
-  final response = await client.post(
-    Uri.parse(postUrl),
+  final response = await client.patch(
+    Uri.parse(patchUrl),
     headers: _buildHeaders(isRemote, token),
     body: jsonEncode({'fields': fields}),
   );
 
   if (response.statusCode != 200) {
     throw Exception(
-      'Failed to recreate document during patch: ${response.statusCode} - ${response.body}',
+      'Failed to patch document: ${response.statusCode} - ${response.body}',
     );
   }
 }

@@ -7,17 +7,14 @@ import 'package:http/http.dart' as http;
 Future<void> main(List<String> args) async {
   print('🚀 Starting Firestore Rules Deployment...');
 
-  final isRemote = Platform.environment['FIRESTORE_REMOTE'] == 'true';
   final projectId =
       Platform.environment['FIREBASE_PROJECT_ID'] ?? 'demo-project';
   final token = Platform.environment['FIREBASE_TOKEN'] ?? '';
   final rulesFile =
       Platform.environment['FIRESTORE_RULES_PATH'] ?? 'firestore.rules';
 
-  if (isRemote && token.isEmpty) {
-    print(
-      '❌ Error: FIREBASE_TOKEN environment variable is required when FIRESTORE_REMOTE=true.',
-    );
+  if (token.isEmpty) {
+    print('❌ Error: FIREBASE_TOKEN environment variable is required.');
     print('   Use `gcloud auth print-access-token` to get a token.');
     exit(1);
   }
@@ -29,6 +26,10 @@ Future<void> main(List<String> args) async {
   }
 
   final rulesContent = await file.readAsString();
+  if (rulesContent.trim().isEmpty) {
+    print('❌ Error: Rules file "$rulesFile" is empty.');
+    exit(1);
+  }
   final client = http.Client();
 
   try {
