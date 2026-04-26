@@ -61,8 +61,8 @@ class _RetryScaffoldState extends State<RetryScaffold> {
 
   Future<void> _handleRefresh() async {
     if (!mounted) return;
-    
-    // Only set loading state if not already loading, 
+
+    // Only set loading state if not already loading,
     // prevents UI jumps if called multiple times rapidly
     if (!_isLoading) {
       setState(() {
