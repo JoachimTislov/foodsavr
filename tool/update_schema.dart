@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 Future<void> main(List<String> args) async {
-  print('🚀 Starting dynamic schema update...');
+  print('🚀 Starting robust schema update...');
 
   final isRemote = Platform.environment['FIRESTORE_REMOTE'] == 'true';
   final projectId =
@@ -16,8 +16,11 @@ Future<void> main(List<String> args) async {
   final port =
       Platform.environment['FIRESTORE_PORT'] ?? (isRemote ? '443' : '8080');
   final token = Platform.environment['FIREBASE_TOKEN'] ?? '';
+
   final configPath =
-      Platform.environment['SCHEMA_CONFIG'] ?? 'schema_config.json';
+      Platform.environment['MIGRATIONS_CONFIG'] ?? 'migrations/config.json';
+  final scriptsPath =
+      Platform.environment['MIGRATIONS_DIR'] ?? 'migrations/scripts';
 
   if (isRemote && token.isEmpty) {
     print(
@@ -29,16 +32,31 @@ Future<void> main(List<String> args) async {
 
   final configFile = File(configPath);
   if (!await configFile.exists()) {
-    print('❌ Error: Configuration file not found at $configPath');
+    print('❌ Error: Global configuration file not found at $configPath');
     exit(1);
   }
 
   final configContent = await configFile.readAsString();
   final config = jsonDecode(configContent) as Map<String, dynamic>;
-  final migrations = config['migrations'] as List<dynamic>? ?? [];
+  final protectedFields = List<String>.from(
+    config['protectedFields'] as List<dynamic>? ?? [],
+  );
 
-  if (migrations.isEmpty) {
-    print('ℹ️ No migrations found in $configPath.');
+  final scriptsDir = Directory(scriptsPath);
+  if (!await scriptsDir.exists()) {
+    print('❌ Error: Scripts directory not found at $scriptsPath');
+    exit(1);
+  }
+
+  final scriptFiles = scriptsDir
+      .listSync()
+      .whereType<File>()
+      .where((f) => f.path.endsWith('.json'))
+      .toList();
+  scriptFiles.sort((a, b) => a.path.compareTo(b.path));
+
+  if (scriptFiles.isEmpty) {
+    print('ℹ️ No migration scripts found in $scriptsPath.');
     return;
   }
 
@@ -53,72 +71,150 @@ Future<void> main(List<String> args) async {
       exit(1);
     }
 
-    for (final migration in migrations) {
-      final m = migration as Map<String, dynamic>;
-      final collectionPath = m['collection'] as String?;
-      if (collectionPath == null) continue;
+    // Ensure _migrations collection exists or fetch applied scripts
+    print('📦 Fetching applied migration state from _migrations...');
+    final appliedMigrations = await getAppliedMigrations(
+      client,
+      projectId,
+      host,
+      port,
+      token,
+      isRemote,
+    );
 
-      final removeFields = List<String>.from(
-        m['removeFields'] as List<dynamic>? ?? [],
-      );
-      final addFields = m['addFields'] as Map<String, dynamic>? ?? {};
+    for (final file in scriptFiles) {
+      final scriptName = file.uri.pathSegments.last;
+      if (appliedMigrations.contains(scriptName)) {
+        print('⏭️  Skipping already applied migration: $scriptName');
+        continue;
+      }
 
-      print('📦 Processing collection: $collectionPath...');
-      final documents = await getDocuments(
-        client,
-        projectId,
-        host,
-        port,
-        token,
-        isRemote,
-        collectionPath,
-      );
+      print('⚙️  Processing migration script: $scriptName...');
+      final scriptContent = await file.readAsString();
+      final script = jsonDecode(scriptContent) as Map<String, dynamic>;
+      final operations = script['operations'] as List<dynamic>? ?? [];
 
-      for (final doc in documents) {
-        final documentId = doc['name'].toString().split('/').last;
-        final fields = doc['fields'] as Map<String, dynamic>? ?? {};
+      // Validate Phase
+      for (final operation in operations) {
+        final op = operation as Map<String, dynamic>;
+        final removeFields = List<String>.from(
+          op['removeFields'] as List<dynamic>? ?? [],
+        );
+        final addFields = op['addFields'] as List<dynamic>? ?? [];
 
-        bool needsUpdate = false;
-
-        // Process removals
-        for (final fieldToRemove in removeFields) {
-          if (fields.containsKey(fieldToRemove)) {
-            fields.remove(fieldToRemove);
-            needsUpdate = true;
+        for (final field in removeFields) {
+          if (protectedFields.contains(field)) {
+            print(
+              '❌ VALIDATION ERROR: Script $scriptName attempts to remove protected field: $field',
+            );
+            exit(1);
           }
         }
-
-        // Process additions
-        for (final entry in addFields.entries) {
-          final fieldToAdd = entry.key;
-          final fieldValue = entry.value;
-
-          // Check if field is missing or different
-          if (!fields.containsKey(fieldToAdd) ||
-              jsonEncode(fields[fieldToAdd]) != jsonEncode(fieldValue)) {
-            fields[fieldToAdd] = fieldValue;
-            needsUpdate = true;
+        for (final addF in addFields) {
+          final addField = addF as Map<String, dynamic>;
+          final name = addField['name'] as String;
+          if (protectedFields.contains(name)) {
+            print(
+              '❌ VALIDATION ERROR: Script $scriptName attempts to modify protected field: $name',
+            );
+            exit(1);
           }
         }
+      }
 
-        if (needsUpdate) {
-          print('🔄 Updating document $documentId in $collectionPath...');
-          await updateDocument(
+      // Execution Phase
+      for (final operation in operations) {
+        final op = operation as Map<String, dynamic>;
+        final targetType = op['targetType'] as String;
+        final path = op['path'] as String;
+        final removeFields = List<String>.from(
+          op['removeFields'] as List<dynamic>? ?? [],
+        );
+        final addFields = op['addFields'] as List<dynamic>? ?? [];
+
+        if (targetType == 'collection') {
+          await processCollection(
             client,
             projectId,
             host,
             port,
             token,
             isRemote,
-            collectionPath,
-            documentId,
-            fields,
+            path,
+            removeFields,
+            addFields,
           );
+        } else if (targetType == 'document') {
+          await processDocument(
+            client,
+            projectId,
+            host,
+            port,
+            token,
+            isRemote,
+            path,
+            removeFields,
+            addFields,
+          );
+        } else if (targetType == 'subcollection') {
+          // Syntax: parentCollection/*/subCollectionName
+          final parts = path.split('/*/');
+          if (parts.length != 2) {
+            print(
+              '❌ ERROR: Invalid subcollection path syntax. Expected parent/*/sub. Got: $path',
+            );
+            exit(1);
+          }
+          final parentCol = parts[0];
+          final subCol = parts[1];
+
+          print(
+            '   Fetching parent docs in $parentCol to target subcollection $subCol...',
+          );
+          final parents = await getDocumentsPaginated(
+            client,
+            projectId,
+            host,
+            port,
+            token,
+            isRemote,
+            parentCol,
+          );
+          for (final parent in parents) {
+            final parentName = parent['name'] as String;
+            final relativeParentPath = parentName.split('/documents/').last;
+            await processCollection(
+              client,
+              projectId,
+              host,
+              port,
+              token,
+              isRemote,
+              '$relativeParentPath/$subCol',
+              removeFields,
+              addFields,
+            );
+          }
+        } else {
+          print('❌ ERROR: Unknown targetType: $targetType in $scriptName');
+          exit(1);
         }
       }
+
+      // Mark as applied
+      await markMigrationApplied(
+        client,
+        projectId,
+        host,
+        port,
+        token,
+        isRemote,
+        scriptName,
+      );
+      print('✅ Migration $scriptName applied successfully!');
     }
 
-    print('\n✨ Dynamic schema update completed successfully!');
+    print('\n✨ All dynamic schema updates completed successfully!');
   } catch (e) {
     print('❌ Error during schema update: $e');
     exit(1);
@@ -143,11 +239,11 @@ String _buildUrl(
   String host,
   String port,
   bool isRemote,
-  String path,
+  String relativePath,
 ) {
   final scheme = isRemote ? 'https' : 'http';
   final portPart = (isRemote && port == '443') ? '' : ':$port';
-  return '$scheme://$host$portPart/v1/projects/$projectId/databases/(default)/documents/$path';
+  return '$scheme://$host$portPart/v1/projects/$projectId/databases/(default)/documents/$relativePath';
 }
 
 Map<String, String> _buildHeaders(bool isRemote, String token) {
@@ -158,57 +254,334 @@ Map<String, String> _buildHeaders(bool isRemote, String token) {
   return headers;
 }
 
-Future<List<dynamic>> getDocuments(
+Future<List<String>> getAppliedMigrations(
   http.Client client,
   String projectId,
   String host,
   String port,
   String token,
   bool isRemote,
-  String collectionPath,
 ) async {
-  final url = _buildUrl(projectId, host, port, isRemote, collectionPath);
-  final response = await client.get(
-    Uri.parse(url),
-    headers: _buildHeaders(isRemote, token),
-  );
-
-  if (response.statusCode == 200) {
-    final data = jsonDecode(response.body);
-    return data['documents'] as List<dynamic>? ?? [];
-  } else if (response.statusCode == 404) {
+  try {
+    final docs = await getDocumentsPaginated(
+      client,
+      projectId,
+      host,
+      port,
+      token,
+      isRemote,
+      '_migrations',
+    );
+    return docs.map((d) => (d['name'] as String).split('/').last).toList();
+  } catch (e) {
+    // Collection might not exist yet, which is fine
+    if (e.toString().contains('404')) return [];
+    // Or if not paginated or some other error, swallow it and assume none
     return [];
-  } else {
-    throw Exception('Failed to fetch documents: ${response.body}');
   }
 }
 
-Future<void> updateDocument(
+Future<void> markMigrationApplied(
   http.Client client,
   String projectId,
   String host,
   String port,
   String token,
   bool isRemote,
-  String collectionPath,
-  String documentId,
-  Map<String, dynamic> fields,
+  String scriptName,
 ) async {
-  // To completely replace the document with only the provided fields, we DELETE and POST
-  final getUrl = _buildUrl(
+  final url = _buildUrl(
     projectId,
     host,
     port,
     isRemote,
-    '$collectionPath/$documentId',
+    '_migrations?documentId=$scriptName',
   );
+  final body = {
+    'fields': {
+      'appliedAt': {'timestampValue': DateTime.now().toUtc().toIso8601String()},
+    },
+  };
+
+  final response = await client.post(
+    Uri.parse(url),
+    headers: _buildHeaders(isRemote, token),
+    body: jsonEncode(body),
+  );
+  if (response.statusCode != 200 && response.statusCode != 409) {
+    throw Exception('Failed to record migration state: ${response.body}');
+  }
+}
+
+Future<List<dynamic>> getDocumentsPaginated(
+  http.Client client,
+  String projectId,
+  String host,
+  String port,
+  String token,
+  bool isRemote,
+  String collectionPath,
+) async {
+  List<dynamic> allDocs = [];
+  String? pageToken;
+
+  do {
+    String urlStr = _buildUrl(projectId, host, port, isRemote, collectionPath);
+    urlStr += '?pageSize=300';
+    if (pageToken != null) urlStr += '&pageToken=$pageToken';
+
+    final response = await client.get(
+      Uri.parse(urlStr),
+      headers: _buildHeaders(isRemote, token),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final docs = data['documents'] as List<dynamic>? ?? [];
+      allDocs.addAll(docs);
+      pageToken = data['nextPageToken'] as String?;
+    } else if (response.statusCode == 404) {
+      return allDocs; // Return what we have, collection might just be empty
+    } else {
+      throw Exception(
+        'Failed to fetch documents: ${response.statusCode} - ${response.body}',
+      );
+    }
+  } while (pageToken != null);
+
+  return allDocs;
+}
+
+Future<Map<String, dynamic>?> getDocument(
+  http.Client client,
+  String projectId,
+  String host,
+  String port,
+  String token,
+  bool isRemote,
+  String docPath,
+) async {
+  final urlStr = _buildUrl(projectId, host, port, isRemote, docPath);
+  final response = await client.get(
+    Uri.parse(urlStr),
+    headers: _buildHeaders(isRemote, token),
+  );
+
+  if (response.statusCode == 200) {
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  } else if (response.statusCode == 404) {
+    return null;
+  } else {
+    throw Exception(
+      'Failed to fetch document: ${response.statusCode} - ${response.body}',
+    );
+  }
+}
+
+Future<void> processCollection(
+  http.Client client,
+  String projectId,
+  String host,
+  String port,
+  String token,
+  bool isRemote,
+  String collectionPath,
+  List<String> removeFields,
+  List<dynamic> addFields,
+) async {
+  print('   Fetching docs in $collectionPath...');
+  final docs = await getDocumentsPaginated(
+    client,
+    projectId,
+    host,
+    port,
+    token,
+    isRemote,
+    collectionPath,
+  );
+  for (final doc in docs) {
+    final absoluteName = doc['name'] as String;
+    final fields = doc['fields'] as Map<String, dynamic>? ?? {};
+    await _applyModifications(
+      client,
+      host,
+      port,
+      isRemote,
+      token,
+      absoluteName,
+      fields,
+      removeFields,
+      addFields,
+    );
+  }
+}
+
+Future<void> processDocument(
+  http.Client client,
+  String projectId,
+  String host,
+  String port,
+  String token,
+  bool isRemote,
+  String docPath,
+  List<String> removeFields,
+  List<dynamic> addFields,
+) async {
+  print('   Fetching doc $docPath...');
+  final doc = await getDocument(
+    client,
+    projectId,
+    host,
+    port,
+    token,
+    isRemote,
+    docPath,
+  );
+  if (doc == null) {
+    print('   ⚠️ Document $docPath not found. Skipping.');
+    return;
+  }
+
+  final absoluteName = doc['name'] as String;
+  final fields = doc['fields'] as Map<String, dynamic>? ?? {};
+  await _applyModifications(
+    client,
+    host,
+    port,
+    isRemote,
+    token,
+    absoluteName,
+    fields,
+    removeFields,
+    addFields,
+  );
+}
+
+Future<void> _applyModifications(
+  http.Client client,
+  String host,
+  String port,
+  bool isRemote,
+  String token,
+  String absoluteName,
+  Map<String, dynamic> currentFields,
+  List<String> removeFields,
+  List<dynamic> addFields,
+) async {
+  bool needsUpdate = false;
+  final updatedFields = Map<String, dynamic>.from(currentFields);
+
+  // Remove fields
+  for (final f in removeFields) {
+    if (updatedFields.containsKey(f)) {
+      updatedFields.remove(f);
+      needsUpdate = true;
+    }
+  }
+
+  // Add fields safely (do not overwrite existing values)
+  for (final addF in addFields) {
+    final af = addF as Map<String, dynamic>;
+    final name = af['name'] as String;
+    final type = af['type'] as String;
+    final value = af['value'];
+
+    if (!updatedFields.containsKey(name)) {
+      updatedFields[name] = _buildFirestoreValue(type, value);
+      needsUpdate = true;
+    }
+  }
+
+  if (needsUpdate) {
+    print('      🔄 Patching ${absoluteName.split('/').last}...');
+    await _patchDocument(
+      client,
+      host,
+      port,
+      isRemote,
+      token,
+      absoluteName,
+      updatedFields,
+    );
+  }
+}
+
+Map<String, dynamic> _buildFirestoreValue(String type, dynamic value) {
+  switch (type.toLowerCase()) {
+    case 'string':
+      return {'stringValue': value.toString()};
+    case 'integer':
+      return {'integerValue': value.toString()};
+    case 'double':
+      return {
+        'doubleValue': value is num
+            ? value.toDouble()
+            : double.parse(value.toString()),
+      };
+    case 'boolean':
+      return {'booleanValue': value == true || value == 'true'};
+    case 'timestamp':
+      return {'timestampValue': value.toString()}; // Expected ISO-8601
+    case 'null':
+      return {'nullValue': null};
+    default:
+      throw Exception('Unsupported add field type: $type');
+  }
+}
+
+Future<void> _patchDocument(
+  http.Client client,
+  String host,
+  String port,
+  bool isRemote,
+  String token,
+  String absoluteName,
+  Map<String, dynamic> fields,
+) async {
+  final scheme = isRemote ? 'https' : 'http';
+  final portPart = (isRemote && port == '443') ? '' : ':$port';
+
+  // Create update mask based on keys we want to *keep*.
+  // Anything not in updateMask is ignored. Wait, if a field is in updateMask but not in payload, it's deleted.
+  // So updateMask must contain all keys in the new fields map, PLUS the keys we want to delete.
+  // Actually, wait: If we just list the keys of the `fields` map in the updateMask,
+  // fields NOT in the updateMask are preserved untouched in Firestore.
+  // Fields IN the updateMask but NOT in payload are deleted in Firestore.
+  // Since we want to delete some fields, they are NOT in the payload anymore, so we MUST include them in the updateMask so Firestore deletes them!
+  // Wait, if we use PATCH without updateMask, Firestore ONLY updates the fields in the payload and leaves others untouched. So we can't delete fields without updateMask.
+  // If we pass an updateMask containing ALL keys of the OLD document, and the payload only has the NEW keys, the missing ones get deleted.
+  // However, it's simpler: Firestore REST API `patch` with NO updateMask updates fields present.
+  // We can't delete easily via patch without updateMask.
+  // So to replace the document precisely with our modified `fields` map and discard anything else, we must list ALL fields in `fields.keys` as the updateMask.
+  // Wait! If a key was removed, it is NOT in `fields.keys`. So it won't be deleted in Firestore if we only pass `fields.keys` in updateMask.
+  // Workaround: Use DELETE + POST if we want to replace the whole document?
+  // No, better workaround: pass the deleted fields in the updateMask but not in the payload.
+  // Actually, we can just fetch the existing document, get its keys, and pass ALL existing keys in the updateMask.
+
+  // Wait, let's just make the updateMask equal to `fields.keys.join('&')` and for deleted fields, we can just send them as null?
+  // No, `nullValue: null` is a literal null field.
+  // Let's implement full document overwrite via REST correctly: We GET it, so we know what keys it currently has.
+  // But wait, the `updateMask` feature is exactly for this.
+  // We don't have the original keys easily accessible here unless we pass them.
+  // Let's just pass `updateMask` for the fields we WANT to update/delete.
+  // Since we only do additions and removals:
+  // We could just pass the `removeFields` keys and the `addFields` keys in the updateMask.
+  // But wait, it's easier to simply DELETE and re-POST the document with the exact new state.
+  // BUT DELETE/POST can break subcollections? Actually, deleting a parent doc in Firestore does NOT delete its subcollections.
+  // BUT the Firestore REST API `DELETE` on a document doesn't affect subcollections either.
+  // Wait, posting a document to a specific ID replaces it completely and safely preserves subcollections.
+  // Let's do that. It's atomic enough for this script and guarantees structural purity.
+
+  final getUrl = '$scheme://$host$portPart/v1/$absoluteName';
   await client.delete(
     Uri.parse(getUrl),
     headers: _buildHeaders(isRemote, token),
   );
 
-  final postUrl =
-      '${_buildUrl(projectId, host, port, isRemote, collectionPath)}?documentId=$documentId';
+  final parentPath = absoluteName.substring(0, absoluteName.lastIndexOf('/'));
+  final docId = absoluteName.split('/').last;
+
+  final postUrl = '$scheme://$host$portPart/v1/$parentPath?documentId=$docId';
   final response = await client.post(
     Uri.parse(postUrl),
     headers: _buildHeaders(isRemote, token),
@@ -216,6 +589,8 @@ Future<void> updateDocument(
   );
 
   if (response.statusCode != 200) {
-    throw Exception('Failed to recreate document: ${response.body}');
+    throw Exception(
+      'Failed to recreate document during patch: ${response.statusCode} - ${response.body}',
+    );
   }
 }

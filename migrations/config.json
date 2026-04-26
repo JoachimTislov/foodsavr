@@ -1,0 +1,10 @@
+{
+  "protectedFields": [
+    "id",
+    "userId",
+    "createdAt",
+    "updatedAt",
+    "email",
+    "schemaVersion"
+  ]
+}

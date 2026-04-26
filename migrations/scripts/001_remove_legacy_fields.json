@@ -1,20 +1,22 @@
 {
-  "migrations": [
+  "operations": [
     {
-      "collection": "products",
+      "targetType": "collection",
+      "path": "products",
       "removeFields": [
         "expiries",
         "nonExpiringQuantity",
         "quantity"
       ],
-      "addFields": {}
+      "addFields": []
     },
     {
-      "collection": "collections",
+      "targetType": "collection",
+      "path": "collections",
       "removeFields": [
         "productIds"
       ],
-      "addFields": {}
+      "addFields": []
     }
   ]
 }
