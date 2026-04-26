@@ -43,10 +43,10 @@ void main() {
   });
 
   group('Main App Constants', () {
-    test('main function throws if flavor is not provided and not on web', () {
+    test('main function throws if flavor is not provided and not on web', () async {
       // By default in unit tests (Dart VM), appFlavor is null and kIsWeb is false.
       // Therefore, the new flavor safeguard in main() should immediately throw.
-      expect(
+      await expectLater(
         () => main_app.main(),
         throwsA(
           isA<Exception>().having(

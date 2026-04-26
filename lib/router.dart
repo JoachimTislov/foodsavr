@@ -36,7 +36,7 @@ GoRouter createAppRouter(IAuthService authService) {
       if (!authListenable.isInitialized) {
         if (state.uri.path != '/splash') {
           final originalUri = state.uri.toString();
-          return state.uri.path == '/'
+          return state.uri.path == '/' && state.uri.queryParameters.isEmpty
               ? '/splash'
               : '/splash?target=${Uri.encodeComponent(originalUri)}';
         }

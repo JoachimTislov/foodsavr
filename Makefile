@@ -51,7 +51,14 @@ di:
 
 view-emulator:
 	@echo "Opening Firebase Emulator UI in browser..."
-	@xdg-open http://localhost:8081
+	@# Note: Firebase Emulator Suite UI defaults to port 4000. Change the port below if needed.
+	@if [ "$$(uname)" = "Darwin" ]; then \
+		open http://localhost:8081; \
+	elif [ "$$(uname)" = "Linux" ]; then \
+		xdg-open http://localhost:8081; \
+	else \
+		start http://localhost:8081; \
+	fi
 
 # Code quality commands
 check:
