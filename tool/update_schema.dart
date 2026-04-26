@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 Future<void> main(List<String> args) async {
-  print('🚀 Starting schema update...');
+  print('🚀 Starting dynamic schema update...');
 
   final isRemote = Platform.environment['FIRESTORE_REMOTE'] == 'true';
   final projectId =
@@ -16,6 +16,8 @@ Future<void> main(List<String> args) async {
   final port =
       Platform.environment['FIRESTORE_PORT'] ?? (isRemote ? '443' : '8080');
   final token = Platform.environment['FIREBASE_TOKEN'] ?? '';
+  final configPath =
+      Platform.environment['SCHEMA_CONFIG'] ?? 'schema_config.json';
 
   if (isRemote && token.isEmpty) {
     print(
@@ -23,6 +25,21 @@ Future<void> main(List<String> args) async {
     );
     print('   Use `gcloud auth print-access-token` to get a token.');
     exit(1);
+  }
+
+  final configFile = File(configPath);
+  if (!await configFile.exists()) {
+    print('❌ Error: Configuration file not found at $configPath');
+    exit(1);
+  }
+
+  final configContent = await configFile.readAsString();
+  final config = jsonDecode(configContent) as Map<String, dynamic>;
+  final migrations = config['migrations'] as List<dynamic>? ?? [];
+
+  if (migrations.isEmpty) {
+    print('ℹ️ No migrations found in $configPath.');
+    return;
   }
 
   final client = http.Client();
@@ -36,89 +53,72 @@ Future<void> main(List<String> args) async {
       exit(1);
     }
 
-    print('📦 Fetching all products...');
-    final products = await getDocuments(
-      client,
-      projectId,
-      host,
-      port,
-      token,
-      isRemote,
-      'products',
-    );
-    for (final product in products) {
-      final productId = product['name'].toString().split('/').last;
-      final fields = product['fields'] as Map<String, dynamic>? ?? {};
+    for (final migration in migrations) {
+      final m = migration as Map<String, dynamic>;
+      final collectionPath = m['collection'] as String?;
+      if (collectionPath == null) continue;
 
-      bool needsUpdate = false;
-      if (fields.containsKey('expiries')) {
-        fields.remove('expiries');
-        needsUpdate = true;
-      }
-      if (fields.containsKey('nonExpiringQuantity')) {
-        fields.remove('nonExpiringQuantity');
-        needsUpdate = true;
-      }
-      if (fields.containsKey('quantity')) {
-        fields.remove('quantity');
-        needsUpdate = true;
-      }
+      final removeFields = List<String>.from(
+        m['removeFields'] as List<dynamic>? ?? [],
+      );
+      final addFields = m['addFields'] as Map<String, dynamic>? ?? {};
 
-      if (needsUpdate) {
-        print('🔄 Updating product $productId schema (removing old fields)...');
-        await updateDocument(
-          client,
-          projectId,
-          host,
-          port,
-          token,
-          isRemote,
-          'products',
-          productId,
-          fields,
-        );
-      }
-    }
+      print('📦 Processing collection: $collectionPath...');
+      final documents = await getDocuments(
+        client,
+        projectId,
+        host,
+        port,
+        token,
+        isRemote,
+        collectionPath,
+      );
 
-    print('📦 Fetching all collections...');
-    final collections = await getDocuments(
-      client,
-      projectId,
-      host,
-      port,
-      token,
-      isRemote,
-      'collections',
-    );
-    for (final collection in collections) {
-      final collectionId = collection['name'].toString().split('/').last;
-      final fields = collection['fields'] as Map<String, dynamic>? ?? {};
+      for (final doc in documents) {
+        final documentId = doc['name'].toString().split('/').last;
+        final fields = doc['fields'] as Map<String, dynamic>? ?? {};
 
-      bool needsUpdate = false;
-      if (fields.containsKey('productIds')) {
-        fields.remove('productIds');
-        needsUpdate = true;
-      }
+        bool needsUpdate = false;
 
-      if (needsUpdate) {
-        print(
-          '🔄 Updating collection $collectionId schema (removing old fields)...',
-        );
-        await updateDocument(
-          client,
-          projectId,
-          host,
-          port,
-          token,
-          isRemote,
-          'collections',
-          collectionId,
-          fields,
-        );
+        // Process removals
+        for (final fieldToRemove in removeFields) {
+          if (fields.containsKey(fieldToRemove)) {
+            fields.remove(fieldToRemove);
+            needsUpdate = true;
+          }
+        }
+
+        // Process additions
+        for (final entry in addFields.entries) {
+          final fieldToAdd = entry.key;
+          final fieldValue = entry.value;
+
+          // Check if field is missing or different
+          if (!fields.containsKey(fieldToAdd) ||
+              jsonEncode(fields[fieldToAdd]) != jsonEncode(fieldValue)) {
+            fields[fieldToAdd] = fieldValue;
+            needsUpdate = true;
+          }
+        }
+
+        if (needsUpdate) {
+          print('🔄 Updating document $documentId in $collectionPath...');
+          await updateDocument(
+            client,
+            projectId,
+            host,
+            port,
+            token,
+            isRemote,
+            collectionPath,
+            documentId,
+            fields,
+          );
+        }
       }
     }
 
-    print('\n✨ Schema update completed successfully!');
+    print('\n✨ Dynamic schema update completed successfully!');
   } catch (e) {
     print('❌ Error during schema update: $e');
     exit(1);
