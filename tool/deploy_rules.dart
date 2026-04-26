@@ -23,7 +23,8 @@ Future<void> main(List<String> args) async {
 
   if (token.isEmpty) {
     print(
-        '❌ Error: --token is required. Use `gcloud auth print-access-token` to get a token.');
+      '❌ Error: --token is required. Use `gcloud auth print-access-token` to get a token.',
+    );
     exit(1);
   }
 
@@ -39,7 +40,11 @@ Future<void> main(List<String> args) async {
   try {
     print('📦 Creating Ruleset for $projectId...');
     final rulesetName = await createRuleset(
-        client, projectId, token, rulesContent);
+      client,
+      projectId,
+      token,
+      rulesContent,
+    );
     print('✅ Ruleset created: $rulesetName');
 
     print('🚀 Updating Release "cloud.firestore"...');
@@ -53,19 +58,21 @@ Future<void> main(List<String> args) async {
   }
 }
 
-Future<String> createRuleset(http.Client client, String projectId, String token,
-    String content) async {
+Future<String> createRuleset(
+  http.Client client,
+  String projectId,
+  String token,
+  String content,
+) async {
   final url = Uri.parse(
-      'https://firebaserules.googleapis.com/v1/projects/$projectId/rulesets');
+    'https://firebaserules.googleapis.com/v1/projects/$projectId/rulesets',
+  );
   final body = {
     'source': {
       'files': [
-        {
-          'name': 'firestore.rules',
-          'content': content,
-        }
-      ]
-    }
+        {'name': 'firestore.rules', 'content': content},
+      ],
+    },
   };
 
   final response = await client.post(
@@ -82,20 +89,21 @@ Future<String> createRuleset(http.Client client, String projectId, String token,
     return data['name'] as String;
   } else {
     throw Exception(
-        'Failed to create ruleset: ${response.statusCode} - ${response.body}');
+      'Failed to create ruleset: ${response.statusCode} - ${response.body}',
+    );
   }
 }
 
-Future<void> updateRelease(http.Client client, String projectId, String token,
-    String rulesetName) async {
+Future<void> updateRelease(
+  http.Client client,
+  String projectId,
+  String token,
+  String rulesetName,
+) async {
   final releaseName = 'projects/$projectId/releases/cloud.firestore';
-  final url =
-      Uri.parse('https://firebaserules.googleapis.com/v1/$releaseName');
+  final url = Uri.parse('https://firebaserules.googleapis.com/v1/$releaseName');
 
-  final body = {
-    'name': releaseName,
-    'rulesetName': rulesetName,
-  };
+  final body = {'name': releaseName, 'rulesetName': rulesetName};
 
   var response = await client.patch(
     url,
@@ -109,7 +117,8 @@ Future<void> updateRelease(http.Client client, String projectId, String token,
   if (response.statusCode == 404) {
     print('   Release does not exist. Creating new release...');
     final createUrl = Uri.parse(
-        'https://firebaserules.googleapis.com/v1/projects/$projectId/releases');
+      'https://firebaserules.googleapis.com/v1/projects/$projectId/releases',
+    );
     response = await client.post(
       createUrl,
       headers: {
@@ -122,6 +131,7 @@ Future<void> updateRelease(http.Client client, String projectId, String token,
 
   if (response.statusCode != 200) {
     throw Exception(
-        'Failed to update release: ${response.statusCode} - ${response.body}');
+      'Failed to update release: ${response.statusCode} - ${response.body}',
+    );
   }
 }
