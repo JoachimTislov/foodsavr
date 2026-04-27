@@ -23,6 +23,8 @@ const dummyOptions = FirebaseOptions(
   projectId: 'demo-project',
 );
 
+var initializedAppCheck = false;
+
 /// List of supported flavor names.
 /// - `development`: default; typically uses local emulators and verbose logging.
 /// - `production`: connects to the production backend.
@@ -54,10 +56,7 @@ void main() async {
     'Running in ${Config.environment} mode (Emulators: ${Config.useEmulators})',
   );
 
-  // We skip this check on Web because making an HTTP GET request to the emulator
-  // from the browser triggers a CORS exception, which crashes the app before it
-  // can even render.
-  if (Config.useEmulators && !kIsWeb) {
+  if (Config.useEmulators) {
     try {
       // Check if Auth Emulator is reachable before continuing
       await http
@@ -65,6 +64,7 @@ void main() async {
           .timeout(const Duration(seconds: 2));
     } catch (_) {
       // If the GET request fails or times out, the emulators are likely offline.
+      // TODO: consider just starting them
       throw Exception(
         'Firebase Emulators are not running! Please run "make start-firebase-emulators" (see kill-firebase-emulators in Makefile for port details).',
       );
@@ -91,33 +91,19 @@ void main() async {
     }
   }
 
-  // We wrap AppCheck activation in a try-catch block because on Web hot-restarts,
-  // the JS SDK retains the initialized Firebase state, and calling `activate`
-  // a second time throws an "already initialized" error, freezing the app.
-  try {
-    const recaptchaKey = String.fromEnvironment(
-      'RECAPTCHA_V3_SITE_KEY',
-      defaultValue: 'dummy-key',
+  if (!initializedAppCheck) {
+    initializedAppCheck = true;
+    await FirebaseAppCheck.instance.activate(
+      providerWeb: ReCaptchaV3Provider(
+        String.fromEnvironment(
+          'RECAPTCHA_V3_SITE_KEY',
+          defaultValue: 'dummy-key',
+        ),
+      ),
+      providerAndroid: Config.useEmulators
+          ? AndroidDebugProvider()
+          : AndroidPlayIntegrityProvider(),
     );
-    if (Config.useEmulators) {
-      await FirebaseAppCheck.instance.activate(
-        providerWeb: ReCaptchaV3Provider(recaptchaKey),
-        providerAndroid: AndroidDebugProvider(),
-      );
-    } else {
-      await FirebaseAppCheck.instance.activate(
-        providerWeb: ReCaptchaV3Provider(recaptchaKey),
-      );
-    }
-  } catch (e) {
-    if (Config.useEmulators) {
-      logger.w(
-        'Firebase/AppCheck initialization failed (likely due to hot restart): $e',
-      );
-    } else {
-      logger.e('Firebase/AppCheck initialization failed: $e');
-      // TODO: Forward to crash reporting hook (e.g. Crashlytics)
-    }
   }
 
   const enLocale = Locale('en');

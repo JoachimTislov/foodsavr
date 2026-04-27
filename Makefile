@@ -8,7 +8,7 @@ CHECK_HASH_CMD := find lib test pubspec.yaml analysis_options.yaml -type f 2>/de
 run-dev: deps start-firebase-emulators
 	@$(FLUTTER_RUN_CMD) --flavor development
 
-run-prod: deps start-firebase-emulators
+run-prod: deps
 	@$(FLUTTER_RUN_CMD) --flavor production
 
 build-apk-debug: deps
