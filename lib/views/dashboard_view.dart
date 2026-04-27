@@ -153,7 +153,7 @@ class _DashboardViewState extends State<DashboardView> {
                       subtitle: 'dashboard.moveItems'.tr(),
                       icon: Icons.move_up,
                       iconColor: colorScheme.primary,
-                      onTap: () => context.go('/transfer'),
+                      onTap: () => context.go('/dashboard/transfer'),
                     ),
                   OverviewCard(
                     title: 'dashboard.globalProducts'.tr(),

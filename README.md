@@ -48,6 +48,20 @@ unnecessary cloud costs and ensure a consistent environment.
     Access the Emulator UI at `http://localhost:8081`.
 
 3.  **Run the application:**
+    This project uses Android **product flavors** (`development` and `production`) to safely isolate environments. If you attempt to build or run the app without specifying a flavor, the build will fail (see [Issue: Gradle build failed to produce an .apk file](archive/issues/gradle-build-failed-apk-flavor.md)).
+
+    **Recommended (Using Make):**
+    The easiest way to run the app is using the provided `Makefile`, which automatically handles flavors, environment variables, and starts the Firebase emulators if they aren't already running. Runs the default / first device available
+    ```bash
+    make run-dev    # Runs the development flavor with local emulators
+    make run-prod   # Runs the production flavor
+    ```
+
+    **Manual CLI (Advanced):**
+    If you must use the Flutter CLI directly, you **must** append the `--flavor` flag:
+    ```bash
+    flutter run --flavor development
+    ```
     ```bash
     make dev-chrome
     # or: flutter run -d chrome
@@ -70,8 +84,8 @@ Reference: https://firebase.google.com/docs/auth/web/anonymous-auth
 ### Common commands
 
 | Command | Description |
-| :--- | :--- |
-| `make dev-<target>` | Run in development mode (e.g., `dev-chrome`, `dev-android`). |
+| :--- | :---|
+| `make run-dev` | Run in development mode. |
 | `make clean` | Remove build artifacts and temporary files. |
 | `make check` | Perform fast validation (analyze, fix, format, and test). |
 | `make push` | Run full preflight checks and push to the remote repository. |
