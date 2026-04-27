@@ -1,15 +1,27 @@
 .PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps di locale-check generate-di preflight push
 
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
+FLUTTER_RUN_CMD := flutter run --no-pub $(DOTENV_FLAGS)
+FLUTTER_BUILD_APK_CMD := flutter build apk --no-pub $(DOTENV_FLAGS)
+CHECK_HASH_CMD := find lib test pubspec.yaml analysis_options.yaml -type f 2>/dev/null | sort | xargs sha256sum | sha256sum | awk '{print $$1}'
 
-build-android: deps
-	@flutter build apk --no-pub $(DOTENV_FLAGS)
+run-dev: deps start-firebase-emulators
+	@$(FLUTTER_RUN_CMD) --flavor development
+
+run-prod: deps
+	@$(FLUTTER_RUN_CMD) --flavor production
+
+build-apk-debug: deps
+	@$(FLUTTER_BUILD_APK_CMD) --flavor development --debug
+
+build-apk-release: deps
+	@$(FLUTTER_BUILD_APK_CMD) --flavor production --release
 
 dev-chrome-prod: deps
-	@flutter run -d chrome --no-pub --flavor production $(DOTENV_FLAGS)
+	@$(FLUTTER_RUN_CMD) -d chrome --flavor production
 
 dev-chrome: deps start-firebase-emulators
-	@flutter run -d chrome --no-pub $(DOTENV_FLAGS)
+	@$(FLUTTER_RUN_CMD) -d chrome
 
 start-firebase-emulators:
 	@if ! lsof -ti :9099 -sTCP:LISTEN > /dev/null; then \
@@ -37,8 +49,29 @@ deps: .deps-stamp
 di:
 	@dart run build_runner build --delete-conflicting-outputs
 
+view-emulator:
+	@echo "Opening Firebase Emulator UI in browser..."
+	@# Note: Firebase Emulator Suite UI defaults to port 4000. Change the port below if needed.
+	@if [ "$$(uname)" = "Darwin" ]; then \
+		open http://localhost:8081; \
+	elif [ "$$(uname)" = "Linux" ]; then \
+		xdg-open http://localhost:8081; \
+	else \
+		start http://localhost:8081; \
+	fi
+
 # Code quality commands
-check: analyze test locale-check fix fmt
+check:
+	@CURRENT_HASH=$$($(CHECK_HASH_CMD)); \
+	if [ -f .check.sha256 ] && [ "$$CURRENT_HASH" = "$$(cat .check.sha256)" ]; then \
+		echo "Code matches cached check. Skipping duplicate checks..."; \
+	else \
+		$(MAKE) _run-checks || exit 1; \
+		echo "All checks passed! Caching result..."; \
+		$(CHECK_HASH_CMD) > .check.sha256; \
+	fi
+
+_run-checks: analyze test locale-check fix fmt
 
 analyze: deps
 	@echo "Running Flutter analyze..."
@@ -65,7 +98,7 @@ test: deps
 clean:
 	@echo "Cleaning build artifacts..."
 	@flutter clean
-	@rm .deps-stamp 2>/dev/null
+	@rm .deps-stamp .check.sha256 2>/dev/null || true
 
 locales:
 	@echo "Extracting locales..."
@@ -154,11 +187,9 @@ push: deps preflight
 	fi
 	@$(MAKE) check
 	@if [ -n "$$(git status --short)" ]; then \
-		git add .; \
-		git commit -m "format with dart"; \
-		git rev-parse HEAD >> .git-blame-ignore-revs; \
-		git add .git-blame-ignore-revs; \
-		git commit -m "add formatting changes to .git-blame-ignore-revs"; \
+		echo "Error: Uncommitted formatting or linting changes detected after 'make check'."; \
+		echo "Please include these changes in your commit before pushing."; \
+		exit 1; \
 	fi
 	@echo "Pushing to remote..."
 	@if ! git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then \

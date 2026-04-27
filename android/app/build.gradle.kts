@@ -64,15 +64,8 @@ android {
             dimension = "environment"
             versionNameSuffix = "-development"
         }
-        create("staging") {
-            applicationIdSuffix = ".staging"
-            dimension = "environment"
-            versionNameSuffix = "-staging"
-        }
         create("production") {
             dimension = "environment"
-            applicationIdSuffix = ".production"
-            versionNameSuffix = "-production"
         }
     }
 

@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -22,19 +23,19 @@ const dummyOptions = FirebaseOptions(
   projectId: 'demo-project',
 );
 
+var initializedAppCheck = false;
+
 /// List of supported flavor names.
-///
-/// - `development`: default; typically uses local emulators and
-///   verbose logging.
-/// - `staging`: optional; can be wired to a staging backend.
+/// - `development`: default; typically uses local emulators and verbose logging.
 /// - `production`: connects to the production backend.
-const List<String> supportedFlavors = <String>[
-  'development',
-  'staging',
-  'production',
-];
+const List<String> supportedFlavors = <String>['development', 'production'];
 
 void main() async {
+  if (appFlavor == null && !kIsWeb) {
+    throw Exception(
+      'No app flavor provided. Please run the app using `make run-dev` or specify a flavor using `--flavor development`. See archive/issues/gradle-build-failed-apk-flavor.md for more info.',
+    );
+  }
   if (appFlavor != null && !supportedFlavors.contains(appFlavor)) {
     throw Exception(
       'Invalid app flavor: $appFlavor. Supported flavors: ${supportedFlavors.join(', ')}',
@@ -63,6 +64,7 @@ void main() async {
           .timeout(const Duration(seconds: 2));
     } catch (_) {
       // If the GET request fails or times out, the emulators are likely offline.
+      // TODO: consider just starting them
       throw Exception(
         'Firebase Emulators are not running! Please run "make start-firebase-emulators" (see kill-firebase-emulators in Makefile for port details).',
       );
@@ -77,18 +79,43 @@ void main() async {
           : DefaultFirebaseOptions.currentPlatform,
     );
   } on FirebaseException catch (e) {
-    if (e.code != 'duplicate-app') rethrow;
-    logger.i('Firebase app already initialized, skipping...');
+    final normalizedMessage = e.message?.toLowerCase() ?? '';
+    final isAlreadyInitialized =
+        e.code == 'duplicate-app' ||
+        e.code == 'already-initialized' ||
+        normalizedMessage.contains('already initialized');
+
+    if (!isAlreadyInitialized) rethrow;
+
+    logger.i(
+      'Firebase App Check already initialized, skipping initialization.',
+    );
+  } catch (_) {
+    rethrow;
   }
 
   if (Config.useEmulators) {
     await serviceLocator.setupDevelopment();
-    await FirebaseAppCheck.instance.activate(
-      providerWeb: ReCaptchaV3Provider('recaptcha-v3-site-key'),
-      providerAndroid: AndroidDebugProvider(),
+  }
+
+  if (!initializedAppCheck) {
+    initializedAppCheck = true;
+
+    const recaptchaKey = String.fromEnvironment(
+      'RECAPTCHA_V3_SITE_KEY',
+      defaultValue: 'your-web-recaptcha-v3-site-key',
     );
-  } else {
-    await FirebaseAppCheck.instance.activate();
+    if (Config.isProduction &&
+        kIsWeb &&
+        recaptchaKey == 'your-web-recaptcha-v3-site-key') {
+      logger.w('RECAPTCHA_V3_SITE_KEY is not set.');
+    }
+    await FirebaseAppCheck.instance.activate(
+      providerWeb: ReCaptchaV3Provider(recaptchaKey),
+      providerAndroid: Config.useEmulators
+          ? AndroidDebugProvider()
+          : AndroidPlayIntegrityProvider(),
+    );
   }
 
   const enLocale = Locale('en');
