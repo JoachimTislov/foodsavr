@@ -79,16 +79,23 @@ void main() async {
           : DefaultFirebaseOptions.currentPlatform,
     );
   } on FirebaseException catch (e) {
-    if (e.code != 'duplicate-app') rethrow;
-    logger.i('Firebase app already initialized, skipping...');
+    final normalizedMessage = e.message?.toLowerCase() ?? '';
+    final isAlreadyInitialized =
+        e.code == 'duplicate-app' ||
+        e.code == 'already-initialized' ||
+        normalizedMessage.contains('already initialized');
+
+    if (!isAlreadyInitialized) rethrow;
+
+    logger.i(
+      'Firebase App Check already initialized, skipping initialization.',
+    );
+  } catch (_) {
+    rethrow;
   }
 
   if (Config.useEmulators) {
-    try {
-      await serviceLocator.setupDevelopment();
-    } catch (e) {
-      logger.w('Development setup failed: $e');
-    }
+    await serviceLocator.setupDevelopment();
   }
 
   if (!initializedAppCheck) {
