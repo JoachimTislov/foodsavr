@@ -628,19 +628,6 @@ Map<String, dynamic> _buildFirestoreValue(String type, dynamic value) {
   }
 }
 
-Map<String, String> _buildHeaders(bool isRemote, String token) {
-  if (isRemote) {
-    return {
-      'Authorization': 'Bearer $token',
-      'Content-Type': 'application/json',
-    };
-  }
-  return {
-    'Authorization': 'Bearer owner',
-    'Content-Type': 'application/json',
-  };
-}
-
 Future<void> _patchDocument(
   http.Client client,
   String host,

@@ -1,64 +1,233 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:injectable/injectable.dart';
-import 'package:logger/logger.dart';
 
-import '../utils/config.dart';
-import '../interfaces/i_auth_service.dart';
-import '../interfaces/i_collection_repository.dart';
-import '../interfaces/i_product_repository.dart';
+import '../mock_data/collections.dart';
+import '../mock_data/global_products.dart';
+import '../mock_data/inventory_products.dart';
 import '../models/collection_model.dart';
 import '../models/product_model.dart';
-import 'base_seeding_service.dart';
+import '../utils/collection_types.dart';
+import '../utils/config.dart';
 
-@injectable
-class SeedingService extends BaseSeedingService {
-  final IAuthService _authService;
-  final IProductRepository _productRepository;
-  final ICollectionRepository _collectionRepository;
-  final Logger _logger;
+/// Service to handle database seeding for the Firebase Emulator via REST API.
+@lazySingleton
+class SeedingService {
+  final String projectId;
+  final String host;
+  final String authPort;
+  final String firestorePort;
+  final http.Client client;
 
-  SeedingService(
-    this._authService,
-    this._productRepository,
-    this._collectionRepository,
-    this._logger,
-  );
+  SeedingService({
+    required this.projectId,
+    required this.host,
+    required this.authPort,
+    required this.firestorePort,
+    http.Client? client,
+  }) : client = client ?? http.Client();
 
-  /// Seeds the database using the test user credentials defined in Config.
-  Future<void> seedDatabase() async {
+  @factoryMethod
+  static SeedingService create() {
+    return SeedingService(
+      projectId: 'demo-project',
+      host: Config.emulatorHost,
+      authPort: '9099',
+      firestorePort: '8080',
+    );
+  }
+
+  /// Checks if the Firebase Emulators are running.
+  Future<bool> checkEmulators() async {
     try {
-      await super.seedAllData(Config.testUserEmail, Config.testUserPassword);
+      final results = await Future.wait([
+        client
+            .get(Uri.parse('http://$host:$firestorePort/'))
+            .timeout(const Duration(seconds: 5)),
+        client
+            .get(Uri.parse('http://$host:$authPort/'))
+            .timeout(const Duration(seconds: 5)),
+      ]);
+      return results.every((r) => r.statusCode == 200 || r.statusCode == 404);
     } catch (e) {
-      _logger.e('Error seeding database: $e');
+      return false;
     }
   }
 
-  @override
+  /// Creates a test user or signs in if already exists.
   Future<String> createTestUser(String email, String password) async {
-    User? user;
-    try {
-      final credential = await _authService.signUp(
-        email: email,
-        password: password,
+    final url =
+        'http://$host:$authPort/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake-key';
+    final response = await client
+        .post(
+          Uri.parse(url),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'email': email,
+            'password': password,
+            'returnSecureToken': true,
+          }),
+        )
+        .timeout(const Duration(seconds: 5));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['localId'];
+    } else {
+      final error = jsonDecode(response.body)['error'];
+      if (error != null && error['message'] == 'EMAIL_EXISTS') {
+        final signInUrl =
+            'http://$host:$authPort/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake-key';
+        final signInResponse = await client
+            .post(
+              Uri.parse(signInUrl),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'email': email,
+                'password': password,
+                'returnSecureToken': true,
+              }),
+            )
+            .timeout(const Duration(seconds: 5));
+
+        if (signInResponse.statusCode == 200) {
+          final data = jsonDecode(signInResponse.body);
+          return data['localId'];
+        }
+        throw Exception(
+          'Failed to sign in existing test user: ${signInResponse.body}',
+        );
+      }
+      throw Exception('Failed to create test user: ${response.body}');
+    }
+  }
+
+  /// Seeds admin role in a centralized document (roles/admins).
+  Future<void> seedUserDocument(String userId) async {
+    final url =
+        'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/roles/admins?updateMask.fieldPaths=$userId';
+    final response = await client
+        .patch(
+          Uri.parse(url),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'fields': {
+              userId: {'booleanValue': true},
+            },
+          }),
+        )
+        .timeout(const Duration(seconds: 5));
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to seed admin role: ${response.body}');
+    }
+  }
+
+  /// Seeds inventory products for a specific user.
+  Future<List<int>> seedInventoryProducts(String userId) async {
+    final productsData = InventoryProductsData.getProducts();
+    final addedIds = <int>[];
+    final now = DateTime.now();
+
+    for (var data in productsData) {
+      final id = data['id'] as int;
+      final expirationDays = data['expirationDays'] as int?;
+      final quantity = data['quantity'] as int? ?? 1;
+
+      final product = Product(
+        id: id,
+        name: data['name'] as String,
+        description: data['description'] as String,
+        userId: userId,
+        nonExpiringQuantity: expirationDays == null ? quantity : 0,
+        expiries: expirationDays != null
+            ? [
+                ExpiryEntry(
+                  quantity: quantity,
+                  expirationDate: now.add(Duration(days: expirationDays)),
+                ),
+              ]
+            : [],
+        category: data['category'] as String?,
       );
-      user = credential.user;
-    } catch (_) {
-      // ignore error, user might already exist
+
+      await postToFirestore(
+        'products',
+        id.toString(),
+        product.toFirestoreRest(),
+      );
+      addedIds.add(id);
     }
-    if (user == null) {
-      _logger.e('SeedingService: signUp returned a null user for $email');
-      throw StateError('Failed to seed database: test user was not created.');
-    }
-    return user.uid;
+    return addedIds;
   }
 
-  @override
-  Future<void> addProduct(Product product) async {
-    await _productRepository.add(product);
+  /// Seeds global products catalog.
+  Future<void> seedGlobalProducts() async {
+    final productsData = GlobalProductsData.getProducts();
+
+    for (var data in productsData) {
+      final id = data['id'] as int;
+      final product = Product(
+        id: id,
+        name: data['name'] as String,
+        description: data['description'] as String,
+        userId: 'global',
+        isGlobal: true,
+        category: data['category'] as String?,
+      );
+
+      await postToFirestore(
+        'products',
+        id.toString(),
+        product.toFirestoreRest(),
+      );
+    }
   }
 
-  @override
-  Future<void> addCollection(Collection collection) async {
-    await _collectionRepository.add(collection);
+  /// Seeds collections for a specific user.
+  Future<void> seedCollections(String userId) async {
+    final collectionsData = CollectionsData.getCollections();
+
+    for (var data in collectionsData) {
+      final id = data['id'] as String;
+      final mockProductIds = List<int>.from(data['productIds'] as List);
+
+      final collection = Collection(
+        id: id,
+        name: data['name'] as String,
+        productIds: mockProductIds,
+        userId: userId,
+        description: data['description'] as String?,
+        type: CollectionType.values.firstWhere(
+          (e) => e.name == data['type'],
+          orElse: () => CollectionType.inventory,
+        ),
+      );
+
+      await postToFirestore('collections', id, collection.toFirestoreRest());
+    }
+  }
+
+  /// Generic method to patch a document in Firestore REST API.
+  Future<void> postToFirestore(
+    String collection,
+    String documentId,
+    Map<String, dynamic> fields,
+  ) async {
+    final url =
+        'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collection/$documentId';
+    final response = await client
+        .patch(
+          Uri.parse(url),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'fields': fields}),
+        )
+        .timeout(const Duration(seconds: 5));
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Failed to seed document $documentId in $collection: ${response.body}',
+      );
+    }
   }
 }

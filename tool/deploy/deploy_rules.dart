@@ -11,9 +11,11 @@ Future<void> main(List<String> args) async {
 
   try {
     final projectId = await getProjectId();
-    
+
     if (projectId == 'demo-project' || projectId.startsWith('demo-')) {
-      print('ℹ️ Local deployment detected ($projectId). Skipping, as local deployment is handled automatically by the emulator.');
+      print(
+        'ℹ️ Local deployment detected ($projectId). Skipping, as local deployment is handled automatically by the emulator.',
+      );
       exit(0);
     }
 
@@ -31,7 +33,7 @@ Future<void> main(List<String> args) async {
       print('❌ Error: Rules file "$rulesFile" is empty.');
       exit(1);
     }
-    
+
     final client = http.Client();
     try {
       print('📦 Creating Ruleset for $projectId...');
@@ -111,10 +113,7 @@ Future<void> updateRelease(
       'X-Goog-User-Project': projectId,
     },
     body: jsonEncode({
-      'release': {
-        'name': releaseName,
-        'rulesetName': rulesetName,
-      },
+      'release': {'name': releaseName, 'rulesetName': rulesetName},
       'updateMask': 'rulesetName',
     }),
   );
