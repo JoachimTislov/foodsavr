@@ -82,7 +82,12 @@ class _FakeProductRepository implements IProductRepository {
 }
 
 class _FakeAuthService implements IAuthService {
-  final _controller = StreamController<User?>.broadcast();
+  late final StreamController<User?> _controller =
+      StreamController<User?>.broadcast(
+        onListen: () {
+          _controller.add(_userId != null ? _MockUser() : null);
+        },
+      );
   String? _userId;
 
   void signInForTest(String userId) {
