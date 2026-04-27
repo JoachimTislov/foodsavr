@@ -53,7 +53,13 @@ class _DashboardViewState extends State<DashboardView> {
 
   Future<void> _refreshDashboard() async {
     final userId = _authService.getUserId();
-    if (userId == null) return;
+    if (userId == null) {
+      setState(() {
+        _expiringSoonFuture = Future.value([]);
+        _inventoriesFuture = Future.value([]);
+      });
+      return;
+    }
 
     final expiringSoon = _productService.getExpiringSoon(userId);
     final inventories = _collectionService.getCollectionsForUser(
@@ -66,7 +72,11 @@ class _DashboardViewState extends State<DashboardView> {
       _inventoriesFuture = inventories;
     });
 
-    await Future.wait([expiringSoon, inventories]);
+    try {
+      await Future.wait([expiringSoon, inventories]);
+    } catch (_) {
+      // Ignore errors here; FutureBuilder/RetryScaffold handles them
+    }
   }
 
   @override

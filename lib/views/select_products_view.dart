@@ -6,9 +6,10 @@ import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
 import '../services/select_products_controller.dart';
-import '../widgets/product/compact_location_card.dart';
 import '../widgets/product/product_select_item.dart';
 import '../widgets/common/retry_scaffold.dart';
+import '../widgets/transfer/location_header.dart';
+import '../widgets/common/search_field.dart';
 
 class SelectProductsView extends StatefulWidget {
   final String fromLocationId;
@@ -51,6 +52,7 @@ class _SelectProductsViewState extends State<SelectProductsView> {
     if (userId == null) return;
 
     final products = await _productService.getProducts(userId);
+    if (!mounted) return;
     _controller.loadProducts(products);
   }
 
@@ -83,13 +85,13 @@ class _SelectProductsViewState extends State<SelectProductsView> {
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 SliverToBoxAdapter(
-                  child: _LocationHeader(
+                  child: LocationHeader(
                     fromLocationId: widget.fromLocationId,
                     toLocationId: widget.toLocationId,
                   ),
                 ),
                 SliverToBoxAdapter(
-                  child: _SearchBar(
+                  child: SearchField(
                     controller: _searchController,
                     onChanged: _controller.updateQuery,
                   ),
@@ -185,86 +187,6 @@ class _SelectProductsViewState extends State<SelectProductsView> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _LocationHeader extends StatelessWidget {
-  final String fromLocationId;
-  final String toLocationId;
-
-  const _LocationHeader({
-    required this.fromLocationId,
-    required this.toLocationId,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
-        border: Border(
-          bottom: BorderSide(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.1),
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: CompactLocationCard(
-              label: 'common.from'.tr(),
-              locationName: fromLocationId,
-              isActive: true,
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8),
-            child: Icon(Icons.arrow_forward, size: 16),
-          ),
-          Expanded(
-            child: CompactLocationCard(
-              label: 'common.to'.tr(),
-              locationName: toLocationId,
-              isActive: false,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SearchBar extends StatelessWidget {
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-
-  const _SearchBar({required this.controller, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        decoration: InputDecoration(
-          hintText: 'product.search_hint'.tr(),
-          prefixIcon: const Icon(Icons.search),
-          filled: true,
-          fillColor: colorScheme.surfaceContainerHigh,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
-        ),
       ),
     );
   }

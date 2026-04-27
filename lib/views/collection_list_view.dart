@@ -57,6 +57,7 @@ class _CollectionListViewState extends State<CollectionListView> {
     final colorScheme = theme.colorScheme;
 
     return RetryScaffold(
+      errorMessage: 'collection.loadError'.tr(),
       onRefresh: _fetchCollections,
       fetchOnInit: true,
       isBodyScrollable: true,

@@ -60,3 +60,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 .check.sha256
+
+.gemini/
+gha-creds-*.json

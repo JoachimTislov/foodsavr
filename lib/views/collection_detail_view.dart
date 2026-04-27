@@ -117,6 +117,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
   @override
   Widget build(BuildContext context) {
     return RetryScaffold(
+      errorMessage: 'collection.errorLoadingProducts'.tr(),
       onRefresh: _refreshCollectionAndProducts,
       fetchOnInit: true,
       isBodyScrollable: true,
@@ -137,7 +138,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
           }
           if (!mounted) return;
           if (result == true) {
-            _refreshCollectionAndProducts();
+            await _refreshCollectionAndProducts();
           }
         },
         child: const Icon(Icons.add),
@@ -158,7 +159,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
                   collection: _currentCollection,
                 );
                 if (result == true) {
-                  _refreshCollectionAndProducts();
+                  await _refreshCollectionAndProducts();
                 }
               },
               onDelete: () => _deleteCollection(),
@@ -191,11 +192,14 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     );
   }
 
-  void _navigateToProductDetail(Product product) {
-    Navigator.of(context).push(
+  Future<void> _navigateToProductDetail(Product product) async {
+    final result = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => ProductDetailView(product: product),
       ),
     );
+    if (result == true && mounted) {
+      await _refreshCollectionAndProducts();
+    }
   }
 }

@@ -14,6 +14,7 @@ import '../widgets/product/product_card_normal.dart';
 import '../widgets/product/product_card_details.dart';
 import '../utils/product_add_helper.dart';
 import '../utils/view_mode_helper.dart';
+import '../widgets/product/view_mode_toggle.dart';
 import 'product_detail_view.dart';
 
 class ProductListView extends StatefulWidget {
@@ -107,6 +108,7 @@ class _ProductListViewState extends State<ProductListView> {
         : 'product.all_products'.tr();
 
     return RetryScaffold(
+      errorMessage: 'product.errorLoading'.tr(),
       onRefresh: _fetchProducts,
       fetchOnInit: true,
       isBodyScrollable: true,
@@ -156,7 +158,7 @@ class _ProductListViewState extends State<ProductListView> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  _ViewModeToggle(
+                  ViewModeToggle(
                     viewMode: _viewMode,
                     onModeChanged: (mode) {
                       setState(() {
@@ -220,7 +222,7 @@ class _ProductListViewState extends State<ProductListView> {
             );
             if (!mounted) return;
             if (result == true) {
-              _fetchProducts();
+              await _fetchProducts();
             }
           },
           onDelete: () {
@@ -265,7 +267,7 @@ class _ProductListViewState extends State<ProductListView> {
                     ),
                   ),
                 );
-                _fetchProducts();
+                await _fetchProducts();
               } catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -278,70 +280,6 @@ class _ProductListViewState extends State<ProductListView> {
               }
             },
             child: Text('common.delete'.tr()),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ViewModeToggle extends StatelessWidget {
-  final ProductViewMode viewMode;
-  final ValueChanged<ProductViewMode> onModeChanged;
-
-  const _ViewModeToggle({required this.viewMode, required this.onModeChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return PopupMenuButton<ProductViewMode>(
-      icon: Icon(
-        ViewModeHelper.getViewModeIcon(viewMode),
-        color: colorScheme.primary,
-      ),
-      onSelected: onModeChanged,
-      itemBuilder: (context) => [
-        _buildMenuItem(
-          ProductViewMode.compact,
-          Icons.view_headline,
-          'product.compact'.tr(),
-          colorScheme,
-        ),
-        _buildMenuItem(
-          ProductViewMode.normal,
-          Icons.view_agenda,
-          'product.normal'.tr(),
-          colorScheme,
-        ),
-        _buildMenuItem(
-          ProductViewMode.details,
-          Icons.view_day,
-          'product.details'.tr(),
-          colorScheme,
-        ),
-      ],
-    );
-  }
-
-  PopupMenuItem<ProductViewMode> _buildMenuItem(
-    ProductViewMode mode,
-    IconData icon,
-    String label,
-    ColorScheme colorScheme,
-  ) {
-    final isSelected = viewMode == mode;
-    return PopupMenuItem(
-      value: mode,
-      child: Row(
-        children: [
-          Icon(icon, color: isSelected ? colorScheme.primary : null),
-          const SizedBox(width: 12),
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            ),
           ),
         ],
       ),
