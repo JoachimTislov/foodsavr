@@ -6,17 +6,23 @@ import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
 import '../services/select_products_controller.dart';
-import '../widgets/product/compact_location_card.dart';
 import '../widgets/product/product_select_item.dart';
+import '../widgets/common/retry_scaffold.dart';
+import '../widgets/transfer/location_header.dart';
+import '../widgets/common/search_field.dart';
 
 class SelectProductsView extends StatefulWidget {
   final String fromLocationId;
   final String toLocationId;
+  final String fromLocationName;
+  final String toLocationName;
 
   const SelectProductsView({
     super.key,
     required this.fromLocationId,
     required this.toLocationId,
+    this.fromLocationName = '',
+    this.toLocationName = '',
   });
 
   @override
@@ -36,9 +42,6 @@ class _SelectProductsViewState extends State<SelectProductsView> {
     _authService = getIt<IAuthService>();
     _controller = SelectProductsController();
     _searchController = TextEditingController();
-    _productService
-        .getProducts(_authService.getUserId())
-        .then(_controller.loadProducts);
   }
 
   @override
@@ -48,12 +51,22 @@ class _SelectProductsViewState extends State<SelectProductsView> {
     super.dispose();
   }
 
+  Future<void> _refreshProducts() async {
+    final userId = _authService.getUserId();
+    final products = await _productService.getProducts(userId);
+    if (!mounted) return;
+    _controller.loadProducts(products);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return Scaffold(
+    return RetryScaffold(
+      onRefresh: _refreshProducts,
+      fetchOnInit: true,
+      isBodyScrollable: true,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -69,100 +82,68 @@ class _SelectProductsViewState extends State<SelectProductsView> {
       ),
       body: Column(
         children: [
-          // Location display
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainer,
-              border: Border(
-                bottom: BorderSide(
-                  color: colorScheme.outlineVariant.withValues(alpha: 0.1),
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: CompactLocationCard(
-                    label: 'common.from'.tr(),
-                    locationName: widget.fromLocationId,
-                    isActive: true,
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: Icon(Icons.arrow_forward, size: 16),
-                ),
-                Expanded(
-                  child: CompactLocationCard(
-                    label: 'common.to'.tr(),
-                    locationName: widget.toLocationId,
-                    isActive: false,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Search bar
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _controller.updateQuery,
-              decoration: InputDecoration(
-                hintText: 'product.search_hint'.tr(),
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: colorScheme.surfaceContainerHigh,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: Row(
-              children: [
-                Text(
-                  'product.available_stock'.tr(),
-                  style: textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Product list
           Expanded(
-            child: ListenableBuilder(
-              listenable: _controller,
-              builder: (context, _) {
-                final products = _controller.filteredProducts;
-                return ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: products.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final product = products[index];
-                    return ProductSelectItem(
-                      product: product,
-                      isSelected: _controller.isSelected(product.id),
-                      onToggle: () => _controller.toggleSelection(product.id),
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(
+                  child: LocationHeader(
+                    fromLocationName: widget.fromLocationName.isNotEmpty
+                        ? widget.fromLocationName
+                        : widget.fromLocationId,
+                    toLocationName: widget.toLocationName.isNotEmpty
+                        ? widget.toLocationName
+                        : widget.toLocationId,
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: SearchField(
+                    controller: _searchController,
+                    onChanged: _controller.updateQuery,
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      'product.available_stock'.tr(),
+                      style: textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+                ListenableBuilder(
+                  listenable: _controller,
+                  builder: (context, _) {
+                    final products = _controller.filteredProducts;
+                    return SliverList.separated(
+                      itemCount: products.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final product = products[index];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: ProductSelectItem(
+                            product: product,
+                            isSelected: _controller.isSelected(product.id),
+                            onToggle: () =>
+                                _controller.toggleSelection(product.id),
+                          ),
+                        );
+                      },
                     );
                   },
-                );
-              },
+                ),
+                const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
+              ],
             ),
           ),
-
           // CTA
           ListenableBuilder(
             listenable: _controller,

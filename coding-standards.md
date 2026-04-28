@@ -22,7 +22,7 @@ The project follows a **3-tier layered architecture** with **dependency injectio
 - **One widget per file**: All widgets must be in their own file in the `widgets/` folder
 - **No private widget methods in views**: Extract to separate widget files in `widgets/` folder
 - **Use configuration classes directly**: No thin wrapper helpers - use config classes like `ProductCategory`, `CollectionConfig` directly
-- **Keep view files concise**: Target under 200 lines by extracting reusable widgets
+- **Keep view files concise**: Centralize duplicate logic and markup by extracting reusable widgets
 - **Business logic in models/services**: Not in widget build methods
 
 ### Structure:

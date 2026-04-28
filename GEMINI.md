@@ -27,7 +27,7 @@ When reviewing or writing code, **check [pub.dev](https://pub.dev) or the [Flutt
 **Future Specs**: See `@docs/implementation/` for users, shopping lists, recipes, meals, and groups.
 
 ## 3. Standards
-- **Widget Rules**: **One widget per file**; no private builders (e.g., `_buildX()`) in views; keep view files < 200 lines.
+- **Widget Rules**: **One widget per file**; no private builders (e.g., `_buildX()`) in views; centralize duplicate logic and markup.
 - **Strict Separation**: Business logic **MUST** reside in models or services. **ZERO** business logic in widget build methods or private view helpers.
 - **Lightweight Forms as Bottom Sheets**: Simple create/edit forms (e.g., collection form, product picker) should use `showModalBottomSheet` with a static `show()` method instead of full-screen route navigation. Reserve full routes for complex views.
 - **No Python Scripts**: Use Dart scripts in `tool/` for any project tooling. Do not use Python.

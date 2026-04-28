@@ -46,7 +46,7 @@ class _DynamicCollectionViewState extends State<DynamicCollectionView> {
   }
 
   Future<List<Collection>> _fetchCollections() async {
-    final userId = _authService.getUserId();
+    var userId = _authService.getUserId();
     if (userId == null) return [];
     final all = await _collectionService.getCollectionsForUser(userId);
     return all.where((c) => c.type == widget.type).toList();

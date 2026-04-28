@@ -176,6 +176,8 @@ GoRouter createAppRouter(IAuthService authService) {
           return SelectProductsView(
             fromLocationId: extra['fromLocationId'] ?? '',
             toLocationId: extra['toLocationId'] ?? '',
+            fromLocationName: extra['fromLocationName'] ?? '',
+            toLocationName: extra['toLocationName'] ?? '',
           );
         },
       ),

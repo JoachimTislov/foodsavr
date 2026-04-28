@@ -178,13 +178,23 @@ class _TransferManagementViewState extends State<TransferManagementView> {
             ),
             child: SafeArea(
               child: ElevatedButton(
-                onPressed: () => context.push(
-                  '/select-products',
-                  extra: <String, String>{
-                    'fromLocationId': _selectedFromId,
-                    'toLocationId': _selectedToId,
-                  },
-                ),
+                onPressed: () {
+                  final fromName = _fromOptions
+                      .firstWhere((loc) => loc.id == _selectedFromId)
+                      .name;
+                  final toName = _toOptions
+                      .firstWhere((loc) => loc.id == _selectedToId)
+                      .name;
+                  context.push(
+                    '/select-products',
+                    extra: <String, String>{
+                      'fromLocationId': _selectedFromId,
+                      'toLocationId': _selectedToId,
+                      'fromLocationName': fromName,
+                      'toLocationName': toName,
+                    },
+                  );
+                },
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(56),
                   backgroundColor: colorScheme.primary,
