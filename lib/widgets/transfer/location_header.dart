@@ -3,13 +3,13 @@ import 'package:easy_localization/easy_localization.dart';
 import '../product/compact_location_card.dart';
 
 class LocationHeader extends StatelessWidget {
-  final String fromLocationId;
-  final String toLocationId;
+  final String fromLocationName;
+  final String toLocationName;
 
   const LocationHeader({
     super.key,
-    required this.fromLocationId,
-    required this.toLocationId,
+    required this.fromLocationName,
+    required this.toLocationName,
   });
 
   @override
@@ -31,7 +31,7 @@ class LocationHeader extends StatelessWidget {
           Expanded(
             child: CompactLocationCard(
               label: 'common.from'.tr(),
-              locationName: fromLocationId,
+              locationName: fromLocationName,
               isActive: true,
             ),
           ),
@@ -42,7 +42,7 @@ class LocationHeader extends StatelessWidget {
           Expanded(
             child: CompactLocationCard(
               label: 'common.to'.tr(),
-              locationName: toLocationId,
+              locationName: toLocationName,
               isActive: false,
             ),
           ),

@@ -14,11 +14,15 @@ import '../widgets/common/search_field.dart';
 class SelectProductsView extends StatefulWidget {
   final String fromLocationId;
   final String toLocationId;
+  final String fromLocationName;
+  final String toLocationName;
 
   const SelectProductsView({
     super.key,
     required this.fromLocationId,
     required this.toLocationId,
+    this.fromLocationName = '',
+    this.toLocationName = '',
   });
 
   @override
@@ -84,8 +88,12 @@ class _SelectProductsViewState extends State<SelectProductsView> {
               slivers: [
                 SliverToBoxAdapter(
                   child: LocationHeader(
-                    fromLocationId: widget.fromLocationId,
-                    toLocationId: widget.toLocationId,
+                    fromLocationName: widget.fromLocationName.isNotEmpty
+                        ? widget.fromLocationName
+                        : widget.fromLocationId,
+                    toLocationName: widget.toLocationName.isNotEmpty
+                        ? widget.toLocationName
+                        : widget.toLocationId,
                   ),
                 ),
                 SliverToBoxAdapter(
