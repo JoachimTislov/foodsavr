@@ -75,7 +75,6 @@ class _AddProductSheetState extends State<_AddProductSheet> {
 
   Future<List<Product>> _loadProducts() async {
     final userId = _authService.getUserId();
-    if (userId == null) return [];
     final results = await Future.wait([
       _productService.getPersonalProducts(userId),
       _productService.getAllProducts(),

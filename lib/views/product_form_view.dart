@@ -62,6 +62,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
   late final ProductService _productService;
   late final CollectionService _collectionService;
   late final IAuthService _authService;
+  late final String? _userId;
 
   late TextEditingController _nameController;
   late TextEditingController _descriptionController;
@@ -77,6 +78,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
     _productService = getIt<ProductService>();
     _collectionService = getIt<CollectionService>();
     _authService = getIt<IAuthService>();
+    _userId = _authService.getUserId();
 
     _nameController = TextEditingController(text: widget.product?.name ?? '');
     _descriptionController = TextEditingController(
@@ -95,10 +97,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final userId = _authService.getUserId();
-    if (userId == null) return;
+    if (!_formKey.currentState!.validate() || _userId == null) return;
 
     setState(() => _isSaving = true);
 
@@ -108,7 +107,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
         id: productId,
         name: _nameController.text,
         description: _descriptionController.text,
-        userId: userId,
+        userId: _userId,
         expiries: _expiries,
         nonExpiringQuantity: _nonExpiringQuantity,
         category: _selectedCategory,
@@ -127,7 +126,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
             id: personalProductId,
             name: _nameController.text,
             description: _descriptionController.text,
-            userId: userId,
+            userId: _userId,
             category: _selectedCategory,
             registryType: 'personal',
           );
@@ -154,7 +153,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
           final collection = await _collectionService.getCollection(
             widget.initialCollectionId!,
           );
-          if (collection != null && collection.userId == userId) {
+          if (collection != null && collection.userId == _userId) {
             await _collectionService.addProductToCollection(
               widget.initialCollectionId!,
               productId,
