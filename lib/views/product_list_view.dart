@@ -98,6 +98,17 @@ class _ProductListViewState extends State<ProductListView> {
     }
   }
 
+  Future<void> _reloadProductsAfterMutation() async {
+    try {
+      await _fetchProducts();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('product.errorLoading'.tr())));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -117,7 +128,7 @@ class _ProductListViewState extends State<ProductListView> {
         onPressed: () async {
           final result = await ProductAddHelper.startAddProductFlow(context);
           if (result == true && mounted) {
-            await _fetchProducts();
+            await _reloadProductsAfterMutation();
           }
         },
         icon: const Icon(Icons.qr_code_scanner),
@@ -223,7 +234,7 @@ class _ProductListViewState extends State<ProductListView> {
             );
             if (!mounted) return;
             if (result == true) {
-              await _fetchProducts();
+              await _reloadProductsAfterMutation();
             }
           },
           onDelete: () {
@@ -268,7 +279,7 @@ class _ProductListViewState extends State<ProductListView> {
                     ),
                   ),
                 );
-                await _fetchProducts();
+                await _reloadProductsAfterMutation();
               } catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(

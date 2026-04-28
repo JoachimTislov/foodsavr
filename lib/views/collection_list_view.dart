@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:foodsavr/services/auth_service.dart';
 
 import '../models/collection_model.dart';
 import '../service_locator.dart';
@@ -22,7 +24,6 @@ class CollectionListView extends StatefulWidget {
 class _CollectionListViewState extends State<CollectionListView> {
   List<Collection> _collections = [];
   late final CollectionService _collectionService;
-  late final String? _userId;
 
   @override
   void initState() {
@@ -32,13 +33,14 @@ class _CollectionListViewState extends State<CollectionListView> {
 
   // similar to collection detail view
   Future<void> _fetchCollections() async {
-    if (_userId == null) {
+    var userId = getIt<IAuthService>().getUserId();
+    if (userId == null) {
       if (mounted) setState(() => _collections = []);
       return;
     }
 
     //  TODO: fetching all collections and then filtering is inefficient, should add filter to service method
-    final all = await _collectionService.getCollectionsForUser(_userId);
+    final all = await _collectionService.getCollectionsForUser(userId);
     final filtered = widget.typeFilter != null
         ? all.where((c) => c.type == widget.typeFilter).toList()
         : all.where((c) => c.type == CollectionType.inventory).toList();

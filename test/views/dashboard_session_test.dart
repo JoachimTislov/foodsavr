@@ -30,8 +30,8 @@ void main() {
     await EasyLocalization.ensureInitialized();
   });
 
-  setUp(() {
-    getIt.reset();
+  setUp(() async {
+    await getIt.reset();
     getIt.registerSingleton<IAuthService>(MockAuthService());
     getIt.registerSingleton<ProductService>(MockProductService());
     getIt.registerSingleton<CollectionService>(MockCollectionService());

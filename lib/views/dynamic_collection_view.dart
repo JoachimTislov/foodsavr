@@ -22,7 +22,6 @@ class _DynamicCollectionViewState extends State<DynamicCollectionView> {
   late Future<List<Collection>> _collectionsFuture;
   late final CollectionService _collectionService;
   late final IAuthService _authService;
-  late final String? _userId;
 
   @override
   void initState() {
@@ -30,7 +29,6 @@ class _DynamicCollectionViewState extends State<DynamicCollectionView> {
     _collectionService = getIt<CollectionService>();
     _authService = getIt<IAuthService>();
     _collectionsFuture = _fetchCollections();
-    _userId = _authService.getUserId();
   }
 
   @override
@@ -48,8 +46,9 @@ class _DynamicCollectionViewState extends State<DynamicCollectionView> {
   }
 
   Future<List<Collection>> _fetchCollections() async {
-    if (_userId == null) return [];
-    final all = await _collectionService.getCollectionsForUser(_userId);
+    var userId = _authService.getUserId();
+    if (userId == null) return [];
+    final all = await _collectionService.getCollectionsForUser(userId);
     return all.where((c) => c.type == widget.type).toList();
   }
 
