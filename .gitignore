@@ -1,4 +1,5 @@
 # Miscellaneous
+config-*.json
 stitch
 .deps-stamp
 .env

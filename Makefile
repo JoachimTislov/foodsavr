@@ -138,11 +138,21 @@ migrate-test:
 
 # --- Automation & Gemini Targets ---
 
-.PHONY: data feature research resolve-comments unit-tests integration-tests analyze-architecture
+.PHONY: data seed-local seed-remote feature research resolve-comments unit-tests integration-tests analyze-architecture
 
-data: start-firebase-emulators
-	@echo "Seeding emulator data using standalone seeder..."
+data: seed-local
+
+seed-local: start-firebase-emulators
+	@echo "Seeding local emulator data using standalone seeder..."
 	@dart run tool/seed_database.dart
+
+seed-remote:
+	@if [ -z "$(env)" ]; then \
+		echo "Error: Provide an environment file (e.g., make seed-remote env=config-dev.json)"; \
+		exit 1; \
+	fi
+	@echo "Seeding remote database using config: $(env)..."
+	@dart run --dart-define-from-file=$(env) tool/seed_database.dart
 
 feature:
 	@if [ -z "$(name)" ]; then \
