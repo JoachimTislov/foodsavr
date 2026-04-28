@@ -148,7 +148,7 @@ seed-local: start-firebase-emulators
 
 seed-remote:
 	@if [ -z "$(env)" ]; then \
-		echo "Error: Provide an environment file (e.g., make seed-remote env=config-dev.json)"; \
+		echo "Error: Provide an environment file (e.g., make seed-remote env=seed-remote-creds.json)"; \
 		exit 1; \
 	fi
 	@echo "Seeding remote database using config: $(env)..."
