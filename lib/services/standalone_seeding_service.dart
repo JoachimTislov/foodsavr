@@ -1,14 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../mock_data/collections.dart';
-import '../mock_data/global_products.dart';
-import '../mock_data/inventory_products.dart';
 import '../models/product_model.dart';
 import '../models/collection_model.dart';
-import '../utils/collection_types.dart';
+import 'base_seeding_service.dart';
 
 /// Service to handle database seeding for the Firebase Emulator via REST API.
-class StandaloneSeedingService {
+class StandaloneSeedingService extends BaseSeedingService {
   final String projectId;
   final String host;
   final String authPort;
@@ -40,7 +37,7 @@ class StandaloneSeedingService {
     }
   }
 
-  /// Creates a test user or signs in if already exists.
+  @override
   Future<String> createTestUser(String email, String password) async {
     final url =
         'http://$host:$authPort/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake-key';
@@ -88,89 +85,22 @@ class StandaloneSeedingService {
     }
   }
 
-  /// Seeds inventory products for a specific user.
-  Future<List<int>> seedInventoryProducts(String userId) async {
-    final productsData = InventoryProductsData.getProducts();
-    final addedIds = <int>[];
-    final now = DateTime.now();
-
-    for (var data in productsData) {
-      final id = data['id'] as int;
-      final expirationDays = data['expirationDays'] as int?;
-      final quantity = data['quantity'] as int? ?? 1;
-
-      final product = Product(
-        id: id,
-        name: data['name'] as String,
-        description: data['description'] as String,
-        userId: userId,
-        nonExpiringQuantity: expirationDays == null ? quantity : 0,
-        expiries: expirationDays != null
-            ? [
-                ExpiryEntry(
-                  quantity: quantity,
-                  expirationDate: now.add(Duration(days: expirationDays)),
-                ),
-              ]
-            : [],
-        category: data['category'] as String?,
-      );
-
-      await postToFirestore(
-        'products',
-        id.toString(),
-        product.toFirestoreRest(),
-      );
-      addedIds.add(id);
-    }
-    return addedIds;
+  @override
+  Future<void> addProduct(Product product) async {
+    await postToFirestore(
+      'products',
+      product.id.toString(),
+      product.toFirestoreRest(),
+    );
   }
 
-  /// Seeds global products catalog.
-  Future<void> seedGlobalProducts() async {
-    final productsData = GlobalProductsData.getProducts();
-
-    for (var data in productsData) {
-      final id = data['id'] as int;
-      final product = Product(
-        id: id,
-        name: data['name'] as String,
-        description: data['description'] as String,
-        userId: 'global',
-        isGlobal: true,
-        category: data['category'] as String?,
-      );
-
-      await postToFirestore(
-        'products',
-        id.toString(),
-        product.toFirestoreRest(),
-      );
-    }
-  }
-
-  /// Seeds collections for a specific user.
-  Future<void> seedCollections(String userId) async {
-    final collectionsData = CollectionsData.getCollections();
-
-    for (var data in collectionsData) {
-      final id = data['id'] as String;
-      final mockProductIds = List<int>.from(data['productIds'] as List);
-
-      final collection = Collection(
-        id: id,
-        name: data['name'] as String,
-        productIds: mockProductIds,
-        userId: userId,
-        description: data['description'] as String?,
-        type: CollectionType.values.firstWhere(
-          (e) => e.name == data['type'],
-          orElse: () => CollectionType.inventory,
-        ),
-      );
-
-      await postToFirestore('collections', id, collection.toFirestoreRest());
-    }
+  @override
+  Future<void> addCollection(Collection collection) async {
+    await postToFirestore(
+      'collections',
+      collection.id,
+      collection.toFirestoreRest(),
+    );
   }
 
   /// Generic method to patch a document in Firestore REST API.

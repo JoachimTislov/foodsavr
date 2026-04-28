@@ -28,24 +28,12 @@ Future<void> main() async {
   }
 
   try {
-    print('👤 Creating test user: $testUserEmail...');
-    final userId = await seedingService.createTestUser(
+    print('👤 Seeding database for test user: $testUserEmail...');
+    final userId = await seedingService.seedAllData(
       testUserEmail,
       testUserPassword,
     );
-    print('✅ User created with ID: $userId');
-
-    print('🍎 Seeding inventory products...');
-    final addedProducts = await seedingService.seedInventoryProducts(userId);
-    print('✅ Seeded ${addedProducts.length} inventory products.');
-
-    print('🌎 Seeding global products...');
-    await seedingService.seedGlobalProducts();
-    print('✅ Seeded global products.');
-
-    print('📦 Seeding collections...');
-    await seedingService.seedCollections(userId);
-    print('✅ Seeded collections.');
+    print('✅ Seeding completed for User ID: $userId');
 
     print('\n✨ Database seeding completed successfully!');
   } catch (e) {
