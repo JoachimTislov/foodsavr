@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:foodsavr/widgets/common/app_refresh_indicator.dart';
 import 'package:foodsavr/widgets/common/error_state_widget.dart';
-import 'package:foodsavr/main.dart';
 
 /// A scaffold that wraps a view with built-in retry logic, pull-to-refresh,
 /// and error state management.
@@ -57,26 +56,12 @@ class _RetryScaffoldState extends State<RetryScaffold> {
   @override
   void initState() {
     super.initState();
-    globalRetryNotifier.addListener(_onGlobalRetry);
     if (widget.fetchOnInit) {
       _isLoading = true;
       // Use addPostFrameCallback to avoid calling setState during build if onRefresh is extremely fast
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _handleRefresh();
       });
-    }
-  }
-
-  @override
-  void dispose() {
-    globalRetryNotifier.removeListener(_onGlobalRetry);
-    super.dispose();
-  }
-
-  Future<void> _onGlobalRetry() async {
-    if (!mounted) return;
-    if (_error != null && !_isLoading) {
-      await _resetAndRetry();
     }
   }
 

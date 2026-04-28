@@ -6,9 +6,9 @@ import '../../views/product_detail_view.dart';
 import 'expiring_item_card.dart';
 
 class ExpiringSoonSection extends StatelessWidget {
-  final Future<List<Product>> expiringSoonFuture;
+  final List<Product> products;
 
-  const ExpiringSoonSection({super.key, required this.expiringSoonFuture});
+  const ExpiringSoonSection({super.key, required this.products});
 
   @override
   Widget build(BuildContext context) {
@@ -33,38 +33,29 @@ class ExpiringSoonSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        FutureBuilder<List<Product>>(
-          future: expiringSoonFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final products = snapshot.data ?? [];
-            if (products.isEmpty) {
-              return Text(
-                'dashboard.noProductsExpiringSoon'.tr(),
-                style: textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              );
-            }
-            return Column(
-              children: [
-                for (int i = 0; i < products.length; i++) ...[
-                  if (i > 0) const SizedBox(height: 12),
-                  ExpiringItemCard(
-                    product: products[i],
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ProductDetailView(product: products[i]),
-                      ),
+        if (products.isEmpty)
+          Text(
+            'dashboard.noProductsExpiringSoon'.tr(),
+            style: textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          )
+        else
+          Column(
+            children: [
+              for (int i = 0; i < products.length; i++) ...[
+                if (i > 0) const SizedBox(height: 12),
+                ExpiringItemCard(
+                  product: products[i],
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ProductDetailView(product: products[i]),
                     ),
                   ),
-                ],
+                ),
               ],
-            );
-          },
-        ),
+            ],
+          ),
       ],
     );
   }

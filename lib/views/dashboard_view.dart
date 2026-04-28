@@ -27,8 +27,8 @@ class _DashboardViewState extends State<DashboardView> {
   late final IAuthService _authService;
   late final ProductService _productService;
   late final CollectionService _collectionService;
-  late Future<List<Product>> _expiringSoonFuture;
-  late Future<List<Collection>> _inventoriesFuture;
+  List<Product> _expiringSoon = [];
+  List<Collection> _inventories = [];
 
   @override
   void initState() {
@@ -36,46 +36,33 @@ class _DashboardViewState extends State<DashboardView> {
     _authService = getIt<IAuthService>();
     _productService = getIt<ProductService>();
     _collectionService = getIt<CollectionService>();
-    final userId = _authService.getUserId();
-
-    if (userId == null) {
-      _expiringSoonFuture = Future.value([]);
-      _inventoriesFuture = Future.value([]);
-      return;
-    }
-
-    _expiringSoonFuture = _productService.getExpiringSoon(userId);
-    _inventoriesFuture = _collectionService.getCollectionsForUser(
-      userId,
-      type: CollectionType.inventory,
-    );
   }
 
   Future<void> _refreshDashboard() async {
     final userId = _authService.getUserId();
     if (userId == null) {
-      setState(() {
-        _expiringSoonFuture = Future.value([]);
-        _inventoriesFuture = Future.value([]);
-      });
+      if (mounted) {
+        setState(() {
+          _expiringSoon = [];
+          _inventories = [];
+        });
+      }
       return;
     }
 
-    final expiringSoon = _productService.getExpiringSoon(userId);
-    final inventories = _collectionService.getCollectionsForUser(
-      userId,
-      type: CollectionType.inventory,
-    );
+    final results = await Future.wait([
+      _productService.getExpiringSoon(userId),
+      _collectionService.getCollectionsForUser(
+        userId,
+        type: CollectionType.inventory,
+      ),
+    ]);
 
-    setState(() {
-      _expiringSoonFuture = expiringSoon;
-      _inventoriesFuture = inventories;
-    });
-
-    try {
-      await Future.wait([expiringSoon, inventories]);
-    } catch (_) {
-      // Ignore errors here; FutureBuilder/RetryScaffold handles them
+    if (mounted) {
+      setState(() {
+        _expiringSoon = results[0] as List<Product>;
+        _inventories = results[1] as List<Collection>;
+      });
     }
   }
 
@@ -89,7 +76,7 @@ class _DashboardViewState extends State<DashboardView> {
     ).format(DateTime.now());
 
     return RetryScaffold(
-      fetchOnInit: false,
+      fetchOnInit: true,
       onRefresh: _refreshDashboard,
       isBodyScrollable: true,
       body: SingleChildScrollView(
@@ -127,7 +114,7 @@ class _DashboardViewState extends State<DashboardView> {
               ],
             ),
             const SizedBox(height: 32),
-            ExpiringSoonSection(expiringSoonFuture: _expiringSoonFuture),
+            ExpiringSoonSection(products: _expiringSoon),
             const SizedBox(height: 24),
             Text(
               'dashboard.overview'.tr(),
@@ -136,19 +123,8 @@ class _DashboardViewState extends State<DashboardView> {
               ),
             ),
             const SizedBox(height: 12),
-            FutureBuilder<List<Collection>>(
-              future: _inventoriesFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (snapshot.hasError) {
-                  return Text('dashboard.errorLoading'.tr());
-                }
-
-                final inventories = snapshot.data ?? [];
-
+            Builder(
+              builder: (context) {
                 final cards = <Widget>[
                   OverviewCard(
                     title: 'product.all_products'.tr(),
@@ -157,7 +133,7 @@ class _DashboardViewState extends State<DashboardView> {
                     iconColor: colorScheme.primary,
                     onTap: () => context.go('/dashboard/product-list'),
                   ),
-                  if (inventories.length > 1)
+                  if (_inventories.length > 1)
                     OverviewCard(
                       title: 'dashboard.transfer'.tr(),
                       subtitle: 'dashboard.moveItems'.tr(),

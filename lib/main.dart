@@ -132,8 +132,6 @@ void main() async {
   );
 }
 
-final ValueNotifier<int> globalRetryNotifier = ValueNotifier<int>(0);
-
 class MyApp extends StatelessWidget {
   final RouterConfig<Object> router;
 
@@ -144,36 +142,14 @@ class MyApp extends StatelessWidget {
     return ListenableBuilder(
       listenable: getIt<ThemeNotifier>(),
       builder: (context, _) => MaterialApp.router(
-        title: 'FoodSavr',
         localizationsDelegates: context.localizationDelegates,
         supportedLocales: context.supportedLocales,
         locale: context.locale,
+        title: 'FoodSavr',
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: getIt<ThemeNotifier>().themeMode,
         routerConfig: router,
-        builder: (context, child) {
-          return Stack(
-            children: [
-              ?child,
-              Positioned(
-                right: 16,
-                bottom: 16,
-                child: SafeArea(
-                  child: Material(
-                    type: MaterialType.transparency,
-                    child: FloatingActionButton(
-                      onPressed: () {
-                        globalRetryNotifier.value++;
-                      },
-                      child: const Icon(Icons.refresh),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
       ),
     );
   }
