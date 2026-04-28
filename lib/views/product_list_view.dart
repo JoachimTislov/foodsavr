@@ -31,6 +31,7 @@ class _ProductListViewState extends State<ProductListView> {
   late final ProductService _productService;
   late final CollectionService _collectionService;
   late final IAuthService _authService;
+  late final String? _userId;
   ProductViewMode _viewMode = ProductViewMode.normal;
   Map<int, List<String>> _productInventories = {};
 
@@ -40,6 +41,7 @@ class _ProductListViewState extends State<ProductListView> {
     _productService = getIt<ProductService>();
     _collectionService = getIt<CollectionService>();
     _authService = getIt<IAuthService>();
+    _userId = _authService.getUserId();
   }
 
   Future<void> _fetchProducts() async {
@@ -47,12 +49,11 @@ class _ProductListViewState extends State<ProductListView> {
     if (widget.showGlobalProducts) {
       fetchedProducts = await _productService.getAllProducts();
     } else {
-      final userId = _authService.getUserId();
-      if (userId == null) {
-        if (mounted) setState(() => _products = []);
+      if (_userId == null && mounted) {
+        setState(() => _products = []);
         return;
       }
-      fetchedProducts = await _productService.getProducts(userId);
+      fetchedProducts = await _productService.getProducts(_userId);
     }
 
     if (!widget.showGlobalProducts) {
@@ -79,15 +80,14 @@ class _ProductListViewState extends State<ProductListView> {
   }
 
   Future<void> _loadInventoryNames(List<Product> products) async {
-    final userId = _authService.getUserId();
-    if (userId == null) {
+    if (_userId == null) {
       if (mounted) setState(() => _productInventories = {});
       return;
     }
 
     final productIds = products.map((p) => p.id).toSet();
     final inventoryMap = await _collectionService.getInventoryNamesForProducts(
-      userId,
+      _userId,
       productIds,
     );
 
@@ -199,6 +199,7 @@ class _ProductListViewState extends State<ProductListView> {
   }
 
   Widget _buildProductCard(Product product) {
+    // TODO: Potential for simplification by using a single ProductCard widget that adapts based on view mode
     switch (_viewMode) {
       case ProductViewMode.compact:
         return ProductCardCompact(

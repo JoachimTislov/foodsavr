@@ -52,6 +52,7 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet> {
   final _formKey = GlobalKey<FormState>();
   late final CollectionService _collectionService;
   late final IAuthService _authService;
+  late final String? _userId = _authService.getUserId();
 
   late TextEditingController _nameController;
 
@@ -87,9 +88,7 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-
-    final userId = _authService.getUserId();
-    if (userId == null) return;
+    if (_userId == null) return;
 
     setState(() => _isSaving = true);
 
@@ -98,7 +97,7 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet> {
         id: widget.collection?.id ?? '',
         name: _nameController.text,
         description: null,
-        userId: userId,
+        userId: _userId,
         type: widget.type,
         productIds: widget.collection?.productIds ?? [],
       );

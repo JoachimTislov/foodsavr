@@ -30,6 +30,7 @@ class _SelectProductsViewState extends State<SelectProductsView> {
   late final IAuthService _authService;
   late final SelectProductsController _controller;
   late final TextEditingController _searchController;
+  late final String? _userId;
 
   @override
   void initState() {
@@ -38,6 +39,7 @@ class _SelectProductsViewState extends State<SelectProductsView> {
     _authService = getIt<IAuthService>();
     _controller = SelectProductsController();
     _searchController = TextEditingController();
+    _userId = _authService.getUserId();
   }
 
   @override
@@ -48,10 +50,7 @@ class _SelectProductsViewState extends State<SelectProductsView> {
   }
 
   Future<void> _refreshProducts() async {
-    final userId = _authService.getUserId();
-    if (userId == null) return;
-
-    final products = await _productService.getProducts(userId);
+    final products = await _productService.getProducts(_userId);
     if (!mounted) return;
     _controller.loadProducts(products);
   }

@@ -24,6 +24,7 @@ class _CollectionListViewState extends State<CollectionListView> {
   List<Collection> _collections = [];
   late final CollectionService _collectionService;
   late final IAuthService _authService;
+  late final String? _userId;
 
   @override
   void initState() {
@@ -32,14 +33,15 @@ class _CollectionListViewState extends State<CollectionListView> {
     _authService = getIt<IAuthService>();
   }
 
+  // similar to collection detail view
   Future<void> _fetchCollections() async {
-    final userId = _authService.getUserId();
-    if (userId == null) {
+    if (_userId == null) {
       if (mounted) setState(() => _collections = []);
       return;
     }
 
-    final all = await _collectionService.getCollectionsForUser(userId);
+    //  TODO: fetching all collections and then filtering is inefficient, should add filter to service method
+    final all = await _collectionService.getCollectionsForUser(_userId);
     final filtered = widget.typeFilter != null
         ? all.where((c) => c.type == widget.typeFilter).toList()
         : all.where((c) => c.type == CollectionType.inventory).toList();
@@ -72,6 +74,7 @@ class _CollectionListViewState extends State<CollectionListView> {
                   type: widget.typeFilter ?? CollectionType.inventory,
                 );
                 if (!mounted) return;
+                // TODO: handle false, write rg 'result == true' from root dir
                 if (result == true) {
                   _fetchCollections(); // Refetch if modified
                 }

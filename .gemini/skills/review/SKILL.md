@@ -13,7 +13,7 @@ Deliver high-signal, actionable, and progressive feedback with extreme concisene
 - **Short & Precise**: Use minimal text. Output direct bullet points.
 - **Progressive Feedback Only**: Only point out issues that objectively improve the code's quality, safety, or architecture. Do not comment on stylistic preferences unless they violate explicit project rules.
 - **Future Context**: Highlight architectural implications or technical debt that will affect future development.
-- **Format Strictness**: Use bracket tags like `[BUG]`, `[PERF]`, `[ARCH]`, `[FUTURE]`, and `[FIX]`. Do not use markdown emphasis tags (like `_*_`) for categorizing.
+- **Format Strictness**: Use bracket tags like `[BUG]`, `[PERF]`, `[ARCH]`, `[FUTURE]`, and `[FIX]`.
 
 ## Output Format
 Output your review exactly as follows:

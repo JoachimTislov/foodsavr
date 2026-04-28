@@ -61,6 +61,7 @@ class _AddProductSheetState extends State<_AddProductSheet> {
   late final CollectionService _collectionService;
   late final IAuthService _authService;
   late Future<List<Product>> _productsFuture;
+  late final String? _userId;
   final Set<int> _selectedIds = {};
   bool _isSaving = false;
 
@@ -71,13 +72,12 @@ class _AddProductSheetState extends State<_AddProductSheet> {
     _collectionService = getIt<CollectionService>();
     _authService = getIt<IAuthService>();
     _productsFuture = _loadProducts();
+    _userId = _authService.getUserId();
   }
 
   Future<List<Product>> _loadProducts() async {
-    final userId = _authService.getUserId();
-    if (userId == null) return [];
     final results = await Future.wait([
-      _productService.getPersonalProducts(userId),
+      _productService.getPersonalProducts(_userId),
       _productService.getAllProducts(),
     ]);
     final personalProducts = results[0];
@@ -87,8 +87,7 @@ class _AddProductSheetState extends State<_AddProductSheet> {
 
   Future<void> _addSelected() async {
     if (_selectedIds.isEmpty) return;
-    final userId = _authService.getUserId();
-    if (userId == null) return;
+    if (_userId == null) return;
     setState(() => _isSaving = true);
     try {
       final registryProducts = await _productsFuture;
@@ -101,7 +100,7 @@ class _AddProductSheetState extends State<_AddProductSheet> {
           id: _generateProductId(),
           name: sourceProduct.name,
           description: sourceProduct.description,
-          userId: userId,
+          userId: _userId,
           category: sourceProduct.category,
           registryType: 'current',
           mappedFromProductId: sourceProduct.id,

@@ -27,6 +27,7 @@ class _DashboardViewState extends State<DashboardView> {
   late final IAuthService _authService;
   late final ProductService _productService;
   late final CollectionService _collectionService;
+  late String? _userId;
   List<Product> _expiringSoon = [];
   List<Collection> _inventories = [];
 
@@ -36,11 +37,11 @@ class _DashboardViewState extends State<DashboardView> {
     _authService = getIt<IAuthService>();
     _productService = getIt<ProductService>();
     _collectionService = getIt<CollectionService>();
+    _userId = _authService.getUserId();
   }
 
   Future<void> _refreshDashboard() async {
-    final userId = _authService.getUserId();
-    if (userId == null) {
+    if (_userId == null) {
       if (mounted) {
         setState(() {
           _expiringSoon = [];
@@ -51,9 +52,9 @@ class _DashboardViewState extends State<DashboardView> {
     }
 
     final results = await Future.wait([
-      _productService.getExpiringSoon(userId),
+      _productService.getExpiringSoon(_userId),
       _collectionService.getCollectionsForUser(
-        userId,
+        _userId!,
         type: CollectionType.inventory,
       ),
     ]);
