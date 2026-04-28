@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
-import 'package:foodsavr/services/auth_service.dart';
 
 import '../models/collection_model.dart';
 import '../service_locator.dart';
