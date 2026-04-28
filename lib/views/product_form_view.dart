@@ -126,7 +126,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
             id: personalProductId,
             name: _nameController.text,
             description: _descriptionController.text,
-            userId: userId,
+            userId: _userId,
             category: _selectedCategory,
             registryType: 'personal',
           );
@@ -153,7 +153,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
           final collection = await _collectionService.getCollection(
             widget.initialCollectionId!,
           );
-          if (collection != null && collection.userId == userId) {
+          if (collection != null && collection.userId == _userId) {
             await _collectionService.addProductToCollection(
               widget.initialCollectionId!,
               productId,

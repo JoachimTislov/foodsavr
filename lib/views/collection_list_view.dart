@@ -4,7 +4,6 @@ import 'package:easy_localization/easy_localization.dart';
 import '../models/collection_model.dart';
 import '../service_locator.dart';
 import '../services/collection_service.dart';
-import '../interfaces/i_auth_service.dart';
 import '../utils/collection_types.dart';
 import '../widgets/collection/collection_card.dart';
 import '../widgets/common/retry_scaffold.dart';
@@ -23,14 +22,12 @@ class CollectionListView extends StatefulWidget {
 class _CollectionListViewState extends State<CollectionListView> {
   List<Collection> _collections = [];
   late final CollectionService _collectionService;
-  late final IAuthService _authService;
   late final String? _userId;
 
   @override
   void initState() {
     super.initState();
     _collectionService = getIt<CollectionService>();
-    _authService = getIt<IAuthService>();
   }
 
   // similar to collection detail view
@@ -76,7 +73,7 @@ class _CollectionListViewState extends State<CollectionListView> {
                 if (!mounted) return;
                 // TODO: handle false, write rg 'result == true' from root dir
                 if (result == true) {
-                  _fetchCollections(); // Refetch if modified
+                  await _fetchCollections(); // Refetch if modified
                 }
               },
               child: const Icon(Icons.add),
@@ -152,7 +149,7 @@ class _CollectionListViewState extends State<CollectionListView> {
 
 class _EmptyCollectionListState extends StatelessWidget {
   final CollectionType? typeFilter;
-  final VoidCallback onRefresh;
+  final Future<void> Function() onRefresh;
 
   const _EmptyCollectionListState({
     required this.typeFilter,
@@ -193,7 +190,7 @@ class _EmptyCollectionListState extends StatelessWidget {
                 type: typeFilter ?? CollectionType.inventory,
               );
               if (context.mounted && result == true) {
-                onRefresh();
+                await onRefresh();
               }
             },
             icon: const Icon(Icons.add),

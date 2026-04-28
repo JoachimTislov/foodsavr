@@ -46,12 +46,10 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       return;
     }
 
-    final products = <Product>[];
-    for (final id in productIds) {
-      // TODO: optimize by fetching all products in one call instead of individually
-      final product = await _productService.getProductById(id);
-      if (product != null) products.add(product);
-    }
+    final results = await Future.wait(
+      productIds.map((id) => _productService.getProductById(id)),
+    );
+    final products = results.whereType<Product>().toList();
 
     if (mounted) {
       setState(() {
