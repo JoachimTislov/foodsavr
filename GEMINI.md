@@ -3,11 +3,10 @@
 Project architecture, principles, and rules for `foodsavr` (Flutter SDK >=3.32.0).
 
 ### Rule
-When reviewing or writing code, **check [pub.dev](https://pub.dev) or the [Flutter breaking-changes doc](https://docs.flutter.dev/release/breaking-changes) if unsure** whether an API exists at the minimum Flutter version. If a newer API is used, either raise the minimum version in `pubspec.yaml` or use the older equivalent.
-
 - **Tech Stack**: Dart, Firebase (Auth/Firestore), GetIt (DI), logger, easy_localization.
 - **Pattern**: 3-tier Layered Architecture
 - **Core Principles**: Interface-based data access, DI for all dependencies, Emulator-driven dev.
+- **Firestore Transaction**: Don't modify application state inside transactions; return data and update state after transaction completes to avoid UI inconsistencies.
 
 ### Layers Summary
 - **UI (`views/`, `widgets/`)**: Screens and reusable components; inject services via `getIt<Service>()`.
