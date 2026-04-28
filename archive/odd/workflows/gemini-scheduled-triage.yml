@@ -71,13 +71,23 @@ jobs:
           GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN || github.token }}'
         run: |-
           echo '🔍 Finding unlabeled issues and issues marked for triage...'
-          ISSUES="$(gh issue list \
+          UNLABELED="$(gh issue list \
             --state 'open' \
-            --search 'no:label label:"status/needs-triage"' \
+            --search 'no:label' \
             --json number,title,body \
             --limit '100' \
             --repo "${GITHUB_REPOSITORY}"
           )"
+
+          NEEDS_TRIAGE="$(gh issue list \
+            --state 'open' \
+            --search 'label:"status/needs-triage"' \
+            --json number,title,body \
+            --limit '100' \
+            --repo "${GITHUB_REPOSITORY}"
+          )"
+
+          ISSUES="$(printf '%s\n%s\n' "${UNLABELED}" "${NEEDS_TRIAGE}" | jq -sc 'add | unique_by(.number)')"
 
           echo '📝 Setting output for GitHub Actions...'
           echo "issues_to_triage=${ISSUES}" >> "${GITHUB_OUTPUT}"
@@ -140,6 +150,7 @@ jobs:
     needs:
       - 'triage'
     if: |-
+      github.event_name != 'pull_request' &&
       needs.triage.outputs.available_labels != '' &&
       needs.triage.outputs.available_labels != '[]' &&
       needs.triage.outputs.triaged_issues != '' &&
@@ -211,10 +222,19 @@ jobs:
 
               core.debug(`Setting labels on issue #${issueNumber} to ${labelsToSet.join(', ')} (${issue.explanation || 'no explanation'})`)
 
+              const currentLabelsResponse = await github.rest.issues.listLabelsOnIssue({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+              });
+              const currentLabels = currentLabelsResponse.data.map((l) => l.name);
+              
+              const mergedLabels = Array.from(new Set([...currentLabels, ...labelsToSet]));
+
               await github.rest.issues.setLabels({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: issueNumber,
-                labels: labelsToSet,
+                labels: mergedLabels,
               });
             }

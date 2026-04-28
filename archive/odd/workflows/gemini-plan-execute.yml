@@ -104,12 +104,9 @@ jobs:
                     "search_pull_requests",
                     "create_branch",
                     "create_or_update_file",
-                    "delete_file",
-                    "fork_repository",
                     "get_commit",
                     "get_file_contents",
                     "list_commits",
-                    "push_files",
                     "search_code"
                   ],
                   "env": {
