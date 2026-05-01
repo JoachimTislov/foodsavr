@@ -7,14 +7,14 @@ import 'package:http/http.dart' as http;
 import 'auth.dart';
 
 Future<void> main(List<String> args) async {
-  print('🚀 Starting Firestore Rules Deployment...');
+  print('Starting Firestore Rules Deployment...');
 
   try {
     final projectId = await getProjectId();
 
     if (projectId == 'demo-project' || projectId.startsWith('demo-')) {
       print(
-        'ℹ️ Local deployment detected ($projectId). Skipping, as local deployment is handled automatically by the emulator.',
+        'Local deployment detected ($projectId). Skipping, as local deployment is handled automatically by the emulator.',
       );
       exit(0);
     }
@@ -24,35 +24,35 @@ Future<void> main(List<String> args) async {
 
     final file = File(rulesFile);
     if (!await file.exists()) {
-      print('❌ Error: Rules file "$rulesFile" not found.');
+      print('Error: Rules file "$rulesFile" not found.');
       exit(1);
     }
 
     final rulesContent = await file.readAsString();
     if (rulesContent.trim().isEmpty) {
-      print('❌ Error: Rules file "$rulesFile" is empty.');
+      print('Error: Rules file "$rulesFile" is empty.');
       exit(1);
     }
 
     final client = http.Client();
     try {
-      print('📦 Creating Ruleset for $projectId...');
+      print('Creating Ruleset for $projectId...');
       final rulesetName = await createRuleset(
         client,
         projectId,
         token,
         rulesContent,
       );
-      print('✅ Ruleset created: $rulesetName');
+      print('Ruleset created: $rulesetName');
 
-      print('🚀 Updating Release "cloud.firestore"...');
+      print('Updating Release "cloud.firestore"...');
       await updateRelease(client, projectId, token, rulesetName);
-      print('✅ Successfully deployed Firestore rules to $projectId!');
+      print('Successfully deployed Firestore rules to $projectId!');
     } finally {
       client.close();
     }
   } catch (e) {
-    print('❌ Error deploying rules: $e');
+    print('Error deploying rules: $e');
     exit(1);
   }
 }

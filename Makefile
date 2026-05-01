@@ -71,7 +71,11 @@ check:
 		$(CHECK_HASH_CMD) > .check.sha256; \
 	fi
 
-_run-checks: analyze test locale-check fix fmt
+_run-checks: policy-check analyze test locale-check fix fmt
+
+policy-check:
+	@echo "Checking Gemini policies..."
+	@bash tool/check_gemini_policy.sh
 
 analyze: deps
 	@echo "Running Flutter analyze..."

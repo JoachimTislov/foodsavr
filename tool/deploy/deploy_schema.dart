@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 import 'auth.dart';
 
 Future<void> main(List<String> args) async {
-  print('🚀 Starting robust schema update...');
+  print('Starting robust schema update...');
 
   final isRemote = Platform.environment['FIRESTORE_REMOTE'] == 'true';
   final String projectId;
@@ -33,7 +33,7 @@ Future<void> main(List<String> args) async {
 
   if (isRemote && !isDryRun && !forceRun) {
     print(
-      '\n⚠️  WARNING: You are about to execute schema changes on a REMOTE database ($projectId).',
+      '\nWARNING: You are about to execute schema changes on a REMOTE database ($projectId).',
     );
     stdout.write(
       '   Would you like to execute a DRY RUN first to preview changes? (Y/n): ',
@@ -53,7 +53,7 @@ Future<void> main(List<String> args) async {
     stdout.write('Would you like to APPLY these changes now? (y/N): ');
     final applyResponse = stdin.readLineSync()?.trim().toLowerCase();
     if (applyResponse == 'y') {
-      print('\n🚀 Applying changes to REMOTE database ($projectId)...\n');
+      print('\nApplying changes to REMOTE database ($projectId)...\n');
       await runMigrationPhase(isRemote, projectId, host, port, token, false);
     } else {
       print('   -> Exiting without applying changes.');
@@ -71,7 +71,7 @@ Future<void> runMigrationPhase(
 ) async {
   if (isDryRun) {
     print(
-      '⚠️  RUNNING IN DRY-RUN MODE: No changes will be written to the database.',
+      'RUNNING IN DRY-RUN MODE: No changes will be written to the database.',
     );
   }
 
@@ -81,7 +81,7 @@ Future<void> runMigrationPhase(
 
   if (isRemote && token.isEmpty) {
     print(
-      '❌ Error: FIREBASE_TOKEN environment variable is required when FIRESTORE_REMOTE=true.',
+      'Error: FIREBASE_TOKEN environment variable is required when FIRESTORE_REMOTE=true.',
     );
     print('   Use `gcloud auth print-access-token` to get a token.');
     exit(1);
@@ -89,7 +89,7 @@ Future<void> runMigrationPhase(
 
   final configFile = File(configPath);
   if (!await configFile.exists()) {
-    print('❌ Error: Global configuration file not found at $configPath');
+    print('Error: Global configuration file not found at $configPath');
     exit(1);
   }
 
@@ -101,7 +101,7 @@ Future<void> runMigrationPhase(
 
   final scriptsDir = Directory(scriptsPath);
   if (!await scriptsDir.exists()) {
-    print('❌ Error: Scripts directory not found at $scriptsPath');
+    print('Error: Scripts directory not found at $scriptsPath');
     exit(1);
   }
 
@@ -117,7 +117,7 @@ Future<void> runMigrationPhase(
   scriptFiles.sort((a, b) => a.path.compareTo(b.path));
 
   if (scriptFiles.isEmpty) {
-    print('ℹ️ No migration scripts found in $scriptsPath.');
+    print('No migration scripts found in $scriptsPath.');
     return;
   }
 
@@ -125,7 +125,7 @@ Future<void> runMigrationPhase(
 
   try {
     if (!isRemote && !await checkEmulator(client, host, port)) {
-      print('❌ Error: Firebase Firestore Emulator is not running.');
+      print('Error: Firebase Firestore Emulator is not running.');
       print(
         '   Please run "make start-firebase-emulators" first or set FIRESTORE_REMOTE=true.',
       );
@@ -133,7 +133,7 @@ Future<void> runMigrationPhase(
     }
 
     // Ensure _migrations collection exists or fetch applied scripts
-    print('📦 Fetching applied migration state from _migrations...');
+    print('Fetching applied migration state from _migrations...');
     final appliedMigrations = await getAppliedMigrations(
       client,
       projectId,
@@ -146,11 +146,11 @@ Future<void> runMigrationPhase(
     for (final file in scriptFiles) {
       final scriptName = file.uri.pathSegments.last;
       if (appliedMigrations.contains(scriptName)) {
-        print('⏭️  Skipping already applied migration: $scriptName');
+        print('Skipping already applied migration: $scriptName');
         continue;
       }
 
-      print('⚙️ Processing migration script: $scriptName...');
+      print('Processing migration script: $scriptName...');
       final scriptContent = await file.readAsString();
       final script = jsonDecode(scriptContent) as Map<String, dynamic>;
       final operations = script['operations'] as List<dynamic>? ?? [];
@@ -165,7 +165,7 @@ Future<void> runMigrationPhase(
         for (final field in removeFields) {
           if (protectedFields.contains(field)) {
             print(
-              '❌ VALIDATION ERROR: Script $scriptName attempts to remove protected field: $field',
+              'VALIDATION ERROR: Script $scriptName attempts to remove protected field: $field',
             );
             exit(1);
           }
@@ -215,7 +215,7 @@ Future<void> runMigrationPhase(
           final parts = path.split('/*/');
           if (parts.length != 2) {
             print(
-              '❌ ERROR: Invalid subcollection path syntax. Expected parent/*/sub. Got: $path',
+              'ERROR: Invalid subcollection path syntax. Expected parent/*/sub. Got: $path',
             );
             exit(1);
           }
@@ -223,7 +223,7 @@ Future<void> runMigrationPhase(
           final subCol = parts[1];
 
           print(
-            '⚙️ Fetching parent docs in $parentCol to target subcollection $subCol...',
+            'Fetching parent docs in $parentCol to target subcollection $subCol...',
           );
           final parents = await getDocumentsPaginated(
             client,
@@ -252,7 +252,7 @@ Future<void> runMigrationPhase(
             );
           }
         } else {
-          print('❌ ERROR: Unknown targetType: $targetType in $scriptName');
+          print('ERROR: Unknown targetType: $targetType in $scriptName');
           exit(1);
         }
       }
@@ -268,15 +268,15 @@ Future<void> runMigrationPhase(
           isRemote,
           scriptName,
         );
-        print('✅ Migration $scriptName applied successfully!');
+        print('Migration $scriptName applied successfully!');
       } else {
         print('   [DRY RUN] Would mark migration $scriptName as applied.');
       }
     }
 
-    print('\n✨ All dynamic schema updates completed successfully!');
+    print('\nAll dynamic schema updates completed successfully!');
   } catch (e) {
-    print('❌ Error during schema update: $e');
+    print('Error during schema update: $e');
     exit(1);
   } finally {
     client.close();
@@ -505,10 +505,9 @@ Future<void> processDocument(
     docPath,
   );
   if (doc == null) {
-    print('   ⚠️ Document $docPath not found. Skipping.');
-    return;
+  print('   WARNING: Document $docPath not found. Skipping.');
+  return;
   }
-
   final absoluteName = doc['name'] as String;
   final fields = doc['fields'] as Map<String, dynamic>? ?? {};
   await _applyModifications(
@@ -565,7 +564,7 @@ Future<void> _applyModifications(
       // If the field exists AND it is a protected field, do NOT modify it.
       if (protectedFields.contains(name)) {
         print(
-          '      ⚠️  WARNING: Skipping modification of protected field "$name" on ${absoluteName.split('/').last}. Protected fields can be added but not modified.',
+          '      WARNING: Skipping modification of protected field "$name" on ${absoluteName.split('/').last}. Protected fields can be added but not modified.',
         );
         continue;
       }
@@ -591,7 +590,7 @@ Future<void> _applyModifications(
         print('         - Set/Update: $actuallyAddedOrUpdated');
       }
     } else {
-      print('      🔄 Patching ${absoluteName.split('/').last}...');
+      print('      Patching ${absoluteName.split('/').last}...');
       final fieldsToMask = [...actuallyRemoved, ...actuallyAddedOrUpdated.keys];
       await _patchDocument(
         client,

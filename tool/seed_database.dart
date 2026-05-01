@@ -18,7 +18,7 @@ const String testUserEmail = 'bob@example.com';
 const String testUserPassword = 'password123';
 
 Future<void> main() async {
-  print('🚀 Starting database seeding...');
+  print('Starting database seeding...');
 
   const env = String.fromEnvironment('ENV', defaultValue: 'local');
   final isRemote = env.startsWith('remote');
@@ -33,10 +33,10 @@ Future<void> main() async {
   );
 
   if (isRemote) {
-    print('🌎 Environment: Remote ($env)');
+    print('Environment: Remote ($env)');
     print('   Project ID: $projectId');
   } else {
-    print('💻 Environment: Local Emulator');
+    print('Environment: Local Emulator');
   }
 
   final seedingService = StandaloneSeedingService(
@@ -49,24 +49,24 @@ Future<void> main() async {
   );
 
   if (!await seedingService.checkEmulators()) {
-    print('❌ Error: Firebase Emulators are not running.');
+    print('Error: Firebase Emulators are not running.');
     print('   Please run "make start-firebase-emulators" first.');
     exit(1);
   }
 
   try {
-    print('👤 Creating/Signing in test user: $testUserEmail...');
+    print('Creating/Signing in test user: $testUserEmail...');
     final userId = await seedingService.createTestUser(
       testUserEmail,
       testUserPassword,
     );
-    print('✅ User ID: $userId');
+    print('User ID: $userId');
 
     final allRecords = <SeedRecord>[];
     final now = DateTime.now();
 
     // 1. Map Inventory Products
-    print('🍎 Preparing inventory products...');
+    print('Preparing inventory products...');
     final inventoryData = InventoryProductsData.getProducts();
     for (var data in inventoryData) {
       final id = data['id'] as int;
@@ -95,7 +95,7 @@ Future<void> main() async {
     }
 
     // 2. Map Global Products
-    print('🌎 Preparing global products...');
+    print('Preparing global products...');
     final globalData = GlobalProductsData.getProducts();
     for (var data in globalData) {
       final id = data['id'] as int;
@@ -114,7 +114,7 @@ Future<void> main() async {
     }
 
     // 3. Map Collections
-    print('📦 Preparing collections...');
+    print('Preparing collections...');
     final collectionsData = CollectionsData.getCollections();
     for (var data in collectionsData) {
       final id = data['id'] as String;
@@ -136,12 +136,12 @@ Future<void> main() async {
       );
     }
 
-    print('🚀 Seeding ${allRecords.length} total records in batches...');
+    print('Seeding ${allRecords.length} total records in batches...');
     await seedingService.seedBatch(allRecords);
 
-    print('\n✨ Database seeding completed successfully!');
+    print('\nDatabase seeding completed successfully!');
   } catch (e) {
-    print('❌ Error during seeding: $e');
+    print('Error during seeding: $e');
     exit(1);
   }
 }

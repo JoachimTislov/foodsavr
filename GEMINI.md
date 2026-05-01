@@ -30,6 +30,7 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK >=3.32.0
 - **Strict Separation**: Business logic **MUST** reside in models or services. **ZERO** business logic in widget build methods or private view helpers.
 - **Lightweight Forms as Bottom Sheets**: Simple create/edit forms (e.g., collection form, product picker) should use `showModalBottomSheet` with a static `show()` method instead of full-screen route navigation. Reserve full routes for complex views.
 - **No Python Scripts**: Use Dart scripts in `tool/` for any project tooling. Do not use Python.
+- **Professional Output**: Keep comments and console output strictly minimal and professional. Do not use emojis or icons.
 
 ## Commands
 - `make push`: Push to remote repository
