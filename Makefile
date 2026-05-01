@@ -1,4 +1,6 @@
-.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check _run-checks deps di locale-check preflight push
+.PHONY: all dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check _run-checks deps di locale-check preflight push
+
+all: check
 
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
 FLUTTER_RUN_CMD := flutter run --no-pub $(DOTENV_FLAGS)
@@ -27,6 +29,9 @@ start-firebase-emulators:
 	@if ! lsof -ti :9099 -sTCP:LISTEN > /dev/null; then \
 		echo "Starting Firebase Emulators..."; \
 		firebase emulators:start --project demo-project > /dev/null 2>&1 & \
+		until lsof -ti :8080 -sTCP:LISTEN > /dev/null && lsof -ti :9099 -sTCP:LISTEN > /dev/null; do \
+			sleep 1; \
+		done; \
 	else \
 		echo "Firebase Emulators already running"; \
 	fi
