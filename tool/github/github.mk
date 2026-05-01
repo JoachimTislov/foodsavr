@@ -20,7 +20,7 @@ gh-resolve-thread:
 	@bash tool/github/resolve_thread_by_id.sh "$(id)"
 
 gh-get-active-comment:
-	@bash tool/github/get_active_comment.sh
+	@bash tool/github/get_active_comment.sh $(filter-out $@,$(MAKECMDGOALS))
 
 gh-sync-pr:
 	@bash tool/github/sync_pr_with_base.sh

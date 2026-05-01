@@ -52,6 +52,7 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK >=3.32.0
 - **Implementation Rationale Rule**: Record a concise reason (1-2 lines) for why the chosen approach was used.
 - **Quality Risk Logging Rule**: If quality may be weak at current stage, log task/risk/impact/follow-up in `log/implementation-risks.log`.
 - **Resolved Comment Cleanup Rule**: Remove stale comment references once high-quality, Effective Dart-aligned, non-fragile solutions are fully implemented.
+- **GitHub Scripts Rule**: Do not look up or pass PR numbers when using `make gh-*` commands or invoking PR-related sub-agents (like `comment-resolver`). These scripts automatically infer the correct PR from the current Git branch.
 - **Style**: `snake_case` (files), `camelCase` (members), `_private`. Follow [Effective Dart](https://dart.dev/effective-dart/design).
 
 ## Implementation Pattern (New Features)

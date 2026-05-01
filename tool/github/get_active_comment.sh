@@ -45,14 +45,14 @@ if [[ ! -f "$CACHE_FILE" ]] || [[ "$FORCE_FETCH" == "1" ]]; then
   echo "Fetching active comments for PR #$PR_NUMBER and caching locally..."
   echo "--------------------------------------------------------"
 
-  gh api graphql -f query="$QUERY" -F owner="$OWNER" -F repo="$NAME" -F num="$PR_NUMBER" > "$CACHE_FILE"
+  gh api graphql --paginate -f query="$QUERY" -F owner="$OWNER" -F repo="$NAME" -F num="$PR_NUMBER" > "$CACHE_FILE"
 else
   echo "Reading active comments from local cache..."
   echo "--------------------------------------------------------"
 fi
 
-OUTPUT=$(jq -r '
-  [ .data.repository.pullRequest.reviewThreads.nodes[]? // empty
+OUTPUT=$(jq -s -r '
+  [ .[].data.repository.pullRequest.reviewThreads.nodes[]? // empty
   | select(.isResolved == false) ]
   | if length > 0 then
       .[0] | . as $thread | $thread.comments.nodes[0]

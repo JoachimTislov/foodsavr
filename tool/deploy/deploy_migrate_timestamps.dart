@@ -93,7 +93,9 @@ Future<void> main(List<String> args) async {
           }
         }
 
-        updatedExpiries.add(expiryMap);
+        updatedExpiries.add({
+          'mapValue': {'fields': expiryFields},
+        });
       }
 
       if (needsMigration) {

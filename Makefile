@@ -3,7 +3,7 @@
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
 FLUTTER_RUN_CMD := flutter run --no-pub $(DOTENV_FLAGS)
 FLUTTER_BUILD_APK_CMD := flutter build apk --no-pub $(DOTENV_FLAGS)
-CHECK_HASH_CMD := find lib test tool .gemini pubspec.yaml analysis_options.yaml Makefile -type f 2>/dev/null | sort | xargs sha256sum | sha256sum | awk '{print $$1}'
+CHECK_HASH_CMD := find lib test tool pubspec.yaml analysis_options.yaml Makefile -type f 2>/dev/null | sort | xargs sha256sum | sha256sum | awk '{print $$1}'
 
 run-dev: deps start-firebase-emulators
 	@$(FLUTTER_RUN_CMD) --flavor development

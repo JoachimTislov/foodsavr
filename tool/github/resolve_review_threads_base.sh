@@ -39,10 +39,14 @@ case "$MODE" in
     ;;
 esac
 
-QUERY='query($owner:String!,$repo:String!,$num:Int!){
+QUERY='query($owner:String!,$repo:String!,$num:Int!,$endCursor:String){
   repository(owner:$owner,name:$repo){
     pullRequest(number:$num){
-      reviewThreads(first:100){
+      reviewThreads(first:100,after:$endCursor){
+        pageInfo{
+          hasNextPage
+          endCursor
+        }
         nodes{
           id
           isResolved
@@ -64,7 +68,7 @@ MUTATION='mutation($id:ID!){
 }'
 
 mapfile -t thread_ids < <(
-  gh api graphql -f query="$QUERY" -F owner="$OWNER" -F repo="$NAME" -F num="$PR_NUMBER" \
+  gh api graphql --paginate -f query="$QUERY" -F owner="$OWNER" -F repo="$NAME" -F num="$PR_NUMBER" \
     -q "$JQ_FILTER"
 )
 
