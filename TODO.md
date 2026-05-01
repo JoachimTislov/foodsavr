@@ -164,6 +164,7 @@ notes:
 
 ## Tempting integrations
 - [ ] Implement error logging and monitoring (e.g., Sentry integration).
+- [ ] Integrate with Rema (Æ), Coop Mega (Member) and Trumf
 
 ## Commercialization & Next Steps
 - [ ] Choose and implement a "Source Available" license (e.g., PolyForm Noncommercial or BSL 1.1) to prevent unauthorized financial benefit by third parties.
