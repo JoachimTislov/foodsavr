@@ -4,13 +4,18 @@
 # Resolves ALL unresolved threads matching the given mode (not just the first).
 set -euo pipefail
 
-if [[ $# -lt 2 ]]; then
-  echo "Usage: $0 <outdated|active|all> <pr-number> [owner/repo]"
-  exit 1
-fi
 
 MODE="$1"
-PR_NUMBER="$2"
+if [[ -z $1 ]]; then
+  echo "Usage: $0 <outdated|active|all>"
+  exit 1
+fi
+PR_NUMBER="${2:-$(gh pr view --json number -q .number 2>/dev/null || true)}"
+if [[ -z "$PR_NUMBER" ]]; then
+  echo "Usage: $0 <outdated|active|all> <pr-number>"
+  echo "Or run from a branch with an active PR."
+  exit 1
+fi
 REPO="${3:-$(gh repo view --json nameWithOwner -q .nameWithOwner)}"
 OWNER="${REPO%/*}"
 NAME="${REPO#*/}"
@@ -34,10 +39,14 @@ case "$MODE" in
     ;;
 esac
 
-QUERY='query($owner:String!,$repo:String!,$num:Int!){
+QUERY='query($owner:String!,$repo:String!,$num:Int!,$endCursor:String){
   repository(owner:$owner,name:$repo){
     pullRequest(number:$num){
-      reviewThreads(first:100){
+      reviewThreads(first:100,after:$endCursor){
+        pageInfo{
+          hasNextPage
+          endCursor
+        }
         nodes{
           id
           isResolved
@@ -59,7 +68,7 @@ MUTATION='mutation($id:ID!){
 }'
 
 mapfile -t thread_ids < <(
-  gh api graphql -f query="$QUERY" -F owner="$OWNER" -F repo="$NAME" -F num="$PR_NUMBER" \
+  gh api graphql --paginate -f query="$QUERY" -F owner="$OWNER" -F repo="$NAME" -F num="$PR_NUMBER" \
     -q "$JQ_FILTER"
 )
 

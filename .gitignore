@@ -1,4 +1,5 @@
 # Miscellaneous
+seed-remote-creds.json
 stitch
 .deps-stamp
 .env
@@ -14,6 +15,8 @@ firestore.rules
 storage.rules
 google-services.json
 firebase_options.dart
+.gemini/policies
+.pr_comments_cache.json
 
 *.class
 *.log

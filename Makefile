@@ -1,4 +1,4 @@
-.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps di locale-check generate-di preflight push
+.PHONY: run-dev run-prod build-apk-debug build-apk-release dev-chrome-prod dev-chrome start-firebase-emulators kill-firebase-emulators deps di view-emulator check _run-checks analyze fmt fix test clean locales locale-check locale-clean generate-locales preflight push worktree
 
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
 FLUTTER_RUN_CMD := flutter run --no-pub $(DOTENV_FLAGS)
@@ -27,6 +27,9 @@ start-firebase-emulators:
 	@if ! lsof -ti :9099 -sTCP:LISTEN > /dev/null; then \
 		echo "Starting Firebase Emulators..."; \
 		firebase emulators:start --project demo-project > /dev/null 2>&1 & \
+		until lsof -ti :8080 -sTCP:LISTEN > /dev/null && lsof -ti :9099 -sTCP:LISTEN > /dev/null; do \
+			sleep 1; \
+		done; \
 	else \
 		echo "Firebase Emulators already running"; \
 	fi
@@ -132,13 +135,37 @@ preflight:
 		echo "No upstream branch found, skipping behind check."; \
 	fi
 
+worktree:
+	@if [ -z "$(name)" ]; then \
+		echo "Error: Provide a branch name or issue number (e.g., make worktree name=123)"; \
+		exit 1; \
+	fi
+	@bash tool/create_worktree.sh "$(name)" "$(dir)" "$(task)"
+
 # --- Automation & Gemini Targets ---
 
-.PHONY: data feature research resolve-comments unit-tests integration-tests analyze-architecture
+.PHONY: task locale-seed remote-seed feature research resolve-comments unit-tests integration-tests analyze-architecture
 
-data: start-firebase-emulators
-	@echo "Seeding emulator data using standalone seeder..."
+task:
+	@if [ -z "$(msg)" ]; then \
+		echo "Error: Provide a msg argument (e.g., make task msg='implement auth flow')"; \
+		exit 1; \
+	fi
+	@echo "Injecting INDEX.md context and starting task..."
+	@gemini "Review the codebase index below to map out your strategy, then complete this task: $(msg). \n\n=== INDEX.md ===\n$$(cat INDEX.md)"
+
+locale-seed: start-firebase-emulators
+	@echo "Seeding local emulator data using standalone seeder..."
 	@dart run tool/seed_database.dart
+
+remote-seed:
+	# TODO: Link to standard credential file for remote seeding, ensuring secure handling of sensitive information
+	@if [ -z "$(env)" ]; then \
+		echo "Error: Provide an environment file (e.g., make seed-remote env=seed-remote-creds.json)"; \
+		exit 1; \
+	fi
+	@echo "Seeding remote database using config: $(env)..."
+	@SEED_CONFIG_FILE=$(env) dart run tool/seed_database.dart
 
 feature:
 	@if [ -z "$(name)" ]; then \
@@ -182,8 +209,8 @@ push: deps preflight
 	@CHANGED=$$(git --no-pager diff --name-only @{upstream}..HEAD); \
 	DI_PATTERN='^lib/(services|interfaces|repositories|di)/|^lib/(service_locator|injection)\.dart$$'; \
 	if echo "$$CHANGED" | grep -qE "$$DI_PATTERN"; then \
-		echo "Upstream DI changes detected, running generate-di..."; \
-		$(MAKE) generate-di || { echo "generate-di failed, aborting push."; exit 1; }; \
+		echo "Upstream DI changes detected, running dependency injection..."; \
+		$(MAKE) di || { echo "dependency injection failed, aborting push."; exit 1; }; \
 	fi
 	@$(MAKE) check
 	@if [ -n "$$(git status --short)" ]; then \
@@ -197,4 +224,6 @@ push: deps preflight
 	else \
 		git push; \
 	fi
+
+include tool/github/github.mk
 
