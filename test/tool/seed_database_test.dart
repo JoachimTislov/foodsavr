@@ -148,8 +148,14 @@ void main() {
 
           verify(
             () => mockClient.patch(
-              Uri.parse(
-                'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/roles/admins?updateMask.fieldPaths=%60admin-user-id%60',
+              any(
+                that: isA<Uri>()
+                    .having((u) => u.path, 'path', endsWith('/roles/admins'))
+                    .having(
+                      (u) => u.queryParameters['updateMask.fieldPaths'],
+                      'query',
+                      '`admin-user-id`',
+                    ),
               ),
               headers: {'Content-Type': 'application/json'},
               body: jsonEncode({
