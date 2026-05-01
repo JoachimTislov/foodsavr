@@ -3,7 +3,6 @@ set -euo pipefail
 
 export GH_PAGER=cat
 
-CACHE_FILE=".pr_comments_cache.json"
 FORCE_FETCH=0
 
 if [[ "${1:-}" == "--refresh" ]]; then
@@ -11,7 +10,13 @@ if [[ "${1:-}" == "--refresh" ]]; then
   shift
 fi
 
-PR_NUMBER=$(gh pr view --json number -q .number 2>/dev/null)
+PR_NUMBER="$(gh pr view --json number -q .number 2>/dev/null || true)"
+if [[ -z "$PR_NUMBER" ]]; then
+  echo "No active PR found for this branch."
+  exit 1
+fi
+
+CACHE_FILE=".pr_comments_cache.${PR_NUMBER}.json"
 
 if [[ ! -f "$CACHE_FILE" ]] || [[ "$FORCE_FETCH" == "1" ]]; then
   REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)

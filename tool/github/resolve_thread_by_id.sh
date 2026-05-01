@@ -10,7 +10,12 @@ if [[ $# -lt 1 ]]; then
   exit 1
 fi
 
-CACHE_FILE=".pr_comments_cache.json"
+PR_NUMBER="$(gh pr view --json number -q .number 2>/dev/null || true)"
+if [[ -n "$PR_NUMBER" ]]; then
+  CACHE_FILE=".pr_comments_cache.${PR_NUMBER}.json"
+else
+  CACHE_FILE=".pr_comments_cache.json"
+fi
 
 MUTATION='mutation($id:ID!){
   resolveReviewThread(input:{threadId:$id}){
