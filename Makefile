@@ -150,7 +150,15 @@ migrate-test: start-firebase-emulators
 
 # --- Automation & Gemini Targets ---
 
-.PHONY: data seed-local seed-remote feature research resolve-comments unit-tests integration-tests analyze-architecture
+.PHONY: data seed-local seed-remote task feature research resolve-comments unit-tests integration-tests analyze-architecture
+
+task:
+	@if [ -z "$(msg)" ]; then \
+		echo "Error: Provide a msg argument (e.g., make task msg='implement auth flow')"; \
+		exit 1; \
+	fi
+	@echo "Injecting INDEX.md context and starting task..."
+	@gemini "Review the codebase index below to map out your strategy, then complete this task: $(msg). \n\n=== INDEX.md ===\n$$(cat INDEX.md)"
 
 data: seed-local
 
