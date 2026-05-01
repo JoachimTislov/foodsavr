@@ -136,6 +136,13 @@ preflight:
 		echo "No upstream branch found, skipping behind check."; \
 	fi
 
+worktree:
+	@if [ -z "$(name)" ]; then \
+		echo "Error: Provide a branch name or issue number (e.g., make worktree name=123)"; \
+		exit 1; \
+	fi
+	@bash tool/create_worktree.sh "$(name)" "$(dir)" "$(task)"
+
 migrate-test:
 	@echo "Running local database migrations..."
 	@dart run tool/deploy/deploy_schema.dart
