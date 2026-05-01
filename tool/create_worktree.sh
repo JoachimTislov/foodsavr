@@ -28,7 +28,9 @@ if [[ "$INPUT" =~ ^[0-9]+$ ]]; then
     
     SANITIZED_TITLE=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g' | sed -E 's/^-+|-+$//g')
     BRANCH_NAME="issue-${ISSUE_NUM}-${SANITIZED_TITLE}"
-    CREATE_BRANCH=true
+    if ! git show-ref --verify --quiet "refs/heads/$BRANCH_NAME" && ! git show-ref --verify --quiet "refs/remotes/origin/$BRANCH_NAME"; then
+        CREATE_BRANCH=true
+    fi
 else
     BRANCH_NAME="$INPUT"
     # Determine if branch exists locally or remotely
