@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 import 'auth.dart';
 
 Future<void> main(List<String> args) async {
-  print('🚀 Starting Timestamp migration...');
+  print('Starting Timestamp migration...');
 
   final isRemote = Platform.environment['FIRESTORE_REMOTE'] == 'true';
   final String projectId;
@@ -31,14 +31,14 @@ Future<void> main(List<String> args) async {
 
   try {
     if (!isRemote && !await checkEmulator(client, host, port)) {
-      print('❌ Error: Firebase Firestore Emulator is not running.');
+      print('Error: Firebase Firestore Emulator is not running.');
       print(
         '   Please run "make start-firebase-emulators" first or set FIRESTORE_REMOTE=true.',
       );
       exit(1);
     }
 
-    print('📦 Fetching all products from $projectId...');
+    print('Fetching all products from $projectId...');
     final products = await getDocuments(
       client,
       projectId,
@@ -99,7 +99,7 @@ Future<void> main(List<String> args) async {
       }
 
       if (needsMigration) {
-        print('🔄 Migrating product $productId to use Timestamp...');
+        print('Migrating product $productId to use Timestamp...');
 
         // Prepare patch data
         final updatedFields = Map<String, dynamic>.from(fields);
@@ -123,10 +123,10 @@ Future<void> main(List<String> args) async {
     }
 
     print(
-      '\n✨ Timestamp migration completed successfully! Migrated $migratedCount products.',
+      '\nTimestamp migration completed successfully! Migrated $migratedCount products.',
     );
   } catch (e) {
-    print('❌ Error during migration: $e');
+    print('Error during migration: $e');
     exit(1);
   } finally {
     client.close();
