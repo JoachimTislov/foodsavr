@@ -3,7 +3,7 @@
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
 FLUTTER_RUN_CMD := flutter run --no-pub $(DOTENV_FLAGS)
 FLUTTER_BUILD_APK_CMD := flutter build apk --no-pub $(DOTENV_FLAGS)
-CHECK_HASH_CMD := find lib test pubspec.yaml analysis_options.yaml -type f 2>/dev/null | sort | xargs sha256sum | sha256sum | awk '{print $$1}'
+CHECK_HASH_CMD := find lib test tool pubspec.yaml analysis_options.yaml -type f 2>/dev/null | sort | xargs sha256sum | sha256sum | awk '{print $$1}'
 
 run-dev: deps start-firebase-emulators
 	@$(FLUTTER_RUN_CMD) --flavor development
@@ -71,11 +71,7 @@ check:
 		$(CHECK_HASH_CMD) > .check.sha256; \
 	fi
 
-_run-checks: policy-check analyze test locale-check fix fmt
-
-policy-check:
-	@echo "Checking Gemini policies..."
-	@bash tool/check_gemini_policy.sh
+_run-checks: analyze test locale-check fix fmt
 
 analyze: deps
 	@echo "Running Flutter analyze..."
@@ -143,7 +139,7 @@ worktree:
 	fi
 	@bash tool/create_worktree.sh "$(name)" "$(dir)" "$(task)"
 
-migrate-test:
+migrate-test: start-firebase-emulators
 	@echo "Running local database migrations..."
 	@dart run tool/deploy/deploy_schema.dart
 

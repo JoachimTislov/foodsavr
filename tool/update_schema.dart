@@ -352,13 +352,8 @@ Future<void> markMigrationApplied(
   bool isRemote,
   String scriptName,
 ) async {
-  final url = _buildUrl(
-    projectId,
-    host,
-    port,
-    isRemote,
-    '_migrations?documentId=${Uri.encodeQueryComponent(scriptName)}',
-  );
+  final baseUrl = _buildUrl(projectId, host, port, isRemote, '_migrations');
+  final url = '$baseUrl?documentId=${Uri.encodeQueryComponent(scriptName)}';
   final body = {
     'fields': {
       'appliedAt': {'timestampValue': DateTime.now().toUtc().toIso8601String()},

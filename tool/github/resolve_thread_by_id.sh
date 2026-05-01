@@ -10,6 +10,8 @@ if [[ $# -lt 1 ]]; then
   exit 1
 fi
 
+CACHE_FILE=".pr_comments_cache.json"
+
 MUTATION='mutation($id:ID!){
   resolveReviewThread(input:{threadId:$id}){
     thread{ id isResolved }
@@ -21,6 +23,13 @@ for thread_id in "$@"; do
   result=$(gh api graphql -f query="$MUTATION" -F id="$thread_id")
   is_resolved=$(echo "$result" | python3 -c "import json,sys; print(json.load(sys.stdin)['data']['resolveReviewThread']['thread']['isResolved'])" 2>/dev/null || echo "unknown")
   echo "Resolved $thread_id (isResolved=$is_resolved)"
+  
+  if [[ -f "$CACHE_FILE" ]]; then
+      jq --arg id "$thread_id" '
+        (.data.repository.pullRequest.reviewThreads.nodes[]? | select(.id == $id) | .isResolved) = true
+      ' "$CACHE_FILE" > "${CACHE_FILE}.tmp" && mv "${CACHE_FILE}.tmp" "$CACHE_FILE"
+  fi
+
   (( count++ )) || true
 done
 echo "Done — resolved ${count} thread(s)."

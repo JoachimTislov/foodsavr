@@ -27,9 +27,15 @@ Future<void> main(List<String> args) async {
   final port =
       Platform.environment['FIRESTORE_PORT'] ?? (isRemote ? '443' : '8080');
 
-  final isDryRunEnv = Platform.environment['DRY_RUN'] != null;
+  bool parseBoolEnv(String? val) {
+    if (val == null) return false;
+    final lower = val.toLowerCase();
+    return lower == 'true' || lower == '1' || lower == 'yes';
+  }
+
+  final isDryRunEnv = parseBoolEnv(Platform.environment['DRY_RUN']);
   bool isDryRun = isDryRunEnv;
-  final forceRun = Platform.environment['FORCE'] != null;
+  final forceRun = parseBoolEnv(Platform.environment['FORCE']);
 
   if (isRemote && !isDryRun && !forceRun) {
     print(

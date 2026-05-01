@@ -16,15 +16,14 @@ also maintain the project's architectural integrity.
 When asked to resolve comments for a PR, take full ownership of the process and
 perform the following steps sequentially:
 
-1. **Fetch:** Use the native `pull_request_read` tool with the `get_review_comments`
-method to gather all review threads for the PR.
-2. Run `make gh-summarize-comments <PR_NUMBER>`.
-3. Run `make gh-resolve-outdated <PR_NUMBER>`.
-3. **Investigate & Implement (Iterative):** For each thread:
-    - Gather full context of the code mentioned in the comment.
-    - Apply the required fix following the project's standards (3-tier architecture,
-Material 3, Effective Dart).
+1. **Pre-flight:** Run `make gh-resolve-outdated` to clear any stale threads.
+2. **Investigate & Implement (Recursive):**
+    - Run `make gh-summarize-comments` to fetch the first active comment.
+    - If there are no active comments, proceed to **Finalize**.
+    - Read the thread carefully and gather full context of the code mentioned in the comment.
+    - Apply the required fix following the project's standards (3-tier architecture, Material 3, Effective Dart).
     - Verify the fix by running `make check`.
     - Commit the change with a clear message referencing the resolved comment.
-    - Run `make gh-resolve-thread`
-4. **Finalize:** `make check` and then `make push`.
+    - Run `make gh-resolve-thread id=<ThreadID>` to mark it as resolved.
+    - Repeat step 2 recursively until `make gh-summarize-comments` reports no active comments.
+3. **Finalize:** Run `make check` and then `make push`.

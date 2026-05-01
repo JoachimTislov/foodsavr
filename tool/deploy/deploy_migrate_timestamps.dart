@@ -65,8 +65,13 @@ Future<void> main(List<String> args) async {
       final updatedExpiries = [];
 
       for (final expiry in expiriesList) {
-        final expiryFields =
-            expiry['mapValue']?['fields'] as Map<String, dynamic>? ?? {};
+        final expiryMap = expiry as Map<String, dynamic>?;
+        final expiryFields = expiryMap?['mapValue']?['fields'];
+        if (expiryFields is! Map<String, dynamic>) {
+          updatedExpiries.add(expiry);
+          continue;
+        }
+
         final expirationDateNode = expiryFields['expirationDate'];
 
         if (expirationDateNode != null &&
@@ -88,9 +93,7 @@ Future<void> main(List<String> args) async {
           }
         }
 
-        updatedExpiries.add({
-          'mapValue': {'fields': expiryFields},
-        });
+        updatedExpiries.add(expiryMap);
       }
 
       if (needsMigration) {

@@ -4,13 +4,18 @@
 # Resolves ALL unresolved threads matching the given mode (not just the first).
 set -euo pipefail
 
-if [[ $# -lt 2 ]]; then
-  echo "Usage: $0 <outdated|active|all> <pr-number> [owner/repo]"
-  exit 1
-fi
 
 MODE="$1"
-PR_NUMBER="$2"
+if [[ -z $1 ]]; then
+  echo "Usage: $0 <outdated|active|all>"
+  exit 1
+fi
+PR_NUMBER="${2:-$(gh pr view --json number -q .number 2>/dev/null || true)}"
+if [[ -z "$PR_NUMBER" ]]; then
+  echo "Usage: $0 <outdated|active|all> <pr-number>"
+  echo "Or run from a branch with an active PR."
+  exit 1
+fi
 REPO="${3:-$(gh repo view --json nameWithOwner -q .nameWithOwner)}"
 OWNER="${REPO%/*}"
 NAME="${REPO#*/}"
