@@ -105,8 +105,9 @@ class SeedingService {
 
   /// Seeds admin role in a centralized document (roles/admins).
   Future<void> seedUserDocument(String userId) async {
+    final encodedFieldPath = Uri.encodeQueryComponent('`$userId`');
     final url =
-        'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/roles/admins?updateMask.fieldPaths=$userId';
+        'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/roles/admins?updateMask.fieldPaths=$encodedFieldPath';
     final response = await client
         .patch(
           Uri.parse(url),

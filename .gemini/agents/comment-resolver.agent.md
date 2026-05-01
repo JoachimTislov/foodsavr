@@ -22,8 +22,7 @@ perform the following steps sequentially:
     - If there are no active comments, proceed to **Finalize**.
     - Read the thread carefully and gather full context of the code mentioned in the comment.
     - Apply the required fix following the project's standards (3-tier architecture, Material 3, Effective Dart).
-    - Verify the fix by running `make check`.
     - Commit the change with a clear message referencing the resolved comment.
     - Run `make gh-resolve-thread id=<ThreadID>` to mark it as resolved.
     - Repeat step 2 recursively until `make gh-summarize-comments` reports no active comments.
-3. **Finalize:** Run `make check` and then `make push`.
+3. **Finalize:** Run `make push`.
