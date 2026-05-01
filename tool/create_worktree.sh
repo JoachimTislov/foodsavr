@@ -55,31 +55,31 @@ fi
 echo "Symlinking essential environment files..."
 MAIN_DIR=$(git rev-parse --show-toplevel)
 
-FILES_TO_SYMLINK=(
-    "$HOME/.gemini/policies"
-    ".env"
-    "firebase.json"
-    ".firebaserc"
-    "firestore.rules"
-    "firestore.indexes.json"
-    "storage.rules"
-    "android/app/google-services.json"
-    "ios/Runner/GoogleService-Info.plist"
-    "macos/Runner/GoogleService-Info.plist"
-    "lib/firebase_options.dart"
+LINK_MAP=(
+    ".gemini/policies:$HOME/.gemini/policies"
+    ".env:$MAIN_DIR/.env"
+    "firebase.json:$MAIN_DIR/firebase.json"
+    ".firebaserc:$MAIN_DIR/.firebaserc"
+    "firestore.rules:$MAIN_DIR/firestore.rules"
+    "firestore.indexes.json:$MAIN_DIR/firestore.indexes.json"
+    "storage.rules:$MAIN_DIR/storage.rules"
+    "android/app/google-services.json:$MAIN_DIR/android/app/google-services.json"
+    "ios/Runner/GoogleService-Info.plist:$MAIN_DIR/ios/Runner/GoogleService-Info.plist"
+    "macos/Runner/GoogleService-Info.plist:$MAIN_DIR/macos/Runner/GoogleService-Info.plist"
+    "lib/firebase_options.dart:$MAIN_DIR/lib/firebase_options.dart"
 )
 
-for file in "${FILES_TO_SYMLINK[@]}"; do
-    SRC="$MAIN_DIR/$file"
-    DEST="$TARGET_DIR/$file"
+for entry in "${LINK_MAP[@]}"; do
+    DEST_REL="${entry%%:*}"
+    SRC="${entry#*:}"
+    DEST="$TARGET_DIR/$DEST_REL"
     if [[ -e "$SRC" ]]; then
         mkdir -p "$(dirname "$DEST")"
-        rm -f "$DEST"
-        # Create absolute symlink
+        rm -rf "$DEST"
         ln -s "$SRC" "$DEST"
-        echo "  Symlinked: $file"
+        echo "  Symlinked: $DEST_REL"
     else
-        echo "  Skipped: $file (not found in main tree)"
+        echo "  Skipped: $DEST_REL (not found)"
     fi
 done
 
