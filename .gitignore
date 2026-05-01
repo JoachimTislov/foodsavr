@@ -15,6 +15,7 @@ firestore.rules
 storage.rules
 google-services.json
 firebase_options.dart
+.gemini/policies
 
 *.class
 *.log

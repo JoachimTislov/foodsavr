@@ -54,6 +54,7 @@ echo "Symlinking essential environment files..."
 MAIN_DIR=$(git rev-parse --show-toplevel)
 
 FILES_TO_SYMLINK=(
+    "$HOME/.gemini/policies"
     ".env"
     "firebase.json"
     ".firebaserc"
