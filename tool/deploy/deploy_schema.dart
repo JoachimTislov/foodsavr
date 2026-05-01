@@ -9,7 +9,7 @@ import 'auth.dart';
 Future<void> main(List<String> args) async {
   print('🚀 Starting robust schema update...');
 
-  final isRemote = Platform.environment['REMOTE'] != null;
+  final isRemote = Platform.environment['FIRESTORE_REMOTE'] == 'true';
   final String projectId;
   final String token;
 
@@ -389,7 +389,9 @@ Future<List<dynamic>> getDocumentsPaginated(
   do {
     String urlStr = _buildUrl(projectId, host, port, isRemote, collectionPath);
     urlStr += '?pageSize=300';
-    if (pageToken != null) urlStr += '&pageToken=$pageToken';
+    if (pageToken != null) {
+      urlStr += '&pageToken=${Uri.encodeQueryComponent(pageToken)}';
+    }
 
     final response = await client.get(
       Uri.parse(urlStr),

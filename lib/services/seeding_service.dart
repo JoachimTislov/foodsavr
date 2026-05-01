@@ -153,7 +153,7 @@ class SeedingService {
       );
 
       await postToFirestore(
-        'products',
+        'user_products/$userId/items',
         id.toString(),
         product.toFirestoreRest(),
       );
@@ -178,7 +178,7 @@ class SeedingService {
       );
 
       await postToFirestore(
-        'products',
+        'global_products',
         id.toString(),
         product.toFirestoreRest(),
       );

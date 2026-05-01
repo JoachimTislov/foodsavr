@@ -94,13 +94,15 @@ Future<void> runMigrationPhase(
     exit(1);
   }
 
+  final configFilename = Uri.file(configPath).pathSegments.last;
+
   final scriptFiles = scriptsDir
       .listSync()
       .whereType<File>()
       .where(
         (f) =>
             f.path.endsWith('.json') &&
-            f.uri.pathSegments.last != 'permanent.json',
+            f.uri.pathSegments.last != configFilename,
       )
       .toList();
   scriptFiles.sort((a, b) => a.path.compareTo(b.path));
@@ -290,9 +292,21 @@ String _buildUrl(
   bool isRemote,
   String relativePath,
 ) {
-  final scheme = isRemote ? 'https' : 'http';
-  final portPart = (isRemote && port == '443') ? '' : ':$port';
-  return '$scheme://$host$portPart/v1/projects/$projectId/databases/(default)/documents/$relativePath';
+  final uri = Uri(
+    scheme: isRemote ? 'https' : 'http',
+    host: host,
+    port: (isRemote && port == '443') ? null : int.tryParse(port),
+    pathSegments: [
+      'v1',
+      'projects',
+      projectId,
+      'databases',
+      '(default)',
+      'documents',
+      ...relativePath.split('/'),
+    ],
+  );
+  return uri.toString();
 }
 
 Map<String, String> _buildHeaders(bool isRemote, String token) {
@@ -376,7 +390,9 @@ Future<List<dynamic>> getDocumentsPaginated(
   do {
     String urlStr = _buildUrl(projectId, host, port, isRemote, collectionPath);
     urlStr += '?pageSize=300';
-    if (pageToken != null) urlStr += '&pageToken=$pageToken';
+    if (pageToken != null) {
+      urlStr += '&pageToken=${Uri.encodeQueryComponent(pageToken)}';
+    }
 
     final response = await client.get(
       Uri.parse(urlStr),
@@ -625,19 +641,18 @@ Future<void> _patchDocument(
   Map<String, dynamic> fields,
   List<String> fieldsToMask,
 ) async {
-  final scheme = isRemote ? 'https' : 'http';
-  final portPart = (isRemote && port == '443') ? '' : ':$port';
-
-  String patchUrl = '$scheme://$host$portPart/v1/$absoluteName';
-  if (fieldsToMask.isNotEmpty) {
-    final maskParams = fieldsToMask
-        .map((f) => 'updateMask.fieldPaths=${Uri.encodeQueryComponent(f)}')
-        .join('&');
-    patchUrl += '?$maskParams';
-  }
+  final uri = Uri(
+    scheme: isRemote ? 'https' : 'http',
+    host: host,
+    port: (isRemote && port == '443') ? null : int.tryParse(port),
+    pathSegments: ['v1', ...absoluteName.split('/')],
+    queryParameters: fieldsToMask.isNotEmpty
+        ? {'updateMask.fieldPaths': fieldsToMask}
+        : null,
+  );
 
   final response = await client.patch(
-    Uri.parse(patchUrl),
+    uri,
     headers: _buildHeaders(isRemote, token),
     body: jsonEncode({'fields': fields}),
   );

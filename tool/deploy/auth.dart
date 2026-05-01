@@ -47,7 +47,7 @@ Future<String> getProjectId() async {
   ]);
   if (result.exitCode == 0) {
     final proj = result.stdout.toString().trim();
-    if (proj.isNotEmpty) return proj;
+    if (proj.isNotEmpty && proj != '(unset)') return proj;
   }
 
   throw Exception('Could not determine Firebase project ID.');

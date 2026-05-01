@@ -173,9 +173,14 @@ Future<List<dynamic>> getDocuments(
   String? pageToken;
 
   do {
-    final url = pageToken != null ? '$baseUrl?pageToken=$pageToken' : baseUrl;
+    final queryParams = {'pageSize': '1000'};
+    if (pageToken != null && pageToken.isNotEmpty) {
+      queryParams['pageToken'] = pageToken;
+    }
+    final uri = Uri.parse(baseUrl).replace(queryParameters: queryParams);
+
     final response = await client.get(
-      Uri.parse(url),
+      uri,
       headers: _buildHeaders(isRemote, token),
     );
 
@@ -207,15 +212,25 @@ Future<void> updateDocument(
   String documentId,
   Map<String, dynamic> fields,
 ) async {
-  final url = _buildUrl(
+  final baseUrl = _buildUrl(
     projectId,
     host,
     port,
     isRemote,
     '$collectionPath/$documentId',
   );
+
+  final queryParams = <String, dynamic>{};
+  if (fields.isNotEmpty) {
+    queryParams['updateMask.fieldPaths'] = fields.keys.toList();
+  }
+
+  final uri = Uri.parse(
+    baseUrl,
+  ).replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+
   final response = await client.patch(
-    Uri.parse(url),
+    uri,
     headers: _buildHeaders(isRemote, token),
     body: jsonEncode({'fields': fields}),
   );

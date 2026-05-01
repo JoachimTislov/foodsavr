@@ -191,9 +191,14 @@ Future<List<dynamic>> _getDocuments(
   String? pageToken;
 
   do {
-    final url = pageToken != null ? '$baseUrl?pageToken=$pageToken' : baseUrl;
+    final queryParams = {'pageSize': '1000'};
+    if (pageToken != null && pageToken.isNotEmpty) {
+      queryParams['pageToken'] = pageToken;
+    }
+    final uri = Uri.parse(baseUrl).replace(queryParameters: queryParams);
+
     final response = await client.get(
-      Uri.parse(url),
+      uri,
       headers: _buildHeaders(isRemote, token),
     );
 

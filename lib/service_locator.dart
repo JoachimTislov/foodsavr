@@ -69,6 +69,16 @@ class ServiceLocator {
         if (addedProductIds.isNotEmpty) {
           await seedingService.seedCollections(testUserId);
         }
+
+        try {
+          logger.i('Signing in the newly seeded dev account...');
+          await getIt<FirebaseAuth>().signInWithEmailAndPassword(
+            email: Config.testUserEmail,
+            password: Config.testUserPassword,
+          );
+        } catch (e) {
+          logger.w('Failed to sign in seeded test user: $e');
+        }
       } catch (e) {
         logger.e('Failed to seed database: $e');
       }
