@@ -85,17 +85,31 @@ Future<void> main(List<String> args) async {
           'products/$productIdStr',
         );
 
+        if (productDoc == null) {
+          print(
+            '   ⚠️  Skipping missing product "$productIdStr" referenced by collection $collectionId.',
+          );
+          continue;
+        }
+
         final productFields =
-            productDoc?['fields'] as Map<String, dynamic>? ?? {};
-        final productIdInt = int.tryParse(
-          productFields['id']?['integerValue']?.toString() ?? productIdStr,
-        );
+            productDoc['fields'] as Map<String, dynamic>? ?? {};
+        final rawId =
+            productFields['id']?['integerValue']?.toString() ?? productIdStr;
+        final productIdInt = int.tryParse(rawId);
+
+        if (productIdInt == null) {
+          print(
+            '   ⚠️  Skipping product "$productIdStr" in collection $collectionId: non-numeric id "$rawId".',
+          );
+          continue;
+        }
 
         if (type == 'inventory') {
           // Migrate to inventory_items
           final expiriesNode = productFields['expiries'];
           final targetFields = {
-            'productId': {'integerValue': (productIdInt ?? 0).toString()},
+            'productId': {'integerValue': productIdInt.toString()},
           };
           if (expiriesNode != null) {
             targetFields['expiries'] = expiriesNode;
@@ -116,7 +130,7 @@ Future<void> main(List<String> args) async {
         } else if (type == 'shopping') {
           // Migrate to shopping_items
           final targetFields = {
-            'productId': {'integerValue': (productIdInt ?? 0).toString()},
+            'productId': {'integerValue': productIdInt.toString()},
             'count': {'integerValue': '1'},
           };
 
