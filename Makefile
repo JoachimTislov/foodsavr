@@ -223,3 +223,5 @@ push: deps preflight
 		git push; \
 	fi
 
+include tool/github/github.mk
+
