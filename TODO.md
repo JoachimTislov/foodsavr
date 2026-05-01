@@ -84,6 +84,8 @@ notes:
     - Shopping list routes to Collections with my inventory and shopping list
 
 ## Environment & Setup
+- [ ] Create orchestrator skill to manage subagents and coordinate complex tasks
+- [ ] Create orchestrator command (e.g., in `.gemini/commands/`) to trigger the orchestrator skill
 - [ ] Create .gemini/commands folder with .toml files for custom commands and templates
     - [ ] Screenshot of page for reference to give better context to the LLM when adjusting UI
         - [ ] UI healing, grading in terms of user feeling, accessibility, material 3 compliance, etc.
