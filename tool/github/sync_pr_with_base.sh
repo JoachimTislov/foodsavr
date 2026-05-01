@@ -13,6 +13,5 @@ else
   PR_NUMBER="$1"
 fi
 
-echo "Updating PR #$PR_NUMBER with base branch..."
-gh pr update-branch "$PR_NUMBER"
-echo "Done."
+echo "Starting rebase PR: #$PR_NUMBER with base branch..."
+gh pr update-branch "$PR_NUMBER" --rebase

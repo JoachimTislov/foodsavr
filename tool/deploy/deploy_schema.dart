@@ -505,8 +505,8 @@ Future<void> processDocument(
     docPath,
   );
   if (doc == null) {
-  print('   WARNING: Document $docPath not found. Skipping.');
-  return;
+    print('   WARNING: Document $docPath not found. Skipping.');
+    return;
   }
   final absoluteName = doc['name'] as String;
   final fields = doc['fields'] as Map<String, dynamic>? ?? {};

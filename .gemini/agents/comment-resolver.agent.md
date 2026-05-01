@@ -20,7 +20,7 @@ perform the following steps sequentially:
 method to gather all review threads for the PR.
 2. **Filter:** Identify which threads are active (`isResolved: false` and
 `isOutdated: false`) and which are outdated (`isOutdated: true`). Use
-`tool/scripts/resolve_outdated_review_threads.sh <PR_NUMBER>` to
+`tool/github/resolve_outdated_review_threads.sh <PR_NUMBER>` to
 immediately resolve all outdated threads without code changes.
 3. **Investigate & Implement (Iterative):** For each active thread:
     - Gather full context of the code mentioned in the comment.
@@ -28,5 +28,5 @@ immediately resolve all outdated threads without code changes.
 Material 3, Effective Dart).
     - Verify the fix by running `make check`.
     - Commit the change with a clear message referencing the resolved comment.
-    - Run `tool/scripts/resolve_thread_by_id.sh <THREAD_ID>` to mark it as resolved.
+    - Run `tool/github/resolve_thread_by_id.sh <THREAD_ID>` to mark it as resolved.
 4. **Finalize:** Once all active comments are resolved, perform a final `make check` and then `make push`. Finally, add a summary comment to the PR.
