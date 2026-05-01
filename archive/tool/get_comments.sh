@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # ==============================================================================
 # Script: get_comments.sh
@@ -10,7 +11,7 @@
 
 # Ensure the required number of arguments are provided
 if [ "$#" -ne 3 ]; then
-    echo "Usage: $0 <owner> <repo> <pr_number>"
+    echo "Usage: $0 <owner> <repo> <pr_number>" >&2
     exit 1
 fi
 
@@ -20,17 +21,25 @@ PR_NUM=$3
 
 # GraphQL query to fetch pull request review threads, including their resolution 
 # status, file path, line number, and the body of the comments.
-QUERY='query($owner:String!,$repo:String!,$num:Int!){
+QUERY='query($owner:String!,$repo:String!,$num:Int!,$endCursor:String){
   repository(owner:$owner,name:$repo){
     pullRequest(number:$num){
-      reviewThreads(first:100){
+      reviewThreads(first:100,after:$endCursor){
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
         nodes{
           id
           isResolved
           isOutdated
           path
           line
-          comments(first:10){
+          comments(first:100){
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
             nodes{
               body
             }
@@ -42,4 +51,4 @@ QUERY='query($owner:String!,$repo:String!,$num:Int!){
 }'
 
 # Execute the query using the GitHub CLI (gh)
-gh api graphql -f query="$QUERY" -F owner="$OWNER" -F repo="$REPO" -F num="$PR_NUM"
+gh api graphql --paginate -f query="$QUERY" -F owner="$OWNER" -F repo="$REPO" -F num="$PR_NUM"

@@ -84,6 +84,8 @@ notes:
     - Shopping list routes to Collections with my inventory and shopping list
 
 ## Environment & Setup
+- [ ] Create orchestrator skill to manage subagents and coordinate complex tasks
+- [ ] Create orchestrator command (e.g., in `.gemini/commands/`) to trigger the orchestrator skill
 - [ ] Create .gemini/commands folder with .toml files for custom commands and templates
     - [ ] Screenshot of page for reference to give better context to the LLM when adjusting UI
         - [ ] UI healing, grading in terms of user feeling, accessibility, material 3 compliance, etc.
@@ -164,6 +166,9 @@ notes:
 
 ## Tempting integrations
 - [ ] Implement error logging and monitoring (e.g., Sentry integration).
+- [ ] Integrate with Rema (Æ), Coop Mega (Member) and Trumf
+    - [ ] Support manual uploading of receipts (e.g., via image or CSV) to extract purchase data and automatically update inventory.
+    - [Helpful openai overview](https://gist.github.com/HelgeSverre/80a7f34f874336324184a0c513c2e6a2)
 
 ## Commercialization & Next Steps
 - [ ] Choose and implement a "Source Available" license (e.g., PolyForm Noncommercial or BSL 1.1) to prevent unauthorized financial benefit by third parties.

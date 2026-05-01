@@ -55,6 +55,7 @@ extension GetItInjectableX on _i174.GetIt {
       () => registerModule.firebaseFirestore,
     );
     gh.lazySingleton<_i116.GoogleSignIn>(() => registerModule.googleSignIn);
+    gh.lazySingleton<_i464.SeedingService>(() => _i464.SeedingService.create());
     gh.lazySingleton<_i1071.ShelfLifeService>(() => _i1071.ShelfLifeService());
     gh.factory<bool>(
       () => registerModule.supportsPersistence,
@@ -81,14 +82,6 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i655.ICollectionRepository>(
       () => _i92.CollectionRepository(gh<_i974.FirebaseFirestore>()),
-    );
-    gh.factory<_i464.SeedingService>(
-      () => _i464.SeedingService(
-        gh<_i794.IAuthService>(),
-        gh<_i424.IProductRepository>(),
-        gh<_i655.ICollectionRepository>(),
-        gh<_i974.Logger>(),
-      ),
     );
     gh.lazySingleton<_i122.CollectionService>(
       () => _i122.CollectionService(

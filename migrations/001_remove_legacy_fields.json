@@ -1,0 +1,23 @@
+{
+  "description": "Prerequisite: Run tool/migrate_to_subcollections.dart BEFORE applying this schema update.",
+  "operations": [
+    {
+      "targetType": "collection",
+      "path": "products",
+      "removeFields": [
+        "expiries",
+        "nonExpiringQuantity",
+        "quantity"
+      ],
+      "addFields": []
+    },
+    {
+      "targetType": "collection",
+      "path": "collections",
+      "removeFields": [
+        "productIds"
+      ],
+      "addFields": []
+    }
+  ]
+}

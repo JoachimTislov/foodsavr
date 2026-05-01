@@ -2,14 +2,14 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
-import 'package:foodsavr/services/standalone_seeding_service.dart';
+import 'package:foodsavr/services/seeding_service.dart';
 import 'package:foodsavr/models/product_model.dart';
 
 class MockClient extends Mock implements http.Client {}
 
 void main() {
   late MockClient mockClient;
-  late StandaloneSeedingService seedingService;
+  late SeedingService seedingService;
 
   const projectId = 'demo-project';
   const host = 'localhost';
@@ -22,7 +22,7 @@ void main() {
 
   setUp(() {
     mockClient = MockClient();
-    seedingService = StandaloneSeedingService(
+    seedingService = SeedingService(
       projectId: projectId,
       host: host,
       authPort: authPort,
@@ -31,7 +31,7 @@ void main() {
     );
   });
 
-  group('StandaloneSeedingService Tests', () {
+  group('SeedingService Tests', () {
     group('Emulator Check', () {
       test('checkEmulators returns true when emulator is running', () async {
         when(
@@ -133,6 +133,41 @@ void main() {
     });
 
     group('Firestore Operations', () {
+      test(
+        'seedUserDocument sends correct PATCH request to roles/admins',
+        () async {
+          when(
+            () => mockClient.patch(
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+            ),
+          ).thenAnswer((_) async => http.Response('OK', 200));
+
+          await seedingService.seedUserDocument('admin-user-id');
+
+          verify(
+            () => mockClient.patch(
+              any(
+                that: isA<Uri>()
+                    .having((u) => u.path, 'path', endsWith('/roles/admins'))
+                    .having(
+                      (u) => u.queryParameters['updateMask.fieldPaths'],
+                      'query',
+                      '`admin-user-id`',
+                    ),
+              ),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'fields': {
+                  'admin-user-id': {'booleanValue': true},
+                },
+              }),
+            ),
+          ).called(1);
+        },
+      );
+
       test('postToFirestore sends correct PATCH request', () async {
         final fields = {
           'name': {'stringValue': 'Test'},

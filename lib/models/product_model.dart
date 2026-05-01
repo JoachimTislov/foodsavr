@@ -70,9 +70,23 @@ class ExpiryEntry {
   }
 
   factory ExpiryEntry.fromJson(Map<String, dynamic> json) {
+    // TODO: Handle missing or malformed expirationDate more robustly
+    final rawDate = json['expirationDate'];
+    DateTime parsedDate;
+    if (rawDate is String) {
+      parsedDate = DateTime.parse(rawDate);
+    } else if (rawDate != null &&
+        rawDate.runtimeType.toString() == 'Timestamp') {
+      parsedDate = (rawDate as dynamic).toDate() as DateTime;
+    } else if (rawDate is DateTime) {
+      parsedDate = rawDate;
+    } else {
+      parsedDate = DateTime.now();
+    }
+
     return ExpiryEntry(
-      quantity: json['quantity'] as int,
-      expirationDate: DateTime.parse(json['expirationDate'] as String),
+      quantity: (json['quantity'] as num?)?.toInt() ?? 0,
+      expirationDate: parsedDate,
     );
   }
 
