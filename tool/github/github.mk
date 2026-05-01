@@ -1,5 +1,9 @@
 .PHONY: gh-resolve-active gh-resolve-outdated gh-resolve-thread gh-summarize-comments gh-sync-pr
 
+# Ignore any extra arguments passed to make (e.g., PR numbers)
+%:
+	@:
+
 gh-resolve-active:
 	@echo "Resolving active PR review threads..."
 	@bash tool/github/resolve_active_review_threads.sh
@@ -15,10 +19,8 @@ gh-resolve-thread:
 	fi
 	@bash tool/github/resolve_thread_by_id.sh "$(id)"
 
-gh-summarize-comments:
-	@echo "Summarizing PR comments..."
-	@bash tool/github/summarize_pr_comments.sh
+gh-get-active-comment:
+	@bash tool/github/get_active_comment.sh
 
 gh-sync-pr:
-	@echo "Syncing PR with base branch..."
 	@bash tool/github/sync_pr_with_base.sh

@@ -11,12 +11,7 @@ if [[ "${1:-}" == "--refresh" ]]; then
   shift
 fi
 
-PR_NUMBER=${1:-$(gh pr view --json number -q .number 2>/dev/null || true)}
-if [[ -z "$PR_NUMBER" ]]; then
-  echo "Usage: $0 [--refresh] <pr-number>"
-  echo "Or run from a branch with an active PR."
-  exit 1
-fi
+PR_NUMBER=$(gh pr view --json number -q .number 2>/dev/null)
 
 if [[ ! -f "$CACHE_FILE" ]] || [[ "$FORCE_FETCH" == "1" ]]; then
   REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)

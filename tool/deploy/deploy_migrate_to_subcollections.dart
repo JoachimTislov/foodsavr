@@ -55,7 +55,15 @@ Future<void> main(List<String> args) async {
     for (final collection in collections) {
       final collectionId = collection['name'].toString().split('/').last;
       final fields = collection['fields'] as Map<String, dynamic>? ?? {};
-      final type = fields['type']?['stringValue'] ?? 'inventory';
+      final type = fields['type']?['stringValue'] as String?;
+
+      if (type != 'inventory' && type != 'shopping') {
+        print(
+          '   ⚠️  Skipping collection $collectionId: unknown or missing type ($type).',
+        );
+        continue;
+      }
+
       final productIdsNode = fields['productIds']?['arrayValue'];
 
       if (productIdsNode == null) continue;
