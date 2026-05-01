@@ -164,7 +164,7 @@ seed-remote:
 		exit 1; \
 	fi
 	@echo "Seeding remote database using config: $(env)..."
-	@dart run --dart-define-from-file=$(env) tool/seed_database.dart
+	@SEED_CONFIG_FILE=$(env) dart run tool/seed_database.dart
 
 feature:
 	@if [ -z "$(name)" ]; then \

@@ -1,5 +1,6 @@
 // ignore_for_file: avoid_print
 
+import 'dart:convert';
 import 'dart:io';
 import 'package:foodsavr/services/standalone_seeding_service.dart';
 import 'package:foodsavr/mock_data/collections.dart';
@@ -20,17 +21,25 @@ const String testUserPassword = 'password123';
 Future<void> main() async {
   print('Starting database seeding...');
 
-  const env = String.fromEnvironment('ENV', defaultValue: 'local');
-  final isRemote = env.startsWith('remote');
+  String env = 'local';
+  String projectId = defaultProjectId;
+  String apiKey = 'fake-key';
 
-  final projectId = String.fromEnvironment(
-    'FIREBASE_PROJECT_ID',
-    defaultValue: defaultProjectId,
-  );
-  final apiKey = String.fromEnvironment(
-    'FIREBASE_API_KEY',
-    defaultValue: 'fake-key',
-  );
+  final configFile = Platform.environment['SEED_CONFIG_FILE'];
+  if (configFile != null) {
+    try {
+      final configContent = await File(configFile).readAsString();
+      final config = jsonDecode(configContent) as Map<String, dynamic>;
+      env = config['ENV']?.toString() ?? 'remote';
+      projectId = config['FIREBASE_PROJECT_ID']?.toString() ?? defaultProjectId;
+      apiKey = config['FIREBASE_API_KEY']?.toString() ?? 'fake-key';
+    } catch (e) {
+      print('Failed to read config file $configFile: $e');
+      exit(1);
+    }
+  }
+
+  final isRemote = env.startsWith('remote');
 
   if (isRemote) {
     print('Environment: Remote ($env)');

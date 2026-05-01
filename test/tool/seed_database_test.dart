@@ -149,7 +149,7 @@ void main() {
           verify(
             () => mockClient.patch(
               Uri.parse(
-                'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/roles/admins?updateMask.fieldPaths=admin-user-id',
+                'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/roles/admins?updateMask.fieldPaths=%60admin-user-id%60',
               ),
               headers: {'Content-Type': 'application/json'},
               body: jsonEncode({
