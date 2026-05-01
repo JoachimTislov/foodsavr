@@ -1,11 +1,9 @@
-.PHONY: all dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check _run-checks deps di locale-check preflight push
-
-all: check
+.PHONY: run-dev run-prod build-apk-debug build-apk-release dev-chrome-prod dev-chrome start-firebase-emulators kill-firebase-emulators deps di view-emulator check _run-checks analyze fmt fix test clean locales locale-check locale-clean generate-locales preflight push worktree deploy-schema
 
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
 FLUTTER_RUN_CMD := flutter run --no-pub $(DOTENV_FLAGS)
 FLUTTER_BUILD_APK_CMD := flutter build apk --no-pub $(DOTENV_FLAGS)
-CHECK_HASH_CMD := find lib test tool pubspec.yaml analysis_options.yaml Makefile -type f 2>/dev/null | sort | xargs sha256sum | sha256sum | awk '{print $$1}'
+CHECK_HASH_CMD := find lib test pubspec.yaml analysis_options.yaml -type f 2>/dev/null | sort | xargs sha256sum | sha256sum | awk '{print $$1}'
 
 run-dev: deps start-firebase-emulators
 	@$(FLUTTER_RUN_CMD) --flavor development
@@ -144,13 +142,13 @@ worktree:
 	fi
 	@bash tool/create_worktree.sh "$(name)" "$(dir)" "$(task)"
 
-migrate-test: start-firebase-emulators
+deploy-schema:
 	@echo "Running local database migrations..."
 	@dart run tool/deploy/deploy_schema.dart
 
 # --- Automation & Gemini Targets ---
 
-.PHONY: data seed-local seed-remote task feature research resolve-comments unit-tests integration-tests analyze-architecture
+.PHONY: task locale-seed remote-seed feature research resolve-comments unit-tests integration-tests analyze-architecture
 
 task:
 	@if [ -z "$(msg)" ]; then \
@@ -160,13 +158,12 @@ task:
 	@echo "Injecting INDEX.md context and starting task..."
 	@gemini "Review the codebase index below to map out your strategy, then complete this task: $(msg). \n\n=== INDEX.md ===\n$$(cat INDEX.md)"
 
-data: seed-local
-
-seed-local: start-firebase-emulators
+locale-seed: start-firebase-emulators
 	@echo "Seeding local emulator data using standalone seeder..."
 	@dart run tool/seed_database.dart
 
-seed-remote:
+remote-seed:
+	# TODO: Link to standard credential file for remote seeding, ensuring secure handling of sensitive information
 	@if [ -z "$(env)" ]; then \
 		echo "Error: Provide an environment file (e.g., make seed-remote env=seed-remote-creds.json)"; \
 		exit 1; \

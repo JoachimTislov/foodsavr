@@ -70,6 +70,7 @@ class ExpiryEntry {
   }
 
   factory ExpiryEntry.fromJson(Map<String, dynamic> json) {
+    // TODO: Handle missing or malformed expirationDate more robustly
     final rawDate = json['expirationDate'];
     DateTime parsedDate;
     if (rawDate is String) {
