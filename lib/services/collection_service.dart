@@ -30,9 +30,13 @@ class CollectionService {
 
   /// Get all collections for a specific user
   Future<List<Collection>> getCollectionsForUser(
-    String userId, {
+    String? userId, {
     CollectionType? type,
   }) async {
+    if (userId == null) {
+      _logger.w('No user logged in, returning empty collection list.');
+      return [];
+    }
     _logger.i(
       'Fetching collections for user: ${_redactUserId(userId)} with type: $type',
     );

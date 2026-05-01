@@ -87,9 +87,7 @@ void main() async {
 
     if (!isAlreadyInitialized) rethrow;
 
-    logger.i(
-      'Firebase App Check already initialized, skipping initialization.',
-    );
+    logger.i('Firebase App Check already initialized, skipping...');
   } catch (_) {
     rethrow;
   }
@@ -144,10 +142,10 @@ class MyApp extends StatelessWidget {
     return ListenableBuilder(
       listenable: getIt<ThemeNotifier>(),
       builder: (context, _) => MaterialApp.router(
-        title: 'FoodSavr',
         localizationsDelegates: context.localizationDelegates,
         supportedLocales: context.supportedLocales,
         locale: context.locale,
+        title: 'FoodSavr',
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: getIt<ThemeNotifier>().themeMode,
