@@ -1,4 +1,4 @@
-.PHONY: run-dev run-prod build-apk-debug build-apk-release dev-chrome-prod dev-chrome start-firebase-emulators kill-firebase-emulators deps di view-emulator check _run-checks analyze fmt fix test clean locales locale-check locale-clean generate-locales preflight push worktree deploy-schema
+.PHONY: run-dev run-prod build-apk-debug build-apk-release dev-chrome-prod dev-chrome start-firebase-emulators kill-firebase-emulators deps di view-emulator check _run-checks analyze fmt fix test clean locales locale-check locale-clean generate-locales preflight push worktree
 
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
 FLUTTER_RUN_CMD := flutter run --no-pub $(DOTENV_FLAGS)
@@ -141,10 +141,6 @@ worktree:
 		exit 1; \
 	fi
 	@bash tool/create_worktree.sh "$(name)" "$(dir)" "$(task)"
-
-deploy-schema:
-	@echo "Running local database migrations..."
-	@dart run tool/deploy/deploy_schema.dart
 
 # --- Automation & Gemini Targets ---
 

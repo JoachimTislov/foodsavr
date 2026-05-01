@@ -11,14 +11,6 @@ Future<void> main(List<String> args) async {
 
   try {
     final projectId = await getProjectId();
-
-    if (projectId == 'demo-project' || projectId.startsWith('demo-')) {
-      print(
-        'Local deployment detected ($projectId). Skipping, as local deployment is handled automatically by the emulator.',
-      );
-      exit(0);
-    }
-
     final token = await getToken();
     final rulesFile = await getRulesPath();
 
