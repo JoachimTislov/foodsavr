@@ -1,4 +1,4 @@
-.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps di locale-check generate-di preflight push
+.PHONY: dev-chrome-prod dev-chrome dev-android start-firebase-emulators kill-firebase-emulators analyze fix fmt test clean locales check deps di locale-check preflight push
 
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
 FLUTTER_RUN_CMD := flutter run --no-pub $(DOTENV_FLAGS)
@@ -196,8 +196,8 @@ push: deps preflight
 	@CHANGED=$$(git --no-pager diff --name-only @{upstream}..HEAD); \
 	DI_PATTERN='^lib/(services|interfaces|repositories|di)/|^lib/(service_locator|injection)\.dart$$'; \
 	if echo "$$CHANGED" | grep -qE "$$DI_PATTERN"; then \
-		echo "Upstream DI changes detected, running generate-di..."; \
-		$(MAKE) generate-di || { echo "generate-di failed, aborting push."; exit 1; }; \
+		echo "Upstream DI changes detected, running dependency injection..."; \
+		$(MAKE) di || { echo "dependency injection failed, aborting push."; exit 1; }; \
 	fi
 	@$(MAKE) check
 	@if [ -n "$$(git status --short)" ]; then \
