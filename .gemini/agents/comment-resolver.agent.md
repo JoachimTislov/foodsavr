@@ -28,5 +28,5 @@ immediately resolve all outdated threads without code changes.
 Material 3, Effective Dart).
     - Verify the fix by running `make check`.
     - Commit the change with a clear message referencing the resolved comment.
-    - Run `.gemini/agents/scripts/resolve_thread_by_id.sh <THREAD_ID>` to mark it as resolved.
+    - Run `tool/scripts/resolve_thread_by_id.sh <THREAD_ID>` to mark it as resolved.
 4. **Finalize:** Once all active comments are resolved, perform a final `make check` and then `make push`. Finally, add a summary comment to the PR.
