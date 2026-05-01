@@ -21,7 +21,7 @@ perform the following steps sequentially:
     - Run `rm -f .pr_comments_cache.json` to ensure a clean slate.
     - Run `make gh-resolve-outdated` to clear any stale threads.
 2. **Investigate & Implement (Recursive):**
-    - Run `make gh-get-active-comment --refresh` (on the first run) or `make gh-get-active-comment` (on subsequent recursive runs) to fetch the first active comment.
+    - Run `make gh-get-active-comment` (on the first run) or `make gh-get-active-comment` (on subsequent recursive runs) to fetch the first active comment.
     - If there are no active comments, proceed to **Finalize**.
     - Read the thread carefully and gather full context of the code mentioned in the comment.
     - Apply the required fix following the project's standards (3-tier architecture, Material 3, Effective Dart).
