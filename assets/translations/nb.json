@@ -194,6 +194,25 @@
     "settings": {
         "about": "Om",
         "account": "Konto",
+        "integrations": {
+            "actions": {
+                "connect": "Koble til",
+                "disconnect": "Koble fra"
+            },
+            "providers": {
+                "coop": "Coop",
+                "rema1000": "Rema 1000",
+                "trumf": "Trumf"
+            },
+            "status": {
+                "authorizing": "Åpner sikker innlogging...",
+                "connected": "Tilkoblet",
+                "disconnected": "Ikke tilkoblet",
+                "mobile_only": "Tilgjengelig på Android og iPhone",
+                "not_configured": "Leverandøren må settes opp"
+            },
+            "title": "Dagligvareintegrasjoner"
+        },
         "app_version": "App-versjon",
         "appearance": "Utseende",
         "guest_user": "Gjestebruker",

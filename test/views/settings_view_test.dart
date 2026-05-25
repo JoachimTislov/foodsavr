@@ -2,9 +2,13 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:foodsavr/interfaces/i_grocery_store_auth_service.dart';
+import 'package:foodsavr/models/grocery_store_connection.dart';
+import 'package:foodsavr/models/grocery_store_provider.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/services/auth_controller.dart';
 import 'package:foodsavr/services/collection_service.dart';
+import 'package:foodsavr/services/grocery_store_auth_controller.dart';
 import 'package:foodsavr/services/theme_notifier.dart';
 import 'package:foodsavr/views/settings_view.dart';
 import 'package:logger/logger.dart';
@@ -18,6 +22,9 @@ class _MockAuthService extends Mock implements IAuthService {}
 class _MockAuthController extends Mock implements AuthController {}
 
 class _MockCollectionService extends Mock implements CollectionService {}
+
+class _MockGroceryStoreAuthService extends Mock
+    implements IGroceryStoreAuthService {}
 
 class _TestWrapper extends StatelessWidget {
   final Widget child;
@@ -41,6 +48,7 @@ void main() async {
   EasyLocalization.logger.enableLevels = [];
 
   setUpAll(() {
+    registerFallbackValue(GroceryStoreProvider.coop);
     // Increase surface size to avoid overflows in tests
     final binding = TestWidgetsFlutterBinding.ensureInitialized();
     binding.platformDispatcher.views.first.physicalSize = const Size(
@@ -90,6 +98,43 @@ void main() async {
       when(() => mockAuthController.rememberMe).thenReturn(false);
       when(() => mockAuthController.agreedToTerms).thenReturn(false);
       getIt.registerSingleton<AuthController>(mockAuthController);
+
+      final groceryStoreAuthService = _MockGroceryStoreAuthService();
+      when(() => groceryStoreAuthService.getConnections()).thenAnswer(
+        (_) async => const [
+          GroceryStoreConnection(
+            provider: GroceryStoreProvider.coop,
+            isAvailable: true,
+            isConnected: false,
+          ),
+          GroceryStoreConnection(
+            provider: GroceryStoreProvider.rema1000,
+            isAvailable: false,
+            isConnected: false,
+            statusKey: 'settings.integrations.status.not_configured',
+          ),
+          GroceryStoreConnection(
+            provider: GroceryStoreProvider.trumf,
+            isAvailable: true,
+            isConnected: true,
+          ),
+        ],
+      );
+      when(
+        () => groceryStoreAuthService.authorize(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => groceryStoreAuthService.fetchUserProfile(any()),
+      ).thenAnswer((_) async => null);
+      when(
+        () => groceryStoreAuthService.disconnect(any()),
+      ).thenAnswer((_) async {});
+      getIt.registerLazySingleton<IGroceryStoreAuthService>(
+        () => groceryStoreAuthService,
+      );
+      getIt.registerSingleton<GroceryStoreAuthController>(
+        GroceryStoreAuthController(groceryStoreAuthService, getIt<Logger>()),
+      );
     });
 
     testWidgets('renders all settings sections', (tester) async {
@@ -106,9 +151,13 @@ void main() async {
 
         expect(find.text('ACCOUNT'), findsOneWidget);
         expect(find.text('APPEARANCE'), findsOneWidget);
+        expect(find.text('GROCERY INTEGRATIONS'), findsOneWidget);
         expect(find.text('ABOUT'), findsOneWidget);
         expect(find.text('Theme Mode'), findsOneWidget);
         expect(find.text('Language'), findsOneWidget);
+        expect(find.text('Coop'), findsOneWidget);
+        expect(find.text('Rema 1000'), findsOneWidget);
+        expect(find.text('Trumf'), findsOneWidget);
       });
     });
 

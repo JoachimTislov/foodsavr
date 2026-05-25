@@ -66,8 +66,10 @@ unnecessary cloud costs and ensure a consistent environment.
     make dev-chrome
     # or: flutter run -d chrome
     ```
-    The application connects to the emulators when `ENVIRONMENT=development` is 
-    set in `assets/.env`.
+    Grocery OAuth defaults now live in app config. Override values only when
+    needed with build properties / `--dart-define` values such as
+    `COOP_OAUTH_CLIENT_ID`, `REMA_OAUTH_SUBSCRIPTION_KEY`, and related
+    provider settings.
 
 ### Anonymous auth (guest mode)
 

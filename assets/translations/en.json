@@ -194,6 +194,25 @@
     "settings": {
         "about": "About",
         "account": "Account",
+        "integrations": {
+            "actions": {
+                "connect": "Connect",
+                "disconnect": "Disconnect"
+            },
+            "providers": {
+                "coop": "Coop",
+                "rema1000": "Rema 1000",
+                "trumf": "Trumf"
+            },
+            "status": {
+                "authorizing": "Opening secure sign-in...",
+                "connected": "Connected",
+                "disconnected": "Not connected",
+                "mobile_only": "Available on Android and iPhone",
+                "not_configured": "Provider setup required"
+            },
+            "title": "Grocery integrations"
+        },
         "app_version": "App Version",
         "appearance": "Appearance",
         "guest_user": "Guest User",

@@ -7,7 +7,9 @@ import '../constants/privacy_notice.dart';
 import '../constants/terms_of_service.dart';
 import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
+import '../services/grocery_store_auth_controller.dart';
 import '../services/theme_notifier.dart';
+import '../widgets/settings/grocery_store_integrations_section.dart';
 
 class SettingsView extends StatefulWidget {
   const SettingsView({super.key});
@@ -18,11 +20,14 @@ class SettingsView extends StatefulWidget {
 
 class _SettingsViewState extends State<SettingsView> {
   late final IAuthService _authService;
+  late final GroceryStoreAuthController _groceryStoreAuthController;
 
   @override
   void initState() {
     super.initState();
     _authService = getIt<IAuthService>();
+    _groceryStoreAuthController = getIt<GroceryStoreAuthController>();
+    _groceryStoreAuthController.loadConnections();
   }
 
   @override
@@ -111,6 +116,10 @@ class _SettingsViewState extends State<SettingsView> {
                   onTap: () => _showLanguageSelector(context),
                 ),
               ],
+            ),
+            const SizedBox(height: 24),
+            GroceryStoreIntegrationsSection(
+              controller: _groceryStoreAuthController,
             ),
             const SizedBox(height: 24),
 
@@ -273,11 +282,11 @@ class _SettingsSection extends StatelessWidget {
             ),
           ),
         ),
-        Container(
-          decoration: BoxDecoration(
-            color: colorScheme.surfaceContainer,
+        Material(
+          color: colorScheme.surfaceContainer,
+          shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
+            side: BorderSide(
               color: colorScheme.outlineVariant.withValues(alpha: 0.1),
             ),
           ),
