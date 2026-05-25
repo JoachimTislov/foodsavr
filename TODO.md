@@ -123,6 +123,8 @@ notes:
 - [ ] Support export/import (CSV/JSON) for user inventory.
 - [ ] Support sharing meal plans and shopping lists with other users (e.g., family members).
     - [ ] Create shared (family/group) collections
+- [ ] Support registering and tracking non-retail items (e.g., homemade meals, bulk items) with custom names and optional expiry.
+    - [ ] Register unique product through scanning - creating picture and searching for product....
 
 ### LLM-dependent features
 - [ ] Generate recipe ideas based on the user's current inventory.
@@ -166,7 +168,7 @@ notes:
 
 ## Tempting integrations
 - [ ] Implement error logging and monitoring (e.g., Sentry integration).
-- [ ] Integrate with Rema (Æ), Coop Mega (Member) and Trumf
+- [ ] Integrate with Rema (Æ), Coop Mega (Coop Member) and Trumf (Norwegian Group), Storebox and similar for automatic receipt scanning and inventory updates.
     - [ ] Support manual uploading of receipts (e.g., via image or CSV) to extract purchase data and automatically update inventory.
     - [Helpful openai overview](https://gist.github.com/HelgeSverre/80a7f34f874336324184a0c513c2e6a2)
 

@@ -17,6 +17,7 @@ google-services.json
 firebase_options.dart
 .gemini/policies
 .pr_comments_cache.json
+research/raw
 
 *.class
 *.log
