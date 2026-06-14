@@ -1,6 +1,6 @@
 # FoodSavr
 
-`foodsavr` is a mobile and web application designed to help you reduce food 
+`FoodSavr` is a mobile application designed to help you reduce food 
 waste, save time, and manage your grocery expenses efficiently. By tracking 
 inventory and automating meal planning, the application ensures you always know 
 what you have and what you need.

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../models/product_model.dart';
+import '../../models/m_product.dart';
 
 class ExpiringItemCard extends StatelessWidget {
   final Product product;

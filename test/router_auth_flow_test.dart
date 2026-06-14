@@ -6,20 +6,20 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:foodsavr/interfaces/is_auth.dart';
 import 'package:foodsavr/router.dart';
 import 'package:foodsavr/service_locator.dart';
-import 'package:foodsavr/services/auth_controller.dart';
-import 'package:foodsavr/services/product_service.dart';
-import 'package:foodsavr/interfaces/i_product_repository.dart';
-import 'package:foodsavr/interfaces/i_collection_repository.dart'; // Explicitly import ICollectionRepository
-import 'package:foodsavr/models/product_model.dart';
-import 'package:foodsavr/models/collection_model.dart'; // Import Collection
-import 'package:foodsavr/views/landing_page_view.dart';
-import 'package:foodsavr/views/dashboard_view.dart';
-import 'package:foodsavr/services/collection_service.dart'; // Import CollectionService
-import 'package:foodsavr/services/shelf_life_service.dart';
-import 'package:foodsavr/services/theme_notifier.dart';
+import 'package:foodsavr/controllers/c_auth.dart';
+import 'package:foodsavr/services/s_product.dart';
+import 'package:foodsavr/interfaces/ir_product.dart';
+import 'package:foodsavr/interfaces/ir_collection.dart'; // Explicitly import ICollectionRepository
+import 'package:foodsavr/models/m_product.dart';
+import 'package:foodsavr/models/m_collection.dart'; // Import Collection
+import 'package:foodsavr/views/v_landing_page.dart';
+import 'package:foodsavr/views/v_dashboard.dart';
+import 'package:foodsavr/services/s_collection.dart'; // Import CollectionService
+import 'package:foodsavr/utils/u_shelf_life.dart';
+import 'package:foodsavr/utils/u_theme_notifier.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';

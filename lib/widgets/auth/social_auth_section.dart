@@ -22,10 +22,6 @@ class SocialAuthSection extends StatelessWidget {
 
     return Column(
       children: [
-        if (showTopDivider) ...[
-          _buildDivider(context),
-          const SizedBox(height: 24.0),
-        ],
         SocialLoginButton(
           text: 'auth.social.continue_google'.tr(),
           iconPath: 'assets/images/google_logo.svg',
@@ -33,26 +29,28 @@ class SocialAuthSection extends StatelessWidget {
           textColor: colorScheme.onSurface,
           onPressed: isLoading ? null : onGooglePressed,
         ),
-        if (!showTopDivider) ...[
-          const SizedBox(height: 24.0),
-          _buildDivider(context),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildDivider(BuildContext context) {
-    return Row(
-      children: [
-        const Expanded(child: Divider()),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Text(
-            'common.or'.tr(),
-            style: Theme.of(context).textTheme.labelLarge,
-          ),
+        const SizedBox(height: 12.0),
+        SocialLoginButton(
+          text: 'auth.social.continue_facebook'.tr(),
+          iconPath: 'assets/images/facebook_logo.svg',
+          color: colorScheme.surface,
+          textColor: colorScheme.onSurface,
+          onPressed: isLoading ? null : onFacebookPressed,
         ),
-        const Expanded(child: Divider()),
+        const SizedBox(height: 24.0),
+        Row(
+          children: [
+            const Expanded(child: Divider()),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Text(
+                'common.or'.tr(),
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+            ),
+            const Expanded(child: Divider()),
+          ],
+        ),
       ],
     );
   }

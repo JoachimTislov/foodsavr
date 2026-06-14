@@ -1,9 +1,9 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../models/grocery_store_connection.dart';
-import '../../models/grocery_store_provider.dart';
-import '../../services/grocery_store_auth_controller.dart';
+import '../../models/m_grocery_store.dart';
+import '../../controllers/c_grocery_store_auth.dart';
 
 class GroceryStoreIntegrationsSection extends StatelessWidget {
   const GroceryStoreIntegrationsSection({super.key, required this.controller});
@@ -58,8 +58,12 @@ class GroceryStoreIntegrationsSection extends StatelessWidget {
                       connection: connections[i],
                       isBusy:
                           controller.activeProvider == connections[i].provider,
-                      onConnect: () =>
-                          controller.connect(connections[i].provider),
+                      onConnect: () => {
+                        context.go(
+                          '/settings/web-view?provider=${connections[i].provider.name}',
+                        ),
+                      },
+                      // controller.connect(connections[i].provider),
                       onDisconnect: () =>
                           controller.disconnect(connections[i].provider),
                     ),
@@ -99,10 +103,14 @@ class _ConnectionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final statusLabel = _statusLabel(connection, isBusy);
+
     return ListTile(
-      leading: const Icon(Icons.local_grocery_store_outlined),
-      title: Text(_providerLabel(connection.provider)),
-      subtitle: Text(_statusLabel(connection, isBusy)),
+      leading: _providerIcon(),
+      title: Text(
+        'settings.integrations.providers.${connection.provider}'.tr(),
+      ),
+      subtitle: statusLabel == null ? null : Text(statusLabel),
       trailing: connection.isAvailable
           ? TextButton(
               onPressed: isBusy
@@ -118,14 +126,7 @@ class _ConnectionTile extends StatelessWidget {
     );
   }
 
-  String _providerLabel(GroceryStoreProvider provider) => switch (provider) {
-    GroceryStoreProvider.coop => 'settings.integrations.providers.coop'.tr(),
-    GroceryStoreProvider.rema1000 =>
-      'settings.integrations.providers.rema1000'.tr(),
-    GroceryStoreProvider.trumf => 'settings.integrations.providers.trumf'.tr(),
-  };
-
-  String _statusLabel(GroceryStoreConnection connection, bool isBusy) {
+  String? _statusLabel(GroceryStoreConnection connection, bool isBusy) {
     if (isBusy) {
       return 'settings.integrations.status.authorizing'.tr();
     }
@@ -137,7 +138,21 @@ class _ConnectionTile extends StatelessWidget {
         'settings.integrations.status.not_configured'.tr(),
       _ when connection.isConnected =>
         'settings.integrations.status.connected'.tr(),
-      _ => 'settings.integrations.status.disconnected'.tr(),
+      _ => null,
     };
+  }
+
+  Widget _providerIcon() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: ColoredBox(
+        color: Colors.white,
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Padding(padding: const EdgeInsets.all(6)),
+        ),
+      ),
+    );
   }
 }

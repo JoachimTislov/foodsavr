@@ -1,21 +1,22 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:foodsavr/interfaces/i_auth_service.dart';
-import 'package:foodsavr/interfaces/i_grocery_store_auth_service.dart';
-import 'package:foodsavr/models/grocery_store_connection.dart';
-import 'package:foodsavr/models/grocery_store_provider.dart';
+import 'package:foodsavr/interfaces/is_auth.dart';
+import 'package:foodsavr/interfaces/is_grocery_store_oauth.dart';
+import 'package:foodsavr/models/m_grocery_store.dart';
+import 'package:foodsavr/models/m_grocery_store_provider.dart';
 import 'package:foodsavr/service_locator.dart';
-import 'package:foodsavr/services/auth_controller.dart';
-import 'package:foodsavr/services/collection_service.dart';
-import 'package:foodsavr/services/grocery_store_auth_controller.dart';
-import 'package:foodsavr/services/theme_notifier.dart';
-import 'package:foodsavr/views/settings_view.dart';
+import 'package:foodsavr/controllers/c_auth.dart';
+import 'package:foodsavr/services/s_collection.dart';
+import 'package:foodsavr/controllers/c_grocery_store_auth.dart';
+import 'package:foodsavr/utils/u_theme_notifier.dart';
+import 'package:foodsavr/views/v_settings.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
+import 'package:vector_graphics/vector_graphics.dart';
 
 class _MockAuthService extends Mock implements IAuthService {}
 
@@ -158,6 +159,8 @@ void main() async {
         expect(find.text('Coop'), findsOneWidget);
         expect(find.text('Rema 1000'), findsOneWidget);
         expect(find.text('Trumf'), findsOneWidget);
+        expect(find.byType(VectorGraphic), findsNWidgets(3));
+        expect(find.text('Not connected'), findsNothing);
       });
     });
 

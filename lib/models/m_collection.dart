@@ -1,0 +1,80 @@
+import '../utils/u_collection_types.dart';
+
+class Collection {
+  final String id;
+  final String name;
+  final List<int> productIds;
+  final String userId; // Owner of the collection
+  final String? description;
+  final CollectionType
+  type; // Type of collection (inventory, shopping list, etc.)
+
+  Collection({
+    required this.id,
+    required this.name,
+    required this.productIds,
+    required this.userId,
+    this.description,
+    this.type = CollectionType.inventory,
+  });
+
+  Collection copyWith({
+    String? id,
+    String? name,
+    List<int>? productIds,
+    String? userId,
+    String? description,
+    CollectionType? type,
+  }) {
+    return Collection(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      productIds: productIds ?? this.productIds,
+      userId: userId ?? this.userId,
+      description: description ?? this.description,
+      type: type ?? this.type,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'productIds': productIds,
+      'userId': userId,
+      'description': description,
+      'type': type.name,
+    };
+  }
+
+  Map<String, dynamic> toFirestoreRest() {
+    return {
+      'id': {'stringValue': id},
+      'name': {'stringValue': name},
+      'productIds': {
+        'arrayValue': {
+          'values': productIds
+              .map((id) => {'integerValue': id.toString()})
+              .toList(),
+        },
+      },
+      'userId': {'stringValue': userId},
+      'description': {'stringValue': description ?? ''},
+      'type': {'stringValue': type.name},
+    };
+  }
+
+  factory Collection.fromJson(Map<String, dynamic> json) {
+    return Collection(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      productIds: List<int>.from(json['productIds'] as List),
+      userId: json['userId'] as String,
+      description: json['description'] as String?,
+      type: CollectionType.values.firstWhere(
+        (e) => e.name == json['type'],
+        orElse: () => CollectionType.inventory,
+      ),
+    );
+  }
+}

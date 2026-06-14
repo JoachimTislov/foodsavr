@@ -1,0 +1,300 @@
+import 'dart:math';
+
+import 'package:injectable/injectable.dart';
+import 'package:logger/logger.dart';
+import 'package:openfoodfacts/openfoodfacts.dart' as off;
+import '../models/m_product.dart';
+import '../interfaces/ir_product.dart';
+import '../utils/u_shelf_life.dart';
+
+@lazySingleton
+class ProductService {
+  final IProductRepository _productRepository;
+  final ShelfLifeService _shelfLifeService;
+  final Logger _logger;
+
+  ProductService(this._productRepository, this._shelfLifeService, this._logger);
+
+  String _normalizeBarcode(String barcode) {
+    var normalized = barcode.trim();
+    if (normalized.length < 13) {
+      normalized = normalized.padLeft(13, '0');
+    }
+    return normalized;
+  }
+
+  off.OpenFoodFactsLanguage _getOFFLanguage(String languageCode) {
+    switch (languageCode) {
+      case 'en':
+        return off.OpenFoodFactsLanguage.ENGLISH;
+      case 'nb':
+      case 'no':
+        return off.OpenFoodFactsLanguage.NORWEGIAN;
+      default:
+        return off.OpenFoodFactsLanguage.ENGLISH;
+    }
+  }
+
+  Future<ScanAddProductResult> addOrIncrementByBarcode({
+    required String userId,
+    required String barcode,
+    String languageCode = 'nb',
+  }) async {
+    _logger.i('addOrIncrementByBarcode: processing barcode for user $userId');
+    final trimmedBarcode = barcode.trim();
+    if (trimmedBarcode.isEmpty) {
+      throw ArgumentError('Barcode cannot be empty');
+    }
+
+    final normalizedBarcode = _normalizeBarcode(trimmedBarcode);
+
+    final products = await _productRepository.getProducts(userId);
+    Product? existingProduct;
+    for (final product in products) {
+      if (product.barcode == normalizedBarcode || product.barcode == barcode) {
+        existingProduct = product;
+        break;
+      }
+    }
+
+    if (existingProduct != null) {
+      _logger.i('Barcode matched existing product: ${existingProduct.name}');
+
+      // Calculate smart default expiry if none exists, else just increment quantity
+      final estimatedExpiry = _shelfLifeService.estimateExpiration(
+        existingProduct,
+      );
+      final newExpiries = List<ExpiryEntry>.from(existingProduct.expiries);
+
+      if (estimatedExpiry != null) {
+        newExpiries.add(
+          ExpiryEntry(quantity: 1, expirationDate: estimatedExpiry),
+        );
+      }
+
+      final updatedProduct = Product(
+        id: existingProduct.id,
+        name: existingProduct.name,
+        description: existingProduct.description,
+        userId: existingProduct.userId,
+        expiries: newExpiries,
+        nonExpiringQuantity: estimatedExpiry == null
+            ? existingProduct.nonExpiringQuantity + 1
+            : existingProduct.nonExpiringQuantity,
+        category: existingProduct.category,
+        imageUrl: existingProduct.imageUrl,
+        barcode: existingProduct.barcode,
+        isGlobal: existingProduct.isGlobal,
+        tags: existingProduct.tags,
+      );
+      await _productRepository.update(updatedProduct);
+      return ScanAddProductResult(
+        product: updatedProduct,
+        matchedExisting: true,
+        estimatedExpiryDays: estimatedExpiry?.difference(DateTime.now()).inDays,
+      );
+    }
+
+    // Attempt to fetch from Open Food Facts API
+    try {
+      final configuration = off.ProductQueryConfiguration(
+        normalizedBarcode,
+        language: _getOFFLanguage(languageCode),
+        version: off.ProductQueryVersion.v3,
+        fields: [
+          off.ProductField.NAME,
+          off.ProductField.IMAGE_FRONT_URL,
+          off.ProductField.LABELS_TAGS,
+          off.ProductField.CATEGORIES_TAGS,
+        ],
+      );
+
+      final result = await off.OpenFoodAPIClient.getProductV3(configuration);
+
+      if (result.status == off.ProductResultV3.statusSuccess &&
+          result.product != null) {
+        final productData = result.product!;
+        final productName = productData.productName ?? normalizedBarcode;
+        final imageUrl = productData.imageFrontUrl;
+        final tags = productData.labelsTags ?? [];
+        final categories = productData.categoriesTags ?? [];
+
+        // Combine tags and categories for better shelf life heuristics
+        final combinedTags = [...tags, ...categories];
+
+        final estimatedExpiry = _shelfLifeService.estimateExpiration(
+          // Use a temporary, minimal product instance for estimation
+          Product(
+            id: 0,
+            name: '',
+            description: '',
+            userId: '',
+            tags: combinedTags,
+          ),
+        );
+
+        final randomSuffix = Random().nextInt(1000);
+        final newProduct = Product(
+          id: DateTime.now().microsecondsSinceEpoch + randomSuffix,
+          name: productName,
+          description: '',
+          userId: userId,
+          nonExpiringQuantity: estimatedExpiry == null ? 1 : 0,
+          barcode: normalizedBarcode,
+          imageUrl: imageUrl,
+          tags: combinedTags,
+          expiries: estimatedExpiry != null
+              ? [ExpiryEntry(quantity: 1, expirationDate: estimatedExpiry)]
+              : [],
+        );
+
+        final addedProduct = await _productRepository.add(newProduct);
+        _logger.i('Created new product from OFF API: $normalizedBarcode');
+        return ScanAddProductResult(
+          product: addedProduct,
+          matchedExisting: false,
+          estimatedExpiryDays: estimatedExpiry
+              ?.difference(DateTime.now())
+              .inDays,
+        );
+      }
+    } catch (e) {
+      _logger.e('Error fetching from Open Food Facts API: $e');
+    }
+
+    // Not found locally or on OFF API. Return special result to prompt user.
+    _logger.i('Barcode not found on OFF API: $normalizedBarcode');
+    return ScanAddProductResult(
+      product: Product(
+        id: 0,
+        name: '',
+        description: '',
+        userId: userId,
+        nonExpiringQuantity: 1,
+        barcode: normalizedBarcode,
+      ),
+      matchedExisting: false,
+      notFound: true,
+    );
+  }
+
+  /// Fetches all products for a specific user
+  /// Returns empty list if userId is null (no user logged in)
+  Future<List<Product>> getProducts(String? userId) async {
+    if (userId == null) {
+      _logger.w('No user logged in, returning empty product list.');
+      return [];
+    }
+
+    _logger.i('Fetching products for user: $userId');
+    try {
+      final products = await _productRepository.getProducts(userId);
+      _logger.i('Successfully fetched ${products.length} products for user.');
+      return products;
+    } catch (e) {
+      _logger.e('Error fetching user products: $e');
+      rethrow;
+    }
+  }
+
+  /// Fetches personal registry products for a specific user.
+  Future<List<Product>> getPersonalProducts(String? userId) async {
+    if (userId == null) {
+      _logger.w('No user logged in, returning empty personal product list.');
+      return [];
+    }
+
+    _logger.i('Fetching personal registry products for user: $userId');
+    try {
+      final products = await _productRepository.getPersonalProducts(userId);
+      _logger.i(
+        'Successfully fetched ${products.length} personal registry products for user.',
+      );
+      return products;
+    } catch (e) {
+      _logger.e('Error fetching personal registry products: $e');
+      rethrow;
+    }
+  }
+
+  /// Returns products for [userId] that are expiring soon (within 6 days) or today.
+  Future<List<Product>> getExpiringSoon(String? userId) async {
+    final products = await getProducts(userId);
+    return products.where((p) => p.isExpiringSoon || p.isExpiringToday).toList()
+      ..sort(
+        (a, b) =>
+            (a.daysUntilExpiration ?? 0).compareTo(b.daysUntilExpiration ?? 0),
+      );
+  }
+
+  /// Fetches all global products (catalog)
+  Future<List<Product>> getAllProducts() async {
+    _logger.i('Fetching all global products.');
+    try {
+      final products = await _productRepository.getGlobalProducts();
+      _logger.i('Successfully fetched ${products.length} global products.');
+      return products;
+    } catch (e) {
+      _logger.e('Error fetching global products: $e');
+      rethrow;
+    }
+  }
+
+  Future<Product?> getProductById(int id) async {
+    _logger.i('Fetching product by ID: $id');
+    try {
+      return await _productRepository.get(id);
+    } catch (e) {
+      _logger.e('Error fetching product: $e');
+      rethrow;
+    }
+  }
+
+  Future<Product> addProduct(Product product) async {
+    _logger.i('Adding product: ${product.name}');
+    try {
+      final addedProduct = await _productRepository.add(product);
+      _logger.i('Successfully added product: ${product.name}');
+      return addedProduct;
+    } catch (e) {
+      _logger.e('Error adding product: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateProduct(Product product) async {
+    _logger.i('Updating product: ${product.name}');
+    try {
+      await _productRepository.update(product);
+      _logger.i('Successfully updated product: ${product.name}');
+    } catch (e) {
+      _logger.e('Error updating product: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteProduct(int id) async {
+    _logger.i('Deleting product: $id');
+    try {
+      await _productRepository.delete(id);
+      _logger.i('Successfully deleted product: $id');
+    } catch (e) {
+      _logger.e('Error deleting product: $e');
+      rethrow;
+    }
+  }
+}
+
+class ScanAddProductResult {
+  final Product product;
+  final bool matchedExisting;
+  final bool notFound;
+  final int? estimatedExpiryDays;
+
+  const ScanAddProductResult({
+    required this.product,
+    required this.matchedExisting,
+    this.notFound = false,
+    this.estimatedExpiryDays,
+  });
+}

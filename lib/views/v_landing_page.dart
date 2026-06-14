@@ -1,0 +1,182 @@
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../service_locator.dart';
+import '../controllers/c_auth.dart';
+import '../widgets/auth/social_auth_section.dart';
+
+class LandingPageView extends StatefulWidget {
+  const LandingPageView({super.key});
+
+  @override
+  State<LandingPageView> createState() => _LandingPageViewState();
+}
+
+class _LandingPageViewState extends State<LandingPageView> {
+  late final AuthController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = getIt<AuthController>();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 400),
+              child: ListenableBuilder(
+                listenable: _controller,
+                builder: (context, _) {
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Header Section
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Icon(
+                          Icons.inventory_2_outlined,
+                          color: colorScheme.primary,
+                          size: 40,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'auth.landing.title'.tr(),
+                        style: textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: colorScheme.onSurface,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'auth.landing.subtitle'.tr(),
+                        style: textTheme.titleMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 48),
+
+                      // Social Login Stack
+                      SocialAuthSection(
+                        isLoading: _controller.isLoading,
+                        onGooglePressed: _controller.signInWithGoogle,
+                        onFacebookPressed: _controller.signInWithFacebook,
+                        showTopDivider: false,
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Email Button (Primary)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _controller.isLoading
+                              ? null
+                              : () {
+                                  context.go(
+                                    Uri(
+                                      path: '/auth',
+                                      queryParameters: {'mode': 'login'},
+                                    ).toString(),
+                                  );
+                                },
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.mail_outline),
+                              const SizedBox(width: 8),
+                              Text(
+                                'auth.social.continue_email'.tr(),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: _controller.isLoading
+                              ? null
+                              : _controller.signInAsGuest,
+                          child: Text('auth.social.continue_guest'.tr()),
+                        ),
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // Footer
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'auth.toggle.no_account'.tr(),
+                              style: TextStyle(
+                                color: colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          Flexible(
+                            child: TextButton(
+                              onPressed: _controller.isLoading
+                                  ? null
+                                  : () {
+                                      context.go(
+                                        Uri(
+                                          path: '/auth',
+                                          queryParameters: {'mode': 'signup'},
+                                        ).toString(),
+                                      );
+                                    },
+                              child: Text(
+                                'auth.toggle.sign_up'.tr(),
+                                style: TextStyle(
+                                  color: colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

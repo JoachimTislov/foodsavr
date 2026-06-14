@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:foodsavr/interfaces/is_auth.dart';
 import 'package:foodsavr/service_locator.dart';
-import 'package:foodsavr/services/product_service.dart';
-import 'package:foodsavr/services/collection_service.dart';
-import 'package:foodsavr/utils/collection_types.dart';
-import 'package:foodsavr/views/dashboard_view.dart';
+import 'package:foodsavr/services/s_product.dart';
+import 'package:foodsavr/services/s_collection.dart';
+import 'package:foodsavr/utils/u_collection_types.dart';
+import 'package:foodsavr/views/v_dashboard.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:intl/date_symbol_data_local.dart';

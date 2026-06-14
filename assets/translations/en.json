@@ -41,6 +41,7 @@
         "social": {
             "continue_email": "Continue with Email",
             "continue_google": "Continue with Google",
+            "continue_facebook": "Continue with Facebook",
             "continue_guest": "Continue as guest"
         },
         "submit": {
@@ -207,7 +208,6 @@
             "status": {
                 "authorizing": "Opening secure sign-in...",
                 "connected": "Connected",
-                "disconnected": "Not connected",
                 "mobile_only": "Available on Android and iPhone",
                 "not_configured": "Provider setup required"
             },

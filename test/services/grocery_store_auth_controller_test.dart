@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:foodsavr/interfaces/i_grocery_store_auth_service.dart';
-import 'package:foodsavr/models/grocery_store_connection.dart';
-import 'package:foodsavr/models/grocery_store_provider.dart';
-import 'package:foodsavr/services/grocery_store_auth_controller.dart';
+import 'package:foodsavr/interfaces/is_grocery_store_oauth.dart';
+import 'package:foodsavr/models/m_grocery_store.dart';
+import 'package:foodsavr/models/m_grocery_store_provider.dart';
+import 'package:foodsavr/controllers/c_grocery_store_auth.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 

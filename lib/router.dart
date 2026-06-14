@@ -2,23 +2,24 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:foodsavr/widgets/common/web_view.dart';
 import 'package:go_router/go_router.dart';
 
-import 'interfaces/i_auth_service.dart';
-import 'utils/collection_types.dart';
-import 'views/auth_view.dart';
-import 'views/barcode_scan_view.dart';
-import 'views/collection_list_view.dart';
-import 'views/dashboard_view.dart';
-import 'views/dynamic_collection_view.dart';
-import 'views/landing_page_view.dart';
-import 'views/main_navigation_view.dart';
-import 'views/product_list_view.dart';
-import 'views/profile_view.dart';
-import 'views/select_products_view.dart';
-import 'views/settings_view.dart';
-import 'views/splash_view.dart';
-import 'views/transfer_management_view.dart';
+import 'interfaces/is_auth.dart';
+import 'utils/u_collection_types.dart';
+import 'views/v_auth.dart';
+import 'views/v_barcode_scan.dart';
+import 'views/v_collection_list.dart';
+import 'views/v_dashboard.dart';
+import 'views/v_dynamic_collection.dart';
+import 'views/v_landing_page.dart';
+import 'views/v_main_navigation.dart';
+import 'views/v_product_list.dart';
+import 'views/v_profile.dart';
+import 'views/v_select_products.dart';
+import 'views/v_settings.dart';
+import 'views/v_splash.dart';
+import 'views/v_transfer_management.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -47,6 +48,7 @@ GoRouter createAppRouter(IAuthService authService) {
       final isLoggedIn = authService.getUserId() != null;
       final isAnonymousUser = authService.currentUser?.isAnonymous ?? false;
       final isAuthRoute = state.uri.path == '/auth';
+      final isOAuthCallbackRoute = state.uri.path.startsWith('/callback/');
       final isLandingRoute = state.uri.path == '/';
       final isSplashRoute = state.uri.path == '/splash';
 
@@ -62,6 +64,10 @@ GoRouter createAppRouter(IAuthService authService) {
           return target;
         }
         return '/';
+      }
+
+      if (isOAuthCallbackRoute) {
+        return '/settings';
       }
 
       if (!isLoggedIn) {
@@ -150,8 +156,14 @@ GoRouter createAppRouter(IAuthService authService) {
                 builder: (context, state) => const SettingsView(),
                 routes: [
                   GoRoute(
-                    path: '/profile',
+                    path: 'profile',
                     builder: (context, state) => const ProfileView(),
+                  ),
+                  GoRoute(
+                    path: 'web-view',
+                    builder: (context, state) => WebView(
+                      provider: state.uri.queryParameters['provider'],
+                    ),
                   ),
                 ],
               ),

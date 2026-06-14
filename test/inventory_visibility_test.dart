@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:foodsavr/models/collection_model.dart';
-import 'package:foodsavr/services/collection_service.dart';
-import 'package:foodsavr/interfaces/i_collection_repository.dart';
-import 'package:foodsavr/utils/collection_types.dart';
+import 'package:foodsavr/models/m_collection.dart';
+import 'package:foodsavr/services/s_collection.dart';
+import 'package:foodsavr/interfaces/ir_collection.dart';
+import 'package:foodsavr/utils/u_collection_types.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:logger/logger.dart';
 

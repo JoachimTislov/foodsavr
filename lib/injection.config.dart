@@ -11,28 +11,26 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:cloud_firestore/cloud_firestore.dart' as _i974;
 import 'package:firebase_auth/firebase_auth.dart' as _i59;
-import 'package:flutter_appauth/flutter_appauth.dart' as _i337;
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart' as _i806;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart' as _i558;
 import 'package:foodsavr/di/register_module.dart' as _i966;
-import 'package:foodsavr/interfaces/i_auth_service.dart' as _i794;
-import 'package:foodsavr/interfaces/i_collection_repository.dart' as _i655;
-import 'package:foodsavr/interfaces/i_grocery_store_auth_service.dart'
-    as _i1000;
-import 'package:foodsavr/interfaces/i_product_repository.dart' as _i424;
-import 'package:foodsavr/repositories/collection_repository.dart' as _i92;
-import 'package:foodsavr/repositories/product_repository.dart' as _i318;
-import 'package:foodsavr/services/auth_controller.dart' as _i882;
-import 'package:foodsavr/services/auth_service.dart' as _i277;
-import 'package:foodsavr/services/barcode_scanner_service.dart' as _i397;
-import 'package:foodsavr/services/collection_service.dart' as _i122;
-import 'package:foodsavr/services/grocery_store_auth_controller.dart' as _i831;
-import 'package:foodsavr/services/grocery_store_auth_service.dart' as _i262;
-import 'package:foodsavr/services/oauth_token_store.dart' as _i530;
-import 'package:foodsavr/services/product_service.dart' as _i898;
-import 'package:foodsavr/services/seeding_service.dart' as _i464;
-import 'package:foodsavr/services/shelf_life_service.dart' as _i1071;
-import 'package:foodsavr/services/theme_notifier.dart' as _i921;
+import 'package:foodsavr/interfaces/is_auth.dart' as _i794;
+import 'package:foodsavr/interfaces/ir_collection.dart' as _i655;
+import 'package:foodsavr/interfaces/is_grocery_store_oauth.dart' as _i1000;
+import 'package:foodsavr/interfaces/ir_product.dart' as _i424;
+import 'package:foodsavr/repositories/r_collection.dart' as _i92;
+import 'package:foodsavr/repositories/r_product.dart' as _i318;
+import 'package:foodsavr/controllers/c_auth.dart' as _i882;
+import 'package:foodsavr/services/s_auth.dart' as _i277;
+import 'package:foodsavr/services/s_barcode_scanner.dart' as _i397;
+import 'package:foodsavr/services/s_collection.dart' as _i122;
+import 'package:foodsavr/controllers/c_grocery_store_auth.dart' as _i831;
+import 'package:foodsavr/services/s_grocery_store_auth.dart' as _i262;
+import 'package:foodsavr/services/s_oauth_token_store.dart' as _i530;
+import 'package:foodsavr/services/s_product.dart' as _i898;
+import 'package:foodsavr/services/s_seeding.dart' as _i464;
+import 'package:foodsavr/utils/u_shelf_life.dart' as _i1071;
+import 'package:foodsavr/utils/u_theme_notifier.dart' as _i921;
 import 'package:get_it/get_it.dart' as _i174;
 import 'package:google_sign_in/google_sign_in.dart' as _i116;
 import 'package:http/http.dart' as _i519;
@@ -63,7 +61,6 @@ extension GetItInjectableX on _i174.GetIt {
       () => registerModule.firebaseFirestore,
     );
     gh.lazySingleton<_i116.GoogleSignIn>(() => registerModule.googleSignIn);
-    gh.lazySingleton<_i337.FlutterAppAuth>(() => registerModule.flutterAppAuth);
     gh.lazySingleton<_i558.FlutterSecureStorage>(
       () => registerModule.flutterSecureStorage,
     );
@@ -86,14 +83,6 @@ extension GetItInjectableX on _i174.GetIt {
         firestore: gh<_i974.FirebaseFirestore>(),
       ),
     );
-    gh.lazySingleton<_i1000.IGroceryStoreAuthService>(
-      () => _i262.GroceryStoreAuthService(
-        gh<_i337.FlutterAppAuth>(),
-        gh<_i519.Client>(),
-        gh<_i974.Logger>(),
-        gh<_i530.OAuthTokenStore>(),
-      ),
-    );
     gh.factoryParam<_i882.AuthController, _i882.Translator?, dynamic>(
       (translate, _) => _i882.AuthController(
         gh<_i794.IAuthService>(),
@@ -101,10 +90,11 @@ extension GetItInjectableX on _i174.GetIt {
         translate: translate,
       ),
     );
-    gh.factory<_i831.GroceryStoreAuthController>(
-      () => _i831.GroceryStoreAuthController(
-        gh<_i1000.IGroceryStoreAuthService>(),
+    gh.lazySingleton<_i1000.IGroceryStoreAuthService>(
+      () => _i262.GroceryStoreAuthService(
+        gh<_i519.Client>(),
         gh<_i974.Logger>(),
+        gh<_i530.OAuthTokenStore>(),
       ),
     );
     gh.lazySingleton<_i424.IProductRepository>(
@@ -123,6 +113,12 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i898.ProductService(
         gh<_i424.IProductRepository>(),
         gh<_i1071.ShelfLifeService>(),
+        gh<_i974.Logger>(),
+      ),
+    );
+    gh.factory<_i831.GroceryStoreAuthController>(
+      () => _i831.GroceryStoreAuthController(
+        gh<_i1000.IGroceryStoreAuthService>(),
         gh<_i974.Logger>(),
       ),
     );
