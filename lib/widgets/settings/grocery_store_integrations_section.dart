@@ -58,11 +58,9 @@ class GroceryStoreIntegrationsSection extends StatelessWidget {
                       connection: connections[i],
                       isBusy:
                           controller.activeProvider == connections[i].provider,
-                      onConnect: () => {
-                        context.go(
-                          '/settings/web-view?provider=${connections[i].provider.name}',
-                        ),
-                      },
+                      onConnect: () => context.go(
+                        '/settings/web-view?provider=${connections[i].provider.name}',
+                      ),
                       // controller.connect(connections[i].provider),
                       onDisconnect: () => {},
                       // controller.disconnect(connections[i].provider),
