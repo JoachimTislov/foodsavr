@@ -30,9 +30,7 @@ class GroceryStoreAuthController extends ChangeNotifier {
   }
 
   Future<void> connect(GroceryStoreProvider provider) async {
-    if (_activeProvider != null) {
-      return;
-    }
+    if (_activeProvider != null) return;
 
     _activeProvider = provider;
     _errorMessage = null;
@@ -41,51 +39,13 @@ class GroceryStoreAuthController extends ChangeNotifier {
     try {
       await _authService.authorize(provider);
       await _authService.fetchUserProfile(provider);
-      _connections = await _authService.getConnections();
+      await loadConnections();
     } catch (error, stackTrace) {
-      _logger.e(
-        'Failed to connect grocery provider',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      _errorMessage = _formatError(error);
+      _errorMessage = 'Failed to connect grocery provider';
+      _logger.e(_errorMessage, error: error, stackTrace: stackTrace);
     } finally {
       _activeProvider = null;
       notifyListeners();
     }
-  }
-
-  Future<void> disconnect(GroceryStoreProvider provider) async {
-    if (_activeProvider != null) {
-      return;
-    }
-
-    _activeProvider = provider;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      await _authService.disconnect(provider);
-      _connections = await _authService.getConnections();
-    } catch (error, stackTrace) {
-      _logger.e(
-        'Failed to disconnect grocery provider',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      _errorMessage = _formatError(error);
-    } finally {
-      _activeProvider = null;
-      notifyListeners();
-    }
-  }
-
-  String _formatError(Object error) {
-    final message = error.toString();
-    return message
-        .replaceFirst('Exception: ', '')
-        .replaceFirst('StateError: ', '')
-        .replaceFirst('Bad state: ', '')
-        .replaceFirst('Unsupported operation: ', '');
   }
 }

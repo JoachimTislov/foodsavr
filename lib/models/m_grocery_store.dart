@@ -1,4 +1,13 @@
-enum GroceryStoreProvider { coop, rema1000, trumf }
+enum GroceryStoreProvider {
+  coop('Coop'),
+  rema('Rema 1000'),
+  trumf('Trumf');
+
+  const GroceryStoreProvider(this.displayName);
+
+  final String displayName;
+  String get envPrefix => toString().toUpperCase();
+}
 
 enum Status { mobileOnly, notConfigured, connected, authorizing }
 

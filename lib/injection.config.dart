@@ -13,24 +13,24 @@ import 'package:cloud_firestore/cloud_firestore.dart' as _i974;
 import 'package:firebase_auth/firebase_auth.dart' as _i59;
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart' as _i806;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart' as _i558;
-import 'package:foodsavr/di/register_module.dart' as _i966;
-import 'package:foodsavr/interfaces/is_auth.dart' as _i794;
-import 'package:foodsavr/interfaces/ir_collection.dart' as _i655;
-import 'package:foodsavr/interfaces/is_grocery_store_oauth.dart' as _i1000;
-import 'package:foodsavr/interfaces/ir_product.dart' as _i424;
-import 'package:foodsavr/repositories/r_collection.dart' as _i92;
-import 'package:foodsavr/repositories/r_product.dart' as _i318;
-import 'package:foodsavr/controllers/c_auth.dart' as _i882;
-import 'package:foodsavr/services/s_auth.dart' as _i277;
-import 'package:foodsavr/services/s_barcode_scanner.dart' as _i397;
-import 'package:foodsavr/services/s_collection.dart' as _i122;
-import 'package:foodsavr/controllers/c_grocery_store_auth.dart' as _i831;
-import 'package:foodsavr/services/s_grocery_store_auth.dart' as _i262;
-import 'package:foodsavr/services/s_oauth_token_store.dart' as _i530;
-import 'package:foodsavr/services/s_product.dart' as _i898;
-import 'package:foodsavr/services/s_seeding.dart' as _i464;
-import 'package:foodsavr/utils/u_shelf_life.dart' as _i1071;
-import 'package:foodsavr/utils/u_theme_notifier.dart' as _i921;
+import 'package:foodsavr/controllers/c_auth.dart' as _i545;
+import 'package:foodsavr/controllers/c_grocery_store_auth.dart' as _i455;
+import 'package:foodsavr/interfaces/ir_collection.dart' as _i1020;
+import 'package:foodsavr/interfaces/ir_product.dart' as _i766;
+import 'package:foodsavr/interfaces/is_auth.dart' as _i451;
+import 'package:foodsavr/interfaces/is_grocery_store_oauth.dart' as _i1045;
+import 'package:foodsavr/register_module.dart' as _i327;
+import 'package:foodsavr/repositories/r_collection.dart' as _i649;
+import 'package:foodsavr/repositories/r_product.dart' as _i670;
+import 'package:foodsavr/services/s_barcode_scanner.dart' as _i1065;
+import 'package:foodsavr/services/s_collection.dart' as _i526;
+import 'package:foodsavr/services/s_firebase_auth.dart' as _i640;
+import 'package:foodsavr/services/s_grocery_store_auth.dart' as _i103;
+import 'package:foodsavr/services/s_oauth_token_store.dart' as _i562;
+import 'package:foodsavr/services/s_product.dart' as _i201;
+import 'package:foodsavr/services/s_seeding.dart' as _i322;
+import 'package:foodsavr/utils/u_shelf_life.dart' as _i601;
+import 'package:foodsavr/utils/u_theme_notifier.dart' as _i998;
 import 'package:get_it/get_it.dart' as _i174;
 import 'package:google_sign_in/google_sign_in.dart' as _i116;
 import 'package:http/http.dart' as _i519;
@@ -46,15 +46,15 @@ extension GetItInjectableX on _i174.GetIt {
   }) async {
     final gh = _i526.GetItHelper(this, environment, environmentFilter);
     final registerModule = _$RegisterModule();
-    gh.factory<_i397.BarcodeScannerService>(
-      () => _i397.BarcodeScannerService(),
+    gh.factory<_i1065.BarcodeScannerService>(
+      () => _i1065.BarcodeScannerService(),
     );
     gh.singleton<_i974.Logger>(() => registerModule.logger);
     await gh.singletonAsync<_i460.SharedPreferencesWithCache>(
       () => registerModule.prefs,
       preResolve: true,
     );
-    gh.singleton<_i921.ThemeNotifier>(() => registerModule.themeNotifier);
+    gh.singleton<_i998.ThemeNotifier>(() => registerModule.themeNotifier);
     gh.lazySingleton<_i806.FacebookAuth>(() => registerModule.facebookAuth);
     gh.lazySingleton<_i59.FirebaseAuth>(() => registerModule.firebaseAuth);
     gh.lazySingleton<_i974.FirebaseFirestore>(
@@ -65,17 +65,17 @@ extension GetItInjectableX on _i174.GetIt {
       () => registerModule.flutterSecureStorage,
     );
     gh.lazySingleton<_i519.Client>(() => registerModule.httpClient);
-    gh.lazySingleton<_i464.SeedingService>(() => _i464.SeedingService.create());
-    gh.lazySingleton<_i1071.ShelfLifeService>(() => _i1071.ShelfLifeService());
-    gh.lazySingleton<_i530.OAuthTokenStore>(
-      () => _i530.OAuthTokenStore(gh<_i558.FlutterSecureStorage>()),
+    gh.lazySingleton<_i322.SeedingService>(() => _i322.SeedingService.create());
+    gh.lazySingleton<_i601.ShelfLifeService>(() => _i601.ShelfLifeService());
+    gh.lazySingleton<_i562.OAuthTokenStore>(
+      () => _i562.OAuthTokenStore(gh<_i558.FlutterSecureStorage>()),
     );
     gh.factory<bool>(
       () => registerModule.supportsPersistence,
       instanceName: 'supportsPersistence',
     );
-    gh.lazySingleton<_i794.IAuthService>(
-      () => _i277.AuthService(
+    gh.lazySingleton<_i451.IAuthService>(
+      () => _i640.AuthService(
         gh<_i59.FirebaseAuth>(),
         googleSignIn: gh<_i116.GoogleSignIn>(),
         facebookAuth: gh<_i806.FacebookAuth>(),
@@ -83,42 +83,41 @@ extension GetItInjectableX on _i174.GetIt {
         firestore: gh<_i974.FirebaseFirestore>(),
       ),
     );
-    gh.factoryParam<_i882.AuthController, _i882.Translator?, dynamic>(
-      (translate, _) => _i882.AuthController(
-        gh<_i794.IAuthService>(),
+    gh.lazySingleton<_i1045.IGroceryStoreAuthService>(
+      () => _i103.GroceryStoreAuthService(
+        gh<_i974.Logger>(),
+        gh<_i562.OAuthTokenStore>(),
+      ),
+    );
+    gh.lazySingleton<_i766.IProductRepository>(
+      () => _i670.ProductRepository(gh<_i974.FirebaseFirestore>()),
+    );
+    gh.factoryParam<_i545.AuthController, _i545.Translator?, dynamic>(
+      (translate, _) => _i545.AuthController(
+        gh<_i451.IAuthService>(),
         gh<_i974.Logger>(),
         translate: translate,
       ),
     );
-    gh.lazySingleton<_i1000.IGroceryStoreAuthService>(
-      () => _i262.GroceryStoreAuthService(
-        gh<_i519.Client>(),
-        gh<_i974.Logger>(),
-        gh<_i530.OAuthTokenStore>(),
-      ),
+    gh.lazySingleton<_i1020.ICollectionRepository>(
+      () => _i649.CollectionRepository(gh<_i974.FirebaseFirestore>()),
     );
-    gh.lazySingleton<_i424.IProductRepository>(
-      () => _i318.ProductRepository(gh<_i974.FirebaseFirestore>()),
-    );
-    gh.lazySingleton<_i655.ICollectionRepository>(
-      () => _i92.CollectionRepository(gh<_i974.FirebaseFirestore>()),
-    );
-    gh.lazySingleton<_i122.CollectionService>(
-      () => _i122.CollectionService(
-        gh<_i655.ICollectionRepository>(),
+    gh.lazySingleton<_i526.CollectionService>(
+      () => _i526.CollectionService(
+        gh<_i1020.ICollectionRepository>(),
         gh<_i974.Logger>(),
       ),
     );
-    gh.lazySingleton<_i898.ProductService>(
-      () => _i898.ProductService(
-        gh<_i424.IProductRepository>(),
-        gh<_i1071.ShelfLifeService>(),
+    gh.lazySingleton<_i201.ProductService>(
+      () => _i201.ProductService(
+        gh<_i766.IProductRepository>(),
+        gh<_i601.ShelfLifeService>(),
         gh<_i974.Logger>(),
       ),
     );
-    gh.factory<_i831.GroceryStoreAuthController>(
-      () => _i831.GroceryStoreAuthController(
-        gh<_i1000.IGroceryStoreAuthService>(),
+    gh.factory<_i455.GroceryStoreAuthController>(
+      () => _i455.GroceryStoreAuthController(
+        gh<_i1045.IGroceryStoreAuthService>(),
         gh<_i974.Logger>(),
       ),
     );
@@ -126,4 +125,4 @@ extension GetItInjectableX on _i174.GetIt {
   }
 }
 
-class _$RegisterModule extends _i966.RegisterModule {}
+class _$RegisterModule extends _i327.RegisterModule {}

@@ -64,8 +64,8 @@ class GroceryStoreIntegrationsSection extends StatelessWidget {
                         ),
                       },
                       // controller.connect(connections[i].provider),
-                      onDisconnect: () =>
-                          controller.disconnect(connections[i].provider),
+                      onDisconnect: () => {},
+                      // controller.disconnect(connections[i].provider),
                     ),
                   ],
                   if (controller.errorMessage != null)
@@ -107,9 +107,7 @@ class _ConnectionTile extends StatelessWidget {
 
     return ListTile(
       leading: _providerIcon(),
-      title: Text(
-        'settings.integrations.providers.${connection.provider}'.tr(),
-      ),
+      title: Text(connection.provider.displayName),
       subtitle: statusLabel == null ? null : Text(statusLabel),
       trailing: connection.isAvailable
           ? TextButton(

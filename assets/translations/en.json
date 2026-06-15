@@ -1,241 +1,236 @@
 {
-    "auth": {
-        "error": {
-            "email_already_in_use": "The account already exists for that email.",
-            "invalid_email": "The email address is not valid.",
-            "operation_not_allowed": "Operation not allowed.",
-            "unknown": "An undefined Error happened.",
-            "user_disabled": "The user account has been disabled.",
-            "user_not_found": "No user found for that email.",
-            "weak_password": "The password provided is too weak.",
-            "wrong_password": "Wrong password provided for that user."
-        },
-        "form": {
-            "email": {
-                "hint": "name@example.com",
-                "label": "Email Address",
-                "required": "Please enter your email"
-            },
-            "forgot_password": "Forgot Password?",
-            "password": {
-                "hint": "Enter your password",
-                "label": "Password",
-                "required": "Please enter your password"
-            },
-            "remember_me": "Remember me"
-        },
-        "header": {
-            "create_account": "Create Account",
-            "sign_in_subtitle": "Sign in to manage your inventory.",
-            "sign_up_subtitle": "Sign up to start saving time and money.",
-            "welcome_back": "Welcome Back"
-        },
-        "landing": {
-            "subtitle": "Track, manage, and scale your stock with efficiency.",
-            "title": "Inventory Login"
-        },
-        "reset": {
-            "email_prompt": "Please enter your email to reset password.",
-            "email_sent": "Password reset email sent. Check your inbox."
-        },
-        "social": {
-            "continue_email": "Continue with Email",
-            "continue_google": "Continue with Google",
-            "continue_facebook": "Continue with Facebook",
-            "continue_guest": "Continue as guest"
-        },
-        "submit": {
-            "register": "Register"
-        },
-        "terms": {
-            "prefix": "I agree to the ",
-            "required": "You must agree to the Terms of Service and Privacy Notice."
-        },
-        "toggle": {
-            "already_have_account": "Already have an account?",
-            "login": "Login",
-            "no_account": "Don't have an account?",
-            "sign_up": "Sign up"
-        }
-    },
-    "collection": {
-        "add_inventory": "Add Inventory",
-        "add_shopping_list": "Add Shopping List",
-        "create_inventory": "Create Inventory",
-        "create_shopping_list": "Create Shopping List",
-        "edit_inventory": "Edit Inventory",
-        "edit_shopping_list": "Edit Shopping List",
-        "emptySubtitle": "Create one to get started",
-        "emptyTitle": "Nothing found",
-        "errorLoadingProducts": "Error loading products",
-        "items_count": "{count} items",
-        "loadError": "Error loading collections",
-        "noProducts": "No products",
-        "type_inventory": "Inventory",
-        "type_shopping": "Shopping"
-    },
-    "common": {
-        "add": "Add",
-        "and": " and ",
-        "attemptOf": "Attempt {current} of {total}",
-        "cancel": "Cancel",
-        "checkConnection": "Please check your connection and try again later.",
-        "close": "Close",
-        "create": "Create",
-        "delete": "Delete",
-        "error_loading_data": "Error loading data",
-        "from": "From",
-        "maximumRetriesReached": "Maximum retries reached",
-        "name": "Name",
-        "name_required": "Please enter a name",
-        "or": "OR",
-        "privacy_notice": "Privacy Notice",
-        "save": "Save",
-        "somethingWentWrong": "Something went wrong",
-        "terms_of_service": "Terms of Service",
-        "to": "To",
-        "tryAgain": "Try Again",
-        "unknown": "Unknown",
-        "viewAll": "View All"
-    },
-    "dashboard": {
-        "actions": "Quick Actions",
-        "browseProducts": "Browse products",
-        "createProduct": "Create Product",
-        "createShoppingList": "New Shopping List",
-        "expiringSoon": "Expiring Soon",
-        "globalProducts": "Global Products",
-        "moveItems": "Move items between inventories",
-        "myInventory": "My Inventory",
-        "noProductsExpiringSoon": "No products expiring soon.",
-        "overview": "Overview",
-        "shoppingList": "Shopping List",
-        "title": "Dashboard",
-        "transfer": "Transfer"
-    },
-    "generated": {
-        "100_42": "1.0.0 (42)"
-    },
-    "product": {
-        "add": "Add Product",
-        "addFirst": "Add your first product to get started",
-        "add_expiry": "Add Expiry",
-        "all_products": "All Products",
-        "availableIn": "Available in: {inventories}",
-        "available_stock": "AVAILABLE STOCK",
-        "barcodeAddError": "Could not add scanned barcode: {error}",
-        "barcodeAssumedExpiry": ". Assumes expiry in {days} days. Tap to edit.",
-        "barcodeCreated": "Created new product \"{name}\"",
-        "barcodeMatched": "Updated existing product \"{name}\"",
-        "barcodeNotFound": "Product not found. Be the first to add it!",
-        "category": "Category",
-        "compact": "Compact",
-        "daysRemaining": "{days} days remaining",
-        "days_until_soonest_expiry": "Days Until Soonest Expiry",
-        "delete": "Delete Product",
-        "deleteConfirmMessage": "Are you sure you want to delete \"{name}\"?",
-        "deleteError": "Error deleting product: {error}",
-        "deleted": "{name} deleted",
-        "description": "Description",
-        "details": "Product Details",
-        "edit": "Edit Product",
-        "enterBarcodeManually": "Enter barcode manually",
-        "errorLoading": "Error loading products",
-        "expiration_breakdown": "Expiration Breakdown",
-        "expirations": "Expirations",
-        "expiredDaysAgo": "Expired {days} days ago",
-        "expiries": "Expiries",
-        "global_product": "Global Product",
-        "inventory": "Inventory",
-        "inventoryLoadError": "Failed to load inventory info: {error}",
-        "locations": "Locations",
-        "na": "N/A",
-        "name": "Product Name",
-        "name_required": "Please enter product name",
-        "noProductsFound": "No products found",
-        "non_expiring_quantity": "Non-expiring Quantity",
-        "normal": "Normal",
-        "personal_product": "Personal Product",
-        "quantity_units": "{} units",
-        "scanBarcode": "Scan Barcode",
-        "scanBarcodeHint": "Align the barcode inside the frame",
-        "scanSingleBarcodeHint": "Multiple barcodes detected. Focus on one barcode.",
-        "scanUnavailable": "Barcode scanner unavailable: {error}",
-        "search_hint": "Search your pantry...",
-        "select": "Select Products",
-        "soonest_expiration": "Soonest Expiration",
-        "status": "Status",
-        "status_compact_exp": "Exp",
-        "status_days": "{days} days",
-        "status_days_left": "{days}d left",
-        "status_days_remaining": "{days}d remaining",
-        "status_expired": "Expired",
-        "status_expired_days_ago": "Expired {days} days ago",
-        "status_expires_soon": "Expires Soon",
-        "status_expires_today": "Expires today",
-        "status_fresh": "Fresh",
-        "status_today": "Today",
-        "total_quantity": "Total Quantity",
-        "type": "Type",
-        "units": "units"
-    },
-    "profile": {
-        "account_settings": "Account Settings",
-        "change_email": "Change Email",
-        "create_account": "Create account",
-        "danger_zone": "Danger Zone",
-        "deleteAccountConfirmation": "Yes, Delete Account",
-        "delete_account": "Delete Account",
-        "delete_account_description": "Permanently delete your account and all associated data. This action cannot be undone.",
-        "forgot_password": "Forgot Password",
-        "log_out": "Log Out",
-        "title": "Profile",
-        "two_factor_auth": "Two-factor Authentication"
-    },
-    "settings": {
-        "about": "About",
-        "account": "Account",
-        "integrations": {
-            "actions": {
-                "connect": "Connect",
-                "disconnect": "Disconnect"
-            },
-            "providers": {
-                "coop": "Coop",
-                "rema1000": "Rema 1000",
-                "trumf": "Trumf"
-            },
-            "status": {
-                "authorizing": "Opening secure sign-in...",
-                "connected": "Connected",
-                "mobile_only": "Available on Android and iPhone",
-                "not_configured": "Provider setup required"
-            },
-            "title": "Grocery integrations"
-        },
-        "app_version": "App Version",
-        "appearance": "Appearance",
-        "guest_user": "Guest User",
-        "language": "Language",
-        "languages": {
-            "en": "English",
-            "nb": "Norwegian"
-        },
-        "privacy_policy": "Privacy Policy",
-        "terms_of_service": "Terms of Service",
-        "theme_mode": "Theme Mode",
-        "themes": {
-            "dark": "Dark",
-            "light": "Light",
-            "system": "System"
-        },
-        "title": "Settings"
-    },
-    "transfer": {
-        "fromLocation": "From Location",
-        "selectProducts": "Select products",
-        "title": "Transfer Inventory",
-        "toLocation": "To Location",
-        "transfer_items": "Transfer {count} items"
-    }
+	"auth": {
+		"error": {
+			"email_already_in_use": "The account already exists for that email.",
+			"invalid_email": "The email address is not valid.",
+			"operation_not_allowed": "Operation not allowed.",
+			"unknown": "An undefined Error happened.",
+			"user_disabled": "The user account has been disabled.",
+			"user_not_found": "No user found for that email.",
+			"weak_password": "The password provided is too weak.",
+			"wrong_password": "Wrong password provided for that user."
+		},
+		"form": {
+			"email": {
+				"hint": "name@example.com",
+				"label": "Email Address",
+				"required": "Please enter your email"
+			},
+			"forgot_password": "Forgot Password?",
+			"password": {
+				"hint": "Enter your password",
+				"label": "Password",
+				"required": "Please enter your password"
+			},
+			"remember_me": "Remember me"
+		},
+		"header": {
+			"create_account": "Create Account",
+			"sign_in_subtitle": "Sign in to manage your inventory.",
+			"sign_up_subtitle": "Sign up to start saving time and money.",
+			"welcome_back": "Welcome Back"
+		},
+		"landing": {
+			"subtitle": "Track, manage, and scale your stock with efficiency.",
+			"title": "Inventory Login"
+		},
+		"reset": {
+			"email_prompt": "Please enter your email to reset password.",
+			"email_sent": "Password reset email sent. Check your inbox."
+		},
+		"social": {
+			"continue_email": "Continue with Email",
+			"continue_google": "Continue with Google",
+			"continue_facebook": "Continue with Facebook",
+			"continue_guest": "Continue as guest"
+		},
+		"submit": {
+			"register": "Register"
+		},
+		"terms": {
+			"prefix": "I agree to the ",
+			"required": "You must agree to the Terms of Service and Privacy Notice."
+		},
+		"toggle": {
+			"already_have_account": "Already have an account?",
+			"login": "Login",
+			"no_account": "Don't have an account?",
+			"sign_up": "Sign up"
+		}
+	},
+	"collection": {
+		"add_inventory": "Add Inventory",
+		"add_shopping_list": "Add Shopping List",
+		"create_inventory": "Create Inventory",
+		"create_shopping_list": "Create Shopping List",
+		"edit_inventory": "Edit Inventory",
+		"edit_shopping_list": "Edit Shopping List",
+		"emptySubtitle": "Create one to get started",
+		"emptyTitle": "Nothing found",
+		"errorLoadingProducts": "Error loading products",
+		"items_count": "{count} items",
+		"loadError": "Error loading collections",
+		"noProducts": "No products",
+		"type_inventory": "Inventory",
+		"type_shopping": "Shopping"
+	},
+	"common": {
+		"add": "Add",
+		"and": " and ",
+		"attemptOf": "Attempt {current} of {total}",
+		"cancel": "Cancel",
+		"checkConnection": "Please check your connection and try again later.",
+		"close": "Close",
+		"create": "Create",
+		"delete": "Delete",
+		"error_loading_data": "Error loading data",
+		"from": "From",
+		"maximumRetriesReached": "Maximum retries reached",
+		"name": "Name",
+		"name_required": "Please enter a name",
+		"or": "OR",
+		"privacy_notice": "Privacy Notice",
+		"save": "Save",
+		"somethingWentWrong": "Something went wrong",
+		"terms_of_service": "Terms of Service",
+		"to": "To",
+		"tryAgain": "Try Again",
+		"unknown": "Unknown",
+		"viewAll": "View All"
+	},
+	"dashboard": {
+		"actions": "Quick Actions",
+		"browseProducts": "Browse products",
+		"createProduct": "Create Product",
+		"createShoppingList": "New Shopping List",
+		"expiringSoon": "Expiring Soon",
+		"globalProducts": "Global Products",
+		"moveItems": "Move items between inventories",
+		"myInventory": "My Inventory",
+		"noProductsExpiringSoon": "No products expiring soon.",
+		"overview": "Overview",
+		"shoppingList": "Shopping List",
+		"title": "Dashboard",
+		"transfer": "Transfer"
+	},
+	"generated": {
+		"100_42": "1.0.0 (42)"
+	},
+	"product": {
+		"add": "Add Product",
+		"addFirst": "Add your first product to get started",
+		"add_expiry": "Add Expiry",
+		"all_products": "All Products",
+		"availableIn": "Available in: {inventories}",
+		"available_stock": "AVAILABLE STOCK",
+		"barcodeAddError": "Could not add scanned barcode: {error}",
+		"barcodeAssumedExpiry": ". Assumes expiry in {days} days. Tap to edit.",
+		"barcodeCreated": "Created new product \"{name}\"",
+		"barcodeMatched": "Updated existing product \"{name}\"",
+		"barcodeNotFound": "Product not found. Be the first to add it!",
+		"category": "Category",
+		"compact": "Compact",
+		"daysRemaining": "{days} days remaining",
+		"days_until_soonest_expiry": "Days Until Soonest Expiry",
+		"delete": "Delete Product",
+		"deleteConfirmMessage": "Are you sure you want to delete \"{name}\"?",
+		"deleteError": "Error deleting product: {error}",
+		"deleted": "{name} deleted",
+		"description": "Description",
+		"details": "Product Details",
+		"edit": "Edit Product",
+		"enterBarcodeManually": "Enter barcode manually",
+		"errorLoading": "Error loading products",
+		"expiration_breakdown": "Expiration Breakdown",
+		"expirations": "Expirations",
+		"expiredDaysAgo": "Expired {days} days ago",
+		"expiries": "Expiries",
+		"global_product": "Global Product",
+		"inventory": "Inventory",
+		"inventoryLoadError": "Failed to load inventory info: {error}",
+		"locations": "Locations",
+		"na": "N/A",
+		"name": "Product Name",
+		"name_required": "Please enter product name",
+		"noProductsFound": "No products found",
+		"non_expiring_quantity": "Non-expiring Quantity",
+		"normal": "Normal",
+		"personal_product": "Personal Product",
+		"quantity_units": "{} units",
+		"scanBarcode": "Scan Barcode",
+		"scanBarcodeHint": "Align the barcode inside the frame",
+		"scanSingleBarcodeHint": "Multiple barcodes detected. Focus on one barcode.",
+		"scanUnavailable": "Barcode scanner unavailable: {error}",
+		"search_hint": "Search your pantry...",
+		"select": "Select Products",
+		"soonest_expiration": "Soonest Expiration",
+		"status": "Status",
+		"status_compact_exp": "Exp",
+		"status_days": "{days} days",
+		"status_days_left": "{days}d left",
+		"status_days_remaining": "{days}d remaining",
+		"status_expired": "Expired",
+		"status_expired_days_ago": "Expired {days} days ago",
+		"status_expires_soon": "Expires Soon",
+		"status_expires_today": "Expires today",
+		"status_fresh": "Fresh",
+		"status_today": "Today",
+		"total_quantity": "Total Quantity",
+		"type": "Type",
+		"units": "units"
+	},
+	"profile": {
+		"account_settings": "Account Settings",
+		"change_email": "Change Email",
+		"create_account": "Create account",
+		"danger_zone": "Danger Zone",
+		"deleteAccountConfirmation": "Yes, Delete Account",
+		"delete_account": "Delete Account",
+		"delete_account_description": "Permanently delete your account and all associated data. This action cannot be undone.",
+		"forgot_password": "Forgot Password",
+		"log_out": "Log Out",
+		"title": "Profile",
+		"two_factor_auth": "Two-factor Authentication"
+	},
+	"settings": {
+		"about": "About",
+		"account": "Account",
+		"integrations": {
+			"actions": {
+				"connect": "Connect",
+				"disconnect": "Disconnect"
+			},
+			"status": {
+				"authorizing": "Opening secure sign-in...",
+				"connected": "Connected",
+				"mobile_only": "Available on Android and iPhone",
+				"not_configured": "Provider setup required"
+			},
+			"title": "Grocery integrations"
+		},
+		"app_version": "App Version",
+		"appearance": "Appearance",
+		"guest_user": "Guest User",
+		"language": "Language",
+		"languages": {
+			"en": "English",
+			"nb": "Norwegian"
+		},
+		"privacy_policy": "Privacy Policy",
+		"terms_of_service": "Terms of Service",
+		"theme_mode": "Theme Mode",
+		"themes": {
+			"dark": "Dark",
+			"light": "Light",
+			"system": "System"
+		},
+		"title": "Settings"
+	},
+	"transfer": {
+		"fromLocation": "From Location",
+		"selectProducts": "Select products",
+		"title": "Transfer Inventory",
+		"toLocation": "To Location",
+		"transfer_items": "Transfer {count} items"
+	}
 }
