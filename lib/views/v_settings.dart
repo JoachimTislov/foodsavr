@@ -7,9 +7,8 @@ import '../constants/privacy_notice.dart';
 import '../constants/terms_of_service.dart';
 import '../interfaces/is_auth.dart';
 import '../service_locator.dart';
-import '../controllers/c_grocery_store_auth.dart';
 import '../utils/u_theme_notifier.dart';
-import '../widgets/settings/grocery_store_integrations_section.dart';
+import '../features/third_party_integration/widgets/connections_list.dart';
 
 class SettingsView extends StatefulWidget {
   const SettingsView({super.key});
@@ -20,14 +19,11 @@ class SettingsView extends StatefulWidget {
 
 class _SettingsViewState extends State<SettingsView> {
   late final IAuthService _authService;
-  late final GroceryStoreAuthController _groceryStoreAuthController;
 
   @override
   void initState() {
     super.initState();
     _authService = getIt<IAuthService>();
-    _groceryStoreAuthController = getIt<GroceryStoreAuthController>();
-    _groceryStoreAuthController.loadConnections();
   }
 
   @override
@@ -118,9 +114,7 @@ class _SettingsViewState extends State<SettingsView> {
               ],
             ),
             const SizedBox(height: 24),
-            GroceryStoreIntegrationsSection(
-              controller: _groceryStoreAuthController,
-            ),
+            OAuthConnectionsList(),
             const SizedBox(height: 24),
 
             // Legal & Info Section

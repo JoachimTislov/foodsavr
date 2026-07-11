@@ -1,14 +1,17 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:foodsavr/features/third_party_integration/models/m_connection.dart';
+import 'package:foodsavr/injection.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../models/m_grocery_store.dart';
-import '../../controllers/c_grocery_store_auth.dart';
+import '../oauth_controller.dart';
 
-class GroceryStoreIntegrationsSection extends StatelessWidget {
-  const GroceryStoreIntegrationsSection({super.key, required this.controller});
+class OAuthConnectionsList extends StatelessWidget {
+  final OAuthController controller = getIt<OAuthController>();
 
-  final GroceryStoreAuthController controller;
+  OAuthConnectionsList({super.key}) {
+    controller.loadConnections();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +20,7 @@ class GroceryStoreIntegrationsSection extends StatelessWidget {
       builder: (context, _) {
         final connections = controller.connections;
         if (connections.isEmpty) {
-          return const SizedBox.shrink();
+          return Text('No connections');
         }
 
         final colorScheme = Theme.of(context).colorScheme;
@@ -61,9 +64,6 @@ class GroceryStoreIntegrationsSection extends StatelessWidget {
                       onConnect: () => context.go(
                         '/settings/web-view?provider=${connections[i].provider.name}',
                       ),
-                      // controller.connect(connections[i].provider),
-                      onDisconnect: () => {},
-                      // controller.disconnect(connections[i].provider),
                     ),
                   ],
                   if (controller.errorMessage != null)
@@ -91,27 +91,22 @@ class _ConnectionTile extends StatelessWidget {
     required this.connection,
     required this.isBusy,
     required this.onConnect,
-    required this.onDisconnect,
   });
 
-  final GroceryStoreConnection connection;
+  final Connection connection;
   final bool isBusy;
   final VoidCallback onConnect;
-  final VoidCallback onDisconnect;
 
   @override
   Widget build(BuildContext context) {
-    final statusLabel = _statusLabel(connection, isBusy);
-
     return ListTile(
       leading: _providerIcon(),
-      title: Text(connection.provider.displayName),
-      subtitle: statusLabel == null ? null : Text(statusLabel),
+      title: Text(connection.provider.toString()),
       trailing: connection.isAvailable
           ? TextButton(
               onPressed: isBusy
                   ? null
-                  : (connection.isConnected ? onDisconnect : onConnect),
+                  : (connection.isConnected ? null : onConnect),
               child: Text(
                 connection.isConnected
                     ? 'settings.integrations.actions.disconnect'.tr()
@@ -120,22 +115,6 @@ class _ConnectionTile extends StatelessWidget {
             )
           : null,
     );
-  }
-
-  String? _statusLabel(GroceryStoreConnection connection, bool isBusy) {
-    if (isBusy) {
-      return 'settings.integrations.status.authorizing'.tr();
-    }
-
-    return switch (connection.statusKey) {
-      'settings.integrations.status.mobile_only' =>
-        'settings.integrations.status.mobile_only'.tr(),
-      'settings.integrations.status.not_configured' =>
-        'settings.integrations.status.not_configured'.tr(),
-      _ when connection.isConnected =>
-        'settings.integrations.status.connected'.tr(),
-      _ => null,
-    };
   }
 
   Widget _providerIcon() {

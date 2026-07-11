@@ -200,12 +200,6 @@
 				"connect": "Koble til",
 				"disconnect": "Koble fra"
 			},
-			"status": {
-				"authorizing": "Åpner sikker innlogging...",
-				"connected": "Tilkoblet",
-				"mobile_only": "Tilgjengelig på Android og iPhone",
-				"not_configured": "Leverandøren må settes opp"
-			},
 			"title": "Dagligvareintegrasjoner"
 		},
 		"app_version": "App-versjon",

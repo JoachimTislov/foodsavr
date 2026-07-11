@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
 import 'package:openfoodfacts/openfoodfacts.dart';
@@ -42,6 +43,7 @@ void main() async {
     );
   }
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: 'assets/.env');
 
   OpenFoodAPIConfiguration.userAgent = UserAgent(
     name: 'FoodSavr',

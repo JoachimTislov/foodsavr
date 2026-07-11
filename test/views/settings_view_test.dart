@@ -1,13 +1,14 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foodsavr/features/third_party_integration/models/m_connection.dart';
+import 'package:foodsavr/features/third_party_integration/models/m_provider.dart';
 import 'package:foodsavr/interfaces/is_auth.dart';
-import 'package:foodsavr/interfaces/is_grocery_store_oauth.dart';
-import 'package:foodsavr/models/m_grocery_store.dart';
+import 'package:foodsavr/features/third_party_integration/interfaces/i_oauth_service.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/controllers/c_auth.dart';
 import 'package:foodsavr/services/s_collection.dart';
-import 'package:foodsavr/controllers/c_grocery_store_auth.dart';
+import 'package:foodsavr/features/third_party_integration/oauth_controller.dart';
 import 'package:foodsavr/utils/u_theme_notifier.dart';
 import 'package:foodsavr/views/v_settings.dart';
 import 'package:logger/logger.dart';
@@ -22,8 +23,7 @@ class _MockAuthController extends Mock implements AuthController {}
 
 class _MockCollectionService extends Mock implements CollectionService {}
 
-class _MockGroceryStoreAuthService extends Mock
-    implements IGroceryStoreAuthService {}
+class _MockGroceryStoreAuthService extends Mock implements IOAuthService {}
 
 class _TestWrapper extends StatelessWidget {
   final Widget child;
@@ -47,7 +47,7 @@ void main() async {
   EasyLocalization.logger.enableLevels = [];
 
   setUpAll(() {
-    registerFallbackValue(GroceryStoreProvider.coop);
+    registerFallbackValue(Provider.coop);
     // Increase surface size to avoid overflows in tests
     final binding = TestWidgetsFlutterBinding.ensureInitialized();
     binding.platformDispatcher.views.first.physicalSize = const Size(
@@ -100,36 +100,57 @@ void main() async {
 
       final groceryStoreAuthService = _MockGroceryStoreAuthService();
       when(() => groceryStoreAuthService.getConnections()).thenAnswer(
-        (_) async => const [
-          GroceryStoreConnection(
-            provider: GroceryStoreProvider.coop,
-            isAvailable: true,
-            isConnected: false,
+        (_) async => [
+          const Connection(
+            provider: Provider.coop,
+            accessToken: null,
+            refreshToken: null,
+            idToken: null,
+            accessTokenExpiration: null,
           ),
-          GroceryStoreConnection(
-            provider: GroceryStoreProvider.rema,
-            isAvailable: false,
-            isConnected: false,
-            statusKey: 'settings.integrations.status.not_configured',
+          const Connection(
+            provider: Provider.rema,
+            accessToken: null,
+            refreshToken: null,
+            idToken: null,
+            accessTokenExpiration: null,
           ),
-          GroceryStoreConnection(
-            provider: GroceryStoreProvider.trumf,
-            isAvailable: true,
-            isConnected: true,
+          Connection(
+            provider: Provider.trumf,
+            accessToken: 'token',
+            refreshToken: 'token',
+            idToken: 'token',
+            accessTokenExpiration: DateTime.now().add(const Duration(hours: 1)),
           ),
         ],
       );
+      final connections = await groceryStoreAuthService.getConnections();
+      for (var connection in connections) {
+        switch (connection.provider) {
+          case Provider.coop:
+            expect(connection.isAvailable, true);
+            expect(connection.isConnected, false);
+            break;
+          case Provider.rema:
+            expect(connection.isAvailable, true);
+            expect(connection.isConnected, false);
+            expect(connection.status, Status.not_configured);
+            break;
+          case Provider.trumf:
+            expect(connection.isAvailable, true);
+            expect(connection.isConnected, true);
+            break;
+        }
+      }
       when(
         () => groceryStoreAuthService.authorize(any()),
       ).thenAnswer((_) async {});
       when(
         () => groceryStoreAuthService.fetchUserProfile(any()),
       ).thenAnswer((_) async => null);
-      getIt.registerLazySingleton<IGroceryStoreAuthService>(
-        () => groceryStoreAuthService,
-      );
-      getIt.registerSingleton<GroceryStoreAuthController>(
-        GroceryStoreAuthController(groceryStoreAuthService, getIt<Logger>()),
+      getIt.registerLazySingleton<IOAuthService>(() => groceryStoreAuthService);
+      getIt.registerSingleton<OAuthController>(
+        OAuthController(groceryStoreAuthService, getIt<Logger>()),
       );
     });
 

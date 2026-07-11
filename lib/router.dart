@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:foodsavr/widgets/common/web_view.dart';
+import 'package:foodsavr/features/third_party_integration/widgets/web_view.dart';
 import 'package:go_router/go_router.dart';
 
 import 'interfaces/is_auth.dart';
@@ -162,6 +162,7 @@ GoRouter createAppRouter(IAuthService authService) {
                   GoRoute(
                     path: 'web-view',
                     builder: (context, state) => WebView(
+                      // TODO: Handle missing provider
                       provider: state.uri.queryParameters['provider'],
                     ),
                   ),

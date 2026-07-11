@@ -54,9 +54,11 @@ dependencies:
   firebase_app_check: ^0.4.3 # BSD-3-Clause
   flutter_secure_storage: ^9.2.4 # BSD-3-Clause
   webview_flutter: ^4.13.1 # BSD-3-Clause
-  flutter_dotenv: ^6.0.1 # MIT
+  flutter_dotenv: ^6.0.1 # MIT TODO: Need to find support for loading env variables through 1password
 
 dev_dependencies:
+  integration_test:
+    sdk: flutter
   flutter_test:
     sdk: flutter
 
@@ -70,8 +72,6 @@ dev_dependencies:
   # TODO: research why this fails make build-android
   # it should be accessible through the sdk
   # error: package dev.flutter.plugins.integration_test does not exist
-  integration_test:
-    sdk: flutter
   injectable_generator: ^2.12.0 # MIT
   build_runner: ^2.11.1 # BSD-3-Clause
   vector_graphics_compiler: ^1.1.20 # BSD-3-Clause

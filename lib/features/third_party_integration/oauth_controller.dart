@@ -1,35 +1,35 @@
 import 'package:flutter/foundation.dart';
+import 'package:foodsavr/features/third_party_integration/models/m_connection.dart';
+import 'package:foodsavr/features/third_party_integration/models/m_provider.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-import '../interfaces/is_grocery_store_oauth.dart';
-import '../models/m_grocery_store.dart';
+import 'interfaces/i_oauth_service.dart';
 
 @injectable
-class GroceryStoreAuthController extends ChangeNotifier {
-  GroceryStoreAuthController(this._authService, this._logger);
+class OAuthController extends ChangeNotifier {
+  OAuthController(this._oauthService, this._logger);
 
-  final IGroceryStoreAuthService _authService;
+  final IOAuthService _oauthService;
   final Logger _logger;
 
-  WebViewController get webViewController => _authService.webViewController;
-
-  List<GroceryStoreConnection> _connections = const [];
-  GroceryStoreProvider? _activeProvider;
+  List<Connection> _connections = [];
+  Provider? _activeProvider;
   String? _errorMessage;
 
-  List<GroceryStoreConnection> get connections => _connections;
-  GroceryStoreProvider? get activeProvider => _activeProvider;
+  List<Connection> get connections => _connections;
+  Provider? get activeProvider => _activeProvider;
   String? get errorMessage => _errorMessage;
+  WebViewController get webview => _oauthService.webViewController;
 
   Future<void> loadConnections() async {
     _errorMessage = null;
-    _connections = await _authService.getConnections();
+    _connections = await _oauthService.getConnections();
     notifyListeners();
   }
 
-  Future<void> connect(GroceryStoreProvider provider) async {
+  Future<void> connect(Provider provider) async {
     if (_activeProvider != null) return;
 
     _activeProvider = provider;
@@ -37,8 +37,8 @@ class GroceryStoreAuthController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _authService.authorize(provider);
-      await _authService.fetchUserProfile(provider);
+      await _oauthService.authorize(provider);
+      await _oauthService.fetchUserProfile(provider);
       await loadConnections();
     } catch (error, stackTrace) {
       _errorMessage = 'Failed to connect grocery provider';

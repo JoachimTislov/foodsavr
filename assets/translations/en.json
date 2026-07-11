@@ -200,12 +200,6 @@
 				"connect": "Connect",
 				"disconnect": "Disconnect"
 			},
-			"status": {
-				"authorizing": "Opening secure sign-in...",
-				"connected": "Connected",
-				"mobile_only": "Available on Android and iPhone",
-				"not_configured": "Provider setup required"
-			},
 			"title": "Grocery integrations"
 		},
 		"app_version": "App Version",

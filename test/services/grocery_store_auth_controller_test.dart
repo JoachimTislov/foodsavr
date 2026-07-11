@@ -1,78 +1,89 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:foodsavr/interfaces/is_grocery_store_oauth.dart';
-import 'package:foodsavr/models/m_grocery_store.dart';
-import 'package:foodsavr/controllers/c_grocery_store_auth.dart';
+import 'package:foodsavr/features/third_party_integration/models/m_connection.dart';
+import 'package:foodsavr/features/third_party_integration/models/m_provider.dart';
+import 'package:foodsavr/features/third_party_integration/oauth_controller.dart';
+import 'package:foodsavr/features/third_party_integration/interfaces/i_oauth_service.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
-class _MockGroceryStoreAuthService extends Mock
-    implements IGroceryStoreAuthService {}
+class _MockGroceryStoreAuthService extends Mock implements IOAuthService {}
 
 class _MockLogger extends Mock implements Logger {}
 
+class _MockWebViewController extends Mock implements WebViewController {}
+
 void main() {
   late _MockGroceryStoreAuthService authService;
-  late GroceryStoreAuthController controller;
+  late OAuthController controller;
+  late _MockWebViewController webViewController;
 
   setUp(() {
     authService = _MockGroceryStoreAuthService();
-    controller = GroceryStoreAuthController(authService, _MockLogger());
+    webViewController = _MockWebViewController();
+    controller = OAuthController(authService, _MockLogger());
+    when(() => authService.webViewController).thenReturn(webViewController);
   });
 
-  test('loadConnections populates available provider states', () async {
-    when(() => authService.getConnections()).thenAnswer(
-      (_) async => const [
-        GroceryStoreConnection(
-          provider: GroceryStoreProvider.coop,
-          isAvailable: true,
-          isConnected: false,
-        ),
-      ],
-    );
+  // test('connect stores readable error message on failure', () async {
+  //   final exception = Exception('Provider configuration is missing.');
+  //   when(() => authService.authorize(Provider.coop)).thenThrow(exception);
+  //
+  //   await controller.connect(Provider.coop);
+  //
+  //   expect(controller.activeProvider, isNull);
+  //   expect(controller.errorMessage, 'Failed to connect grocery provider');
+  //   verify(() => authService.authorize(Provider.coop)).called(1);
+  //   verifyNever(() => authService.getConnections());
+  // });
+
+  test('connect success flow updates connections', () async {
+    const provider = Provider.coop;
+    final connections = [
+      Connection(
+        provider: provider,
+        accessToken: 'token',
+        refreshToken: 'refresh',
+        idToken: 'id',
+        accessTokenExpiration: DateTime.now().add(const Duration(hours: 1)),
+      ),
+    ];
+
+    when(() => authService.authorize(any())).thenAnswer((_) async => {});
+    when(
+      () => authService.fetchUserProfile(provider),
+    ).thenAnswer((_) async => {});
+    when(
+      () => authService.getConnections(),
+    ).thenAnswer((_) async => connections);
+
+    await controller.connect(provider);
+
+    expect(controller.connections, connections);
+    expect(controller.errorMessage, isNull);
+    expect(controller.activeProvider, isNull);
+    verify(() => authService.authorize(any())).called(1);
+    verify(() => authService.fetchUserProfile(provider)).called(1);
+    verify(() => authService.getConnections()).called(1);
+  });
+
+  test('loadConnections updates connections list', () async {
+    final connections = [
+      const Connection(
+        provider: Provider.coop,
+        accessToken: 'token',
+        refreshToken: 'refresh',
+        idToken: 'id',
+        accessTokenExpiration: null,
+      ),
+    ];
+    when(
+      () => authService.getConnections(),
+    ).thenAnswer((_) async => connections);
 
     await controller.loadConnections();
 
-    expect(controller.connections, hasLength(1));
-    expect(controller.connections.single.provider, GroceryStoreProvider.coop);
-    expect(controller.connections.single.isConnected, isFalse);
+    expect(controller.connections, connections);
+    verify(() => authService.getConnections()).called(1);
   });
-
-  test(
-    'connect refreshes provider list after successful authorization',
-    () async {
-      when(
-        () => authService.authorize(GroceryStoreProvider.coop),
-      ).thenAnswer((_) async {});
-      when(
-        () => authService.fetchUserProfile(GroceryStoreProvider.coop),
-      ).thenAnswer((_) async => {'sub': '123'});
-      when(() => authService.getConnections()).thenAnswer(
-        (_) async => const [
-          GroceryStoreConnection(
-            provider: GroceryStoreProvider.coop,
-            isAvailable: true,
-            isConnected: true,
-          ),
-        ],
-      );
-
-      await controller.connect(GroceryStoreProvider.coop);
-
-      expect(controller.activeProvider, isNull);
-      expect(controller.connections.single.isConnected, isTrue);
-      expect(controller.errorMessage, isNull);
-    },
-  );
-
-  // TODO: this
-  // test('connect stores readable error message on failure', () async {
-  //   when(
-  //     () => authService.authorize(GroceryStoreProvider.coop),
-  //   ).thenThrow(StateError('Provider configuration is missing.'));
-  //
-  //   await controller.connect(GroceryStoreProvider.coop);
-  //
-  //   expect(controller.activeProvider, isNull);
-  //   expect(controller.errorMessage, 'Provider configuration is missing.');
-  // });
 }
