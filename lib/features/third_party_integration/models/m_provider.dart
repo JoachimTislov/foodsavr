@@ -1,3 +1,5 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 enum Provider {
   coop('Coop'),
   rema('Rema'),
@@ -10,5 +12,14 @@ enum Provider {
   @override
   toString() {
     return _name;
+  }
+
+  String logoPath() {
+    return 'assets/logos/$this.svg';
+  }
+
+  /// checks if provider is configured for the given env
+  bool isSupported() {
+    return dotenv.env['${name.toUpperCase()}_SUPPORTED'] != null;
   }
 }

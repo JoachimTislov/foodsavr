@@ -146,7 +146,7 @@ class OAuthService implements IOAuthService {
   Future<List<Connection>> getConnections() async {
     var connections = <Connection>[];
     for (final provider in Provider.values) {
-      if (dotenv.env['${provider.name.toUpperCase()}_IS_OK'] == null) continue;
+      if (!provider.isSupported()) continue;
       connections.add(
         Connection(
           provider: provider,

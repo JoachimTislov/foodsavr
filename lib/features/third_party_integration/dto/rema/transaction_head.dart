@@ -1,5 +1,9 @@
 import 'package:foodsavr/features/third_party_integration/dto/rema/transaction.dart';
+import 'package:json_annotation/json_annotation.dart';
 
+part 'transaction_head.g.dart';
+
+@JsonSerializable()
 final class TransactionHead {
   final int? bonusTotal;
   final double? bonusTotalDecimal;
@@ -14,4 +18,9 @@ final class TransactionHead {
     this.discountTotal,
     this.transactions,
   });
+
+  factory TransactionHead.fromJson(Map<String, dynamic> json) =>
+      _$TransactionHeadFromJson(json);
+
+  Map<String, dynamic> toJson() => _$TransactionHeadToJson(this);
 }

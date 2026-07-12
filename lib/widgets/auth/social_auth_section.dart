@@ -24,7 +24,7 @@ class SocialAuthSection extends StatelessWidget {
       children: [
         SocialLoginButton(
           text: 'auth.social.continue_google'.tr(),
-          iconPath: 'assets/images/google_logo.svg',
+          iconPath: 'assets/logos/google.svg',
           color: colorScheme.surface,
           textColor: colorScheme.onSurface,
           onPressed: isLoading ? null : onGooglePressed,
@@ -32,7 +32,7 @@ class SocialAuthSection extends StatelessWidget {
         const SizedBox(height: 12.0),
         SocialLoginButton(
           text: 'auth.social.continue_facebook'.tr(),
-          iconPath: 'assets/images/facebook_logo.svg',
+          iconPath: 'assets/logos/facebook.svg',
           color: colorScheme.surface,
           textColor: colorScheme.onSurface,
           onPressed: isLoading ? null : onFacebookPressed,

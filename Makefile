@@ -1,4 +1,4 @@
-.PHONY: reload-env run-dev run-prod build-apk-debug build-apk-release dev-chrome-prod dev-chrome start-firebase-emulators kill-firebase-emulators deps di view-emulator check _run-checks analyze fmt fix test clean locales locale-check locale-clean generate-locales preflight push worktree
+.PHONY: reload-env run-dev run-prod build-apk-debug build-apk-release dev-chrome-prod dev-chrome start-firebase-emulators kill-firebase-emulators deps generate-code view-emulator check _run-checks analyze fmt fix test clean locales locale-check locale-clean generate-locales preflight push worktree
 
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
 FLUTTER_INSTALL := flutter install
@@ -59,7 +59,7 @@ deps: .deps-stamp
 	@flutter pub get > /dev/null
 	@touch .deps-stamp
 
-di:
+generate-code:
 	@dart run build_runner build --delete-conflicting-outputs
 
 view-emulator:

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:foodsavr/features/third_party_integration/models/m_connection.dart';
 import 'package:foodsavr/injection.dart';
 import 'package:go_router/go_router.dart';
+import 'package:vector_graphics/vector_graphics.dart';
 
 import '../oauth_controller.dart';
 
@@ -57,13 +58,49 @@ class OAuthConnectionsList extends StatelessWidget {
                           alpha: 0.1,
                         ),
                       ),
-                    _ConnectionTile(
-                      connection: connections[i],
-                      isBusy:
-                          controller.activeProvider == connections[i].provider,
-                      onConnect: () => context.go(
-                        '/settings/web-view?provider=${connections[i].provider.name}',
+                    ListTile(
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: ColoredBox(
+                          color: Colors.white,
+                          child: VectorGraphic(
+                            loader: AssetBytesLoader(
+                              connections[i].provider.logoPath(),
+                            ),
+                            height: 40,
+                            width: 40,
+                            placeholderBuilder: (context) => const SizedBox(
+                              height: 40,
+                              width: 40,
+                              child: Icon(
+                                Icons.image_not_supported_outlined,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
+                      title: Text(connections[i].provider.toString()),
+                      trailing: connections[i].isAvailable
+                          ? TextButton(
+                              onPressed:
+                                  controller.activeProvider ==
+                                      connections[i].provider
+                                  ? null
+                                  : (connections[i].isConnected
+                                        ? null
+                                        : () => context.go(
+                                            '/settings/web-view?provider=${connections[i].provider.name}',
+                                          )),
+                              child: Text(
+                                connections[i].isConnected
+                                    ? 'settings.integrations.actions.disconnect'
+                                          .tr()
+                                    : 'settings.integrations.actions.connect'
+                                          .tr(),
+                              ),
+                            )
+                          : null,
                     ),
                   ],
                   if (controller.errorMessage != null)
@@ -82,52 +119,6 @@ class OAuthConnectionsList extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-class _ConnectionTile extends StatelessWidget {
-  const _ConnectionTile({
-    required this.connection,
-    required this.isBusy,
-    required this.onConnect,
-  });
-
-  final Connection connection;
-  final bool isBusy;
-  final VoidCallback onConnect;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: _providerIcon(),
-      title: Text(connection.provider.toString()),
-      trailing: connection.isAvailable
-          ? TextButton(
-              onPressed: isBusy
-                  ? null
-                  : (connection.isConnected ? null : onConnect),
-              child: Text(
-                connection.isConnected
-                    ? 'settings.integrations.actions.disconnect'.tr()
-                    : 'settings.integrations.actions.connect'.tr(),
-              ),
-            )
-          : null,
-    );
-  }
-
-  Widget _providerIcon() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: ColoredBox(
-        color: Colors.white,
-        child: SizedBox(
-          width: 40,
-          height: 40,
-          child: Padding(padding: const EdgeInsets.all(6)),
-        ),
-      ),
     );
   }
 }

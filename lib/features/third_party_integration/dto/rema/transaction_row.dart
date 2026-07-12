@@ -1,22 +1,9 @@
-import 'package:foodsavr/features/third_party_integration/dto/rema/transacton_payment.dart';
+import 'package:json_annotation/json_annotation.dart';
 
+part 'transaction_row.g.dart';
+
+@JsonSerializable()
 final class TransactionRow {
-  final int? bonusPointsTotal;
-  final double? bonusPointsTotalDecimal;
-  final int? bonusPointsBasedOnReceipt;
-  final List<Row>? rows;
-  final TransactionPayment? transactionPayments;
-
-  TransactionRow({
-    this.bonusPointsTotal,
-    this.bonusPointsTotalDecimal,
-    this.bonusPointsBasedOnReceipt,
-    this.transactionPayments,
-    this.rows,
-  });
-}
-
-final class Row {
   final String? productCode;
   final String? productDescription;
   final String? prodtxt1;
@@ -36,7 +23,7 @@ final class Row {
   final int? bonusPoints;
   final double? bonusPointsDecimal;
 
-  Row({
+  TransactionRow({
     this.productCode,
     this.productDescription,
     this.prodtxt1,
@@ -56,4 +43,9 @@ final class Row {
     this.bonusPoints,
     this.bonusPointsDecimal,
   });
+
+  factory TransactionRow.fromJson(Map<String, dynamic> json) =>
+      _$TransactionRowFromJson(json);
+
+  Map<String, dynamic> toJson() => _$TransactionRowToJson(this);
 }

@@ -1,5 +1,5 @@
 abstract class IImportService {
-  Future<void> getReceiptById();
+  Future<void> getReceiptById(String id);
   Future<void> getReceipts();
   Future<void> getProducts();
 }

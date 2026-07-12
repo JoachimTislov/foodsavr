@@ -42,19 +42,20 @@ dependencies:
   google_sign_in: ^7.2.0 # BSD-3-Clause
   flutter_facebook_auth: ^7.1.5 # MIT
   go_router: ^17.1.0 # BSD-3-Clause
-  injectable: ^2.7.1+4 # MIT
+  injectable: ^3.0.0 # MIT
   vector_graphics: ^1.1.19 # BSD-3-Clause
   shared_preferences: ^2.3.0 # BSD-3-Clause
   camera: ^0.12.0+1 # BSD-3-Clause
-  google_mlkit_barcode_scanning: ^0.14.1 # MIT
-  crypto: ^3.0.6
+  google_mlkit_barcode_scanning: ^0.15.0 # MIT
+  crypto: ^3.0.6 # BSD-3-Clause
   http: ^1.2.0 # BSD-3-Clause
   openfoodfacts: ^3.30.2 # Apache-2.0
-  google_mlkit_text_recognition: ^0.15.1 # MIT
+  google_mlkit_text_recognition: ^0.16.0 # MIT
   firebase_app_check: ^0.4.3 # BSD-3-Clause
-  flutter_secure_storage: ^9.2.4 # BSD-3-Clause
+  flutter_secure_storage: ^10.3.1 # BSD-3-Clause
   webview_flutter: ^4.13.1 # BSD-3-Clause
   flutter_dotenv: ^6.0.1 # MIT TODO: Need to find support for loading env variables through 1password
+  json_annotation: ^4.12.0 # BSD-3-Clause
 
 dev_dependencies:
   integration_test:
@@ -72,12 +73,13 @@ dev_dependencies:
   # TODO: research why this fails make build-android
   # it should be accessible through the sdk
   # error: package dev.flutter.plugins.integration_test does not exist
-  injectable_generator: ^2.12.0 # MIT
+  injectable_generator: ^3.0.2 # MIT
   build_runner: ^2.11.1 # BSD-3-Clause
   vector_graphics_compiler: ^1.1.20 # BSD-3-Clause
   test: ^1.28.0 # BSD-3-Clause
   path: ^1.9.1 # BSD-3-Clause
   shared_preferences_platform_interface: ^2.4.2 # BSD-3-Clause
+  json_serializable: ^6.14.0 # BSD-3-Clause
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -92,7 +94,7 @@ flutter:
   assets:
     - assets/.env
     - assets/translations/
-    - path: assets/images/
+    - path: assets/logos/
       transformers:
         - package: vector_graphics_compiler
 

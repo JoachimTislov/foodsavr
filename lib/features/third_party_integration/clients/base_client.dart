@@ -37,7 +37,7 @@ base class Client {
   }
 
   /// env is the key for value - endpoint
-  Future<Map<String, String>> fetch(String env, [String suffix = '']) async {
+  Future<dynamic> fetch(String env, [String suffix = '']) async {
     final endpoint = dotenv.get(env);
     final response = await client.get(
       Uri.parse('$baseUrl$endpoint$suffix'),
