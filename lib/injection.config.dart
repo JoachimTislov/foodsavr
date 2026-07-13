@@ -90,14 +90,18 @@ extension GetItInjectableX on _i174.GetIt {
         firestore: gh<_i974.FirebaseFirestore>(),
       ),
     );
-    gh.lazySingleton<_i266.IImportService>(
-      () => _i889.ImportService(gh<_i974.Logger>(), gh<_i169.SecureStorage>()),
-    );
     gh.lazySingleton<_i941.IOAuthService>(
       () => _i649.OAuthService(gh<_i974.Logger>(), gh<_i169.SecureStorage>()),
     );
     gh.lazySingleton<_i766.IProductRepository>(
       () => _i670.ProductRepository(gh<_i974.FirebaseFirestore>()),
+    );
+    gh.lazySingleton<_i266.IImportService>(
+      () => _i889.ImportService(
+        gh<_i974.Logger>(),
+        gh<_i169.SecureStorage>(),
+        gh<_i519.Client>(),
+      ),
     );
     gh.factoryParam<_i545.AuthController, _i545.Translator?, dynamic>(
       (translate, _) => _i545.AuthController(

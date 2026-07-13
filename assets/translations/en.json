@@ -198,6 +198,7 @@
 		"integrations": {
 			"actions": {
 				"connect": "Connect",
+				"connecting": "Connecting to",
 				"disconnect": "Disconnect"
 			},
 			"title": "Grocery integrations"

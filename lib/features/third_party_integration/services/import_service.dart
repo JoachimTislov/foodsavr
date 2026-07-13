@@ -5,6 +5,7 @@ import 'package:foodsavr/features/third_party_integration/models/m_provider.dart
 import 'package:foodsavr/services/s_secure_storage.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
+import 'package:http/http.dart' as http;
 
 @LazySingleton(as: IImportService)
 class ImportService implements IImportService {
@@ -12,9 +13,9 @@ class ImportService implements IImportService {
   final RemaClient _remaClient;
   final CoopClient _coopClient;
 
-  ImportService(this._logger, SecureStorage storage)
-    : _remaClient = RemaClient(_logger, storage),
-      _coopClient = CoopClient(_logger, storage);
+  ImportService(this._logger, SecureStorage storage, http.Client client)
+    : _remaClient = RemaClient(_logger, storage, client),
+      _coopClient = CoopClient(_logger, storage, client);
 
   @override
   Future<void> getReceiptById(String id) {

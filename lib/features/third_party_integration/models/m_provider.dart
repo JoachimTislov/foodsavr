@@ -15,11 +15,11 @@ enum Provider {
   }
 
   String logoPath() {
-    return 'assets/logos/$this.svg';
+    return 'assets/logos/$name.svg';
   }
 
   /// checks if provider is configured for the given env
   bool isSupported() {
-    return dotenv.env['${name.toUpperCase()}_SUPPORTED'] != null;
+    return dotenv.env['${name.toUpperCase()}_IS_SUPPORTED'] != null;
   }
 }

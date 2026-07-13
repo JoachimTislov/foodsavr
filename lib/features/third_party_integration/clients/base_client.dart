@@ -10,17 +10,19 @@ import 'package:logger/logger.dart';
 base class Client {
   final Logger logger;
   final SecureStorage storage;
-  final http.Client client = RetryClient(http.Client());
+  final http.Client client;
   final String baseUrl;
   final Provider provider;
   final Map<String, String> requestHeaders;
 
   Client(
     this.logger,
-    this.storage, {
+    this.storage,
+    http.Client client, {
     required this.provider,
     this.requestHeaders = const {},
-  }) : baseUrl = dotenv.get('${provider.name.toUpperCase()}_API_URL');
+  }) : client = RetryClient(client),
+       baseUrl = dotenv.get('${provider.name.toUpperCase()}_API_URL');
 
   void dispose() {
     client.close();

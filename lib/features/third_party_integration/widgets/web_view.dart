@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:foodsavr/features/third_party_integration/oauth_controller.dart';
 import 'package:foodsavr/features/third_party_integration/models/m_provider.dart';
@@ -31,7 +32,11 @@ class _WebViewState extends State<WebView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.provider.toString())),
+      appBar: AppBar(
+        title: Text(
+          '${'settings.integrations.actions.connecting'.tr()} ${widget.provider}',
+        ),
+      ),
       body: WebViewWidget(controller: _controller.webview),
     );
   }

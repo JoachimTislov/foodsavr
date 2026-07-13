@@ -1,4 +1,4 @@
-import 'package:foodsavr/features/third_party_integration/dto/rema/transacton_payment.dart';
+import 'package:foodsavr/features/third_party_integration/dto/rema/transaction_payment.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 part 'transaction.g.dart';
