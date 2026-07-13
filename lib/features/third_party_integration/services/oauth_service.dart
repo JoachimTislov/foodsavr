@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:foodsavr/features/third_party_integration/interfaces/i_oauth_service.dart';
 import 'package:foodsavr/features/third_party_integration/models/connection_model.dart';
 import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';

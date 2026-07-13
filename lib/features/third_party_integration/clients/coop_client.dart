@@ -12,17 +12,17 @@ final class CoopClient extends Client {
   }
 
   Future<List<dynamic>> getTransactions() async {
-    final data = await fetch('COOP_PURCHASE_HISTORY', '/list');
+    // final data = await fetch('COOP_PURCHASE_HISTORY', '/list');
     return [];
   }
 
   Future<List<dynamic>> getTransactionsForMonth() async {
-    final data = await fetch('COOP_PURCHASE_HISTORY', '/month');
+    // final data = await fetch('COOP_PURCHASE_HISTORY', '/month');
     return [];
   }
 
   Future<List<dynamic>> getTransactionDetails() async {
-    final data = await fetch('COOP_PURCHASE_HISTORY', '/details');
+    // final data = await fetch('COOP_PURCHASE_HISTORY', '/details');
     return [];
   }
 }

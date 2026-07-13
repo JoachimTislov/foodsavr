@@ -20,7 +20,6 @@ firebase_options.dart
 .pr_comments_cache.json
 research/raw
 
-*.g.dart
 *.class
 *.log
 *.pyc
