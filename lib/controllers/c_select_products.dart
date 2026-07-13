@@ -6,7 +6,7 @@ import '../models/m_product.dart';
 class SelectProductsController extends ChangeNotifier {
   List<Product> _allProducts = [];
   String _query = '';
-  final Set<int> _selectedIds = {};
+  final Set<String> _selectedIds = {};
 
   List<Product> get filteredProducts {
     if (_query.isEmpty) return List.unmodifiable(_allProducts);
@@ -18,7 +18,7 @@ class SelectProductsController extends ChangeNotifier {
 
   int get selectedCount => _selectedIds.length;
 
-  bool isSelected(int productId) => _selectedIds.contains(productId);
+  bool isSelected(String productId) => _selectedIds.contains(productId);
 
   void loadProducts(List<Product> products) {
     _allProducts = List.of(products);
@@ -30,7 +30,7 @@ class SelectProductsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleSelection(int productId) {
+  void toggleSelection(String productId) {
     if (_selectedIds.contains(productId)) {
       _selectedIds.remove(productId);
     } else {

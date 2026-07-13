@@ -3,7 +3,7 @@ import '../utils/u_collection_types.dart';
 class Collection {
   final String id;
   final String name;
-  final List<int> productIds;
+  final List<String> productIds;
   final String userId; // Owner of the collection
   final String? description;
   final CollectionType
@@ -21,7 +21,7 @@ class Collection {
   Collection copyWith({
     String? id,
     String? name,
-    List<int>? productIds,
+    List<String>? productIds,
     String? userId,
     String? description,
     CollectionType? type,
@@ -68,7 +68,7 @@ class Collection {
     return Collection(
       id: json['id'] as String,
       name: json['name'] as String,
-      productIds: List<int>.from(json['productIds'] as List),
+      productIds: List<String>.from(json['productIds'] as List),
       userId: json['userId'] as String,
       description: json['description'] as String?,
       type: CollectionType.values.firstWhere(

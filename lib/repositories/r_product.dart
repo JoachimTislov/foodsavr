@@ -14,13 +14,13 @@ class ProductRepository implements IProductRepository {
   Future<Product> add(Product product) async {
     await _firestore
         .collection(_collectionName)
-        .doc(product.id.toString())
+        .doc(product.id)
         .set(product.toJson());
     return product;
   }
 
   @override
-  Future<Product?> get(int id) async {
+  Future<Product?> get(String id) async {
     final doc = await _firestore
         .collection(_collectionName)
         .doc(id.toString())
@@ -33,12 +33,12 @@ class ProductRepository implements IProductRepository {
   Future<void> update(Product product) async {
     await _firestore
         .collection(_collectionName)
-        .doc(product.id.toString())
+        .doc(product.id)
         .update(product.toJson());
   }
 
   @override
-  Future<void> delete(int id) async {
+  Future<void> delete(String id) async {
     await _firestore.collection(_collectionName).doc(id.toString()).delete();
   }
 

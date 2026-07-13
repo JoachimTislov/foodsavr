@@ -1,5 +1,6 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:foodsavr/features/third_party_integration/dto/rema/transaction_details.dart';
+import 'package:foodsavr/features/third_party_integration/dto/rema/transaction_row.dart';
 import 'package:foodsavr/features/third_party_integration/models/m_provider.dart';
 import 'package:foodsavr/models/m_product.dart';
 
@@ -15,30 +16,45 @@ final class RemaClient extends Client {
         },
       );
 
-  Future<List<Product>> getProducts() async {
-    final transactionHeads = await getTransactions();
-    final details = <Map<int, TransactionDetails>>{};
-    for (var head in transactionHeads) {
+  Future<List<Product>> getProducts(String userId) async {
+    final products = <Product>[];
+    for (var head in await _getTransactions()) {
       final transactions = head.transactions;
       if (transactions != null) {
         for (var transaction in transactions) {
           final id = transaction.id;
-          if (id != null) details.add(await getTransactionDetails(id));
+          if (id == null) continue;
+          final details = await _getTransactionDetails(id);
+          for (TransactionRow row in details.rows ?? []) {
+            final id = row.productCode;
+            final barcode = row.prodtxt3;
+            final description = row.productDescription;
+            if (id != null && barcode != null && description != null) {
+              products.add(
+                Product(
+                  id: id,
+                  name: row.name,
+                  description: description,
+                  userId: userId,
+                  barcode: barcode,
+                ),
+              );
+            }
+          }
         }
       }
     }
-    // TODO: map to product...
-    return <Product>[];
+    return products;
   }
 
-  Future<Map<int, TransactionDetails>> getTransactionDetails(int id) async {
+  Future<TransactionDetails> _getTransactionDetails(int id) async {
     Map<String, dynamic> data = await fetch('REMA_TRANSACTIONS', '/rows/$id');
-    final row = TransactionDetails.fromJson(data);
-    super.logger.i(row);
-    return {id: row};
+    final details = TransactionDetails.fromJson(data);
+    super.logger.i(details);
+    return details;
   }
 
-  Future<List<TransactionHead>> getTransactions() async {
+  Future<List<TransactionHead>> _getTransactions() async {
     List<dynamic> data = await fetch('REMA_TRANSACTIONS', '/heads');
     final transactions = data
         .map((json) => TransactionHead.fromJson(json))

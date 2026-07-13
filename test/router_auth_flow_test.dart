@@ -49,13 +49,16 @@ class _FakeCollectionRepository implements ICollectionRepository {
   Future<List<Collection>> getCollections(String userId) async => [];
 
   @override
-  Future<void> addProduct(String collectionId, int productId) async {}
+  Future<void> addProduct(String collectionId, String productId) async {}
 
   @override
-  Future<void> addProducts(String collectionId, List<int> productIds) async {}
+  Future<void> addProducts(
+    String collectionId,
+    List<String> productIds,
+  ) async {}
 
   @override
-  Future<void> removeProduct(String collectionId, int productId) async {}
+  Future<void> removeProduct(String collectionId, String productId) async {}
 }
 
 class _MockUser extends Mock implements User {}
@@ -66,11 +69,11 @@ class _FakeProductRepository implements IProductRepository {
   @override
   Future<Product> add(Product entity) async => entity;
   @override
-  Future<Product?> get(int id) async => null;
+  Future<Product?> get(String id) async => null;
   @override
   Future<void> update(Product entity) async {}
   @override
-  Future<void> delete(int id) async {}
+  Future<void> delete(String id) async {}
   @override
   Future<List<Product>> getAll() async => [];
   @override

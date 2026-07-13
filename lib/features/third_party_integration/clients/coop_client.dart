@@ -1,10 +1,15 @@
 import 'package:foodsavr/features/third_party_integration/models/m_provider.dart';
+import 'package:foodsavr/models/m_product.dart';
 
 import 'base_client.dart';
 
 final class CoopClient extends Client {
   CoopClient(super.logger, super.storage, super.client)
     : super(provider: Provider.coop);
+
+  Future<List<Product>> getProducts() async {
+    return <Product>[];
+  }
 
   Future<List<dynamic>> getTransactions() async {
     final data = await fetch('COOP_PURCHASE_HISTORY', '/list');

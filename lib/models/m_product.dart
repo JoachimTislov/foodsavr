@@ -130,7 +130,7 @@ class Product {
   /// - personal: user-owned registry products (templates)
   /// - current: concrete products used in inventories/shopping lists
   final String registryType;
-  final int id;
+  final String id;
   final String name;
   final String description;
   final String userId; // Owner of the product
@@ -140,7 +140,7 @@ class Product {
   final String? imageUrl; // Optional image URL
   final String? barcode; // Optional product barcode
   final bool isGlobal; // True if product is in global catalog
-  final int? mappedFromProductId;
+  final String? mappedFromProductId;
   final List<String> tags; // Labels and tags from APIs like OpenFoodFacts
 
   Product({
@@ -160,7 +160,7 @@ class Product {
   });
 
   Product copyWith({
-    int? id,
+    String? id,
     String? name,
     String? description,
     String? userId,
@@ -224,7 +224,7 @@ class Product {
         : <ExpiryEntry>[];
 
     return Product(
-      id: json['id'] as int,
+      id: json['id'] as String,
       name: json['name'] as String,
       description: json['description'] as String,
       userId: json['userId'] as String,
@@ -241,7 +241,7 @@ class Product {
       registryType:
           json['registryType'] as String? ??
           ((json['isGlobal'] as bool? ?? false) ? 'global' : 'current'),
-      mappedFromProductId: json['mappedFromProductId'] as int?,
+      mappedFromProductId: json['mappedFromProductId'] as String?,
       tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? const [],
     );
   }
@@ -311,7 +311,7 @@ class Product {
 
   Map<String, dynamic> toFirestoreRest() {
     return {
-      'id': {'integerValue': id.toString()},
+      'id': {'integerValue': id},
       'name': {'stringValue': name},
       'description': {'stringValue': description},
       'userId': {'stringValue': userId},

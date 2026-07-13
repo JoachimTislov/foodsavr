@@ -5,12 +5,12 @@ void main() {
   group('Product serialization', () {
     test('preserves registryType and mappedFromProductId', () {
       final product = Product(
-        id: 1,
+        id: '1',
         name: 'Milk',
         description: 'Dairy milk',
         userId: 'user-1',
         registryType: 'current',
-        mappedFromProductId: 42,
+        mappedFromProductId: '42',
       );
 
       final json = product.toJson();

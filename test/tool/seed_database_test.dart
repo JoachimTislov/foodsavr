@@ -216,7 +216,7 @@ void main() {
       test('Product toFirestoreRest matches expected Firestore REST shape', () {
         final now = DateTime.now();
         final product = Product(
-          id: 123,
+          id: '123',
           name: 'Milk',
           description: 'Dairy',
           userId: 'user_1',
@@ -250,7 +250,7 @@ void main() {
 
       test('Product toFirestoreRest handles null/empty fields', () {
         final product = Product(
-          id: 456,
+          id: '456',
           name: 'Water',
           description: '',
           userId: 'user_2',
@@ -269,7 +269,7 @@ void main() {
         // We might want to add validation in the model later,
         // but for now we test that it serializes correctly.
         final product = Product(
-          id: 1,
+          id: '1',
           name: 'Test',
           description: '',
           userId: 'u1',

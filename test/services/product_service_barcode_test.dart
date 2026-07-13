@@ -25,12 +25,12 @@ class _FakeProductRepository implements IProductRepository {
   }
 
   @override
-  Future<void> delete(int id) async {
+  Future<void> delete(String id) async {
     _products.removeWhere((product) => product.id == id);
   }
 
   @override
-  Future<Product?> get(int id) async {
+  Future<Product?> get(String id) async {
     for (final product in _products) {
       if (product.id == id) return product;
     }
@@ -73,7 +73,7 @@ void main() {
     test('increments non-expiring quantity for existing barcode', () async {
       final repository = _FakeProductRepository([
         Product(
-          id: 1,
+          id: '1',
           name: 'Milk',
           description: 'Dairy',
           userId: 'user-1',

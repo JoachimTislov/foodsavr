@@ -96,13 +96,6 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i766.IProductRepository>(
       () => _i670.ProductRepository(gh<_i974.FirebaseFirestore>()),
     );
-    gh.lazySingleton<_i266.IImportService>(
-      () => _i889.ImportService(
-        gh<_i974.Logger>(),
-        gh<_i169.SecureStorage>(),
-        gh<_i519.Client>(),
-      ),
-    );
     gh.factoryParam<_i545.AuthController, _i545.Translator?, dynamic>(
       (translate, _) => _i545.AuthController(
         gh<_i451.IAuthService>(),
@@ -117,6 +110,14 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i526.CollectionService(
         gh<_i1020.ICollectionRepository>(),
         gh<_i974.Logger>(),
+      ),
+    );
+    gh.lazySingleton<_i266.IImportService>(
+      () => _i889.ImportService(
+        gh<_i451.IAuthService>(),
+        gh<_i974.Logger>(),
+        gh<_i169.SecureStorage>(),
+        gh<_i519.Client>(),
       ),
     );
     gh.lazySingleton<_i201.ProductService>(

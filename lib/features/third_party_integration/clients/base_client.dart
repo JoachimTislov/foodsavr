@@ -28,22 +28,23 @@ base class Client {
     client.close();
   }
 
-  Future<Map<String, String>> _getHeadersWithAuthorization() async {
+  Future<(Map<String, String>, bool)> _getHeadersWithAuthorization() async {
     final accessToken = await storage.read(provider, Key.access_token);
     if (accessToken == null) {
-      // TODO: should catch and do nothing...?
-      throw "Client for $provider isn't authorized";
+      return (requestHeaders, false);
     }
     requestHeaders['Authorization'] = accessToken;
-    return requestHeaders;
+    return (requestHeaders, true);
   }
 
   /// env is the key for value - endpoint
   Future<dynamic> fetch(String env, [String suffix = '']) async {
     final endpoint = dotenv.get(env);
+    final (headers, authorized) = await _getHeadersWithAuthorization();
+    if (!authorized) return {};
     final response = await client.get(
       Uri.parse('$baseUrl$endpoint$suffix'),
-      headers: await _getHeadersWithAuthorization(),
+      headers: headers,
     );
     return jsonDecode(utf8.decode(response.bodyBytes));
   }

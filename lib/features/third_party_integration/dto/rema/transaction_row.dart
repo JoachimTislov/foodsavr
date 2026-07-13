@@ -6,9 +6,16 @@ part 'transaction_row.g.dart';
 final class TransactionRow {
   final String? productCode;
   final String? productDescription;
+
+  /// primary name
   final String? prodtxt1;
+
+  /// secondary name
   final String? prodtxt2;
+
+  /// EAN barcode
   final String? prodtxt3;
+
   final String? productGroupCode;
   final String? productGroupDescription;
   final bool? bonusBased;
@@ -43,6 +50,10 @@ final class TransactionRow {
     this.bonusPoints,
     this.bonusPointsDecimal,
   });
+
+  String get name {
+    return prodtxt1 ?? prodtxt2 ?? 'N/A';
+  }
 
   factory TransactionRow.fromJson(Map<String, dynamic> json) =>
       _$TransactionRowFromJson(json);
