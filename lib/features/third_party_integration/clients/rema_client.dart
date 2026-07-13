@@ -1,10 +1,10 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:foodsavr/features/third_party_integration/dto/rema/transaction_details.dart';
-import 'package:foodsavr/features/third_party_integration/dto/rema/transaction_row.dart';
-import 'package:foodsavr/features/third_party_integration/models/m_provider.dart';
-import 'package:foodsavr/models/m_product.dart';
+import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';
+import 'package:foodsavr/features/third_party_integration/models/rema/transaction_details_model.dart';
+import 'package:foodsavr/features/third_party_integration/models/rema/transaction_head_model.dart';
+import 'package:foodsavr/features/third_party_integration/models/rema/transaction_row_model.dart';
+import 'package:foodsavr/models/product_model.dart';
 
-import '../dto/rema/transaction_head.dart';
 import 'base_client.dart';
 
 final class RemaClient extends Client {

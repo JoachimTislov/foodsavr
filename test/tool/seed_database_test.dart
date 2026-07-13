@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
-import 'package:foodsavr/services/s_seeding.dart';
-import 'package:foodsavr/models/m_product.dart';
+import 'package:foodsavr/services/seeding_service.dart';
+import 'package:foodsavr/models/product_model.dart';
 
 class MockClient extends Mock implements http.Client {}
 

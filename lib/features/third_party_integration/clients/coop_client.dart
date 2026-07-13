@@ -1,5 +1,5 @@
-import 'package:foodsavr/features/third_party_integration/models/m_provider.dart';
-import 'package:foodsavr/models/m_product.dart';
+import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';
+import 'package:foodsavr/models/product_model.dart';
 
 import 'base_client.dart';
 

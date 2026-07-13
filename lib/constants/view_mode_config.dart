@@ -1,4 +1,4 @@
-import '../utils/u_view_mode_helper.dart';
+import '../utils/view_mode_helper.dart';
 
 /// Configuration for product view modes
 class ProductViewConfig {

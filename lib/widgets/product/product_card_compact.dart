@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../models/m_product.dart';
+import '../../models/product_model.dart';
 
 class ProductCardCompact extends StatelessWidget {
   final Product product;

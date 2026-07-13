@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../models/m_product.dart';
+import '../models/product_model.dart';
 
 /// Manages product selection and search filtering for the select-products screen.
 class SelectProductsController extends ChangeNotifier {

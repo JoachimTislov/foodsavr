@@ -10,12 +10,12 @@ import 'package:logger/logger.dart';
 import 'package:openfoodfacts/openfoodfacts.dart';
 
 import 'firebase_options.dart';
-import 'interfaces/is_auth.dart';
+import 'interfaces/i_auth_service.dart';
 import 'router.dart';
 import 'service_locator.dart';
-import 'utils/u_theme_notifier.dart';
-import 'utils/u_app_theme.dart';
-import 'utils/u_config.dart';
+import 'utils/theme_notifier.dart';
+import 'utils/app_theme.dart';
+import 'utils/config.dart';
 
 const dummyOptions = FirebaseOptions(
   apiKey: 'AIzaSyDummyKeyForDemoOnly',

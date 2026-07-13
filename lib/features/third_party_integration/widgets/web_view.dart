@@ -1,7 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:foodsavr/features/third_party_integration/oauth_controller.dart';
-import 'package:foodsavr/features/third_party_integration/models/m_provider.dart';
+import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';
 import 'package:foodsavr/injection.dart';
 import 'package:go_router/go_router.dart';
 import 'package:webview_flutter/webview_flutter.dart';

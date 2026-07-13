@@ -1,7 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
-import '../../models/m_product.dart';
+import '../../models/product_model.dart';
 
 class ProductSelectItem extends StatelessWidget {
   final Product product;

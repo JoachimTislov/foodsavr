@@ -3,16 +3,16 @@ import 'dart:convert';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:foodsavr/features/third_party_integration/interfaces/i_oauth_service.dart';
-import 'package:foodsavr/features/third_party_integration/models/m_connection.dart';
-import 'package:foodsavr/features/third_party_integration/models/m_provider.dart';
-import 'package:foodsavr/features/third_party_integration/models/m_token.dart';
+import 'package:foodsavr/features/third_party_integration/models/connection_model.dart';
+import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';
+import 'package:foodsavr/features/third_party_integration/models/token_model.dart';
 import 'package:foodsavr/features/third_party_integration/oauth_util.dart';
 import 'package:http/http.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-import '../../../services/s_secure_storage.dart';
+import '../../../services/secure_storage_service.dart';
 
 // TODO: Need to figure out a clean relationship between the OAuth model, controller and the methods exposed
 // It operates based on one provider

@@ -1,10 +1,10 @@
 import 'package:foodsavr/features/third_party_integration/clients/coop_client.dart';
 import 'package:foodsavr/features/third_party_integration/clients/rema_client.dart';
 import 'package:foodsavr/features/third_party_integration/interfaces/i_import_service.dart';
-import 'package:foodsavr/features/third_party_integration/models/m_provider.dart';
-import 'package:foodsavr/interfaces/is_auth.dart';
-import 'package:foodsavr/models/m_product.dart';
-import 'package:foodsavr/services/s_secure_storage.dart';
+import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';
+import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:foodsavr/models/product_model.dart';
+import 'package:foodsavr/services/secure_storage_service.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import 'package:http/http.dart' as http;

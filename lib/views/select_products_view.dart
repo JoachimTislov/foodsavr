@@ -1,0 +1,199 @@
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../interfaces/i_auth_service.dart';
+import '../service_locator.dart';
+import '../services/product_service.dart';
+import '../controllers/c_select_products.dart';
+import '../widgets/product/product_select_item.dart';
+import '../widgets/common/retry_scaffold.dart';
+import '../widgets/transfer/location_header.dart';
+import '../widgets/common/search_field.dart';
+
+class SelectProductsView extends StatefulWidget {
+  final String fromLocationId;
+  final String toLocationId;
+  final String fromLocationName;
+  final String toLocationName;
+
+  const SelectProductsView({
+    super.key,
+    required this.fromLocationId,
+    required this.toLocationId,
+    this.fromLocationName = '',
+    this.toLocationName = '',
+  });
+
+  @override
+  State<SelectProductsView> createState() => _SelectProductsViewState();
+}
+
+class _SelectProductsViewState extends State<SelectProductsView> {
+  late final ProductService _productService;
+  late final IAuthService _authService;
+  late final SelectProductsController _controller;
+  late final TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _productService = getIt<ProductService>();
+    _authService = getIt<IAuthService>();
+    _controller = SelectProductsController();
+    _searchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refreshProducts() async {
+    final userId = _authService.getUserId();
+    final products = await _productService.getProducts(userId);
+    if (!mounted) return;
+    _controller.loadProducts(products);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return RetryScaffold(
+      onRefresh: _refreshProducts,
+      fetchOnInit: true,
+      isBodyScrollable: true,
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
+        title: Text(
+          'product.select'.tr(),
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: colorScheme.surface,
+        elevation: 0,
+        centerTitle: true,
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(
+                  child: LocationHeader(
+                    fromLocationName: widget.fromLocationName.isNotEmpty
+                        ? widget.fromLocationName
+                        : widget.fromLocationId,
+                    toLocationName: widget.toLocationName.isNotEmpty
+                        ? widget.toLocationName
+                        : widget.toLocationId,
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: SearchField(
+                    controller: _searchController,
+                    onChanged: _controller.updateQuery,
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      'product.available_stock'.tr(),
+                      style: textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+                ListenableBuilder(
+                  listenable: _controller,
+                  builder: (context, _) {
+                    final products = _controller.filteredProducts;
+                    return SliverList.separated(
+                      itemCount: products.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final product = products[index];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: ProductSelectItem(
+                            product: product,
+                            isSelected: _controller.isSelected(product.id),
+                            onToggle: () =>
+                                _controller.toggleSelection(product.id),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+                const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
+              ],
+            ),
+          ),
+          // CTA
+          ListenableBuilder(
+            listenable: _controller,
+            builder: (context, _) => Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                border: Border(
+                  top: BorderSide(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.1),
+                  ),
+                ),
+              ),
+              child: SafeArea(
+                child: ElevatedButton(
+                  onPressed: _controller.selectedCount > 0
+                      ? () => context.pop()
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(56),
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.swap_horiz),
+                      const SizedBox(width: 8),
+                      Text(
+                        'transfer.transfer_items'.tr(
+                          namedArgs: {
+                            'count': _controller.selectedCount.toString(),
+                          },
+                        ),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

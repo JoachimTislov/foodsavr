@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../../constants/collection_config.dart';
-import '../../models/m_collection.dart';
+import '../../models/collection_model.dart';
 
 /// Header widget for collection detail view
 class CollectionHeader extends StatelessWidget {

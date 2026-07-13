@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 
-import '../interfaces/is_auth.dart';
-import '../utils/u_auth_error_handler.dart';
+import '../interfaces/i_auth_service.dart';
+import '../utils/auth_error_handler.dart';
 
 typedef Translator = String Function(String);
 

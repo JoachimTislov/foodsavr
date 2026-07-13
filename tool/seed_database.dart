@@ -2,13 +2,13 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'package:foodsavr/services/s_standalone_seeding.dart';
+import 'package:foodsavr/services/standalone_seeding_service.dart';
 import 'package:foodsavr/mock_data/collections.dart';
 import 'package:foodsavr/mock_data/global_products.dart';
 import 'package:foodsavr/mock_data/inventory_products.dart';
-import 'package:foodsavr/models/m_product.dart';
-import 'package:foodsavr/models/m_collection.dart';
-import 'package:foodsavr/utils/u_collection_types.dart';
+import 'package:foodsavr/models/product_model.dart';
+import 'package:foodsavr/models/collection_model.dart';
+import 'package:foodsavr/utils/collection_types.dart';
 
 const String defaultProjectId = 'demo-project';
 const String defaultHost = 'localhost';

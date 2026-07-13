@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:foodsavr/features/third_party_integration/models/m_provider.dart';
-import 'package:foodsavr/services/s_secure_storage.dart';
+import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';
+import 'package:foodsavr/services/secure_storage_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/retry.dart';
 import 'package:logger/logger.dart';

@@ -3,7 +3,7 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:foodsavr/features/third_party_integration/models/m_provider.dart';
+import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';
 
 class OAuthUtil {
   final Provider _provider;

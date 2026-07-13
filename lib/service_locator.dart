@@ -3,9 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:logger/logger.dart';
 
 import 'injection.dart';
-import 'interfaces/is_auth.dart';
-import 'services/s_seeding.dart';
-import 'utils/u_config.dart';
+import 'interfaces/i_auth_service.dart';
+import 'services/seeding_service.dart';
+import 'utils/config.dart';
 
 export 'injection.dart' show getIt;
 

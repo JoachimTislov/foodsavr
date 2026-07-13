@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:foodsavr/features/third_party_integration/models/m_connection.dart';
-import 'package:foodsavr/features/third_party_integration/models/m_provider.dart';
+import 'package:foodsavr/features/third_party_integration/models/connection_model.dart';
+import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';
 import 'package:foodsavr/features/third_party_integration/oauth_controller.dart';
 import 'package:foodsavr/features/third_party_integration/interfaces/i_oauth_service.dart';
 import 'package:logger/logger.dart';
