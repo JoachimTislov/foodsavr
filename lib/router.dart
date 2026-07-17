@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:foodsavr/features/third_party_integration/widgets/web_view.dart';
 import 'package:go_router/go_router.dart';
 
 import 'interfaces/i_auth_service.dart';
@@ -47,6 +48,7 @@ GoRouter createAppRouter(IAuthService authService) {
       final isLoggedIn = authService.getUserId() != null;
       final isAnonymousUser = authService.currentUser?.isAnonymous ?? false;
       final isAuthRoute = state.uri.path == '/auth';
+      final isOAuthCallbackRoute = state.uri.path.startsWith('/callback/');
       final isLandingRoute = state.uri.path == '/';
       final isSplashRoute = state.uri.path == '/splash';
 
@@ -62,6 +64,10 @@ GoRouter createAppRouter(IAuthService authService) {
           return target;
         }
         return '/';
+      }
+
+      if (isOAuthCallbackRoute) {
+        return '/settings';
       }
 
       if (!isLoggedIn) {
@@ -150,8 +156,15 @@ GoRouter createAppRouter(IAuthService authService) {
                 builder: (context, state) => const SettingsView(),
                 routes: [
                   GoRoute(
-                    path: '/profile',
+                    path: 'profile',
                     builder: (context, state) => const ProfileView(),
+                  ),
+                  GoRoute(
+                    path: 'web-view',
+                    builder: (context, state) => WebView(
+                      // TODO: Handle missing provider
+                      provider: state.uri.queryParameters['provider'],
+                    ),
                   ),
                 ],
               ),

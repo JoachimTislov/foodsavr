@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-03
 **Status:** Planned
-**Objective:** Securely authorize a public mobile client (FoodSavr) to access a third-party resource server (e.g., Storebox, Trumf, Trumf/Coop, or Google) on behalf of the user, using the OAuth 2.0 Authorization Code Flow with PKCE (Proof Key for Code Exchange).
+**Objective:** Securely authorize a public mobile client (FoodSavr) to access a third-party resource server (e.g., Storebox, Rema, Trumf, or Coop) on behalf of the user, using the OAuth 2.0 Authorization Code Flow with PKCE (Proof Key for Code Exchange).
 
 ---
 
@@ -13,6 +13,8 @@ PKCE prevents authorization code interception attacks on public clients (mobile 
 2. **Client** opens a secure browser tab (Custom Tabs/ASWebAuthenticationSession) requesting an authorization `code`, sending the `code_challenge`.
 3. **User** logs in and grants consent on the Provider's web page.
 4. **Provider** redirects back to the Client app via Deep Link with the authorization `code`.
+4.1 **Client** must verify returned `state` exactly matches the locally stored `state` before exchanging the `code`.
+4.2 If OIDC scopes are used (`openid`), include a `nonce` in auth request and validate it from the ID token.
 5. **Client** POSTs the `code` and the original unhashed `code_verifier` to the Provider's Token Endpoint.
 6. **Provider** verifies the `code_verifier` matches the previous `code_challenge` and issues an **Access Token** (and Refresh Token).
 7. **Client** uses the Access Token to securely retrieve User Data from the Provider's API.
@@ -22,7 +24,6 @@ PKCE prevents authorization code interception attacks on public clients (mobile 
 ## 2. Phase 1: Environment & Setup
 
 ### 2.1. Provider Registration
-- **Task:** Register the FoodSavr app in the OAuth Provider's Developer Console (e.g., Google Cloud Console, Trumf Portal).
 - **Requirements:**
   - Set the `redirect_uri` to a custom app scheme (e.g., `foodsavr://oauth2redirect` or an App Link like `https://foodsavr.app/auth`).
   - Retrieve the `client_id` and discovery document URL (or explicit Auth/Token endpoints).
@@ -68,7 +69,7 @@ PKCE prevents authorization code interception attacks on public clients (mobile 
   - **Refresh Logic:** In `getValidAccessToken()`, check token expiration. If expired, call `FlutterAppAuth.token()` with `GrantType.refreshToken` before returning the new access token.
 
 ### 3.3. Dependency Injection
-- Register `OAuthService` and `SecureStorageService` as singletons/lazy singletons in `lib/di/injection.dart`.
+- Register `OAuthService` and `SecureStorageService` as singletons/lazy singletons in `lib/injection.dart`.
 
 ---
 
@@ -101,6 +102,8 @@ PKCE prevents authorization code interception attacks on public clients (mobile 
 ---
 
 ## 6. Phase 5: Security & Edge Cases
+- Ensure all sensitive data (tokens) are stored securely and never logged.
+- Only prompt the user to re-authenticate when necessary (e.g., token expiration or revocation).
 
 ### 6.1. Token Revocation & Expiration
 - Ensure that if a Refresh Token fails (e.g., the user revoked access from the provider's website), the local secure storage is cleared, and the user is gracefully redirected back to the unauthenticated state.

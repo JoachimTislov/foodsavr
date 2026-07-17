@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/router.dart';
 import 'package:foodsavr/service_locator.dart';
-import 'package:foodsavr/services/auth_controller.dart';
+import 'package:foodsavr/controllers/c_auth.dart';
 import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/interfaces/i_product_repository.dart';
 import 'package:foodsavr/interfaces/i_collection_repository.dart'; // Explicitly import ICollectionRepository
@@ -18,8 +18,8 @@ import 'package:foodsavr/models/collection_model.dart'; // Import Collection
 import 'package:foodsavr/views/landing_page_view.dart';
 import 'package:foodsavr/views/dashboard_view.dart';
 import 'package:foodsavr/services/collection_service.dart'; // Import CollectionService
-import 'package:foodsavr/services/shelf_life_service.dart';
-import 'package:foodsavr/services/theme_notifier.dart';
+import 'package:foodsavr/utils/shelf_life.dart';
+import 'package:foodsavr/utils/theme_notifier.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
@@ -49,13 +49,16 @@ class _FakeCollectionRepository implements ICollectionRepository {
   Future<List<Collection>> getCollections(String userId) async => [];
 
   @override
-  Future<void> addProduct(String collectionId, int productId) async {}
+  Future<void> addProduct(String collectionId, String productId) async {}
 
   @override
-  Future<void> addProducts(String collectionId, List<int> productIds) async {}
+  Future<void> addProducts(
+    String collectionId,
+    List<String> productIds,
+  ) async {}
 
   @override
-  Future<void> removeProduct(String collectionId, int productId) async {}
+  Future<void> removeProduct(String collectionId, String productId) async {}
 }
 
 class _MockUser extends Mock implements User {}
@@ -66,11 +69,11 @@ class _FakeProductRepository implements IProductRepository {
   @override
   Future<Product> add(Product entity) async => entity;
   @override
-  Future<Product?> get(int id) async => null;
+  Future<Product?> get(String id) async => null;
   @override
   Future<void> update(Product entity) async {}
   @override
-  Future<void> delete(int id) async {}
+  Future<void> delete(String id) async {}
   @override
   Future<List<Product>> getAll() async => [];
   @override

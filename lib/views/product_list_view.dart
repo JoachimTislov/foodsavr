@@ -33,7 +33,7 @@ class _ProductListViewState extends State<ProductListView> {
   late final IAuthService _authService;
   late final String? _userId;
   ProductViewMode _viewMode = ProductViewMode.normal;
-  Map<int, List<String>> _productInventories = {};
+  Map<String, List<String>> _productInventories = {};
 
   @override
   void initState() {
