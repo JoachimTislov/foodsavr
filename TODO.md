@@ -24,6 +24,7 @@
 
 ## General
 
+- Fix exception: java.lang.SecurityException: Unknown calling package name 'com.google.android.gms'.
 - [ ] Exclude generated code from version control, and only include them in builds?
 - [ ] "Cloud Firestore emulator" Flutter integration test
 - [ ] "flutter test" "firebase emulator" CI GitHub Actions
