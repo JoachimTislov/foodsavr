@@ -1,0 +1,14 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- The Automated Pantry Cycle -->
+  <title>Automated Pantry Cycle Logo</title>
+  <rect x="0" y="0" width="200" height="200" fill="white"/>
+  <!-- Circular Arrow (Loop) -->
+  <path d="M 160 100 A 60 60 0 1 1 100 40" stroke="#4CAF50" stroke-width="12" fill="none" stroke-linecap="round"/>
+  <path d="M 90 20 L 100 40 L 110 20" stroke="#4CAF50" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Bar Chart (Pantry) -->
+  <rect x="70" y="110" width="15" height="40" fill="#7CB342"/>
+  <rect x="95" y="90" width="15" height="60" fill="#7CB342"/>
+  <rect x="120" y="120" width="15" height="30" fill="#7CB342"/>
+  <!-- Effortless List (Checkmark) -->
+  <path d="M 40 105 L 60 125 L 90 85" stroke="#4CAF50" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
