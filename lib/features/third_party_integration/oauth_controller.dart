@@ -36,12 +36,12 @@ class OAuthController extends ChangeNotifier {
     try {
       await _oauthService.authorize(provider);
       await _oauthService.fetchUserProfile(provider);
+      await loadConnections();
     } catch (error, stackTrace) {
       errorMessage = 'Failed to connect grocery provider';
       _logger.e(errorMessage, error: error, stackTrace: stackTrace);
     } finally {
       activeProvider = null;
-      await loadConnections();
       notifyListeners();
     }
   }

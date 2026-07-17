@@ -25,17 +25,18 @@ void main() {
     when(() => authService.webViewController).thenReturn(webViewController);
   });
 
-  // test('connect stores readable error message on failure', () async {
-  //   final exception = Exception('Provider configuration is missing.');
-  //   when(() => authService.authorize(Provider.coop)).thenThrow(exception);
-  //
-  //   await controller.connect(Provider.coop);
-  //
-  //   expect(controller.activeProvider, isNull);
-  //   expect(controller.errorMessage, 'Failed to connect grocery provider');
-  //   verify(() => authService.authorize(Provider.coop)).called(1);
-  //   verifyNever(() => authService.getConnections());
-  // });
+  test('connect stores readable error message on failure', () async {
+    final exception = Exception('Provider configuration is missing.');
+    final provider = Provider.coop;
+    when(() => authService.authorize(provider)).thenThrow(exception);
+
+    await controller.connect(provider);
+
+    expect(controller.activeProvider, isNull);
+    expect(controller.errorMessage, 'Failed to connect grocery provider');
+    verify(() => authService.authorize(Provider.coop)).called(1);
+    verifyNever(() => authService.getConnections());
+  });
 
   test('connect success flow updates connections', () async {
     const provider = Provider.coop;
@@ -49,7 +50,7 @@ void main() {
       ),
     ];
 
-    when(() => authService.authorize(any())).thenAnswer((_) async => {});
+    when(() => authService.authorize(provider)).thenAnswer((_) async => {});
     when(
       () => authService.fetchUserProfile(provider),
     ).thenAnswer((_) async => {});
@@ -62,7 +63,7 @@ void main() {
     expect(controller.connections, connections);
     expect(controller.errorMessage, isNull);
     expect(controller.activeProvider, isNull);
-    verify(() => authService.authorize(any())).called(1);
+    verify(() => authService.authorize(provider)).called(1);
     verify(() => authService.fetchUserProfile(provider)).called(1);
     verify(() => authService.getConnections()).called(1);
   });

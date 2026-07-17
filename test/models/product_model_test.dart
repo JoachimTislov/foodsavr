@@ -17,12 +17,12 @@ void main() {
       final parsed = Product.fromJson(json);
 
       expect(parsed.registryType, 'current');
-      expect(parsed.mappedFromProductId, 42);
+      expect(parsed.mappedFromProductId, '42');
     });
 
     test('infers global registryType from legacy isGlobal field', () {
       final parsed = Product.fromJson({
-        'id': 2,
+        'id': '2',
         'name': 'Rice',
         'description': 'White rice',
         'userId': 'global',
@@ -34,7 +34,7 @@ void main() {
 
     test('defaults to current registryType for legacy non-global products', () {
       final parsed = Product.fromJson({
-        'id': 3,
+        'id': '3',
         'name': 'Eggs',
         'description': 'Fresh eggs',
         'userId': 'user-1',
