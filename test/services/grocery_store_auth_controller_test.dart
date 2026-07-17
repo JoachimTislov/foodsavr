@@ -27,10 +27,9 @@ void main() {
 
   test('connect stores readable error message on failure', () async {
     final exception = Exception('Provider configuration is missing.');
-    final provider = Provider.coop;
-    when(() => authService.authorize(provider)).thenThrow(exception);
+    when(() => authService.authorize(Provider.coop)).thenThrow(exception);
 
-    await controller.connect(provider);
+    await controller.connect(Provider.coop);
 
     expect(controller.activeProvider, isNull);
     expect(controller.errorMessage, 'Failed to connect grocery provider');
