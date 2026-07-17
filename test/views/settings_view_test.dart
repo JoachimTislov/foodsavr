@@ -1,11 +1,15 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foodsavr/features/third_party_integration/models/connection_model.dart';
+import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:foodsavr/features/third_party_integration/interfaces/i_oauth_service.dart';
 import 'package:foodsavr/service_locator.dart';
-import 'package:foodsavr/services/auth_controller.dart';
+import 'package:foodsavr/controllers/c_auth.dart';
 import 'package:foodsavr/services/collection_service.dart';
-import 'package:foodsavr/services/theme_notifier.dart';
+import 'package:foodsavr/features/third_party_integration/oauth_controller.dart';
+import 'package:foodsavr/utils/theme_notifier.dart';
 import 'package:foodsavr/views/settings_view.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
@@ -18,6 +22,8 @@ class _MockAuthService extends Mock implements IAuthService {}
 class _MockAuthController extends Mock implements AuthController {}
 
 class _MockCollectionService extends Mock implements CollectionService {}
+
+class _MockGroceryStoreAuthService extends Mock implements IOAuthService {}
 
 class _TestWrapper extends StatelessWidget {
   final Widget child;
@@ -41,6 +47,7 @@ void main() async {
   EasyLocalization.logger.enableLevels = [];
 
   setUpAll(() {
+    registerFallbackValue(Provider.coop);
     // Increase surface size to avoid overflows in tests
     final binding = TestWidgetsFlutterBinding.ensureInitialized();
     binding.platformDispatcher.views.first.physicalSize = const Size(
@@ -90,6 +97,61 @@ void main() async {
       when(() => mockAuthController.rememberMe).thenReturn(false);
       when(() => mockAuthController.agreedToTerms).thenReturn(false);
       getIt.registerSingleton<AuthController>(mockAuthController);
+
+      final groceryStoreAuthService = _MockGroceryStoreAuthService();
+      when(() => groceryStoreAuthService.getConnections()).thenAnswer(
+        (_) async => [
+          const Connection(
+            provider: Provider.coop,
+            accessToken: null,
+            refreshToken: null,
+            idToken: null,
+            accessTokenExpiration: null,
+          ),
+          const Connection(
+            provider: Provider.rema,
+            accessToken: null,
+            refreshToken: null,
+            idToken: null,
+            accessTokenExpiration: null,
+          ),
+          Connection(
+            provider: Provider.trumf,
+            accessToken: 'token',
+            refreshToken: 'token',
+            idToken: 'token',
+            accessTokenExpiration: DateTime.now().add(const Duration(hours: 1)),
+          ),
+        ],
+      );
+      final connections = await groceryStoreAuthService.getConnections();
+      for (var connection in connections) {
+        switch (connection.provider) {
+          case Provider.coop:
+            expect(connection.isAvailable, true);
+            expect(connection.isConnected, false);
+            break;
+          case Provider.rema:
+            expect(connection.isAvailable, true);
+            expect(connection.isConnected, false);
+            expect(connection.status, Status.not_configured);
+            break;
+          case Provider.trumf:
+            expect(connection.isAvailable, true);
+            expect(connection.isConnected, true);
+            break;
+        }
+      }
+      when(
+        () => groceryStoreAuthService.authorize(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => groceryStoreAuthService.fetchUserProfile(any()),
+      ).thenAnswer((_) async => null);
+      getIt.registerLazySingleton<IOAuthService>(() => groceryStoreAuthService);
+      getIt.registerSingleton<OAuthController>(
+        OAuthController(groceryStoreAuthService, getIt<Logger>()),
+      );
     });
 
     testWidgets('renders all settings sections', (tester) async {
@@ -106,9 +168,16 @@ void main() async {
 
         expect(find.text('ACCOUNT'), findsOneWidget);
         expect(find.text('APPEARANCE'), findsOneWidget);
+        expect(find.text('GROCERY INTEGRATIONS'), findsOneWidget);
         expect(find.text('ABOUT'), findsOneWidget);
         expect(find.text('Theme Mode'), findsOneWidget);
         expect(find.text('Language'), findsOneWidget);
+        // TODO: uncomment when in place
+        // expect(find.text('Coop'), findsOneWidget);
+        // expect(find.text('Rema 1000'), findsOneWidget);
+        // expect(find.text('Trumf'), findsOneWidget);
+        // expect(find.byType(VectorGraphic), findsNWidgets(3));
+        // expect(find.text('Not connected'), findsNothing);
       });
     });
 

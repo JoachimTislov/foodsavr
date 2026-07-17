@@ -54,6 +54,10 @@ android {
             manifestPlaceholders["EMULATOR_HOST"] = "10.0.2.2"
             resValue("string", "EMULATOR_HOST", "10.0.2.2")
         }
+
+        if (!manifestPlaceholders.containsKey("appAuthRedirectScheme")) {
+            manifestPlaceholders["appAuthRedirectScheme"] = "foodsavr"
+        }
     }
 
     flavorDimensions += "environment"

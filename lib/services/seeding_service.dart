@@ -126,13 +126,13 @@ class SeedingService {
   }
 
   /// Seeds inventory products for a specific user.
-  Future<List<int>> seedInventoryProducts(String userId) async {
+  Future<List<String>> seedInventoryProducts(String userId) async {
     final productsData = InventoryProductsData.getProducts();
-    final addedIds = <int>[];
+    final addedIds = <String>[];
     final now = DateTime.now();
 
     for (var data in productsData) {
-      final id = data['id'] as int;
+      final id = data['id'] as String;
       final expirationDays = data['expirationDays'] as int?;
       final quantity = data['quantity'] as int? ?? 1;
 
@@ -168,7 +168,7 @@ class SeedingService {
     final productsData = GlobalProductsData.getProducts();
 
     for (var data in productsData) {
-      final id = data['id'] as int;
+      final id = data['id'] as String;
       final product = Product(
         id: id,
         name: data['name'] as String,
@@ -192,7 +192,7 @@ class SeedingService {
 
     for (var data in collectionsData) {
       final id = data['id'] as String;
-      final mockProductIds = List<int>.from(data['productIds'] as List);
+      final mockProductIds = List<String>.from(data['productIds'] as List);
 
       final collection = Collection(
         id: id,

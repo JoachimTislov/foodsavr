@@ -119,9 +119,6 @@ class _ProductFormContentState extends State<_ProductFormContent> {
       if (widget.product == null) {
         if (widget.initialCollectionId != null) {
           var personalProductId = _generateProductId();
-          if (personalProductId == productId) {
-            personalProductId++;
-          }
           final personalProduct = Product(
             id: personalProductId,
             name: _nameController.text,
@@ -180,9 +177,10 @@ class _ProductFormContentState extends State<_ProductFormContent> {
     }
   }
 
-  int _generateProductId() {
-    return (DateTime.now().microsecondsSinceEpoch * 1000) +
-        _random.nextInt(1000);
+  String _generateProductId() {
+    final id =
+        (DateTime.now().microsecondsSinceEpoch * 1000) + _random.nextInt(1000);
+    return id.toString();
   }
 
   @override

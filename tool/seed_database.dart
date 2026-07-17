@@ -78,7 +78,7 @@ Future<void> main() async {
     print('Preparing inventory products...');
     final inventoryData = InventoryProductsData.getProducts();
     for (var data in inventoryData) {
-      final id = data['id'] as int;
+      final id = data['id'] as String;
       final expirationDays = data['expirationDays'] as int?;
       final quantity = data['quantity'] as int? ?? 1;
 
@@ -107,7 +107,7 @@ Future<void> main() async {
     print('Preparing global products...');
     final globalData = GlobalProductsData.getProducts();
     for (var data in globalData) {
-      final id = data['id'] as int;
+      final id = data['id'] as String;
       final product = Product(
         id: id,
         name: data['name'] as String,
@@ -127,7 +127,7 @@ Future<void> main() async {
     final collectionsData = CollectionsData.getCollections();
     for (var data in collectionsData) {
       final id = data['id'] as String;
-      final mockProductIds = List<int>.from(data['productIds'] as List);
+      final mockProductIds = List<String>.from(data['productIds'] as List);
 
       final collection = Collection(
         id: id,

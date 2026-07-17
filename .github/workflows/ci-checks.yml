@@ -44,6 +44,9 @@ jobs:
       - name: Write firebase_options.dart
         run: echo "${{ secrets.FIREBASE_OPTIONS }}" > lib/firebase_options.dart
 
+      - name: Create empty .env file
+        run: touch assets/.env
+
       - name: Analyze code
         run: flutter analyze --fatal-infos --fatal-warnings --no-pub
 

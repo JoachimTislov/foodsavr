@@ -3,6 +3,7 @@ seed-remote-creds.json
 stitch
 .deps-stamp
 .env
+.env-*
 windows
 ios
 macos

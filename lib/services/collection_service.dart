@@ -58,14 +58,14 @@ class CollectionService {
   }
 
   /// Build a map of product ID → inventory names for the given product IDs
-  Future<Map<int, List<String>>> getInventoryNamesForProducts(
+  Future<Map<String, List<String>>> getInventoryNamesForProducts(
     String userId,
-    Set<int> productIds,
+    Set<String> productIds,
   ) async {
     _logger.i('Building inventory map for ${productIds.length} products');
     try {
       final collections = await getCollectionsForUser(userId);
-      final inventoryMap = <int, List<String>>{};
+      final inventoryMap = <String, List<String>>{};
       for (final collection in collections) {
         if (collection.type == CollectionType.inventory) {
           for (final pid in collection.productIds) {
@@ -85,7 +85,7 @@ class CollectionService {
   /// Find all inventories (CollectionType.inventory) that contain a specific product ID
   Future<List<Collection>> getInventoriesByProductId(
     String userId,
-    int productId,
+    String productId,
   ) async {
     _logger.i(
       'Finding inventories for product $productId and user ${_redactUserId(userId)}',
@@ -161,7 +161,7 @@ class CollectionService {
   /// Add a product to a collection (update productIds list)
   Future<void> addProductToCollection(
     String collectionId,
-    int productId,
+    String productId,
   ) async {
     _logger.i('Adding product $productId to collection $collectionId');
     try {
@@ -176,7 +176,7 @@ class CollectionService {
   /// Add multiple products to a collection in a single atomic operation.
   Future<void> addProductsToCollection(
     String collectionId,
-    List<int> productIds,
+    List<String> productIds,
   ) async {
     _logger.i(
       'Adding ${productIds.length} products to collection $collectionId',
@@ -193,7 +193,7 @@ class CollectionService {
   /// Remove a product from a collection (update productIds list)
   Future<void> removeProductFromCollection(
     String collectionId,
-    int productId,
+    String productId,
   ) async {
     _logger.i('Removing product $productId from collection $collectionId');
     try {

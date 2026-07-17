@@ -6,6 +6,13 @@
 - Idiomatic Dart formatter (native)
     - Indentation: 2 spaces
 - [dcm](https://github.com/CQLabs/homebrew-dcm) for linting ([website](https://dcm.dev/))
+- Abbrivations for file names (easier to search): first char + underscore
+    - repository -> r_
+    - service -> s_
+    - controller -> c_
+    - model -> m_
+    - interface -> i_
+    - view -> v_
 
 [Effective Dart](https://dart.dev/effective-dart/design)
 

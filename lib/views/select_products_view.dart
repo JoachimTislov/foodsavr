@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
-import '../services/select_products_controller.dart';
+import '../controllers/c_select_products.dart';
 import '../widgets/product/product_select_item.dart';
 import '../widgets/common/retry_scaffold.dart';
 import '../widgets/transfer/location_header.dart';

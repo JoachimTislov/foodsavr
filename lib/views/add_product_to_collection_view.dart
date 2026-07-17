@@ -61,7 +61,7 @@ class _AddProductSheetState extends State<_AddProductSheet> {
   late final CollectionService _collectionService;
   late final IAuthService _authService;
   late Future<List<Product>> _productsFuture;
-  final Set<int> _selectedIds = {};
+  final Set<String> _selectedIds = {};
   bool _isSaving = false;
 
   @override
@@ -94,7 +94,7 @@ class _AddProductSheetState extends State<_AddProductSheet> {
       final selectedProducts = registryProducts
           .where((product) => _selectedIds.contains(product.id))
           .toList();
-      final createdProductIds = <int>[];
+      final createdProductIds = <String>[];
       for (final sourceProduct in selectedProducts) {
         final currentProduct = Product(
           id: _generateProductId(),
@@ -124,9 +124,10 @@ class _AddProductSheetState extends State<_AddProductSheet> {
     }
   }
 
-  int _generateProductId() {
-    return (DateTime.now().microsecondsSinceEpoch * 1000) +
-        _random.nextInt(1000);
+  String _generateProductId() {
+    final id =
+        (DateTime.now().microsecondsSinceEpoch * 1000) + _random.nextInt(1000);
+    return id.toString();
   }
 
   @override

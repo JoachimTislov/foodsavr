@@ -22,26 +22,26 @@ void main() {
 
   test('getInventoriesByProductId returns correct inventories', () async {
     final userId = 'user123';
-    final productId = 1;
+    final productId = '1';
     final collections = [
       Collection(
         id: 'c1',
         name: 'Pantry',
-        productIds: [1, 2],
+        productIds: ['1', '2'],
         userId: userId,
         type: CollectionType.inventory,
       ),
       Collection(
         id: 'c2',
         name: 'Fridge',
-        productIds: [1, 3],
+        productIds: ['1', '3'],
         userId: userId,
         type: CollectionType.inventory,
       ),
       Collection(
         id: 'c3',
         name: 'Shopping',
-        productIds: [1],
+        productIds: ['1'],
         userId: userId,
         type: CollectionType.shoppingList,
       ),

@@ -1,9 +1,13 @@
-.PHONY: run-dev run-prod build-apk-debug build-apk-release dev-chrome-prod dev-chrome start-firebase-emulators kill-firebase-emulators deps di view-emulator check _run-checks analyze fmt fix test clean locales locale-check locale-clean generate-locales preflight push worktree
+.PHONY: reload-env run-dev run-prod build-apk-debug build-apk-release dev-chrome-prod dev-chrome start-firebase-emulators kill-firebase-emulators deps generate-code view-emulator check _run-checks analyze fmt fix test clean locales locale-check locale-clean generate-locales preflight push worktree
 
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
+FLUTTER_INSTALL := flutter install
 FLUTTER_RUN_CMD := flutter run --no-pub $(DOTENV_FLAGS)
-FLUTTER_BUILD_APK_CMD := flutter build apk --no-pub $(DOTENV_FLAGS)
+# dev:integration_test is ignored when doing a release build - https://github.com/flutter/flutter/issues/169336
+FLUTTER_BUILD_APK_CMD := flutter build apk $(DOTENV_FLAGS)
 CHECK_HASH_CMD := find lib test pubspec.yaml analysis_options.yaml -type f 2>/dev/null | sort | xargs sha256sum | sha256sum | awk '{print $$1}'
+
+# Including --flavor since its required for constructing the apk name. See archive/issues/gradle-build-failed-apk-flavor.md
 
 run-dev: deps start-firebase-emulators
 	@$(FLUTTER_RUN_CMD) --flavor development
@@ -16,6 +20,12 @@ build-apk-debug: deps
 
 build-apk-release: deps
 	@$(FLUTTER_BUILD_APK_CMD) --flavor production --release
+
+install-dev:
+	@$(FLUTTER_INSTALL) --flavor development
+
+install-prod:
+	@$(FLUTTER_INSTALL) --flavor production
 
 dev-chrome-prod: deps
 	@$(FLUTTER_RUN_CMD) -d chrome --flavor production
@@ -49,7 +59,7 @@ deps: .deps-stamp
 	@flutter pub get > /dev/null
 	@touch .deps-stamp
 
-di:
+generate-code:
 	@dart run build_runner build --delete-conflicting-outputs
 
 view-emulator:

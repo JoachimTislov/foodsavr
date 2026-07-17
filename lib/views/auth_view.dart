@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../constants/privacy_notice.dart';
 import '../constants/terms_of_service.dart';
 import '../service_locator.dart';
-import '../services/auth_controller.dart';
+import '../controllers/c_auth.dart';
 import '../utils/config.dart';
 import '../widgets/auth/auth_form_fields.dart';
 import '../widgets/auth/auth_header.dart';

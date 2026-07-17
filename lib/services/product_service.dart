@@ -5,7 +5,7 @@ import 'package:logger/logger.dart';
 import 'package:openfoodfacts/openfoodfacts.dart' as off;
 import '../models/product_model.dart';
 import '../interfaces/i_product_repository.dart';
-import 'shelf_life_service.dart';
+import '../utils/shelf_life.dart';
 
 @lazySingleton
 class ProductService {
@@ -125,7 +125,7 @@ class ProductService {
         final estimatedExpiry = _shelfLifeService.estimateExpiration(
           // Use a temporary, minimal product instance for estimation
           Product(
-            id: 0,
+            id: '0',
             name: '',
             description: '',
             userId: '',
@@ -135,7 +135,7 @@ class ProductService {
 
         final randomSuffix = Random().nextInt(1000);
         final newProduct = Product(
-          id: DateTime.now().microsecondsSinceEpoch + randomSuffix,
+          id: '${DateTime.now().microsecondsSinceEpoch} $randomSuffix',
           name: productName,
           description: '',
           userId: userId,
@@ -166,7 +166,7 @@ class ProductService {
     _logger.i('Barcode not found on OFF API: $normalizedBarcode');
     return ScanAddProductResult(
       product: Product(
-        id: 0,
+        id: '0',
         name: '',
         description: '',
         userId: userId,
@@ -240,7 +240,7 @@ class ProductService {
     }
   }
 
-  Future<Product?> getProductById(int id) async {
+  Future<Product?> getProductById(String id) async {
     _logger.i('Fetching product by ID: $id');
     try {
       return await _productRepository.get(id);
@@ -273,7 +273,7 @@ class ProductService {
     }
   }
 
-  Future<void> deleteProduct(int id) async {
+  Future<void> deleteProduct(String id) async {
     _logger.i('Deleting product: $id');
     try {
       await _productRepository.delete(id);

@@ -8,7 +8,7 @@ import '../services/product_service.dart';
 import '../services/collection_service.dart';
 import '../views/product_form_view.dart';
 import '../views/product_detail_view.dart';
-import 'localization_utils.dart';
+import 'localization.dart';
 
 class ProductAddHelper {
   static Future<bool?> startAddProductFlow(

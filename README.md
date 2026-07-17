@@ -1,6 +1,6 @@
 # FoodSavr
 
-`foodsavr` is a mobile and web application designed to help you reduce food 
+`FoodSavr` is a mobile application designed to help you reduce food 
 waste, save time, and manage your grocery expenses efficiently. By tracking 
 inventory and automating meal planning, the application ensures you always know 
 what you have and what you need.
@@ -66,8 +66,10 @@ unnecessary cloud costs and ensure a consistent environment.
     make dev-chrome
     # or: flutter run -d chrome
     ```
-    The application connects to the emulators when `ENVIRONMENT=development` is 
-    set in `assets/.env`.
+    Grocery OAuth defaults now live in app config. Override values only when
+    needed with build properties / `--dart-define` values such as
+    `COOP_OAUTH_CLIENT_ID`, `REMA_OAUTH_SUBSCRIPTION_KEY`, and related
+    provider settings.
 
 ### Anonymous auth (guest mode)
 

@@ -7,7 +7,8 @@ import '../constants/privacy_notice.dart';
 import '../constants/terms_of_service.dart';
 import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
-import '../services/theme_notifier.dart';
+import '../utils/theme_notifier.dart';
+import '../features/third_party_integration/widgets/connections_list.dart';
 
 class SettingsView extends StatefulWidget {
   const SettingsView({super.key});
@@ -112,6 +113,8 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
               ],
             ),
+            const SizedBox(height: 24),
+            OAuthConnectionsList(),
             const SizedBox(height: 24),
 
             // Legal & Info Section
@@ -273,11 +276,11 @@ class _SettingsSection extends StatelessWidget {
             ),
           ),
         ),
-        Container(
-          decoration: BoxDecoration(
-            color: colorScheme.surfaceContainer,
+        Material(
+          color: colorScheme.surfaceContainer,
+          shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
+            side: BorderSide(
               color: colorScheme.outlineVariant.withValues(alpha: 0.1),
             ),
           ),
