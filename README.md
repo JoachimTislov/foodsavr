@@ -1,6 +1,6 @@
 # FoodSavr
 
-[![Project Status: WIP – Work in Progress](https://img.shields.io/badge/status-WIP-orange.svg)](https://wip.badge.style) [![Format, Analyze, Check Localizations and Run Tests](https://github.com/JoachimTislov/foodsavr/actions/workflows/ci-checks.yml/badge.svg)](https://github.com/JoachimTislov/foodsavr/actions/workflows/ci-checks.yml) [![codecov](https://codecov.io/gh/JoachimTislov/foodsavr/graph/badge.svg?token=R6TX2180SE)](https://codecov.io/gh/JoachimTislov/foodsavr)
+[![Project Status: WIP – Work in Progress](https://img.shields.io/badge/status-WIP-orange.svg)](https://wip.badge.style) [![Format, Analyze, Check Localizations and Run Tests](https://github.com/JoachimTislov/foodsavr/actions/workflows/ci-checks.yml/badge.svg)](https://github.com/JoachimTislov/foodsavr/actions/workflows/ci-checks.yml) [![codecov](https://codecov.io/gh/JoachimTislov/foodsavr/branch/main/graph/badge.svg)](https://codecov.io/gh/JoachimTislov/foodsavr)
 
 `FoodSavr` is a mobile application designed to help you reduce food 
 waste, save time, and manage your grocery expenses efficiently. By tracking 
@@ -21,7 +21,7 @@ what you have and what you need.
 - [x] **Shopping List view:** A basic, manual list for groceries to buy and check off, without direct connection to inventory levels.
 - [x] **Customizable Settings:** Language, themes, and app behavior.
 - [ ] **Receipt Scanning:** Quickly add items to your inventory by scanning receipts.
-- [x] **Expiration Tracking:** Get timely reminders before your food expires to reduce waste.
+- [ ] **Expiration Tracking:** Get timely reminders before your food expires to reduce waste.
 - [ ] **Consumption Analysis:** The app learns your consumption patterns to better predict when you'll run out of items.
 - [ ] **Meal Planning Sync:** Integrate your inventory with meal plans to create your shoppinglist.
 
