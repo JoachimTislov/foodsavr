@@ -1,30 +1,14 @@
-# FoodSavr
-
-<<<<<<< Updated upstream
-`FoodSavr` is a mobile application designed to help you reduce food 
-=======
-`Foodsavr` is a mobile application designed to help you reduce food 
->>>>>>> Stashed changes
-waste, save time, and manage your grocery expenses efficiently. By tracking 
-inventory and synchronizing with your meal planning, the application ensures you always know 
-what you have and what you need.
-
-## Motivation
-
-- **Reduce food waste:** Track product expiration dates and receive timely 
-  reminders to use items before they spoil.
-- **Save time:** Eliminate the need for manual inventory checks by 
-  synchronizing your stock with a consumption-rate system and planned meals
-- **Speed up inventory input:** Scan receipts and optionally scan products barcodes to add details
-- **Increase control:** Construct an overview of your food supplies
-
-<<<<<<< Updated upstream
-For more details on the project strategy, see the 
-[Core plan](./docs/plan/core.md).
-
 ## Development setup
 
-### Prerequisites
+**Getting started**
+
+If you are new to Flutter, we recommend reviewing these resources:
+
+- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
+- [Flutter Cookbook](https://docs.flutter.dev/cookbook)
+- [Full API Reference](https://api.flutter.dev/)
+
+**Prerequisites**
 
 - **Flutter SDK:** Version `^3.10.7` is required.
 - **Firebase CLI:** Install via npm: `npm install -g firebase-tools`.
@@ -69,10 +53,8 @@ unnecessary cloud costs and ensure a consistent environment.
     make dev-chrome
     # or: flutter run -d chrome
     ```
-    Grocery OAuth defaults now live in app config. Override values only when
-    needed with build properties / `--dart-define` values such as
-    `COOP_OAUTH_CLIENT_ID`, `REMA_OAUTH_SUBSCRIPTION_KEY`, and related
-    provider settings.
+    The application connects to the emulators when `ENVIRONMENT=development` is 
+    set in `assets/.env`.
 
 ### Anonymous auth (guest mode)
 
@@ -95,6 +77,7 @@ Reference: https://firebase.google.com/docs/auth/web/anonymous-auth
 | `make check` | Perform fast validation (analyze, fix, format, and test). |
 | `make push` | Run full preflight checks and push to the remote repository. |
 
+
 ## Technical architecture
 
 `foodsavr` is built using a modern, scalable stack and follows a 3-tier layered architecture.
@@ -110,14 +93,3 @@ Reference: https://firebase.google.com/docs/auth/web/anonymous-auth
 - [Dart Analysis Options](https://dart.dev/guides/language/analysis-options)
 - [Material 3 Components](https://m3.material.io/components)
 - [Material lib](https://api.flutter.dev/flutter/material/)
-
-## Getting started
-
-If you are new to Flutter, we recommend reviewing these resources:
-
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter Cookbook](https://docs.flutter.dev/cookbook)
-- [Full API Reference](https://api.flutter.dev/)
-=======
-For more details, read the [Documentation](./doc) or the source code ;)
->>>>>>> Stashed changes
