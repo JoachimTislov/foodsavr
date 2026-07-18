@@ -39,3 +39,9 @@ Consistency is key. Before submitting, make sure your code vibes with the rest o
 
 *   **Code Style:** We follow [Effective Dart](https://dart.dev/effective-dart) guidelines.
 *   **Folder Structure:** Take a look at how the `lib/` directory is organized by feature. We try to keep a clean separation between data, domain, and presentation layers.
+
+## Legal Notice
+
+By submitting a pull request, you agree to the Contributor License Agreement.
+The [CLA](./CLA.md) grants the project owner rights to use contributions
+under both the community license and commercial license.
