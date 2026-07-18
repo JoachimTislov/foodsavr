@@ -1,5 +1,7 @@
 # FoodSavr
 
+ [![Format, Analyze, Check Localizations and Run Tests](https://github.com/JoachimTislov/foodsavr/actions/workflows/ci-checks.yml/badge.svg)](https://github.com/JoachimTislov/foodsavr/actions/workflows/ci-checks.yml) [![codecov](https://codecov.io/gh/JoachimTislov/foodsavr/graph/badge.svg?token=R6TX2180SE)](https://codecov.io/gh/JoachimTislov/foodsavr)
+
 `Foodsavr` is a mobile application designed to help you reduce food 
 waste, save time, and manage your grocery expenses efficiently. By tracking 
 inventory and synchronizing with your meal planning, the application ensures you always know 
