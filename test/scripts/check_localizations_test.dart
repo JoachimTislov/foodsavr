@@ -6,7 +6,7 @@ import 'package:test/test.dart';
 // we might need to test it by running it as a process or extracting the logic.
 // For TDD of the logic, we'll implement the tests for the core functions.
 
-// Since the tool is in 'tool/', we'll define the expected behavior here.
+// Since the tool is in 'scripts/', we'll define the expected behavior here.
 // In a real TDD scenario, we'd have a library we can import.
 // For now, let's test the CLI behavior using Process.run.
 
@@ -53,7 +53,7 @@ void main() {
 
   Future<ProcessResult> runCheck() async {
     return Process.run('dart', [
-      File('tool/locale/check_localizations.dart').absolute.path,
+      File('scripts/locale/check_localizations.dart').absolute.path,
     ], workingDirectory: tempDir.path);
   }
 

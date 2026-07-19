@@ -51,7 +51,7 @@ jobs:
         run: flutter analyze --fatal-infos --fatal-warnings --no-pub
 
       - name: Localization check
-        run: dart run tool/locale/check_localizations.dart
+        run: dart run scripts/locale/check_localizations.dart
 
       - name: Run tests
         run: flutter test --no-pub --coverage
