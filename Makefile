@@ -119,15 +119,15 @@ locales:
 
 locale-check: deps
 	@echo "Checking localization keys..."
-	@dart run tool/locale/check_localizations.dart
+	@dart run scripts/locale/check_localizations.dart
 
 locale-clean: deps
 	@echo "Removing unused localization keys..."
-	@dart run tool/locale/remove_unused_locales.dart
+	@dart run scripts/locale/remove_unused_locales.dart
 
 generate-locales: deps
 	@echo "Generating localization stubs..."
-	@dart run tool/locale/generate_localizations.dart
+	@dart run scripts/locale/generate_localizations.dart
 
 preflight:
 	@echo "Running preflight sync checks..."
@@ -150,7 +150,7 @@ worktree:
 		echo "Error: Provide a branch name or issue number (e.g., make worktree name=123)"; \
 		exit 1; \
 	fi
-	@bash tool/create_worktree.sh "$(name)" "$(dir)" "$(task)"
+	@bash scripts/create_worktree.sh "$(name)" "$(dir)" "$(task)"
 
 # --- Automation & Gemini Targets ---
 
@@ -166,7 +166,7 @@ task:
 
 locale-seed: start-firebase-emulators
 	@echo "Seeding local emulator data using standalone seeder..."
-	@dart run tool/seed_database.dart
+	@dart run scripts/seed_database.dart
 
 remote-seed:
 	# TODO: Link to standard credential file for remote seeding, ensuring secure handling of sensitive information
@@ -175,7 +175,7 @@ remote-seed:
 		exit 1; \
 	fi
 	@echo "Seeding remote database using config: $(env)..."
-	@SEED_CONFIG_FILE=$(env) dart run tool/seed_database.dart
+	@SEED_CONFIG_FILE=$(env) dart run scripts/seed_database.dart
 
 feature:
 	@if [ -z "$(name)" ]; then \
@@ -235,5 +235,5 @@ push: deps preflight
 		git push; \
 	fi
 
-include tool/github/github.mk
+include scripts/github/github.mk
 

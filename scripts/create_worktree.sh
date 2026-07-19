@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# tool/create_worktree.sh
+# scripts/create_worktree.sh
 # Creates a Git worktree for a specific branch or issue and symlinks essential local-only files.
 
 if [[ $# -lt 1 ]]; then

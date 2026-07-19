@@ -164,8 +164,8 @@ Services orchestrate repositories and contain validation/business rules.
   - `widgets/auth/` - Authentication-related widgets
   - `widgets/product/` - Product-related widgets
 
-### Tooling
-- Use **Dart scripts** in `tool/` for project tooling (e.g., localization checks). Do not use Python scripts.
+### Scripts
+- Use **Dart scripts** in `scripts/` for project tooling (e.g., localization checks). Do not use Python scripts.
 
 ### Adding New Features
 1. Define domain models in `models/` with serialization
