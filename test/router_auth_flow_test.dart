@@ -7,7 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
-import 'package:foodsavr/router.dart';
+import 'package:foodsavr/routes/router.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/controllers/c_auth.dart';
 import 'package:foodsavr/services/product_service.dart';

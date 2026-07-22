@@ -5,21 +5,21 @@ import 'package:flutter/material.dart';
 import 'package:foodsavr/features/third_party_integration/widgets/web_view.dart';
 import 'package:go_router/go_router.dart';
 
-import 'interfaces/i_auth_service.dart';
-import 'utils/collection_types.dart';
-import 'views/auth_view.dart';
-import 'views/barcode_scan_view.dart';
-import 'views/collection_list_view.dart';
-import 'views/dashboard_view.dart';
-import 'views/dynamic_collection_view.dart';
-import 'views/landing_page_view.dart';
-import 'views/main_navigation_view.dart';
-import 'views/product_list_view.dart';
-import 'views/profile_view.dart';
-import 'views/select_products_view.dart';
-import 'views/settings_view.dart';
-import 'views/splash_view.dart';
-import 'views/transfer_management_view.dart';
+import '../interfaces/i_auth_service.dart';
+import '../utils/collection_types.dart';
+import '../views/auth_view.dart';
+import '../views/barcode_scan_view.dart';
+import '../views/collection_list_view.dart';
+import '../views/dashboard_view.dart';
+import '../views/dynamic_collection_view.dart';
+import '../views/landing_page_view.dart';
+import '../views/main_navigation_view.dart';
+import '../views/product_list_view.dart';
+import '../views/profile_view.dart';
+import '../views/select_products_view.dart';
+import '../views/settings_view.dart';
+import '../views/splash_view.dart';
+import '../views/transfer_management_view.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
