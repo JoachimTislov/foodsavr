@@ -1,26 +1,19 @@
 import 'package:foodsavr/features/third_party_integration/models/rema/transaction_model.dart';
-import 'package:json_annotation/json_annotation.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
+part 'transaction_head_model.freezed.dart';
 part 'transaction_head_model.g.dart';
 
-@JsonSerializable()
-final class TransactionHead {
-  final int? bonusTotal;
-  final double? bonusTotalDecimal;
-  final double? purchaseTotal;
-  final double? discountTotal;
-  final List<Transaction>? transactions;
-
-  TransactionHead({
-    this.bonusTotal,
-    this.bonusTotalDecimal,
-    this.purchaseTotal,
-    this.discountTotal,
-    this.transactions,
-  });
+@freezed
+abstract class TransactionHead with _$TransactionHead {
+  const factory TransactionHead({
+    int? bonusTotal,
+    double? bonusTotalDecimal,
+    double? purchaseTotal,
+    double? discountTotal,
+    List<Transaction>? transactions,
+  }) = _TransactionHead;
 
   factory TransactionHead.fromJson(Map<String, dynamic> json) =>
       _$TransactionHeadFromJson(json);
-
-  Map<String, dynamic> toJson() => _$TransactionHeadToJson(this);
 }

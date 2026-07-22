@@ -1,51 +1,21 @@
+import 'package:freezed_annotation/freezed_annotation.dart';
+
 import '../utils/collection_types.dart';
 
-class Collection {
-  final String id;
-  final String name;
-  final List<String> productIds;
-  final String userId; // Owner of the collection
-  final String? description;
-  final CollectionType
-  type; // Type of collection (inventory, shopping list, etc.)
+part 'collection_model.freezed.dart';
+part 'collection_model.g.dart';
 
-  Collection({
-    required this.id,
-    required this.name,
-    required this.productIds,
-    required this.userId,
-    this.description,
-    this.type = CollectionType.inventory,
-  });
-
-  Collection copyWith({
-    String? id,
-    String? name,
-    List<String>? productIds,
-    String? userId,
+@freezed
+abstract class Collection with _$Collection {
+  const Collection._();
+  const factory Collection({
+    required String id,
+    required String name,
+    required List<String> productIds,
+    required String userId,
     String? description,
-    CollectionType? type,
-  }) {
-    return Collection(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      productIds: productIds ?? this.productIds,
-      userId: userId ?? this.userId,
-      description: description ?? this.description,
-      type: type ?? this.type,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'productIds': productIds,
-      'userId': userId,
-      'description': description,
-      'type': type.name,
-    };
-  }
+    @Default(CollectionType.inventory) CollectionType type,
+  }) = _Collection;
 
   Map<String, dynamic> toFirestoreRest() {
     return {
@@ -64,17 +34,6 @@ class Collection {
     };
   }
 
-  factory Collection.fromJson(Map<String, dynamic> json) {
-    return Collection(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      productIds: List<String>.from(json['productIds'] as List),
-      userId: json['userId'] as String,
-      description: json['description'] as String?,
-      type: CollectionType.values.firstWhere(
-        (e) => e.name == json['type'],
-        orElse: () => CollectionType.inventory,
-      ),
-    );
-  }
+  factory Collection.fromJson(Map<String, dynamic> json) =>
+      _$CollectionFromJson(json);
 }

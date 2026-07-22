@@ -47,6 +47,9 @@ jobs:
       - name: Create empty .env file
         run: touch assets/.env
 
+      - name: Build generative code
+        run: dart run build_runner build --delete-conflicting-outputs
+
       - name: Analyze code
         run: flutter analyze --fatal-infos --fatal-warnings --no-pub
 

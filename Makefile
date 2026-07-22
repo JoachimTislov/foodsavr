@@ -59,7 +59,10 @@ deps: .deps-stamp
 	@flutter pub get > /dev/null
 	@touch .deps-stamp
 
-generate-code:
+watch:
+	@dart run build_runner watch -d
+
+build:
 	@dart run build_runner build --delete-conflicting-outputs
 
 view-emulator:
