@@ -7,7 +7,7 @@ part 'transaction_payment_model.g.dart';
 sealed class TransactionPayment with _$TransactionPayment {
   const factory TransactionPayment({
     String? meansOfPaymentDesc,
-    String? amount,
+    double? amount,
   }) = _TransactionPayment;
 
   factory TransactionPayment.fromJson(Map<String, Object?> json) =>
