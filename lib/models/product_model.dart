@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'product_model.freezed.dart';
+part 'product_model.g.dart';
 
 /// Product status based on expiration date
 enum ProductStatus {
@@ -124,127 +128,34 @@ class ExpiryEntry {
   }
 }
 
-class Product {
-  /// Scope in the shared `products` collection.
-  /// - global: globally shared registry products
-  /// - personal: user-owned registry products (templates)
-  /// - current: concrete products used in inventories/shopping lists
-  final String registryType;
-  final String id;
-  final String name;
-  final String description;
-  final String userId; // Owner of the product
-  final List<ExpiryEntry> expiries; // Quantities and their expiration dates
-  final int nonExpiringQuantity; // Quantity without expiration date
-  final String? category; // Category (e.g., 'Dairy', 'Fruits', 'Vegetables')
-  final String? imageUrl; // Optional image URL
-  final String? barcode; // Optional product barcode
-  final bool isGlobal; // True if product is in global catalog
-  final String? mappedFromProductId;
-  final List<String> tags; // Labels and tags from APIs like OpenFoodFacts
-
-  Product({
-    required this.id,
-    required this.name,
-    required this.description,
-    required this.userId,
-    this.expiries = const [],
-    this.nonExpiringQuantity = 0,
-    this.category,
-    this.imageUrl,
-    this.barcode,
-    this.isGlobal = false,
-    this.registryType = 'current',
-    this.mappedFromProductId,
-    this.tags = const [],
-  });
-
-  Product copyWith({
-    String? id,
-    String? name,
-    String? description,
-    String? userId,
-    List<ExpiryEntry>? expiries,
-    int? nonExpiringQuantity,
+@freezed
+abstract class Product with _$Product {
+  const Product._();
+  const factory Product({
+    required String id,
+    required String name,
+    required String description,
+    required String userId, // Owner of the product
+    @Default([])
+    List<ExpiryEntry> expiries, // Quantities and their expiration dates
+    @Default(0) int nonExpiringQuantity,
     String? category,
     String? imageUrl,
     String? barcode,
-    bool? isGlobal,
-    List<String>? tags,
-  }) {
-    return Product(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      description: description ?? this.description,
-      userId: userId ?? this.userId,
-      expiries: expiries ?? this.expiries,
-      nonExpiringQuantity: nonExpiringQuantity ?? this.nonExpiringQuantity,
-      category: category ?? this.category,
-      imageUrl: imageUrl ?? this.imageUrl,
-      barcode: barcode ?? this.barcode,
-      isGlobal: isGlobal ?? this.isGlobal,
-      tags: tags ?? this.tags,
-    );
-  }
+    @Default(false) bool? isGlobal,
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'description': description,
-      'userId': userId,
-      'expiries': expiries.map((e) => e.toJson()).toList(),
-      'nonExpiringQuantity': nonExpiringQuantity,
-      'category': category,
-      'imageUrl': imageUrl,
-      'barcode': barcode,
-      'isGlobal': isGlobal,
-      'registryType': registryType,
-      'mappedFromProductId': mappedFromProductId,
-      'tags': tags,
-    };
-  }
+    /// registryType -> Scope in the shared `products` collection.
+    /// - global: globally shared registry products
+    /// - personal: user-owned registry products (templates)
+    /// - current: concrete products used in inventories/shopping lists
+    @Default('current') String registryType,
+    String? mappedFromProductId,
+    @Default([])
+    List<String> tags, // Labels and tags from APIs like OpenFoodFacts
+  }) = _Product;
 
-  factory Product.fromJson(Map<String, dynamic> json) {
-    final parsedExpiries =
-        (json['expiries'] as List<dynamic>?)
-            ?.map((e) => ExpiryEntry.fromJson(e as Map<String, dynamic>))
-            .toList() ??
-        <ExpiryEntry>[];
-    final legacyQuantity = json['quantity'] as int?;
-    final legacyExpirationDate = json['expirationDate'];
-    final hasLegacyExpiry = legacyExpirationDate is String;
-    final fallbackExpiries = hasLegacyExpiry && legacyQuantity != null
-        ? [
-            ExpiryEntry(
-              quantity: legacyQuantity,
-              expirationDate: DateTime.parse(legacyExpirationDate),
-            ),
-          ]
-        : <ExpiryEntry>[];
-
-    return Product(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      description: json['description'] as String,
-      userId: json['userId'] as String,
-      expiries: parsedExpiries.isNotEmpty ? parsedExpiries : fallbackExpiries,
-      nonExpiringQuantity:
-          (json['nonExpiringQuantity'] as int?) ??
-          (parsedExpiries.isEmpty && fallbackExpiries.isEmpty
-              ? (legacyQuantity ?? 0)
-              : 0),
-      category: json['category'] as String?,
-      imageUrl: json['imageUrl'] as String?,
-      barcode: json['barcode'] as String?,
-      isGlobal: json['isGlobal'] as bool? ?? false,
-      registryType:
-          json['registryType'] as String? ??
-          ((json['isGlobal'] as bool? ?? false) ? 'global' : 'current'),
-      mappedFromProductId: json['mappedFromProductId'] as String?,
-      tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? const [],
-    );
-  }
+  factory Product.fromJson(Map<String, Object?> json) =>
+      _$ProductFromJson(json);
 
   // Helper method to get total quantity
   int get quantity =>
