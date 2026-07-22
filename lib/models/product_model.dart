@@ -119,7 +119,7 @@ abstract class Product with _$Product {
     String? category,
     String? imageUrl,
     String? barcode,
-    @Default(false) bool? isGlobal,
+    @Default(false) bool isGlobal,
 
     /// registryType -> Scope in the shared `products` collection.
     /// - global: globally shared registry products
