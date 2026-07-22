@@ -62,7 +62,7 @@ deps: .deps-stamp
 watch:
 	@dart run build_runner watch -d
 
-generate-code:
+build:
 	@dart run build_runner build --delete-conflicting-outputs
 
 view-emulator:
