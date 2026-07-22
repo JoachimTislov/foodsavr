@@ -8,10 +8,10 @@ abstract class OAuthToken with _$OAuthToken {
   const OAuthToken._();
 
   const factory OAuthToken({
-    required String? access,
-    required String? refresh,
-    required String? id,
-    required String? exp,
+    required String access,
+    required String refresh,
+    required String id,
+    required String exp,
   }) = _OAuthToken;
 
   factory OAuthToken.fromJson(Map<String, dynamic> json) =>

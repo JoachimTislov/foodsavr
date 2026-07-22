@@ -161,19 +161,16 @@ class OAuthService implements IOAuthService {
 
   Future<OAuthToken?> readOAuthToken(Provider provider) async {
     try {
-      // TODO: handle null
-      List<String?> wait = await Future.wait([
+      final [access, refresh, id, exp] = await Future.wait([
         _secureStorage.read(provider, Key.access_token),
         _secureStorage.read(provider, Key.refresh_token),
         _secureStorage.read(provider, Key.id_token),
         _secureStorage.read(provider, Key.expires_at),
       ]);
-      return OAuthToken(
-        access: wait[0],
-        refresh: wait[1],
-        id: wait[2],
-        exp: wait[3],
-      );
+      if (access == null || refresh == null || id == null || exp == null) {
+        return null;
+      }
+      return OAuthToken(access: access, refresh: refresh, id: id, exp: exp);
     } catch (e) {
       _logger.e('Failed to read OAuthToken for ${provider.name}, $e');
       return null;
