@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:foodsavr/features/third_party_integration/interfaces/i_oauth_service.dart';
 import 'package:foodsavr/features/third_party_integration/models/connection_model.dart';
 import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';
-import 'package:foodsavr/features/third_party_integration/models/token_model.dart';
+import 'package:foodsavr/features/third_party_integration/models/oauth_token_model.dart';
 import 'package:foodsavr/features/third_party_integration/oauth_util.dart';
 import 'package:http/http.dart';
 import 'package:injectable/injectable.dart';
@@ -161,18 +161,16 @@ class OAuthService implements IOAuthService {
 
   Future<OAuthToken?> readOAuthToken(Provider provider) async {
     try {
-      List<String?> wait = await Future.wait([
+      final [access, refresh, id, exp] = await Future.wait([
         _secureStorage.read(provider, Key.access_token),
         _secureStorage.read(provider, Key.refresh_token),
         _secureStorage.read(provider, Key.id_token),
         _secureStorage.read(provider, Key.expires_at),
       ]);
-      return OAuthToken(
-        access: wait[0],
-        refresh: wait[1],
-        id: wait[2],
-        exp: wait[3],
-      );
+      if (access == null || refresh == null || id == null || exp == null) {
+        return null;
+      }
+      return OAuthToken(access: access, refresh: refresh, id: id, exp: exp);
     } catch (e) {
       _logger.e('Failed to read OAuthToken for ${provider.name}, $e');
       return null;

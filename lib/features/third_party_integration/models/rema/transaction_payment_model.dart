@@ -1,16 +1,15 @@
-import 'package:json_annotation/json_annotation.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
+part 'transaction_payment_model.freezed.dart';
 part 'transaction_payment_model.g.dart';
 
-@JsonSerializable()
-final class TransactionPayment {
-  final String? meansOfPaymentDesc;
-  final double? amount;
+@freezed
+sealed class TransactionPayment with _$TransactionPayment {
+  const factory TransactionPayment({
+    String? meansOfPaymentDesc,
+    double? amount,
+  }) = _TransactionPayment;
 
-  TransactionPayment({this.meansOfPaymentDesc, this.amount});
-
-  factory TransactionPayment.fromJson(Map<String, dynamic> json) =>
+  factory TransactionPayment.fromJson(Map<String, Object?> json) =>
       _$TransactionPaymentFromJson(json);
-
-  Map<String, dynamic> toJson() => _$TransactionPaymentToJson(this);
 }
