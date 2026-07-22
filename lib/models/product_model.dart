@@ -49,18 +49,16 @@ enum ProductStatus {
 }
 
 /// Entry for a specific quantity expiring on a specific date
-class ExpiryEntry {
-  final int quantity;
-  final DateTime expirationDate;
+@freezed
+abstract class ExpiryEntry with _$ExpiryEntry {
+  const ExpiryEntry._();
+  const factory ExpiryEntry({
+    required int quantity,
+    required DateTime expirationDate,
+  }) = _ExpiryEntry;
 
-  ExpiryEntry({required this.quantity, required this.expirationDate});
-
-  Map<String, dynamic> toJson() {
-    return {
-      'quantity': quantity,
-      'expirationDate': expirationDate.toIso8601String(),
-    };
-  }
+  factory ExpiryEntry.fromJson(Map<String, Object?> json) =>
+      _$ExpiryEntryFromJson(json);
 
   Map<String, dynamic> toFirestoreRest() {
     return {
@@ -71,27 +69,6 @@ class ExpiryEntry {
         },
       },
     };
-  }
-
-  factory ExpiryEntry.fromJson(Map<String, dynamic> json) {
-    // TODO: Handle missing or malformed expirationDate more robustly
-    final rawDate = json['expirationDate'];
-    DateTime parsedDate;
-    if (rawDate is String) {
-      parsedDate = DateTime.parse(rawDate);
-    } else if (rawDate != null &&
-        rawDate.runtimeType.toString() == 'Timestamp') {
-      parsedDate = (rawDate as dynamic).toDate() as DateTime;
-    } else if (rawDate is DateTime) {
-      parsedDate = rawDate;
-    } else {
-      parsedDate = DateTime.now();
-    }
-
-    return ExpiryEntry(
-      quantity: (json['quantity'] as num?)?.toInt() ?? 0,
-      expirationDate: parsedDate,
-    );
   }
 
   bool get isExpired {
