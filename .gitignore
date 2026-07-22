@@ -22,6 +22,7 @@ firebase_options.dart
 research/raw
 
 # generated code
+injection.config.dart
 *.g.dart
 *.freezed.dart
 
