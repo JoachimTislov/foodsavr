@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:foodsavr/features/third_party_integration/interfaces/i_oauth_service.dart';
 import 'package:foodsavr/features/third_party_integration/models/connection_model.dart';
 import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';
-import 'package:foodsavr/features/third_party_integration/models/token_model.dart';
+import 'package:foodsavr/features/third_party_integration/models/oauth_token_model.dart';
 import 'package:foodsavr/features/third_party_integration/oauth_util.dart';
 import 'package:http/http.dart';
 import 'package:injectable/injectable.dart';
@@ -161,6 +161,7 @@ class OAuthService implements IOAuthService {
 
   Future<OAuthToken?> readOAuthToken(Provider provider) async {
     try {
+      // TODO: handle null
       List<String?> wait = await Future.wait([
         _secureStorage.read(provider, Key.access_token),
         _secureStorage.read(provider, Key.refresh_token),
