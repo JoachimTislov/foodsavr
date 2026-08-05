@@ -11,7 +11,7 @@ import 'package:openfoodfacts/openfoodfacts.dart';
 
 import 'firebase_options.dart';
 import 'interfaces/i_auth_service.dart';
-import 'routes/router.dart';
+import 'routes/go_router.dart';
 import 'service_locator.dart';
 import 'utils/theme_notifier.dart';
 import 'utils/app_theme.dart';
