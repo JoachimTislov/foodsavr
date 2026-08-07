@@ -40,7 +40,7 @@ Want to tinker with the code? Check out the **[Getting Started guide](./doc/gett
 
 Got an idea or want to fix something? Awesome! We have a few guidelines for contributing that are pretty different from most projects, especially regarding AI-assisted code.
 
-Please check out our **[CONTRIBUTING.md](./.github/CONTRIBUTING.md)** for the full scoop on how to get started.
+Please check out our **[CONTRIBUTING.md](./CONTRIBUTING.md)** for the full scoop on how to get started.
 
 ## License
 
