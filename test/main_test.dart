@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/main.dart' as main_app;
 import 'package:foodsavr/main.dart';
-import 'package:foodsavr/router.dart';
+import 'package:foodsavr/routes/go_router.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/controllers/c_auth.dart';
 import 'package:foodsavr/services/collection_service.dart';
