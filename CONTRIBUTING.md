@@ -6,7 +6,7 @@ This is a pretty casual project, but to keep things organized and ensure quality
 
 **We don't accept pull requests that aren't linked to an existing issue.**
 
-Before you write any code, please check the [Issues tab](https://github.com/your-username/foodsavr/issues) to see if there's a relevant ticket. If not, open one! This lets us discuss the proposed change, agree on the approach, and make sure it aligns with the project's goals before you spend time on it.
+Before you write any code, please check the [Issues tab](https://github.com/JoachimTislov/foodsavr/issues) to see if there's a relevant ticket. If not, open one! This lets us discuss the proposed change, agree on the approach, and make sure it aligns with the project's goals before you spend time on it.
 
 The best contributions are small, focused, and solve one problem at a time.
 
