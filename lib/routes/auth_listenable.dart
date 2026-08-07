@@ -26,10 +26,11 @@ class AuthStreamListenable extends ChangeNotifier {
 
     // Safety fallback for initialization
     _fallbackTimer = Timer(const Duration(seconds: 1), () {
-      if (!_isInitialized && !_isDisposed) {
-        _isInitialized = true;
-        notifyListeners();
-      }
+      // If the auth stream hasn't emitted an event by now, it means
+      // authentication state is not yet known. We explicitly do NOT
+      // set _isInitialized to true or call notifyListeners here,
+      // as per requirements to keep splash active until actual auth-stream event.
+      // The splash screen should handle what happens if no auth event arrives.
     });
   }
 
