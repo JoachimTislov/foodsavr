@@ -19,16 +19,15 @@ Follow these instructions for implementing new features, widgets, and business l
    - Define abstract repository interfaces in `lib/interfaces/`.
    - Implement the repository in `lib/repositories/`, typically using Firestore.
 
-4. **Implement Business Logic in Services/Providers:**
+4. **Implement Business Logic in Services:**
    - Create services in `lib/services/` to handle validation and business rules.
-   - Use Riverpod `@riverpod` annotation for providers.
-   - Inject repository interfaces into services or providers via constructor injection or `ref.watch`.
+   - Inject repository interfaces into services via constructor injection.
 
 5. **State Management and DI:**
-   - Use Riverpod for application state management (AsyncNotifier, Notifier).
-   - Use `@injectable` for repository implementations.
-   - Run `make codegen` to generate both Riverpod and Injectable code.
-   - UI should consume state via `ConsumerWidget` or `ref.watch`.
+   - Use GetIt for dependency injection, configured in `lib/injection.dart`.
+   - Use `watch_it` for reactive state management in widgets (e.g., `WatchingWidget`).
+   - Use `@injectable` on repository and service implementations and run `dart run build_runner build --delete-conflicting-outputs` to generate DI code.
+   - UI widgets should consume state using `watchIt<T>()`, `watchValue((MyService s) => s.someValue)`, etc.
 
 6. **Adhere to Naming Conventions:**
    - File names: `snake_case.dart`

@@ -9,7 +9,7 @@ Follow these instructions for managing translations and ensuring multi-language 
 
 1. **Maintain Translation Files:**
    - Translations are stored in `assets/translations/`.
-   - Supported locales: `en-US.json`, `nb-NO.json`.
+   - Supported locales: `en.json`, `nb.json`.
    - When adding a key, ensure it is added to ALL translation files with appropriate translations.
 
 2. **Use Descriptive Keys:**

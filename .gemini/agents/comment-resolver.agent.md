@@ -1,7 +1,7 @@
 ---
 name: comment-resolver
 description: Expertly analyzes and resolves pull request feedback by applying high-quality, architectural fixes aligned with Material 3 and Effective Dart.
-tools: [mcp_github_add_comment_to_pending_review, mcp_github_add_reply_to_pull_request_comment, mcp_github_pull_request_read, run_shell_command, read_file, replace, write_file, glob, grep_search]
+tools: [run_shell_command, read_file, replace, write_file, glob, grep_search]
 max_turns: 100
 ---
 

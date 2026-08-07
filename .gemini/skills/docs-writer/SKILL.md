@@ -128,6 +128,6 @@ and that all links are functional.
 2.  **Self-review:** Re-read changes for formatting, correctness, and flow.
 3.  **Link check:** Verify all new and existing links leading to or from modified
     pages.
-4.  **Format:** Once all changes are complete, ask to execute `npm run format`
+4.  **Format:** Once all changes are complete, ask to execute `make check`
     to ensure consistent formatting across the project. If the user confirms,
     execute the command.
