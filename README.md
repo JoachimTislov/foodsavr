@@ -44,9 +44,11 @@ Please check out our **[CONTRIBUTING.md](./.github/CONTRIBUTING.md)** for the fu
 
 ## License
 
-This project is licensed under the **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License**. Peep the `LICENSE` file for the legal details.
+This project is licensed under the **PolyForm Noncommercial License 1.0.0**.
+See the `LICENSE` file for the full legal terms.
 
-This basically means you can share and adapt it for non-commercial use, as long as you give credit and use the same license.
+This license allows for any non-commercial use, but you may not use the
+software for commercial purposes.
 
 ---
 
