@@ -17,13 +17,13 @@ what you have and what you need.
 - [x] **Barcode Lookup:** Scan product barcodes to automatically fetch product details.
 - [x] **Inventory Overview:** A clear and concise overview of all your food supplies.
 - [x] **Insightful Dashboard:** Get an at-a-glance overview of your food consumption habits and waste reduction stats.
-- [x] **Third party integration (Rema Æ app):** Connect with supported grocery stores for easier purchase history import.
+- [x] **Third-party integration (Rema Æ app):** Connect with supported grocery stores for easier purchase history import.
 - [x] **Shopping List view:** A basic, manual list for groceries to buy and check off, without direct connection to inventory levels.
 - [x] **Customizable Settings:** Language, themes, and app behavior.
 - [ ] **Receipt Scanning:** Quickly add items to your inventory by scanning receipts.
 - [ ] **Expiration Tracking:** Get timely reminders before your food expires to reduce waste.
 - [ ] **Consumption Analysis:** The app learns your consumption patterns to better predict when you'll run out of items.
-- [ ] **Meal Planning Sync:** Integrate your inventory with meal plans to create your shoppinglist.
+- [ ] **Meal Planning Sync:** Integrate your inventory with meal plans to create your shopping list.
 
 ## Tech Stack
 
