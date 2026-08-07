@@ -2,7 +2,7 @@
 
 Project architecture, principles, and rules for `foodsavr` (Flutter SDK >=3.32.0).
 
-## Stack & Architecture
+## 1. Stack & Architecture
 - **Tech Stack**: Dart, Firebase (Auth/Firestore), GetIt (DI), logger, easy_localization.
 - **Pattern**: 3-tier Layered Architecture
 - **Core Principles**: Interface-based data access, DI for all dependencies, Emulator-driven dev.
@@ -12,10 +12,10 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK >=3.32.0
 - **Widget Rules**: **One widget per file**; no private builders (e.g., `_buildX()`) in views; centralize duplicate logic and markup.
 - **Strict Separation**: Business logic **MUST** reside in models or services. **ZERO** business logic in widget build methods or private view helpers.
 - **Lightweight Forms as Bottom Sheets**: Simple create/edit forms (e.g., collection form, product picker) should use `showModalBottomSheet` with a static `show()` method instead of full-screen route navigation. Reserve full routes for complex views.
-- **No Python Scripts**: Use Dart scripts in `tool/` for any project tooling. Do not use Python.
+- **No Python Scripts**: Use Dart scripts in `scripts/` for any project tooling. Do not use Python.
 - **Professional Output**: Keep comments and console output strictly minimal and professional. Do not use emojis or icons.
 
-## Commands
+## 3. Commands
 - `make push`: Push to remote repository
 - `make deps`: Fetch dependencies.
 - `make check`: Run full suite (analyze, format, test). **Required before commit**.
@@ -23,7 +23,7 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK >=3.32.0
 - `make locale-clean`: Remove all unused localization keys from JSON files.
 - `make generate-locales`: Generate stubs for missing localization keys.
 
-## 4. **Workflow**:
+## 4. Workflow
 - **Meta-Task Branch**: Reserve the main working branch (default folder) for "meta" tasks (agents, documentation, research, system-level updates). All source code modifications must be made in separate Git worktrees.
 - **Task Ordering**: Prioritize tasks in the following order: (1) handle existing PRs, (2) handle open issues, (3) create new issues systematically from the `TODO.md` / TODO folder backlog.
 - **TODO Prioritization**: TODOs from local backlog files should only be tackled when there are no open issues and no open PRs available.

@@ -1,6 +1,7 @@
 ---
 name: flutter-review
 description: Expert Flutter and Dart code reviewer. Analyzes PRs for architectural alignment, Material 3 compliance, and Effective Dart standards. Provides a summary with improvements, issues, and resolution steps.
+tools: [read_file, glob, grep_search, run_shell_command]
 ---
 
 # Flutter Review Agent
