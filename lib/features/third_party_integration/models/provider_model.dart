@@ -2,7 +2,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:foodsavr/utils/config.dart';
 
 enum Provider {
-  coop('Coop'),
+  coop('Coop Medlem'),
   rema('Rema'),
   trumf('Trumf');
 
