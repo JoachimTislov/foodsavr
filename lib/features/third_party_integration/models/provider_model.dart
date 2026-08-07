@@ -1,4 +1,5 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:foodsavr/utils/config.dart';
 
 enum Provider {
   coop('Coop'),
@@ -20,6 +21,8 @@ enum Provider {
 
   /// checks if provider is configured for the given env
   bool isSupported() {
-    return dotenv.env['${name.toUpperCase()}_IS_SUPPORTED'] != null;
+    return Config.isDevelopment ||
+        (Config.isProduction &&
+            dotenv.env['${name.toUpperCase()}_IS_SUPPORTED'] != null);
   }
 }
