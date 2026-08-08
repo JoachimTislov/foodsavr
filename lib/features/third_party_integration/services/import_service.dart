@@ -26,13 +26,11 @@ class ImportService implements IImportService {
 
   @override
   Future<void> getReceiptById(String id) {
-    // TODO: implement
     throw UnimplementedError();
   }
 
   @override
   Future<void> getReceipts() {
-    // TODO: implement
     throw UnimplementedError();
   }
 

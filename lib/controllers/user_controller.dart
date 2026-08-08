@@ -11,8 +11,6 @@ import '../utils/auth_error_handler.dart';
 
 typedef Translator = String Function(String);
 
-// TODO: Remove translate arg in constructor and use context-based translation in tests instead. read easy_localization docs to find the best approach
-
 @injectable
 class UserController extends ChangeNotifier {
   final IAuthService _authService;
