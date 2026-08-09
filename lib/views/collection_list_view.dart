@@ -70,6 +70,7 @@ class _CollectionListViewState extends State<CollectionListView> {
                   context,
                   type: widget.typeFilter ?? CollectionType.inventory,
                 );
+                if (!mounted) return;
                 if (result == true) {
                   await _fetchCollections(); // Refetch if modified
                 }
