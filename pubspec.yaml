@@ -34,7 +34,7 @@ dependencies:
   cupertino_icons: ^1.0.8 # MIT
   firebase_core: ^4.4.0 # BSD-3-Clause
   firebase_auth: ^6.1.4 # BSD-3-Clause
-  cloud_firestore: ^6.1.2 # BSD-3-Clause
+  cloud_firestore: ^6.8.0 # BSD-3-Clause
   easy_localization: ^3.0.0 # MIT
   logger: ^2.6.2 # MIT
   get_it: ^9.2.0 # MIT
