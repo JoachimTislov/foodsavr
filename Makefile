@@ -33,6 +33,10 @@ dev-chrome-prod: deps
 dev-chrome: deps start-firebase-emulators
 	@$(FLUTTER_RUN_CMD) -d chrome
 
+firebase-options:
+	@base64 -w 0 lib/firebase_options.dart | gh secret set FIREBASE_OPTIONS_B64
+	@base64 -w 0 lib/firebase_options.dart | gh secret set FIREBASE_OPTIONS_B64 --app dependabot
+
 start-firebase-emulators:
 	@if ! lsof -ti :9099 -sTCP:LISTEN > /dev/null; then \
 		echo "Starting Firebase Emulators..."; \
