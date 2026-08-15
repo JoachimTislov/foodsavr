@@ -38,7 +38,7 @@ dependencies:
   easy_localization: ^3.0.0 # MIT
   logger: ^2.6.2 # MIT
   get_it: ^9.2.0 # MIT
-  intl: ^0.20.2 # BSD-3-Clause
+  intl: ^0.20.3 # BSD-3-Clause
   google_sign_in: ^7.2.0 # BSD-3-Clause
   flutter_facebook_auth: ^7.1.5 # MIT
   go_router: ^17.1.0 # BSD-3-Clause
