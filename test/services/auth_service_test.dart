@@ -131,7 +131,7 @@ void main() {
       ).thenAnswer((_) async => mockUserCredential);
       when(
         () => mockCollectionService.createInitialCollections(uid),
-      ).thenAnswer((_) async => {});
+      ).thenAnswer((_) async {});
 
       await authService.signUp(email: email, password: password);
 
