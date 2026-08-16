@@ -9,4 +9,5 @@ abstract class ICollectionRepository extends IRepository<Collection, String> {
   Future<void> addProduct(String collectionId, String productId);
   Future<void> addProducts(String collectionId, List<String> productIds);
   Future<void> removeProduct(String collectionId, String productId);
+  Future<void> addCollectionsInBatch(List<Collection> collections);
 }
