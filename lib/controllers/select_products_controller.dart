@@ -22,6 +22,10 @@ class SelectProductsController extends ChangeNotifier {
 
   void loadProducts(List<Product> products) {
     _allProducts = List.of(products);
+
+    final newProductIds = products.map((p) => p.id).toSet();
+    _selectedIds.retainWhere((id) => newProductIds.contains(id));
+
     notifyListeners();
   }
 

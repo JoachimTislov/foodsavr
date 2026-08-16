@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:foodsavr/controllers/user_controller.dart';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
 import 'package:openfoodfacts/openfoodfacts.dart';
@@ -129,7 +130,9 @@ void main() async {
       fallbackLocale: enLocale,
       startLocale: enLocale,
       useFallbackTranslations: true,
-      child: MyApp(router: createAppRouter(getIt<IAuthService>())),
+      child: MyApp(
+        router: createAppRouter(getIt<IAuthService>(), getIt<UserController>()),
+      ),
     ),
   );
 }

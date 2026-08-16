@@ -4,12 +4,15 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foodsavr/controllers/user_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/routes/go_router.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockUser extends Mock implements User {}
+
+class MockUserController extends Mock implements UserController {}
 
 class _AnonymousUser extends Fake implements User {
   @override
@@ -90,12 +93,14 @@ class _FakeAuthService implements IAuthService {
 
 void main() {
   group('Router Tests', () {
+    final mockUserController = MockUserController();
     late _FakeAuthService authService;
     late GoRouter router;
 
     setUp(() {
+      when(() => mockUserController.isInitialized).thenReturn(true);
       authService = _FakeAuthService();
-      router = createAppRouter(authService);
+      router = createAppRouter(authService, mockUserController);
     });
 
     tearDown(() async {
@@ -119,7 +124,7 @@ void main() {
     });
 
     test('_AuthStreamListenable disposes subscription properly', () async {
-      final router2 = createAppRouter(authService);
+      final router2 = createAppRouter(authService, mockUserController);
       router2.dispose();
       // Should not throw after disposal
       expect(() => authService.signInForTest('test'), returnsNormally);

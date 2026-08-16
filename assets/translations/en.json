@@ -187,6 +187,8 @@
 		"deleteAccountConfirmation": "Yes, Delete Account",
 		"delete_account": "Delete Account",
 		"delete_account_description": "Permanently delete your account and all associated data. This action cannot be undone.",
+		"error_delete_account": "Failed to delete account. Please try again.",
+		"error_sign_out": "Failed to sign out. Please try again.",
 		"forgot_password": "Forgot Password",
 		"log_out": "Log Out",
 		"title": "Profile",

@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
@@ -11,16 +14,49 @@ typedef Translator = String Function(String);
 // TODO: Remove translate arg in constructor and use context-based translation in tests instead. read easy_localization docs to find the best approach
 
 @injectable
-class AuthController extends ChangeNotifier {
+class UserController extends ChangeNotifier {
   final IAuthService _authService;
   final Logger _logger;
   final Translator _tr;
+  late final StreamSubscription _authSubscription;
+  bool _isInitialized = false;
 
-  AuthController(
+  UserController(
     this._authService,
     this._logger, {
     @factoryParam Translator? translate,
-  }) : _tr = translate ?? ((key) => tr(key));
+  }) : _tr = translate ?? ((key) => tr(key)) {
+    _user = _authService.currentUser;
+    _authSubscription = _authService.authStateChanges.listen((user) {
+      _user = user;
+      if (!_isInitialized) {
+        _isInitialized = true;
+      }
+      notifyListeners();
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription.cancel();
+    super.dispose();
+  }
+
+  User? _user;
+  User? get user => _user;
+  bool get isInitialized => _isInitialized;
+
+  bool get isAnonymous => _user?.isAnonymous ?? true;
+
+  String get displayName {
+    if (isAnonymous) {
+      return _tr('settings.guest_user');
+    }
+    return _user?.displayName ?? _user?.email?.split('@').first ?? '';
+  }
+
+  String? get email => isAnonymous ? null : _user?.email;
+  String? get photoUrl => isAnonymous ? null : _user?.photoURL;
 
   bool _isLogin = true;
   bool _isLoading = false;
@@ -158,5 +194,33 @@ class AuthController extends ChangeNotifier {
       _successMessage = null;
     }
     notifyListeners();
+  }
+
+  Future<void> signOut() async {
+    if (_isLoading) return;
+    _setLoading(true);
+    try {
+      await _authService.signOut();
+    } catch (e) {
+      _logger.e('Sign out error: $e');
+      _errorMessage = _tr('profile.error_sign_out');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Placeholder for deleteAccount.
+  Future<void> deleteAccount() async {
+    if (_isLoading) return;
+    _setLoading(true);
+    await Future.delayed(const Duration(seconds: 1));
+    try {
+      // await _authService.deleteAccount();
+    } catch (e) {
+      _logger.e('Delete account error: $e');
+      _errorMessage = _tr('profile.error_delete_account');
+    } finally {
+      _setLoading(false);
+    }
   }
 }
