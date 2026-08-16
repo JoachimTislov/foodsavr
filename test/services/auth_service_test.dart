@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/services/firebase_auth_service.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 
 void main() {
@@ -15,9 +16,11 @@ void main() {
   late AuthService authService;
   late MockUserCredential mockUserCredential;
   late MockCollectionService mockCollectionService;
+  late MockLogger mockLogger;
 
   setUpAll(() {
     registerFallbackValue(FakeAuthCredential());
+    registerFallbackValue(Uri());
   });
 
   setUp(() {
@@ -27,6 +30,7 @@ void main() {
     mockFacebookAuth = MockFacebookAuth();
     mockUserCredential = MockUserCredential();
     mockCollectionService = MockCollectionService();
+    mockLogger = MockLogger();
     authService = AuthService(
       mockFirebaseAuth,
       googleSignIn: mockGoogleSignIn,
@@ -34,6 +38,7 @@ void main() {
       supportsPersistence: true,
       firestore: mockFirestore,
       collectionService: mockCollectionService,
+      logger: mockLogger,
     );
   });
 
@@ -99,12 +104,20 @@ void main() {
     });
 
     test('signUp calls createUserWithEmailAndPassword', () async {
+      const uid = 'some-uid';
+      final mockUser = MockUser();
+      when(() => mockUser.uid).thenReturn(uid);
+      when(() => mockUserCredential.user).thenReturn(mockUser);
+      when(() => mockFirebaseAuth.currentUser).thenReturn(null);
       when(
         () => mockFirebaseAuth.createUserWithEmailAndPassword(
           email: email,
           password: password,
         ),
       ).thenAnswer((_) async => mockUserCredential);
+      when(
+        () => mockCollectionService.createInitialCollections(uid),
+      ).thenAnswer((_) async {});
 
       final result = await authService.signUp(email: email, password: password);
 
@@ -138,6 +151,60 @@ void main() {
       verify(
         () => mockCollectionService.createInitialCollections(uid),
       ).called(1);
+    });
+
+    test('signUp retries createInitialCollections and succeeds', () async {
+      const uid = 'some-uid';
+      final mockUser = MockUser();
+      when(() => mockUser.uid).thenReturn(uid);
+      when(() => mockUserCredential.user).thenReturn(mockUser);
+      when(() => mockFirebaseAuth.currentUser).thenReturn(null);
+      when(
+        () => mockFirebaseAuth.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        ),
+      ).thenAnswer((_) async => mockUserCredential);
+
+      when(
+        () => mockCollectionService.createInitialCollections(uid),
+      ).thenThrow(Exception('Failed to create collections')).thenAnswer((_) async {});
+
+      await authService.signUp(email: email, password: password);
+
+      verify(
+        () => mockCollectionService.createInitialCollections(uid),
+      ).called(2);
+    });
+
+    test('signUp retries createInitialCollections and finally fails', () async {
+      const uid = 'some-uid';
+      final mockUser = MockUser();
+      when(() => mockUser.uid).thenReturn(uid);
+      when(() => mockUserCredential.user).thenReturn(mockUser);
+      when(() => mockFirebaseAuth.currentUser).thenReturn(null);
+      when(
+        () => mockFirebaseAuth.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        ),
+      ).thenAnswer((_) async => mockUserCredential);
+      when(
+        () => mockCollectionService.createInitialCollections(uid),
+      ).thenThrow(Exception('Failed to create collections'));
+
+      await authService.signUp(email: email, password: password);
+
+      verify(
+        () => mockCollectionService.createInitialCollections(uid),
+      ).called(3);
+      verify(
+        () => mockLogger.e(
+          any(),
+          error: any(named: 'error'),
+          stackTrace: any(named: 'stackTrace'),
+        ),
+      ).called(2);
     });
 
     test('signUp links credentials when current user is anonymous', () async {
@@ -177,10 +244,11 @@ void main() {
       final mockAuth = MockGoogleSignInAuthentication();
 
       when(
-        () => mockGoogleSignIn.authenticate(),
+        () => mockGoogleSignIn.signIn(),
       ).thenAnswer((_) async => mockAccount);
-      when(() => mockAccount.authentication).thenReturn(mockAuth);
+      when(() => mockAccount.authentication).thenAnswer((_) async => mockAuth);
       when(() => mockAuth.idToken).thenReturn('id-token');
+      when(() => mockAuth.accessToken).thenReturn('access-token');
       when(
         () => mockFirebaseAuth.signInWithCredential(any()),
       ).thenAnswer((_) async => mockUserCredential);
@@ -188,7 +256,7 @@ void main() {
       final result = await authService.signInWithGoogle();
 
       expect(result, mockUserCredential);
-      verify(() => mockGoogleSignIn.authenticate()).called(1);
+      verify(() => mockGoogleSignIn.signIn()).called(1);
       verify(() => mockFirebaseAuth.signInWithCredential(any())).called(1);
     });
 
@@ -232,6 +300,9 @@ void main() {
     });
 
     test('signOut calls signOut', () async {
+      final mockUser = MockUser();
+      when(() => mockFirebaseAuth.currentUser).thenReturn(mockUser);
+      when(() => mockUser.isAnonymous).thenReturn(false);
       when(() => mockFirebaseAuth.signOut()).thenAnswer((_) async {});
 
       await authService.signOut();
@@ -267,7 +338,13 @@ class MockGoogleSignIn extends Mock implements GoogleSignIn {}
 class MockGoogleSignInAccount extends Mock implements GoogleSignInAccount {}
 
 class MockGoogleSignInAuthentication extends Mock
-    implements GoogleSignInAuthentication {}
+    implements GoogleSignInAuthentication {
+  @override
+  String? get accessToken => 'access-token';
+
+  @override
+  String? get idToken => 'id-token';
+}
 
 class MockLoginResult extends Mock implements LoginResult {}
 
@@ -276,3 +353,5 @@ class MockUser extends Mock implements User {}
 class MockUserCredential extends Mock implements UserCredential {}
 
 class MockCollectionService extends Mock implements CollectionService {}
+
+class MockLogger extends Mock implements Logger {}
