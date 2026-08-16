@@ -98,6 +98,7 @@ void main() {
     late GoRouter router;
 
     setUp(() {
+      when(() => mockUserController.isInitialized).thenReturn(true);
       authService = _FakeAuthService();
       router = createAppRouter(authService, mockUserController);
     });

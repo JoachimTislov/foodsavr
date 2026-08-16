@@ -113,6 +113,7 @@ void main() {
       getIt.registerSingleton<CollectionService>(mockCollectionService);
 
       mockUserController = MockUserController();
+      when(() => mockUserController.isInitialized).thenReturn(true);
       when(() => mockUserController.isLoading).thenReturn(false);
       when(() => mockUserController.errorMessage).thenReturn(null);
       when(() => mockUserController.isLogin).thenReturn(true);
@@ -335,7 +336,9 @@ void main() {
         ).thenAnswer((_) => Stream.value(null));
         when(() => mockAuthService.currentUser).thenReturn(null);
 
-        final router = createAppRouter(mockAuthService, MockUserController());
+        final mockUserController = MockUserController();
+        when(() => mockUserController.isInitialized).thenReturn(true);
+        final router = createAppRouter(mockAuthService, mockUserController);
 
         // Should not throw even with minimal setup
         await tester.pumpWidget(
@@ -372,7 +375,9 @@ void main() {
         ).thenAnswer((_) => Stream.value(null));
         when(() => mockAuthService.currentUser).thenReturn(null);
 
-        final router = createAppRouter(mockAuthService, MockUserController());
+        final mockUserController = MockUserController();
+        when(() => mockUserController.isInitialized).thenReturn(true);
+        final router = createAppRouter(mockAuthService, mockUserController);
 
         await tester.pumpWidget(
           EasyLocalization(
@@ -412,7 +417,9 @@ void main() {
         ).thenAnswer((_) => Stream.value(null));
         when(() => mockAuthService.currentUser).thenReturn(null);
 
-        final router = createAppRouter(mockAuthService, MockUserController());
+        final mockUserController = MockUserController();
+        when(() => mockUserController.isInitialized).thenReturn(true);
+        final router = createAppRouter(mockAuthService, mockUserController);
 
         await tester.pumpWidget(
           EasyLocalization(
