@@ -11,6 +11,7 @@ import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/controllers/user_controller.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/utils/theme_notifier.dart';
+import 'package:go_router/go_router.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -84,6 +85,8 @@ void main() {
 
   group('MyApp Widget', () {
     late MockAuthService mockAuthService;
+    late MockUserController mockUserController;
+    late GoRouter router;
 
     setUp(() async {
       await getIt.reset();
@@ -109,22 +112,22 @@ void main() {
       final mockCollectionService = MockCollectionService();
       getIt.registerSingleton<CollectionService>(mockCollectionService);
 
-      final mockAuthController = MockAuthController();
-      when(() => mockAuthController.isLoading).thenReturn(false);
-      when(() => mockAuthController.errorMessage).thenReturn(null);
-      when(() => mockAuthController.isLogin).thenReturn(true);
-      when(() => mockAuthController.successMessage).thenReturn(null);
-      when(() => mockAuthController.rememberMe).thenReturn(false);
-      when(() => mockAuthController.agreedToTerms).thenReturn(false);
-      getIt.registerSingleton<UserController>(mockAuthController);
+      mockUserController = MockUserController();
+      when(() => mockUserController.isLoading).thenReturn(false);
+      when(() => mockUserController.errorMessage).thenReturn(null);
+      when(() => mockUserController.isLogin).thenReturn(true);
+      when(() => mockUserController.successMessage).thenReturn(null);
+      when(() => mockUserController.rememberMe).thenReturn(false);
+      when(() => mockUserController.agreedToTerms).thenReturn(false);
+      getIt.registerSingleton<UserController>(mockUserController);
+
+      router = createAppRouter(mockAuthService, mockUserController);
     });
 
     testWidgets('renders MaterialApp.router with correct configuration', (
       tester,
     ) async {
       await tester.runAsync(() async {
-        final router = createAppRouter(mockAuthService);
-
         await tester.pumpWidget(
           EasyLocalization(
             supportedLocales: const [Locale('en'), Locale('nb')],
@@ -154,7 +157,7 @@ void main() {
 
     testWidgets('uses localization from context', (tester) async {
       await tester.runAsync(() async {
-        final router = createAppRouter(mockAuthService);
+        final router = createAppRouter(mockAuthService, mockUserController);
 
         await tester.pumpWidget(
           EasyLocalization(
@@ -184,8 +187,6 @@ void main() {
 
     testWidgets('applies light and dark themes', (tester) async {
       await tester.runAsync(() async {
-        final router = createAppRouter(mockAuthService);
-
         await tester.pumpWidget(
           EasyLocalization(
             supportedLocales: const [Locale('en'), Locale('nb')],
@@ -215,8 +216,6 @@ void main() {
 
     testWidgets('uses router config', (tester) async {
       await tester.runAsync(() async {
-        final router = createAppRouter(mockAuthService);
-
         await tester.pumpWidget(
           EasyLocalization(
             supportedLocales: const [Locale('en'), Locale('nb')],
@@ -244,7 +243,6 @@ void main() {
 
     testWidgets('MyApp accepts router config parameter', (tester) async {
       await tester.runAsync(() async {
-        final router = createAppRouter(mockAuthService);
         final app = MyApp(router: router);
 
         expect(app.router, router);
@@ -253,8 +251,6 @@ void main() {
 
     testWidgets('rebuilds when theme changes', (tester) async {
       await tester.runAsync(() async {
-        final router = createAppRouter(mockAuthService);
-
         await tester.pumpWidget(
           EasyLocalization(
             supportedLocales: const [Locale('en'), Locale('nb')],
@@ -339,7 +335,7 @@ void main() {
         ).thenAnswer((_) => Stream.value(null));
         when(() => mockAuthService.currentUser).thenReturn(null);
 
-        final router = createAppRouter(mockAuthService);
+        final router = createAppRouter(mockAuthService, MockUserController());
 
         // Should not throw even with minimal setup
         await tester.pumpWidget(
@@ -376,7 +372,7 @@ void main() {
         ).thenAnswer((_) => Stream.value(null));
         when(() => mockAuthService.currentUser).thenReturn(null);
 
-        final router = createAppRouter(mockAuthService);
+        final router = createAppRouter(mockAuthService, MockUserController());
 
         await tester.pumpWidget(
           EasyLocalization(
@@ -416,7 +412,7 @@ void main() {
         ).thenAnswer((_) => Stream.value(null));
         when(() => mockAuthService.currentUser).thenReturn(null);
 
-        final router = createAppRouter(mockAuthService);
+        final router = createAppRouter(mockAuthService, MockUserController());
 
         await tester.pumpWidget(
           EasyLocalization(
@@ -478,7 +474,7 @@ void setupFirebaseCoreMocks() {
       );
 }
 
-class MockAuthController extends Mock implements UserController {}
+class MockUserController extends Mock implements UserController {}
 
 class MockAuthService extends Mock implements IAuthService {}
 

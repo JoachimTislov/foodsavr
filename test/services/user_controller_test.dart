@@ -40,6 +40,10 @@ void main() {
 
     when(() => mockUser.uid).thenReturn('test-uid');
     when(() => mockUserCredential.user).thenReturn(mockUser);
+    when(() => mockAuthService.currentUser).thenReturn(mockUser);
+    when(
+      () => mockAuthService.authStateChanges,
+    ).thenAnswer((_) => Stream<User?>.fromIterable([mockUser]));
 
     authController = UserController(
       mockAuthService,
