@@ -203,7 +203,7 @@ class UserController extends ChangeNotifier {
       await _authService.signOut();
     } catch (e) {
       _logger.e('Sign out error: $e');
-      _errorMessage = 'Failed to sign out. Please try again.';
+      _errorMessage = _tr('profile.error_sign_out');
     } finally {
       _setLoading(false);
     }
@@ -218,7 +218,7 @@ class UserController extends ChangeNotifier {
       // await _authService.deleteAccount();
     } catch (e) {
       _logger.e('Delete account error: $e');
-      _errorMessage = 'Failed to delete account. Please try again.';
+      _errorMessage = _tr('profile.error_delete_account');
     } finally {
       _setLoading(false);
     }

@@ -187,6 +187,8 @@
 		"deleteAccountConfirmation": "Ja, slett konto",
 		"delete_account": "Slett konto",
 		"delete_account_description": "Slett kontoen din og alle tilknyttede data permanent. Denne handlingen kan ikke angres.",
+		"error_delete_account": "Klarte ikke å slette konto. Vennligst prøv igjen.",
+		"error_sign_out": "Klarte ikke å logge ut. Vennligst prøv igjen.",
 		"forgot_password": "Glemt passord",
 		"log_out": "Logg ut",
 		"title": "Profil",
