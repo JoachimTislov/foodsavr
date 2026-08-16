@@ -1,35 +1,16 @@
 import 'package:easy_localization/easy_localization.dart';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:watch_it/watch_it.dart'; // Import watch_it
-import '../controllers/profile_controller.dart'; // Import ProfileController
-import '../interfaces/i_auth_service.dart';
-import '../service_locator.dart';
+import 'package:watch_it/watch_it.dart';
+
+import '../controllers/auth_controller.dart';
 
 class ProfileView extends WatchingWidget {
   const ProfileView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Watch the ProfileController
-    final profileController = watchIt<ProfileController>();
-    final authService = getIt<IAuthService>();
-
-    // Watch auth state changes using watchStream
-    final userSnapshot = watchStream(
-      (IAuthService s) => s.authStateChanges,
-      initialValue: authService.currentUser,
-      target: authService,
-    );
-    final user = userSnapshot.data;
-    final isAnonymous = user?.isAnonymous ?? false;
-    final displayName = isAnonymous
-        ? 'settings.guest_user'.tr()
-        : (user?.displayName ?? user?.email?.split('@').first ?? '');
-    final email = isAnonymous ? null : user?.email;
-    final photoUrl = isAnonymous ? null : user?.photoURL;
-
+    final authController = watchIt<AuthController>();
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
@@ -48,7 +29,7 @@ class ProfileView extends WatchingWidget {
         ),
         title: Text(
           'profile.title'.tr(),
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
@@ -56,9 +37,9 @@ class ProfileView extends WatchingWidget {
         slivers: [
           SliverToBoxAdapter(
             child: _ProfileHeader(
-              name: displayName,
-              email: email,
-              avatarUrl: photoUrl,
+              name: authController.displayName,
+              email: authController.email,
+              avatarUrl: authController.photoUrl,
             ),
           ),
           SliverPadding(
@@ -77,7 +58,7 @@ class ProfileView extends WatchingWidget {
                 const SizedBox(height: 16),
                 _SettingsGroup(
                   items: [
-                    if (user?.isAnonymous ?? false)
+                    if (authController.isAnonymous)
                       _SettingsItem(
                         icon: Icons.person_add_alt_1_outlined,
                         label: 'profile.create_account'.tr(),
@@ -99,7 +80,7 @@ class ProfileView extends WatchingWidget {
                       icon: Icons.logout,
                       label: 'profile.log_out'.tr(),
                       isDestructive: true,
-                      onTap: () => profileController.signOut(),
+                      onTap: () => authController.signOut(),
                     ),
                   ],
                 ),
@@ -121,7 +102,7 @@ class ProfileView extends WatchingWidget {
                       isDestructive: true,
                       onTap: () => _showDeleteAccountConfirmation(
                         context,
-                        profileController,
+                        authController,
                       ),
                     ),
                   ],
@@ -136,7 +117,7 @@ class ProfileView extends WatchingWidget {
 
   void _showDeleteAccountConfirmation(
     BuildContext context,
-    ProfileController controller,
+    AuthController controller,
   ) {
     showModalBottomSheet(
       context: context,
