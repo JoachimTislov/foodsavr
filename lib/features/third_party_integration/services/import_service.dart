@@ -26,12 +26,12 @@ class ImportService implements IImportService {
 
   @override
   Future<void> getReceiptById(String id) {
-    throw UnimplementedError();
+    throw UnimplementedError('getReceiptById is not implemented yet');
   }
 
   @override
   Future<void> getReceipts() {
-    throw UnimplementedError();
+    throw UnimplementedError('getReceipts is not implemented yet');
   }
 
   @override
