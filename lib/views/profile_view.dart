@@ -119,7 +119,10 @@ class ProfileView extends WatchingWidget {
                       icon: Icons.delete_outline,
                       label: 'profile.delete_account'.tr(),
                       isDestructive: true,
-                      onTap: () => _showDeleteAccountConfirmation(context, profileController),
+                      onTap: () => _showDeleteAccountConfirmation(
+                        context,
+                        profileController,
+                      ),
                     ),
                   ],
                 ),
@@ -131,7 +134,10 @@ class ProfileView extends WatchingWidget {
     );
   }
 
-  void _showDeleteAccountConfirmation(BuildContext context, ProfileController controller) {
+  void _showDeleteAccountConfirmation(
+    BuildContext context,
+    ProfileController controller,
+  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
