@@ -214,8 +214,8 @@ void main() {
           Logger(level: Level.off),
         ),
       );
-      getIt.registerFactory<AuthController>(
-        () => AuthController(
+      getIt.registerFactory<UserController>(
+        () => UserController(
           getIt<IAuthService>(),
           Logger(level: Level.off),
           translate: (String key) => key,

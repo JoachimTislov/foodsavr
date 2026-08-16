@@ -14,12 +14,12 @@ class LandingPageView extends StatefulWidget {
 }
 
 class _LandingPageViewState extends State<LandingPageView> {
-  late final AuthController _controller;
+  late final UserController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = getIt<AuthController>();
+    _controller = getIt<UserController>();
   }
 
   @override

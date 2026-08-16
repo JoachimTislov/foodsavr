@@ -19,7 +19,7 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 
 class _MockAuthService extends Mock implements IAuthService {}
 
-class _MockAuthController extends Mock implements AuthController {}
+class _MockAuthController extends Mock implements UserController {}
 
 class _MockCollectionService extends Mock implements CollectionService {}
 
@@ -96,7 +96,7 @@ void main() async {
       when(() => mockAuthController.successMessage).thenReturn(null);
       when(() => mockAuthController.rememberMe).thenReturn(false);
       when(() => mockAuthController.agreedToTerms).thenReturn(false);
-      getIt.registerSingleton<AuthController>(mockAuthController);
+      getIt.registerSingleton<UserController>(mockAuthController);
 
       final groceryStoreAuthService = _MockGroceryStoreAuthService();
       when(() => groceryStoreAuthService.getConnections()).thenAnswer(

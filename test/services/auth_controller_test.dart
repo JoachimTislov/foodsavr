@@ -27,7 +27,7 @@ void main() {
   late MockAuthService mockAuthService;
   late MockCollectionService mockCollectionService;
   late MockLogger mockLogger;
-  late AuthController authController;
+  late UserController authController;
   late MockUser mockUser;
   late MockUserCredential mockUserCredential;
 
@@ -41,7 +41,7 @@ void main() {
     when(() => mockUser.uid).thenReturn('test-uid');
     when(() => mockUserCredential.user).thenReturn(mockUser);
 
-    authController = AuthController(
+    authController = UserController(
       mockAuthService,
       mockLogger,
       translate: (String key) => key,

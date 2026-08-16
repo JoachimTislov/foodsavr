@@ -14,14 +14,14 @@ typedef Translator = String Function(String);
 // TODO: Remove translate arg in constructor and use context-based translation in tests instead. read easy_localization docs to find the best approach
 
 @injectable
-class AuthController extends ChangeNotifier {
+class UserController extends ChangeNotifier {
   final IAuthService _authService;
   final Logger _logger;
   final Translator _tr;
   late final StreamSubscription _authSubscription;
   bool _isInitialized = false;
 
-  AuthController(
+  UserController(
     this._authService,
     this._logger, {
     @factoryParam Translator? translate,

@@ -9,7 +9,7 @@ import 'redirect.dart';
 import 'routes.dart';
 
 GoRouter createAppRouter(IAuthService authService) {
-  final authController = getIt<AuthController>();
+  final authController = getIt<UserController>();
   return GoRouter(
     debugLogDiagnostics: Config.isDevelopment,
     navigatorKey: GlobalKey<NavigatorState>(debugLabel: 'root'),

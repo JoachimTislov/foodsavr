@@ -31,12 +31,12 @@ class _AuthViewState extends State<AuthView> {
   final _formKey = GlobalKey<FormState>();
   final _privacyRecognizer = TapGestureRecognizer();
   final _termsRecognizer = TapGestureRecognizer();
-  late final AuthController _controller;
+  late final UserController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = getIt<AuthController>();
+    _controller = getIt<UserController>();
     _controller.isLogin = widget.isLogin;
     _privacyRecognizer.onTap = _showPrivacyNotice;
     _termsRecognizer.onTap = _showTermsOfService;

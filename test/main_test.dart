@@ -116,7 +116,7 @@ void main() {
       when(() => mockAuthController.successMessage).thenReturn(null);
       when(() => mockAuthController.rememberMe).thenReturn(false);
       when(() => mockAuthController.agreedToTerms).thenReturn(false);
-      getIt.registerSingleton<AuthController>(mockAuthController);
+      getIt.registerSingleton<UserController>(mockAuthController);
     });
 
     testWidgets('renders MaterialApp.router with correct configuration', (
@@ -478,7 +478,7 @@ void setupFirebaseCoreMocks() {
       );
 }
 
-class MockAuthController extends Mock implements AuthController {}
+class MockAuthController extends Mock implements UserController {}
 
 class MockAuthService extends Mock implements IAuthService {}
 

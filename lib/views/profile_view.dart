@@ -10,7 +10,7 @@ class ProfileView extends WatchingWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authController = watchIt<AuthController>();
+    final authController = watchIt<UserController>();
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
@@ -117,7 +117,7 @@ class ProfileView extends WatchingWidget {
 
   void _showDeleteAccountConfirmation(
     BuildContext context,
-    AuthController controller,
+    UserController controller,
   ) {
     showModalBottomSheet(
       context: context,
