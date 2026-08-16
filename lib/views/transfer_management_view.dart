@@ -28,7 +28,6 @@ class TransferManagementView extends StatefulWidget {
 }
 
 class _TransferManagementViewState extends State<TransferManagementView> {
-  // TODO(feat): replace with locations fetched from a LocationService when available
   static const List<_LocationOption> _fromOptions = [
     _LocationOption(
       id: 'main_fridge',

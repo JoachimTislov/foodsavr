@@ -12,7 +12,6 @@ FutureOr<String?> redirect(
   UserController authController,
   IAuthService authService,
 ) {
-  // TODO: Handle this in a wrapper, update a global loading state, which shows the splash screen until loading is false.
   // On web refresh, the initial state is 'not logged in' until Firebase initializes.
   // We check if we're still 'loading' the initial auth state.
   if (!authController.isInitialized) {

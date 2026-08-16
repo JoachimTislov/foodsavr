@@ -210,7 +210,6 @@ class _ProductListViewState extends State<ProductListView> {
   }
 
   Widget _buildProductCard(Product product) {
-    // TODO: Potential for simplification by using a single ProductCard widget that adapts based on view mode
     switch (_viewMode) {
       case ProductViewMode.compact:
         return ProductCardCompact(
@@ -238,7 +237,6 @@ class _ProductListViewState extends State<ProductListView> {
             }
           },
           onDelete: () {
-            // TODO: Show delete confirmation
             _showDeleteConfirmation(product);
           },
         );

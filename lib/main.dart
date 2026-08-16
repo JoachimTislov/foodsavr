@@ -67,7 +67,6 @@ void main() async {
           .timeout(const Duration(seconds: 2));
     } catch (_) {
       // If the GET request fails or times out, the emulators are likely offline.
-      // TODO: consider just starting them
       throw Exception(
         'Firebase Emulators are not running! Please run "make start-firebase-emulators" (see kill-firebase-emulators in Makefile for port details).',
       );

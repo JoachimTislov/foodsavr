@@ -172,7 +172,6 @@ void main() async {
         expect(find.text('ABOUT'), findsOneWidget);
         expect(find.text('Theme Mode'), findsOneWidget);
         expect(find.text('Language'), findsOneWidget);
-        // TODO: uncomment when in place
         // expect(find.text('Coop'), findsOneWidget);
         // expect(find.text('Rema 1000'), findsOneWidget);
         // expect(find.text('Trumf'), findsOneWidget);
