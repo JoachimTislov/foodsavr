@@ -167,10 +167,10 @@ class CollectionService {
       final existingCollections = await getCollectionsForUser(userId);
       final existingTypes = existingCollections.map((c) => c.type).toSet();
 
-      final futures = <Future<void>>[];
+      final collectionsToCreate = <Collection>[];
 
       if (!existingTypes.contains(CollectionType.inventory)) {
-        _logger.i('Inventory collection not found, creating one.');
+        _logger.i('Inventory collection not found, preparing to create one.');
         final inventory = Collection(
           id: '', // Let repository generate ID
           name: 'Inventory',
@@ -178,13 +178,13 @@ class CollectionService {
           type: CollectionType.inventory,
           productIds: const [],
         );
-        futures.add(addCollection(inventory));
+        collectionsToCreate.add(inventory);
       } else {
         _logger.i('Inventory collection already exists, skipping creation.');
       }
 
       if (!existingTypes.contains(CollectionType.shoppingList)) {
-        _logger.i('Shopping list collection not found, creating one.');
+        _logger.i('Shopping list collection not found, preparing to create one.');
         final shoppingList = Collection(
           id: '', // Let repository generate ID
           name: 'Shopping List',
@@ -192,13 +192,13 @@ class CollectionService {
           type: CollectionType.shoppingList,
           productIds: const [],
         );
-        futures.add(addCollection(shoppingList));
+        collectionsToCreate.add(shoppingList);
       } else {
         _logger.i('Shopping list collection already exists, skipping creation.');
       }
 
-      if (futures.isNotEmpty) {
-        await Future.wait(futures);
+      if (collectionsToCreate.isNotEmpty) {
+        await _collectionRepository.addCollectionsInBatch(collectionsToCreate);
         _logger.i('Successfully created initial collections for new user.');
       } else {
         _logger.i('All initial collections already exist for user.');

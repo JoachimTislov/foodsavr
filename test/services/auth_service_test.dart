@@ -166,9 +166,14 @@ void main() {
         ),
       ).thenAnswer((_) async => mockUserCredential);
 
-      when(
-        () => mockCollectionService.createInitialCollections(uid),
-      ).thenThrow(Exception('Failed to create collections')).thenAnswer((_) async {});
+      int createCollectionsCallCount = 0;
+      when(() => mockCollectionService.createInitialCollections(uid))
+          .thenAnswer((_) async {
+        createCollectionsCallCount++;
+        if (createCollectionsCallCount == 1) {
+          throw Exception('Failed to create collections');
+        }
+      });
 
       await authService.signUp(email: email, password: password);
 
@@ -339,7 +344,6 @@ class MockGoogleSignInAccount extends Mock implements GoogleSignInAccount {}
 
 class MockGoogleSignInAuthentication extends Mock
     implements GoogleSignInAuthentication {
-  @override
   String? get accessToken => 'access-token';
 
   @override
