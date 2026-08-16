@@ -6,7 +6,7 @@ import 'package:foodsavr/features/third_party_integration/models/provider_model.
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/features/third_party_integration/interfaces/i_oauth_service.dart';
 import 'package:foodsavr/service_locator.dart';
-import 'package:foodsavr/controllers/c_auth.dart';
+import 'package:foodsavr/controllers/auth_controller.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/features/third_party_integration/oauth_controller.dart';
 import 'package:foodsavr/utils/theme_notifier.dart';

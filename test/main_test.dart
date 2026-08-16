@@ -8,7 +8,7 @@ import 'package:foodsavr/main.dart' as main_app;
 import 'package:foodsavr/main.dart';
 import 'package:foodsavr/routes/go_router.dart';
 import 'package:foodsavr/service_locator.dart';
-import 'package:foodsavr/controllers/c_auth.dart';
+import 'package:foodsavr/controllers/auth_controller.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/utils/theme_notifier.dart';
 import 'package:logger/logger.dart';

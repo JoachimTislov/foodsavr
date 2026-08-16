@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/routes/go_router.dart';
 import 'package:foodsavr/service_locator.dart';
-import 'package:foodsavr/controllers/c_auth.dart';
+import 'package:foodsavr/controllers/auth_controller.dart';
 import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/interfaces/i_product_repository.dart';
 import 'package:foodsavr/interfaces/i_collection_repository.dart'; // Explicitly import ICollectionRepository

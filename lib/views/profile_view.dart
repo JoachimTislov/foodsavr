@@ -3,7 +3,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:watch_it/watch_it.dart'; // Import watch_it
-import '../controllers/c_profile.dart'; // Import ProfileController
+import '../controllers/profile_controller.dart'; // Import ProfileController
 import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
 
