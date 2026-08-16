@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 
-@injectable
+@lazySingleton
 class ProfileController extends ChangeNotifier {
   final IAuthService _authService;
   final Logger _logger;
