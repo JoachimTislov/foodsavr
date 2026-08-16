@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../constants/privacy_notice.dart';
 import '../constants/terms_of_service.dart';
 import '../service_locator.dart';
-import '../controllers/c_auth.dart';
+import '../controllers/user_controller.dart';
 import '../utils/config.dart';
 import '../widgets/auth/auth_form_fields.dart';
 import '../widgets/auth/auth_header.dart';
@@ -31,12 +31,12 @@ class _AuthViewState extends State<AuthView> {
   final _formKey = GlobalKey<FormState>();
   final _privacyRecognizer = TapGestureRecognizer();
   final _termsRecognizer = TapGestureRecognizer();
-  late final AuthController _controller;
+  late final UserController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = getIt<AuthController>();
+    _controller = getIt<UserController>();
     _controller.isLogin = widget.isLogin;
     _privacyRecognizer.onTap = _showPrivacyNotice;
     _termsRecognizer.onTap = _showTermsOfService;

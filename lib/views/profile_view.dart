@@ -1,28 +1,16 @@
 import 'package:easy_localization/easy_localization.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../interfaces/i_auth_service.dart';
-import '../service_locator.dart';
+import 'package:watch_it/watch_it.dart';
 
-class ProfileView extends StatefulWidget {
+import '../controllers/user_controller.dart';
+
+class ProfileView extends WatchingWidget {
   const ProfileView({super.key});
 
   @override
-  State<ProfileView> createState() => _ProfileViewState();
-}
-
-class _ProfileViewState extends State<ProfileView> {
-  late final IAuthService _authService;
-
-  @override
-  void initState() {
-    super.initState();
-    _authService = getIt<IAuthService>();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final authController = watchIt<UserController>();
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
@@ -41,104 +29,96 @@ class _ProfileViewState extends State<ProfileView> {
         ),
         title: Text(
           'profile.title'.tr(),
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
-      body: StreamBuilder<User?>(
-        stream: _authService.authStateChanges,
-        initialData: _authService.currentUser,
-        builder: (context, snapshot) {
-          final user = snapshot.data;
-          final isAnonymous = user?.isAnonymous ?? false;
-          final displayName = isAnonymous
-              ? 'settings.guest_user'.tr()
-              : (user?.displayName ?? user?.email?.split('@').first ?? '');
-          final email = isAnonymous ? null : user?.email;
-          final photoUrl = isAnonymous ? null : user?.photoURL;
-
-          return CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: _ProfileHeader(
-                  name: displayName,
-                  email: email,
-                  avatarUrl: photoUrl,
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: _ProfileHeader(
+              name: authController.displayName,
+              email: authController.email,
+              avatarUrl: authController.photoUrl,
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.all(24),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                const SizedBox(height: 32),
+                Text(
+                  'profile.account_settings'.tr(),
+                  style: textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.all(24),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    const SizedBox(height: 32),
-                    Text(
-                      'profile.account_settings'.tr(),
-                      style: textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
-                        color: colorScheme.onSurfaceVariant,
+                const SizedBox(height: 16),
+                _SettingsGroup(
+                  items: [
+                    if (authController.isAnonymous)
+                      _SettingsItem(
+                        icon: Icons.person_add_alt_1_outlined,
+                        label: 'profile.create_account'.tr(),
+                        onTap: () => context.go('/auth?mode=signup'),
+                      ),
+                    _SettingsItem(
+                      icon: Icons.lock_reset,
+                      label: 'profile.forgot_password'.tr(),
+                    ),
+                    _SettingsItem(
+                      icon: Icons.mail_outline,
+                      label: 'profile.change_email'.tr(),
+                    ),
+                    _SettingsItem(
+                      icon: Icons.security,
+                      label: 'profile.two_factor_auth'.tr(),
+                    ),
+                    _SettingsItem(
+                      icon: Icons.logout,
+                      label: 'profile.log_out'.tr(),
+                      isDestructive: true,
+                      onTap: () => authController.signOut(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 32),
+                Text(
+                  'profile.danger_zone'.tr(),
+                  style: textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                    color: Colors.red,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _SettingsGroup(
+                  items: [
+                    _SettingsItem(
+                      icon: Icons.delete_outline,
+                      label: 'profile.delete_account'.tr(),
+                      isDestructive: true,
+                      onTap: () => _showDeleteAccountConfirmation(
+                        context,
+                        authController,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    _SettingsGroup(
-                      items: [
-                        if (user?.isAnonymous ?? false)
-                          _SettingsItem(
-                            icon: Icons.person_add_alt_1_outlined,
-                            label: 'profile.create_account'.tr(),
-                            onTap: () => context.go('/auth?mode=signup'),
-                          ),
-                        _SettingsItem(
-                          icon: Icons.lock_reset,
-                          label: 'profile.forgot_password'.tr(),
-                        ),
-                        _SettingsItem(
-                          icon: Icons.mail_outline,
-                          label: 'profile.change_email'.tr(),
-                        ),
-                        _SettingsItem(
-                          icon: Icons.security,
-                          label: 'profile.two_factor_auth'.tr(),
-                        ),
-                        _SettingsItem(
-                          icon: Icons.logout,
-                          label: 'profile.log_out'.tr(),
-                          isDestructive: true,
-                          onTap: () => _authService.signOut(),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 32),
-                    Text(
-                      'profile.danger_zone'.tr(),
-                      style: textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
-                        color: Colors.red,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _SettingsGroup(
-                      items: [
-                        _SettingsItem(
-                          icon: Icons.delete_outline,
-                          label: 'profile.delete_account'.tr(),
-                          isDestructive: true,
-                          onTap: () => _showDeleteAccountConfirmation(context),
-                        ),
-                      ],
-                    ),
-                  ]),
+                  ],
                 ),
-              ),
-            ],
-          );
-        },
+              ]),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  void _showDeleteAccountConfirmation(BuildContext context) {
+  void _showDeleteAccountConfirmation(
+    BuildContext context,
+    UserController controller,
+  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -183,10 +163,9 @@ class _ProfileViewState extends State<ProfileView> {
             ),
             const SizedBox(height: 32),
             ElevatedButton(
-              // TODO(profile): Call _authService.deleteAccount() once implemented
               onPressed: () async {
                 Navigator.pop(context);
-                _authService.signOut();
+                await controller.deleteAccount(); // Call controller method
               },
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size.fromHeight(56),

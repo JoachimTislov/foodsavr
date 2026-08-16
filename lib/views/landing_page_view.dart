@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../service_locator.dart';
-import '../controllers/c_auth.dart';
+import '../controllers/user_controller.dart';
 import '../widgets/auth/social_auth_section.dart';
 
 class LandingPageView extends StatefulWidget {
@@ -14,12 +14,12 @@ class LandingPageView extends StatefulWidget {
 }
 
 class _LandingPageViewState extends State<LandingPageView> {
-  late final AuthController _controller;
+  late final UserController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = getIt<AuthController>();
+    _controller = getIt<UserController>();
   }
 
   @override

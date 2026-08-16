@@ -6,20 +6,18 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foodsavr/controllers/user_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:foodsavr/interfaces/i_collection_repository.dart'; // Explicitly import ICollectionRepository
+import 'package:foodsavr/interfaces/i_product_repository.dart';
 import 'package:foodsavr/routes/go_router.dart';
 import 'package:foodsavr/service_locator.dart';
-import 'package:foodsavr/controllers/c_auth.dart';
-import 'package:foodsavr/services/product_service.dart';
-import 'package:foodsavr/interfaces/i_product_repository.dart';
-import 'package:foodsavr/interfaces/i_collection_repository.dart'; // Explicitly import ICollectionRepository
-import 'package:foodsavr/models/product_model.dart';
-import 'package:foodsavr/models/collection_model.dart'; // Import Collection
-import 'package:foodsavr/views/landing_page_view.dart';
-import 'package:foodsavr/views/dashboard_view.dart';
 import 'package:foodsavr/services/collection_service.dart'; // Import CollectionService
+import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/utils/shelf_life.dart';
 import 'package:foodsavr/utils/theme_notifier.dart';
+import 'package:foodsavr/views/dashboard_view.dart';
+import 'package:foodsavr/views/landing_page_view.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
@@ -29,60 +27,13 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 
 class _MockShelfLifeService extends Mock implements ShelfLifeService {}
 
-class _FakeCollectionRepository implements ICollectionRepository {
-  @override
-  Future<Collection> add(Collection entity) async => entity;
-
-  @override
-  Future<Collection?> get(String id) async => null;
-
-  @override
-  Future<List<Collection>> getAll() async => [];
-
-  @override
-  Future<void> update(Collection entity) async {}
-
-  @override
-  Future<void> delete(String id) async {}
-
-  @override
-  Future<List<Collection>> getCollections(String userId) async => [];
-
-  @override
-  Future<void> addProduct(String collectionId, String productId) async {}
-
-  @override
-  Future<void> addProducts(
-    String collectionId,
-    List<String> productIds,
-  ) async {}
-
-  @override
-  Future<void> removeProduct(String collectionId, String productId) async {}
-}
+class _FakeCollectionRepository extends Mock implements ICollectionRepository {}
 
 class _MockUser extends Mock implements User {}
 
 class _MockUserCredential extends Mock implements UserCredential {}
 
-class _FakeProductRepository implements IProductRepository {
-  @override
-  Future<Product> add(Product entity) async => entity;
-  @override
-  Future<Product?> get(String id) async => null;
-  @override
-  Future<void> update(Product entity) async {}
-  @override
-  Future<void> delete(String id) async {}
-  @override
-  Future<List<Product>> getAll() async => [];
-  @override
-  Future<List<Product>> getProducts(String userId) async => [];
-  @override
-  Future<List<Product>> getPersonalProducts(String userId) async => [];
-  @override
-  Future<List<Product>> getGlobalProducts() async => [];
-}
+class _FakeProductRepository extends Mock implements IProductRepository {}
 
 class _FakeAuthService implements IAuthService {
   late final StreamController<User?> _controller =
@@ -183,6 +134,7 @@ void main() {
 
   group('Auth routing regression', () {
     late _FakeAuthService authService;
+    late UserController userController;
     late GoRouter router;
 
     setUp(() async {
@@ -195,12 +147,18 @@ void main() {
       await EasyLocalization.ensureInitialized();
       await getIt.reset();
 
+      authService = _FakeAuthService();
+
       getIt.registerSingleton<SharedPreferencesWithCache>(prefs);
       getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
+      getIt.registerSingleton<IAuthService>(authService);
 
-      authService = _FakeAuthService();
-      router = createAppRouter(authService);
-      getIt.registerLazySingleton<IAuthService>(() => authService);
+      userController = UserController(
+        authService,
+        Logger(level: Level.off),
+        translate: (String key) => key,
+      );
+      router = createAppRouter(authService, userController);
       getIt.registerLazySingleton<ProductService>(
         () => ProductService(
           _FakeProductRepository(),
@@ -214,13 +172,7 @@ void main() {
           Logger(level: Level.off),
         ),
       );
-      getIt.registerFactory<AuthController>(
-        () => AuthController(
-          getIt<IAuthService>(),
-          Logger(level: Level.off),
-          translate: (String key) => key,
-        ),
-      );
+      getIt.registerFactory<UserController>(() => userController);
     });
 
     tearDown(() async {
