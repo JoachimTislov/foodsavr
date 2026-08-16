@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
-import 'package:foodsavr/controllers/auth_controller.dart';
+import 'package:foodsavr/controllers/user_controller.dart';
 import 'package:go_router/go_router.dart';
 
 import '../interfaces/i_auth_service.dart';

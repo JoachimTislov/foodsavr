@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:foodsavr/controllers/auth_controller.dart';
+import 'package:foodsavr/controllers/user_controller.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/utils/config.dart';
 import 'package:go_router/go_router.dart';

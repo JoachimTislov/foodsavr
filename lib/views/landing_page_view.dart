@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../service_locator.dart';
-import '../controllers/auth_controller.dart';
+import '../controllers/user_controller.dart';
 import '../widgets/auth/social_auth_section.dart';
 
 class LandingPageView extends StatefulWidget {

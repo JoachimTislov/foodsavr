@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:watch_it/watch_it.dart';
 
-import '../controllers/auth_controller.dart';
+import '../controllers/user_controller.dart';
 
 class ProfileView extends WatchingWidget {
   const ProfileView({super.key});
