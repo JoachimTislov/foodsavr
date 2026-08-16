@@ -158,31 +158,57 @@ class CollectionService {
     }
   }
 
-  /// Create initial collections for a new user
+  /// Create initial collections for a new user idempotently.
   Future<void> createInitialCollections(String userId) async {
-    _logger.i(
-      'Creating initial collections for new user: ${_redactUserId(userId)}',
-    );
+    final redactedUserId = _redactUserId(userId);
+    _logger.i('Creating initial collections for new user: $redactedUserId');
+
     try {
-      final inventory = Collection(
-        id: '',
-        name: 'Inventory',
-        userId: userId,
-        type: CollectionType.inventory,
-        productIds: const [],
+      final existingCollections = await getCollectionsForUser(userId);
+      final existingTypes = existingCollections.map((c) => c.type).toSet();
+
+      final futures = <Future<void>>[];
+
+      if (!existingTypes.contains(CollectionType.inventory)) {
+        _logger.i('Inventory collection not found, creating one.');
+        final inventory = Collection(
+          id: '', // Let repository generate ID
+          name: 'Inventory',
+          userId: userId,
+          type: CollectionType.inventory,
+          productIds: const [],
+        );
+        futures.add(addCollection(inventory));
+      } else {
+        _logger.i('Inventory collection already exists, skipping creation.');
+      }
+
+      if (!existingTypes.contains(CollectionType.shoppingList)) {
+        _logger.i('Shopping list collection not found, creating one.');
+        final shoppingList = Collection(
+          id: '', // Let repository generate ID
+          name: 'Shopping List',
+          userId: userId,
+          type: CollectionType.shoppingList,
+          productIds: const [],
+        );
+        futures.add(addCollection(shoppingList));
+      } else {
+        _logger.i('Shopping list collection already exists, skipping creation.');
+      }
+
+      if (futures.isNotEmpty) {
+        await Future.wait(futures);
+        _logger.i('Successfully created initial collections for new user.');
+      } else {
+        _logger.i('All initial collections already exist for user.');
+      }
+    } catch (e, s) {
+      _logger.e(
+        'Error creating initial collections for user $redactedUserId',
+        error: e,
+        stackTrace: s,
       );
-      final shoppingList = Collection(
-        id: '',
-        name: 'Shopping List',
-        userId: userId,
-        type: CollectionType.shoppingList,
-        productIds: const [],
-      );
-      await addCollection(inventory);
-      await addCollection(shoppingList);
-      _logger.i('Successfully created initial collections for new user.');
-    } catch (e) {
-      _logger.e('Error creating initial collections: $e');
       rethrow;
     }
   }
