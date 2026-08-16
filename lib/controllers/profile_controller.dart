@@ -43,7 +43,6 @@ class ProfileController extends ChangeNotifier {
   Future<void> deleteAccount() async {
     _setLoading(true);
     _setError(null);
-    _logger.i("Delete account called");
     await Future.delayed(const Duration(seconds: 1));
     _setLoading(false);
     // try {
