@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:injectable/injectable.dart';
+import 'package:foodsavr/services/collection_service.dart';
 
 import '../interfaces/i_auth_service.dart';
 
@@ -13,6 +14,7 @@ class AuthService implements IAuthService {
   final FacebookAuth _facebookAuth;
   final bool _supportsPersistence;
   final FirebaseFirestore _firestore;
+  final CollectionService _collectionService;
 
   AuthService(
     this._firebaseAuth, {
@@ -20,10 +22,12 @@ class AuthService implements IAuthService {
     required FacebookAuth facebookAuth,
     @Named('supportsPersistence') required bool supportsPersistence,
     required FirebaseFirestore firestore,
+    required CollectionService collectionService,
   }) : _googleSignIn = googleSignIn,
        _facebookAuth = facebookAuth,
        _supportsPersistence = supportsPersistence,
-       _firestore = firestore;
+       _firestore = firestore,
+       _collectionService = collectionService;
 
   @override
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
@@ -59,7 +63,7 @@ class AuthService implements IAuthService {
   Future<UserCredential> signUp({
     required String email,
     required String password,
-  }) {
+  }) async {
     final currentUser = _firebaseAuth.currentUser;
     if (currentUser?.isAnonymous == true) {
       final credential = EmailAuthProvider.credential(
@@ -68,10 +72,16 @@ class AuthService implements IAuthService {
       );
       return currentUser!.linkWithCredential(credential);
     }
-    return _firebaseAuth.createUserWithEmailAndPassword(
+    final userCredential = await _firebaseAuth.createUserWithEmailAndPassword(
       email: email,
       password: password,
     );
+    if (userCredential.user != null) {
+      await _collectionService.createInitialCollections(
+        userCredential.user!.uid,
+      );
+    }
+    return userCredential;
   }
 
   @override

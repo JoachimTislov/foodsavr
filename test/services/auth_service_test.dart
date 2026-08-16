@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/services/firebase_auth_service.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
@@ -13,6 +14,7 @@ void main() {
   late MockFacebookAuth mockFacebookAuth;
   late AuthService authService;
   late MockUserCredential mockUserCredential;
+  late MockCollectionService mockCollectionService;
 
   setUpAll(() {
     registerFallbackValue(FakeAuthCredential());
@@ -24,12 +26,14 @@ void main() {
     mockGoogleSignIn = MockGoogleSignIn();
     mockFacebookAuth = MockFacebookAuth();
     mockUserCredential = MockUserCredential();
+    mockCollectionService = MockCollectionService();
     authService = AuthService(
       mockFirebaseAuth,
       googleSignIn: mockGoogleSignIn,
       facebookAuth: mockFacebookAuth,
       supportsPersistence: true,
       firestore: mockFirestore,
+      collectionService: mockCollectionService,
     );
   });
 
@@ -110,6 +114,29 @@ void main() {
           email: email,
           password: password,
         ),
+      ).called(1);
+    });
+
+    test('signUp calls createInitialCollections on new user', () async {
+      const uid = 'some-uid';
+      final mockUser = MockUser();
+      when(() => mockUser.uid).thenReturn(uid);
+      when(() => mockUserCredential.user).thenReturn(mockUser);
+      when(() => mockFirebaseAuth.currentUser).thenReturn(null);
+      when(
+        () => mockFirebaseAuth.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        ),
+      ).thenAnswer((_) async => mockUserCredential);
+      when(
+        () => mockCollectionService.createInitialCollections(uid),
+      ).thenAnswer((_) async => {});
+
+      await authService.signUp(email: email, password: password);
+
+      verify(
+        () => mockCollectionService.createInitialCollections(uid),
       ).called(1);
     });
 
@@ -247,3 +274,5 @@ class MockLoginResult extends Mock implements LoginResult {}
 class MockUser extends Mock implements User {}
 
 class MockUserCredential extends Mock implements UserCredential {}
+
+class MockCollectionService extends Mock implements CollectionService {}

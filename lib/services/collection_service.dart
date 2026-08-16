@@ -158,6 +158,35 @@ class CollectionService {
     }
   }
 
+  /// Create initial collections for a new user
+  Future<void> createInitialCollections(String userId) async {
+    _logger.i(
+      'Creating initial collections for new user: ${_redactUserId(userId)}',
+    );
+    try {
+      final inventory = Collection(
+        id: '',
+        name: 'Inventory',
+        userId: userId,
+        type: CollectionType.inventory,
+        productIds: const [],
+      );
+      final shoppingList = Collection(
+        id: '',
+        name: 'Shopping List',
+        userId: userId,
+        type: CollectionType.shoppingList,
+        productIds: const [],
+      );
+      await addCollection(inventory);
+      await addCollection(shoppingList);
+      _logger.i('Successfully created initial collections for new user.');
+    } catch (e) {
+      _logger.e('Error creating initial collections: $e');
+      rethrow;
+    }
+  }
+
   /// Add a product to a collection (update productIds list)
   Future<void> addProductToCollection(
     String collectionId,
