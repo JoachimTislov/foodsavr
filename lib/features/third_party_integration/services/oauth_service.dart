@@ -13,8 +13,6 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../services/secure_storage_service.dart';
 
-// TODO: Need to figure out a clean relationship between the OAuth model, controller and the methods exposed
-// It operates based on one provider
 @LazySingleton(as: IOAuthService)
 class OAuthService implements IOAuthService {
   final Logger _logger;
@@ -109,8 +107,6 @@ class OAuthService implements IOAuthService {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
 
-      // TODO: consider handling each null case...
-      // TODO: store json / Map<String, String>
       // values will rarely be used separately
       final accessToken = data['access_token'] as String?;
       final refreshToken = data['refresh_token'] as String?;

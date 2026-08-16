@@ -38,7 +38,6 @@ class _CollectionListViewState extends State<CollectionListView> {
       return;
     }
 
-    //  TODO: fetching all collections and then filtering is inefficient, should add filter to service method
     final all = await _collectionService.getCollectionsForUser(userId);
     final filtered = widget.typeFilter != null
         ? all.where((c) => c.type == widget.typeFilter).toList()
@@ -72,7 +71,6 @@ class _CollectionListViewState extends State<CollectionListView> {
                   type: widget.typeFilter ?? CollectionType.inventory,
                 );
                 if (!mounted) return;
-                // TODO: handle false, write rg 'result == true' from root dir
                 if (result == true) {
                   await _fetchCollections(); // Refetch if modified
                 }

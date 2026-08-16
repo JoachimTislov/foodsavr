@@ -176,7 +176,6 @@ locale-seed: start-firebase-emulators
 	@dart run scripts/seed_database.dart
 
 remote-seed:
-	# TODO: Link to standard credential file for remote seeding, ensuring secure handling of sensitive information
 	@if [ -z "$(env)" ]; then \
 		echo "Error: Provide an environment file (e.g., make seed-remote env=seed-remote-creds.json)"; \
 		exit 1; \

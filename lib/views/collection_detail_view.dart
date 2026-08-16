@@ -197,7 +197,6 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         builder: (context) => ProductDetailView(product: product),
       ),
     );
-    // TODO: handle result == false?
     if (result == true && mounted) {
       await _refreshCollectionAndProducts();
     }
