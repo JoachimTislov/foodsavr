@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import 'package:openfoodfacts/openfoodfacts.dart' as off;
+import 'package:foodsavr/interfaces/i_validator.dart';
 import '../models/product_model.dart';
 import '../interfaces/i_product_repository.dart';
 import '../utils/shelf_life.dart';
@@ -10,10 +11,16 @@ import '../utils/shelf_life.dart';
 @lazySingleton
 class ProductService {
   final IProductRepository _productRepository;
+  final IValidator<Product> _productValidator;
   final ShelfLifeService _shelfLifeService;
   final Logger _logger;
 
-  ProductService(this._productRepository, this._shelfLifeService, this._logger);
+  ProductService(
+    this._productRepository,
+    this._productValidator,
+    this._shelfLifeService,
+    this._logger,
+  );
 
   String _normalizeBarcode(String barcode) {
     var normalized = barcode.trim();
@@ -88,6 +95,13 @@ class ProductService {
         tags: existingProduct.tags,
       );
       await _productRepository.update(updatedProduct);
+      final validationResult = _productValidator.validate(updatedProduct);
+      if (!validationResult.isValid) {
+        _logger.e(
+          'Validation failed for updated product: ${updatedProduct.name}',
+        );
+        throw FormatException(validationResult.errors.first.message);
+      }
       return ScanAddProductResult(
         product: updatedProduct,
         matchedExisting: true,
@@ -149,6 +163,11 @@ class ProductService {
         );
 
         final addedProduct = await _productRepository.add(newProduct);
+        final validationResult = _productValidator.validate(addedProduct);
+        if (!validationResult.isValid) {
+          _logger.e('Validation failed for new product: ${addedProduct.name}');
+          throw FormatException(validationResult.errors.first.message);
+        }
         _logger.i('Created new product from OFF API: $normalizedBarcode');
         return ScanAddProductResult(
           product: addedProduct,
@@ -252,6 +271,11 @@ class ProductService {
 
   Future<Product> addProduct(Product product) async {
     _logger.i('Adding product: ${product.name}');
+    final validationResult = _productValidator.validate(product);
+    if (!validationResult.isValid) {
+      _logger.e('Validation failed for product: ${product.name}');
+      throw FormatException(validationResult.errors.first.message);
+    }
     try {
       final addedProduct = await _productRepository.add(product);
       _logger.i('Successfully added product: ${product.name}');
@@ -264,6 +288,11 @@ class ProductService {
 
   Future<void> updateProduct(Product product) async {
     _logger.i('Updating product: ${product.name}');
+    final validationResult = _productValidator.validate(product);
+    if (!validationResult.isValid) {
+      _logger.e('Validation failed for product: ${product.name}');
+      throw FormatException(validationResult.errors.first.message);
+    }
     try {
       await _productRepository.update(product);
       _logger.i('Successfully updated product: ${product.name}');
