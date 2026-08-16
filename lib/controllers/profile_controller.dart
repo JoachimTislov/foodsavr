@@ -27,6 +27,7 @@ class ProfileController extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    if (_isLoading) return; // Prevent multiple simultaneous calls
     _setLoading(true);
     _setError(null);
     try {
@@ -41,17 +42,18 @@ class ProfileController extends ChangeNotifier {
 
   // Placeholder for deleteAccount.
   Future<void> deleteAccount() async {
+    if (_isLoading) return; // Prevent multiple simultaneous calls
     _setLoading(true);
     _setError(null);
     await Future.delayed(const Duration(seconds: 1));
     _setLoading(false);
-    // try {
-    //   await _authService.deleteAccount();
-    // } catch (e) {
-    //   _logger.e('Delete account error: $e');
-    //   _setError('Failed to delete account. Please try again.');
-    // } finally {
-    //   _setLoading(false);
-    // }
+    try {
+      // await _authService.deleteAccount();
+    } catch (e) {
+      _logger.e('Delete account error: $e');
+      _setError('Failed to delete account. Please try again.');
+    } finally {
+      _setLoading(false);
+    }
   }
 }
