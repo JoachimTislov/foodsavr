@@ -1,5 +1,6 @@
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
+import 'package:foodsavr/interfaces/i_validator.dart';
 import '../models/collection_model.dart';
 import '../interfaces/i_collection_repository.dart';
 import '../utils/collection_types.dart';
@@ -7,9 +8,14 @@ import '../utils/collection_types.dart';
 @lazySingleton
 class CollectionService {
   final ICollectionRepository _collectionRepository;
+  final IValidator<Collection> _collectionValidator;
   final Logger _logger;
 
-  CollectionService(this._collectionRepository, this._logger);
+  CollectionService(
+    this._collectionRepository,
+    this._collectionValidator,
+    this._logger,
+  );
 
   String _redactUserId(String userId) => userId.length <= 6
       ? '***'
@@ -126,6 +132,11 @@ class CollectionService {
 
   Future<Collection> addCollection(Collection collection) async {
     _logger.i('Adding collection: ${collection.name}');
+    final validationResult = _collectionValidator.validate(collection);
+    if (!validationResult.isValid) {
+      _logger.e('Validation failed for collection: ${collection.name}');
+      throw FormatException(validationResult.errors.first.message);
+    }
     try {
       final added = await _collectionRepository.add(collection);
       _logger.i('Successfully added collection');
@@ -138,6 +149,11 @@ class CollectionService {
 
   Future<void> updateCollection(Collection collection) async {
     _logger.i('Updating collection: ${collection.name}');
+    final validationResult = _collectionValidator.validate(collection);
+    if (!validationResult.isValid) {
+      _logger.e('Validation failed for collection: ${collection.name}');
+      throw FormatException(validationResult.errors.first.message);
+    }
     try {
       await _collectionRepository.update(collection);
       _logger.i('Successfully updated collection');

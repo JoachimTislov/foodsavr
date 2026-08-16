@@ -5,17 +5,23 @@ import 'package:foodsavr/interfaces/i_collection_repository.dart';
 import 'package:foodsavr/utils/collection_types.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:logger/logger.dart';
+import 'package:foodsavr/interfaces/i_validator.dart';
 
 class MockICollectionRepository extends Mock implements ICollectionRepository {}
+
+class MockIValidatorCollection extends Mock implements IValidator<Collection> {}
 
 void main() {
   late CollectionService collectionService;
   late MockICollectionRepository mockRepository;
+  late MockIValidatorCollection mockCollectionValidator;
 
   setUp(() {
     mockRepository = MockICollectionRepository();
+    mockCollectionValidator = MockIValidatorCollection();
     collectionService = CollectionService(
       mockRepository,
+      mockCollectionValidator,
       Logger(level: Level.off),
     );
   });
