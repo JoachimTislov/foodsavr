@@ -193,8 +193,9 @@ void main() {
 
     test('addCollection persists a valid collection', () async {
       final valid = buildCollection();
-      when(() => mockCollectionRepository.add(any()))
-          .thenAnswer((_) async => valid);
+      when(
+        () => mockCollectionRepository.add(any()),
+      ).thenAnswer((_) async => valid);
 
       final result = await collectionService.addCollection(valid);
 
@@ -216,8 +217,9 @@ void main() {
 
     test('updateCollection persists a valid collection', () async {
       final valid = buildCollection();
-      when(() => mockCollectionRepository.update(any()))
-          .thenAnswer((_) async {});
+      when(
+        () => mockCollectionRepository.update(any()),
+      ).thenAnswer((_) async {});
 
       await collectionService.updateCollection(valid);
 
@@ -264,8 +266,9 @@ void main() {
 
     test('addProduct persists a valid product', () async {
       final valid = buildProduct();
-      when(() => mockProductRepository.add(any()))
-          .thenAnswer((_) async => valid);
+      when(
+        () => mockProductRepository.add(any()),
+      ).thenAnswer((_) async => valid);
 
       final result = await productService.addProduct(valid);
 

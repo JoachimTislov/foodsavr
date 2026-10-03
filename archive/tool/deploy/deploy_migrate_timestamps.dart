@@ -231,8 +231,9 @@ Future<void> updateDocument(
     queryParams['updateMask.fieldPaths'] = fields.keys.toList();
   }
 
-  final uri = Uri.parse(baseUrl)
-      .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+  final uri = Uri.parse(
+    baseUrl,
+  ).replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
 
   final response = await client.patch(
     uri,

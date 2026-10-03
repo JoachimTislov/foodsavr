@@ -78,8 +78,9 @@ void main() {
   setUp(() {
     mockProductValidator = _MockIValidatorProduct();
     // Stub the validate method to return success by default
-    when(() => mockProductValidator.validate(any()))
-        .thenReturn(ValidationResult.success());
+    when(
+      () => mockProductValidator.validate(any()),
+    ).thenReturn(ValidationResult.success());
   });
 
   group('ProductService barcode scan handling', () {
@@ -95,8 +96,9 @@ void main() {
         ),
       ]);
       final mockShelfLifeService = _MockShelfLifeService();
-      when(() => mockShelfLifeService.estimateExpiration(any()))
-          .thenReturn(null);
+      when(
+        () => mockShelfLifeService.estimateExpiration(any()),
+      ).thenReturn(null);
       final service = ProductService(
         repository,
         mockProductValidator,
@@ -118,8 +120,9 @@ void main() {
     test('creates product for unknown barcode', () async {
       final repository = _FakeProductRepository([]);
       final mockShelfLifeService = _MockShelfLifeService();
-      when(() => mockShelfLifeService.estimateExpiration(any()))
-          .thenReturn(null);
+      when(
+        () => mockShelfLifeService.estimateExpiration(any()),
+      ).thenReturn(null);
       final service = ProductService(
         repository,
         mockProductValidator,
@@ -142,8 +145,9 @@ void main() {
     test('throws ArgumentError for empty or whitespace barcode', () async {
       final repository = _FakeProductRepository([]);
       final mockShelfLifeService = _MockShelfLifeService();
-      when(() => mockShelfLifeService.estimateExpiration(any()))
-          .thenReturn(null);
+      when(
+        () => mockShelfLifeService.estimateExpiration(any()),
+      ).thenReturn(null);
       final service = ProductService(
         repository,
         mockProductValidator,
