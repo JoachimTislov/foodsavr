@@ -25,8 +25,9 @@ void main() {
       } else {
         // Non-web should be a valid IPv4 address or hostname
         expect(Config.emulatorHost, isNotEmpty);
-        final isIpAddress = RegExp(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$')
-            .hasMatch(Config.emulatorHost);
+        final isIpAddress = RegExp(
+          r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$',
+        ).hasMatch(Config.emulatorHost);
         final isLocalhost = Config.emulatorHost == 'localhost';
         expect(isIpAddress || isLocalhost, isTrue);
       }
@@ -49,8 +50,9 @@ void main() {
 
       // Should be either 'localhost' or an IP address format
       final isLocalhost = host == 'localhost' || host == '127.0.0.1';
-      final isIpAddress = RegExp(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$')
-          .hasMatch(host);
+      final isIpAddress = RegExp(
+        r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$',
+      ).hasMatch(host);
 
       expect(isLocalhost || isIpAddress, isTrue);
     });
@@ -67,8 +69,9 @@ void main() {
       test('test credentials are valid for Firebase auth format', () {
         // Email should be a valid format
         expect(
-          RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
-              .hasMatch(Config.testUserEmail),
+          RegExp(
+            r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+          ).hasMatch(Config.testUserEmail),
           isTrue,
         );
 

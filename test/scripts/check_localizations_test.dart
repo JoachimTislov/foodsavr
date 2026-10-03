@@ -21,8 +21,9 @@ void main() {
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('loc_test');
-    assetsDir = await Directory('${tempDir.path}/assets/translations')
-        .create(recursive: true);
+    assetsDir = await Directory(
+      '${tempDir.path}/assets/translations',
+    ).create(recursive: true);
     libDir = await Directory('${tempDir.path}/lib').create(recursive: true);
 
     enJson = File('${assetsDir.path}/en.json');

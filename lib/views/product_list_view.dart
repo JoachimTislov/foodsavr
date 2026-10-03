@@ -103,8 +103,9 @@ class _ProductListViewState extends State<ProductListView> {
       await _fetchProducts();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('product.errorLoading'.tr())));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('product.errorLoading'.tr())));
     }
   }
 

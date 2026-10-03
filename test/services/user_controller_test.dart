@@ -41,8 +41,9 @@ void main() {
     when(() => mockUser.uid).thenReturn('test-uid');
     when(() => mockUserCredential.user).thenReturn(mockUser);
     when(() => mockAuthService.currentUser).thenReturn(mockUser);
-    when(() => mockAuthService.authStateChanges)
-        .thenAnswer((_) => Stream<User?>.fromIterable([mockUser]));
+    when(
+      () => mockAuthService.authStateChanges,
+    ).thenAnswer((_) => Stream<User?>.fromIterable([mockUser]));
 
     authController = UserController(
       mockAuthService,
@@ -93,46 +94,55 @@ void main() {
       expect(authController.isLoading, false);
     });
 
-    test('authenticate calls signUp when isLogin is false and agreedToTerms is true', () async {
-      const email = 'test@test.com';
-      const password = 'password';
-      authController.isLogin = false;
-      authController.agreedToTerms = true;
+    test(
+      'authenticate calls signUp when isLogin is false and agreedToTerms is true',
+      () async {
+        const email = 'test@test.com';
+        const password = 'password';
+        authController.isLogin = false;
+        authController.agreedToTerms = true;
 
-      when(() => mockAuthService.signUp(email: email, password: password))
-          .thenAnswer((_) async => mockUserCredential);
+        when(
+          () => mockAuthService.signUp(email: email, password: password),
+        ).thenAnswer((_) async => mockUserCredential);
 
-      await authController.authenticate(email: email, password: password);
+        await authController.authenticate(email: email, password: password);
 
-      verify(() => mockAuthService.signUp(email: email, password: password))
-          .called(1);
-      verifyNever(
-        () => mockCollectionService.getCollectionsForUser('test-uid'),
-      );
-      verifyNever(() => mockCollectionService.addCollection(any()));
-    });
+        verify(
+          () => mockAuthService.signUp(email: email, password: password),
+        ).called(1);
+        verifyNever(
+          () => mockCollectionService.getCollectionsForUser('test-uid'),
+        );
+        verifyNever(() => mockCollectionService.addCollection(any()));
+      },
+    );
 
-    test('authenticate sets error message when signUp called without agreedToTerms', () async {
-      authController.isLogin = false;
-      authController.agreedToTerms = false;
+    test(
+      'authenticate sets error message when signUp called without agreedToTerms',
+      () async {
+        authController.isLogin = false;
+        authController.agreedToTerms = false;
 
-      await authController.authenticate(
-        email: 'test@test.com',
-        password: 'password',
-      );
+        await authController.authenticate(
+          email: 'test@test.com',
+          password: 'password',
+        );
 
-      expect(authController.errorMessage, 'auth.terms.required');
-      verifyNever(
-        () => mockAuthService.signUp(
-          email: any(named: 'email'),
-          password: any(named: 'password'),
-        ),
-      );
-    });
+        expect(authController.errorMessage, 'auth.terms.required');
+        verifyNever(
+          () => mockAuthService.signUp(
+            email: any(named: 'email'),
+            password: any(named: 'password'),
+          ),
+        );
+      },
+    );
 
     test('signInAsGuest calls auth service guest sign-in', () async {
-      when(() => mockAuthService.signInAsGuest())
-          .thenAnswer((_) async => mockUserCredential);
+      when(
+        () => mockAuthService.signInAsGuest(),
+      ).thenAnswer((_) async => mockUserCredential);
 
       await authController.signInAsGuest();
 

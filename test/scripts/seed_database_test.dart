@@ -35,16 +35,18 @@ void main() {
   group('SeedingService Tests', () {
     group('Emulator Check', () {
       test('checkEmulators returns true when emulator is running', () async {
-        when(() => mockClient.get(any()))
-            .thenAnswer((_) async => http.Response('OK', 200));
+        when(
+          () => mockClient.get(any()),
+        ).thenAnswer((_) async => http.Response('OK', 200));
 
         final result = await seedingService.checkEmulators();
         expect(result, isTrue);
       });
 
       test('checkEmulators returns false on connection error', () async {
-        when(() => mockClient.get(any()))
-            .thenThrow(Exception('Connection refused'));
+        when(
+          () => mockClient.get(any()),
+        ).thenThrow(Exception('Connection refused'));
 
         final result = await seedingService.checkEmulators();
         expect(result, isFalse);

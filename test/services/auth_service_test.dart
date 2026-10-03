@@ -56,13 +56,15 @@ void main() {
           ),
         ).thenAnswer((_) async => mockUserCredential);
 
-        when(() => mockFirebaseAuth.setPersistence(Persistence.SESSION))
-            .thenAnswer((_) async {});
+        when(
+          () => mockFirebaseAuth.setPersistence(Persistence.SESSION),
+        ).thenAnswer((_) async {});
 
         await authService.signIn(email: email, password: password);
 
-        verify(() => mockFirebaseAuth.setPersistence(Persistence.SESSION))
-            .called(1);
+        verify(
+          () => mockFirebaseAuth.setPersistence(Persistence.SESSION),
+        ).called(1);
         verify(
           () => mockFirebaseAuth.signInWithEmailAndPassword(
             email: email,
@@ -80,8 +82,9 @@ void main() {
         ),
       ).thenAnswer((_) async => mockUserCredential);
 
-      when(() => mockFirebaseAuth.setPersistence(Persistence.LOCAL))
-          .thenAnswer((_) async {});
+      when(
+        () => mockFirebaseAuth.setPersistence(Persistence.LOCAL),
+      ).thenAnswer((_) async {});
 
       await authService.signIn(
         email: email,
@@ -89,8 +92,9 @@ void main() {
         rememberMe: true,
       );
 
-      verify(() => mockFirebaseAuth.setPersistence(Persistence.LOCAL))
-          .called(1);
+      verify(
+        () => mockFirebaseAuth.setPersistence(Persistence.LOCAL),
+      ).called(1);
       verify(
         () => mockFirebaseAuth.signInWithEmailAndPassword(
           email: email,
@@ -111,8 +115,9 @@ void main() {
           password: password,
         ),
       ).thenAnswer((_) async => mockUserCredential);
-      when(() => mockCollectionService.createInitialCollections(uid))
-          .thenAnswer((_) async {});
+      when(
+        () => mockCollectionService.createInitialCollections(uid),
+      ).thenAnswer((_) async {});
 
       final result = await authService.signUp(email: email, password: password);
 
@@ -137,13 +142,15 @@ void main() {
           password: password,
         ),
       ).thenAnswer((_) async => mockUserCredential);
-      when(() => mockCollectionService.createInitialCollections(uid))
-          .thenAnswer((_) async {});
+      when(
+        () => mockCollectionService.createInitialCollections(uid),
+      ).thenAnswer((_) async {});
 
       await authService.signUp(email: email, password: password);
 
-      verify(() => mockCollectionService.createInitialCollections(uid))
-          .called(1);
+      verify(
+        () => mockCollectionService.createInitialCollections(uid),
+      ).called(1);
     });
 
     test('signUp retries createInitialCollections and succeeds', () async {
@@ -160,18 +167,20 @@ void main() {
       ).thenAnswer((_) async => mockUserCredential);
 
       int createCollectionsCallCount = 0;
-      when(() => mockCollectionService.createInitialCollections(uid))
-          .thenAnswer((_) async {
-            createCollectionsCallCount++;
-            if (createCollectionsCallCount == 1) {
-              throw Exception('Failed to create collections');
-            }
-          });
+      when(
+        () => mockCollectionService.createInitialCollections(uid),
+      ).thenAnswer((_) async {
+        createCollectionsCallCount++;
+        if (createCollectionsCallCount == 1) {
+          throw Exception('Failed to create collections');
+        }
+      });
 
       await authService.signUp(email: email, password: password);
 
-      verify(() => mockCollectionService.createInitialCollections(uid))
-          .called(2);
+      verify(
+        () => mockCollectionService.createInitialCollections(uid),
+      ).called(2);
     });
 
     test('signUp retries createInitialCollections and finally fails', () async {
@@ -186,13 +195,15 @@ void main() {
           password: password,
         ),
       ).thenAnswer((_) async => mockUserCredential);
-      when(() => mockCollectionService.createInitialCollections(uid))
-          .thenThrow(Exception('Failed to create collections'));
+      when(
+        () => mockCollectionService.createInitialCollections(uid),
+      ).thenThrow(Exception('Failed to create collections'));
 
       await authService.signUp(email: email, password: password);
 
-      verify(() => mockCollectionService.createInitialCollections(uid))
-          .called(3);
+      verify(
+        () => mockCollectionService.createInitialCollections(uid),
+      ).called(3);
       verify(
         () => mockLogger.e(
           any(),
@@ -206,8 +217,9 @@ void main() {
       final mockUser = MockUser();
       when(() => mockFirebaseAuth.currentUser).thenReturn(mockUser);
       when(() => mockUser.isAnonymous).thenReturn(true);
-      when(() => mockUser.linkWithCredential(any()))
-          .thenAnswer((_) async => mockUserCredential);
+      when(
+        () => mockUser.linkWithCredential(any()),
+      ).thenAnswer((_) async => mockUserCredential);
 
       final result = await authService.signUp(email: email, password: password);
 
@@ -222,25 +234,29 @@ void main() {
     });
 
     test('sendPasswordResetEmail calls FirebaseAuth', () async {
-      when(() => mockFirebaseAuth.sendPasswordResetEmail(email: email))
-          .thenAnswer((_) async {});
+      when(
+        () => mockFirebaseAuth.sendPasswordResetEmail(email: email),
+      ).thenAnswer((_) async {});
 
       await authService.sendPasswordResetEmail(email);
 
-      verify(() => mockFirebaseAuth.sendPasswordResetEmail(email: email))
-          .called(1);
+      verify(
+        () => mockFirebaseAuth.sendPasswordResetEmail(email: email),
+      ).called(1);
     });
 
     test('signInWithGoogle signs in with Firebase credential', () async {
       final mockAccount = MockGoogleSignInAccount();
       final mockAuth = MockGoogleSignInAuthentication();
 
-      when(() => mockGoogleSignIn.authenticate())
-          .thenAnswer((_) async => mockAccount);
+      when(
+        () => mockGoogleSignIn.authenticate(),
+      ).thenAnswer((_) async => mockAccount);
       when(() => mockAccount.authentication).thenReturn(mockAuth);
       when(() => mockAuth.idToken).thenReturn('id-token');
-      when(() => mockFirebaseAuth.signInWithCredential(any()))
-          .thenAnswer((_) async => mockUserCredential);
+      when(
+        () => mockFirebaseAuth.signInWithCredential(any()),
+      ).thenAnswer((_) async => mockUserCredential);
 
       final result = await authService.signInWithGoogle();
 
@@ -272,8 +288,9 @@ void main() {
       when(() => mockFacebookAuth.login()).thenAnswer((_) async => mockResult);
       when(() => mockResult.accessToken).thenReturn(mockToken);
       when(() => mockToken.tokenString).thenReturn('token-string');
-      when(() => mockFirebaseAuth.signInWithCredential(any()))
-          .thenAnswer((_) async => mockUserCredential);
+      when(
+        () => mockFirebaseAuth.signInWithCredential(any()),
+      ).thenAnswer((_) async => mockUserCredential);
 
       final result = await authService.signInWithFacebook();
 
@@ -315,8 +332,9 @@ void main() {
     });
 
     test('signInAsGuest calls signInAnonymously', () async {
-      when(() => mockFirebaseAuth.signInAnonymously())
-          .thenAnswer((_) async => mockUserCredential);
+      when(
+        () => mockFirebaseAuth.signInAnonymously(),
+      ).thenAnswer((_) async => mockUserCredential);
 
       final result = await authService.signInAsGuest();
 
