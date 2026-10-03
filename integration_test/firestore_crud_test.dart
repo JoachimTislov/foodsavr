@@ -19,7 +19,9 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() async {
-    await Firebase.initializeApp(options: emulatorTestOptions);
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(options: emulatorTestOptions);
+    }
     FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
   });
 
