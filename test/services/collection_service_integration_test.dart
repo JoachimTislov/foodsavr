@@ -61,8 +61,9 @@ void main() {
     });
 
     test('returns collections filtered by type', () async {
-      when(() => repository.getCollections('user-123'))
-          .thenAnswer((_) async => [inventory, shoppingList]);
+      when(
+        () => repository.getCollections('user-123'),
+      ).thenAnswer((_) async => [inventory, shoppingList]);
 
       final all = await service.getCollectionsForUser('user-123');
       expect(all.length, 2);
@@ -75,8 +76,9 @@ void main() {
     });
 
     test('rethrows repository errors', () async {
-      when(() => repository.getCollections('user-123'))
-          .thenThrow(StateError('firestore down'));
+      when(
+        () => repository.getCollections('user-123'),
+      ).thenThrow(StateError('firestore down'));
       await expectLater(
         service.getCollectionsForUser('user-123'),
         throwsA(isA<StateError>()),
@@ -86,8 +88,9 @@ void main() {
 
   group('inventory lookups', () {
     setUp(() {
-      when(() => repository.getCollections('user-123'))
-          .thenAnswer((_) async => [inventory, shoppingList]);
+      when(
+        () => repository.getCollections('user-123'),
+      ).thenAnswer((_) async => [inventory, shoppingList]);
     });
 
     test('getInventoriesByProductId finds containing inventories', () async {
@@ -183,8 +186,9 @@ void main() {
     });
 
     test('rethrows repository errors', () async {
-      when(() => repository.delete('inv-1'))
-          .thenThrow(StateError('delete failed'));
+      when(
+        () => repository.delete('inv-1'),
+      ).thenThrow(StateError('delete failed'));
       await expectLater(
         service.deleteCollection('inv-1'),
         throwsA(isA<StateError>()),
