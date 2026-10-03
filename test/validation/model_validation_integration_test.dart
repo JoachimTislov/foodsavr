@@ -191,14 +191,17 @@ void main() {
   });
 
   group('CollectionService integrates collection validation', () {
-    test('addCollection rejects invalid collections without persisting', () async {
-      await expectLater(
-        () => collectionService.addCollection(buildCollection(name: '  ')),
-        throwsFormatException,
-      );
+    test(
+      'addCollection rejects invalid collections without persisting',
+      () async {
+        await expectLater(
+          () => collectionService.addCollection(buildCollection(name: '  ')),
+          throwsFormatException,
+        );
 
-      verifyNever(() => mockCollectionRepository.add(any()));
-    });
+        verifyNever(() => mockCollectionRepository.add(any()));
+      },
+    );
 
     test('addCollection persists a valid collection', () async {
       final valid = buildCollection();
@@ -212,14 +215,17 @@ void main() {
       verify(() => mockCollectionRepository.add(valid)).called(1);
     });
 
-    test('updateCollection rejects invalid collections without persisting', () async {
-      await expectLater(
-        () => collectionService.updateCollection(buildCollection(name: '')),
-        throwsFormatException,
-      );
+    test(
+      'updateCollection rejects invalid collections without persisting',
+      () async {
+        await expectLater(
+          () => collectionService.updateCollection(buildCollection(name: '')),
+          throwsFormatException,
+        );
 
-      verifyNever(() => mockCollectionRepository.update(any()));
-    });
+        verifyNever(() => mockCollectionRepository.update(any()));
+      },
+    );
 
     test('updateCollection persists a valid collection', () async {
       final valid = buildCollection();
@@ -254,23 +260,26 @@ void main() {
       verifyNever(() => mockProductRepository.add(any()));
     });
 
-    test('addProduct rejects bad expiry quantities without persisting', () async {
-      await expectLater(
-        () => productService.addProduct(
-          buildProduct(
-            expiries: [
-              ExpiryEntry(
-                quantity: 0,
-                expirationDate: DateTime(2030, 1, 1),
-              ),
-            ],
+    test(
+      'addProduct rejects bad expiry quantities without persisting',
+      () async {
+        await expectLater(
+          () => productService.addProduct(
+            buildProduct(
+              expiries: [
+                ExpiryEntry(
+                  quantity: 0,
+                  expirationDate: DateTime(2030, 1, 1),
+                ),
+              ],
+            ),
           ),
-        ),
-        throwsFormatException,
-      );
+          throwsFormatException,
+        );
 
-      verifyNever(() => mockProductRepository.add(any()));
-    });
+        verifyNever(() => mockProductRepository.add(any()));
+      },
+    );
 
     test('addProduct persists a valid product', () async {
       final valid = buildProduct();
