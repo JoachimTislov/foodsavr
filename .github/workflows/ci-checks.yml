@@ -23,8 +23,6 @@ jobs:
   check:
     name: Check & Test
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout code
@@ -61,25 +59,7 @@ jobs:
         run: dart run scripts/locale/check_localizations.dart
 
       - name: Run tests
-        run: |
-          set +e
-          flutter test --no-pub --coverage > test_output.txt 2>&1
-          code=$?
-          echo "::error title=diag-exit::exit=$code total-lines=$(wc -l < test_output.txt)"
-          grep '::error' test_output.txt | head -4 > rep.txt || true
-          while IFS= read -r line; do echo "::error title=rep::$(echo "$line" | head -c 220)"; done < rep.txt
-          grep -iE 'fail|expected' test_output.txt | grep -v '::group' | head -3 > fail.txt || true
-          while IFS= read -r line; do echo "::error title=fail::$(echo "$line" | head -c 200)"; done < fail.txt
-          if [ $code -ne 0 ]; then
-            git config user.name "ci-diag" && git config user.email "ci-diag@users.noreply.github.com"
-            git fetch origin feature/issue-27-default-collections
-            git checkout FETCH_HEAD
-            cp test_output.txt .github/diag-test-output.txt
-            git add .github/diag-test-output.txt
-            git commit -m "ci(diagnostic): capture test run output"
-            git push origin HEAD:feature/issue-27-default-collections
-          fi
-          exit $code
+        run: flutter test --no-pub --coverage
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:

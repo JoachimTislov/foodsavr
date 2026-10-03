@@ -253,7 +253,6 @@ void main() {
         () => mockGoogleSignIn.authenticate(),
       ).thenAnswer((_) async => mockAccount);
       when(() => mockAccount.authentication).thenReturn(mockAuth);
-      when(() => mockAuth.idToken).thenReturn('id-token');
       when(
         () => mockFirebaseAuth.signInWithCredential(any()),
       ).thenAnswer((_) async => mockUserCredential);
