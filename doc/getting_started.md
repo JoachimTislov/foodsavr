@@ -59,6 +59,7 @@ You'll also need a Firebase project.
     ```
 
 3.  **Run it!**
+    The app requires a product flavor; `flutter run` without one fails on non-web platforms.
     ```sh
-    flutter run
+    flutter run --flavor development
     ```
