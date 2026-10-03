@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+
 import '../../constants/product_categories.dart';
 import '../../models/product_model.dart';
 

@@ -1,6 +1,7 @@
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import 'package:foodsavr/interfaces/i_validator.dart';
+
 import '../models/collection_model.dart';
 import '../interfaces/i_collection_repository.dart';
 import '../utils/collection_types.dart';

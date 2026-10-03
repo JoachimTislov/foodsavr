@@ -1,4 +1,5 @@
 import 'package:injectable/injectable.dart';
+
 import '../models/product_model.dart';
 
 @lazySingleton

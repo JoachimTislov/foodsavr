@@ -50,12 +50,10 @@ void main() {
     ];
 
     when(() => authService.authorize(provider)).thenAnswer((_) async => {});
-    when(
-      () => authService.fetchUserProfile(provider),
-    ).thenAnswer((_) async => {});
-    when(
-      () => authService.getConnections(),
-    ).thenAnswer((_) async => connections);
+    when(() => authService.fetchUserProfile(provider))
+        .thenAnswer((_) async => {});
+    when(() => authService.getConnections())
+        .thenAnswer((_) async => connections);
 
     await controller.connect(provider);
 
@@ -77,9 +75,8 @@ void main() {
         accessTokenExpiration: null,
       ),
     ];
-    when(
-      () => authService.getConnections(),
-    ).thenAnswer((_) async => connections);
+    when(() => authService.getConnections())
+        .thenAnswer((_) async => connections);
 
     await controller.loadConnections();
 

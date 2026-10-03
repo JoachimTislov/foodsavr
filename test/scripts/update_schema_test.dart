@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:test/test.dart';
 
 // Since update_schema.dart is not a package library we can't easily import its internal methods,

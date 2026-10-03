@@ -53,9 +53,8 @@ void main() {
       ),
     ];
 
-    when(
-      () => mockRepository.getCollections(userId),
-    ).thenAnswer((_) async => collections);
+    when(() => mockRepository.getCollections(userId))
+        .thenAnswer((_) async => collections);
 
     final results = await collectionService.getInventoriesByProductId(
       userId,

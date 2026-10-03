@@ -14,8 +14,7 @@ import 'package:foodsavr/validation/validators/product_model_validator.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 
-class MockICollectionRepository extends Mock
-    implements ICollectionRepository {}
+class MockICollectionRepository extends Mock implements ICollectionRepository {}
 
 class MockIProductRepository extends Mock implements IProductRepository {}
 
@@ -100,9 +99,7 @@ void main() {
     });
 
     test('ProductModelValidator rejects an empty name', () {
-      final result = ProductModelValidator().validate(
-        buildProduct(name: ''),
-      );
+      final result = ProductModelValidator().validate(buildProduct(name: ''));
 
       expect(result.isValid, isFalse);
       expect(result.errors.first.field, 'name');
@@ -129,28 +126,19 @@ void main() {
     test('ProductModelValidator rejects non-positive expiry quantities', () {
       final product = buildProduct(
         expiries: [
-          ExpiryEntry(
-            quantity: 0,
-            expirationDate: DateTime(2030, 1, 1),
-          ),
-          ExpiryEntry(
-            quantity: 2,
-            expirationDate: DateTime(2030, 1, 2),
-          ),
-          ExpiryEntry(
-            quantity: -3,
-            expirationDate: DateTime(2030, 1, 3),
-          ),
+          ExpiryEntry(quantity: 0, expirationDate: DateTime(2030, 1, 1)),
+          ExpiryEntry(quantity: 2, expirationDate: DateTime(2030, 1, 2)),
+          ExpiryEntry(quantity: -3, expirationDate: DateTime(2030, 1, 3)),
         ],
       );
 
       final result = ProductModelValidator().validate(product);
 
       expect(result.isValid, isFalse);
-      expect(
-        result.errors.map((error) => error.field).toList(),
-        ['expiries[0].quantity', 'expiries[2].quantity'],
-      );
+      expect(result.errors.map((error) => error.field).toList(), [
+        'expiries[0].quantity',
+        'expiries[2].quantity',
+      ]);
     });
 
     test('ProductModelValidator accepts a valid product', () {
@@ -205,9 +193,8 @@ void main() {
 
     test('addCollection persists a valid collection', () async {
       final valid = buildCollection();
-      when(
-        () => mockCollectionRepository.add(any()),
-      ).thenAnswer((_) async => valid);
+      when(() => mockCollectionRepository.add(any()))
+          .thenAnswer((_) async => valid);
 
       final result = await collectionService.addCollection(valid);
 
@@ -229,9 +216,8 @@ void main() {
 
     test('updateCollection persists a valid collection', () async {
       final valid = buildCollection();
-      when(
-        () => mockCollectionRepository.update(any()),
-      ).thenAnswer((_) async {});
+      when(() => mockCollectionRepository.update(any()))
+          .thenAnswer((_) async {});
 
       await collectionService.updateCollection(valid);
 
@@ -251,9 +237,7 @@ void main() {
 
     test('addProduct rejects a negative quantity without persisting', () async {
       await expectLater(
-        () => productService.addProduct(
-          buildProduct(nonExpiringQuantity: -1),
-        ),
+        () => productService.addProduct(buildProduct(nonExpiringQuantity: -1)),
         throwsFormatException,
       );
 
@@ -267,10 +251,7 @@ void main() {
           () => productService.addProduct(
             buildProduct(
               expiries: [
-                ExpiryEntry(
-                  quantity: 0,
-                  expirationDate: DateTime(2030, 1, 1),
-                ),
+                ExpiryEntry(quantity: 0, expirationDate: DateTime(2030, 1, 1)),
               ],
             ),
           ),
@@ -283,9 +264,8 @@ void main() {
 
     test('addProduct persists a valid product', () async {
       final valid = buildProduct();
-      when(
-        () => mockProductRepository.add(any()),
-      ).thenAnswer((_) async => valid);
+      when(() => mockProductRepository.add(any()))
+          .thenAnswer((_) async => valid);
 
       final result = await productService.addProduct(valid);
 
@@ -304,9 +284,7 @@ void main() {
 
     test('updateProduct persists a valid product', () async {
       final valid = buildProduct();
-      when(
-        () => mockProductRepository.update(any()),
-      ).thenAnswer((_) async {});
+      when(() => mockProductRepository.update(any())).thenAnswer((_) async {});
 
       await productService.updateProduct(valid);
 

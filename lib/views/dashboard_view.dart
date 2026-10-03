@@ -71,9 +71,8 @@ class _DashboardViewState extends State<DashboardView> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
-    final today = DateFormat.yMMMMEEEEd(
-      context.locale.toString(),
-    ).format(DateTime.now());
+    final today = DateFormat.yMMMMEEEEd(context.locale.toString())
+        .format(DateTime.now());
 
     return RetryScaffold(
       fetchOnInit: true,

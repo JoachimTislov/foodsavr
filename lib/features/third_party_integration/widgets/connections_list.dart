@@ -107,9 +107,8 @@ class OAuthConnectionsList extends StatelessWidget {
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       child: Text(
                         controller.errorMessage!,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.error,
-                        ),
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: colorScheme.error),
                       ),
                     ),
                 ],

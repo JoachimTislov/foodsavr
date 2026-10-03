@@ -4,6 +4,7 @@ import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import 'package:openfoodfacts/openfoodfacts.dart' as off;
 import 'package:foodsavr/interfaces/i_validator.dart';
+
 import '../models/product_model.dart';
 import '../interfaces/i_product_repository.dart';
 import '../utils/shelf_life.dart';

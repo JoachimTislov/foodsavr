@@ -1,5 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+
 import '../models/collection_model.dart';
 import '../service_locator.dart';
 import '../services/collection_service.dart';
@@ -113,9 +114,8 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Failed to save: $e')));
       }
     } finally {
       if (mounted) {

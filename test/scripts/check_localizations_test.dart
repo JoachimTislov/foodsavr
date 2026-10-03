@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:test/test.dart';
 
 // Import from the tool if it was exported, but since it's a CLI script,
@@ -20,9 +21,8 @@ void main() {
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('loc_test');
-    assetsDir = await Directory(
-      '${tempDir.path}/assets/translations',
-    ).create(recursive: true);
+    assetsDir = await Directory('${tempDir.path}/assets/translations')
+        .create(recursive: true);
     libDir = await Directory('${tempDir.path}/lib').create(recursive: true);
 
     enJson = File('${assetsDir.path}/en.json');
