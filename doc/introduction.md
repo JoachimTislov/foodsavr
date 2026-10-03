@@ -17,7 +17,7 @@ Here are some helpful files and guides to get you oriented with FoodSavr:
 
 ### Getting Started & Contribution
 *   [Getting Started Guide](./getting_started.md) - Your first steps to getting the app running.
-*   [Contributing Guidelines](../.github/CONTRIBUTING.md) - How to help out, including our AI-era workflow.
+*   [Contributing Guidelines](../CONTRIBUTING.md) - How to help out, including our AI-era workflow.
 *   [Bug Report Template](../.github/ISSUE_TEMPLATE/bug_report.md) - Template for reporting issues.
 *   [Feature Request Template](../.github/ISSUE_TEMPLATE/feature_request.md) - Template for suggesting new features.
 *   [Pull Request Template](../.github/PULL_REQUEST_TEMPLATE.md) - Template for submitting code changes.
