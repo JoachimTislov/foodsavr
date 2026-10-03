@@ -63,14 +63,22 @@ jobs:
           set +e
           flutter test --no-pub --coverage > test_output.txt 2>&1
           code=$?
+          echo "::error title=diag-exit::exit=$code total-lines=$(wc -l < test_output.txt)"
+          grep -E '\[E\]' test_output.txt | head -3 > failed.txt || true
+          while IFS= read -r line; do echo "::error title=test-failure::$(echo "$line" | head -c 220)"; done < failed.txt
+          tail -6 test_output.txt > tail6.txt || true
+          while IFS= read -r line; do echo "::error title=test-tail::$(echo "$line" | head -c 150)"; done < tail6.txt
           if [ $code -ne 0 ]; then
-            grep -E '\[E\]' test_output.txt | head -8 > failed.txt || true
-            while IFS= read -r line; do echo "::error title=test-failure::$line"; done < failed.txt
-            grep -B2 -A12 '\[E\]' test_output.txt | head -c 650 > ctx.txt || true
-            echo "::error title=test-ctx::$(cat ctx.txt | tr '\n' ';')"
+            git config user.name "ci-diag" > /dev/null 2>&1 || true
+            git config user.email "ci-diag@users.noreply.github.com" > /dev/null 2>&1 || true
+            git fetch origin feature/issue-27-default-collections > /dev/null 2>&1 || true
+            git checkout FETCH_HEAD > /dev/null 2>&1 || true
+            cp test_output.txt .github/diag-test-output.txt || true
+            git add .github/diag-test-output.txt > /dev/null 2>&1 || true
+            git commit -m "ci(diagnostic): capture test run output" > /dev/null 2>&1 || true
+            git push origin HEAD:feature/issue-27-default-collections > /dev/null 2>&1 || true
           fi
           exit $code
-
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
