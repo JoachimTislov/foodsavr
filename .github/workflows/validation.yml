@@ -178,6 +178,38 @@ jobs:
             curl -s http://localhost:4000 > /dev/null && break
             sleep 2
           done
+      - name: Write dummy google-services.json
+        run: |
+          mkdir -p android/app/src/development/debug
+          cat > android/app/src/development/debug/google-services.json <<'EOT'
+          {
+            "project_info": {
+              "project_number": "1234567890",
+              "project_id": "demo-project",
+              "storage_bucket": "demo-project.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:1234567890:android:dummyid123456",
+                  "android_client_info": {
+                    "package_name": "com.foodsavr.app.development"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  { "current_key": "AIzaSyDummyKeyForDemoOnly" }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "google_api_initializer": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOT
       - name: Run integration tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
