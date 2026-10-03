@@ -178,6 +178,8 @@ jobs:
             curl -s http://localhost:4000 > /dev/null && break
             sleep 2
           done
+      - name: Write minimal .env
+        run: echo 'CI_TEST=1' > assets/.env
       - name: Write dummy google-services.json
         run: |
           mkdir -p android/app/src/development/debug android/app/src/production/debug
