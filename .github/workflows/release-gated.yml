@@ -1,0 +1,121 @@
+name: Release (Gated)
+
+on:
+  workflow_run:
+    workflows: ["Android Build", "Web Build"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  gate:
+    name: Evaluate release gate
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    outputs:
+      release_android: ${{ steps.evaluate.outputs.release_android }}
+      release_web: ${{ steps.evaluate.outputs.release_web }}
+    steps:
+      - name: Evaluate validation matrix for commit
+        id: evaluate
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const workflowName = context.payload.workflow_run.name;
+            const sha = context.payload.workflow_run.head_sha;
+            const { owner, repo } = context.repo;
+
+            const runsResp = await github.rest.actions.listWorkflowRunsForRepo({
+              owner,
+              repo,
+              head_sha: sha,
+              per_page: 100,
+            });
+
+            const runs = runsResp.data.workflow_runs ?? [];
+            const isSuccessful = (name) =>
+              runs.some((run) =>
+                run.name === name &&
+                run.status === "completed" &&
+                run.conclusion === "success",
+              );
+
+            const ciChecksOk = isSuccessful("Format, Analyze, Check Localizations and Run Tests");
+            const androidOk = isSuccessful("Android Build");
+            const webOk = isSuccessful("Web Build");
+
+            const releaseAndroid =
+              workflowName === "Android Build" &&
+              ciChecksOk &&
+              androidOk;
+            const releaseWeb =
+              workflowName === "Web Build" &&
+              ciChecksOk &&
+              webOk;
+
+            core.setOutput("release_android", String(releaseAndroid));
+            core.setOutput("release_web", String(releaseWeb));
+
+            core.info(`workflow: ${workflowName}`);
+            core.info(`sha: ${sha}`);
+            core.info(`ciChecksOk=${ciChecksOk}, androidOk=${androidOk}, webOk=${webOk}`);
+
+  release-android:
+    name: Release Android candidate
+    needs: gate
+    if: needs.gate.outputs.release_android == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Android build artifact from triggering run
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          run_id: ${{ github.event.workflow_run.id }}
+          name: android-apk-debug
+          path: artifacts/android
+          if_no_artifact_found: fail
+
+      - name: Upload release candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-android-candidate
+          path: artifacts/android
+
+      - name: Publish to Firebase App Distribution (optional)
+        if: ${{ secrets.FIREBASE_CLI_TOKEN != '' && secrets.FIREBASE_APP_ID_ANDROID != '' }}
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_APP_ID_ANDROID }}
+          token: ${{ secrets.FIREBASE_CLI_TOKEN }}
+          groups: testers
+          file: artifacts/android/app-development-debug.apk
+
+      - name: Skip Firebase App Distribution publish
+        if: ${{ secrets.FIREBASE_CLI_TOKEN == '' || secrets.FIREBASE_APP_ID_ANDROID == '' }}
+        run: echo "Skipping Firebase App Distribution publish; required secrets are not configured."
+
+  release-web:
+    name: Release Web candidate
+    needs: gate
+    if: needs.gate.outputs.release_web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download web build artifact from triggering run
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          run_id: ${{ github.event.workflow_run.id }}
+          name: web-build
+          path: artifacts/web
+          if_no_artifact_found: fail
+
+      - name: Upload release candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-web-candidate
+          path: artifacts/web
