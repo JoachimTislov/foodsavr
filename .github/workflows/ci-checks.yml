@@ -60,7 +60,6 @@ jobs:
 
       - name: Run tests
         run: flutter test --no-pub --coverage
-
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:

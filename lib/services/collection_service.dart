@@ -1,6 +1,5 @@
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
-import 'package:foodsavr/interfaces/i_validator.dart';
 
 import '../models/collection_model.dart';
 import '../interfaces/i_collection_repository.dart';
@@ -9,14 +8,9 @@ import '../utils/collection_types.dart';
 @lazySingleton
 class CollectionService {
   final ICollectionRepository _collectionRepository;
-  final IValidator<Collection> _collectionValidator;
   final Logger _logger;
 
-  CollectionService(
-    this._collectionRepository,
-    this._collectionValidator,
-    this._logger,
-  );
+  CollectionService(this._collectionRepository, this._logger);
 
   String _redactUserId(String userId) => userId.length <= 6
       ? '***'
@@ -133,11 +127,6 @@ class CollectionService {
 
   Future<Collection> addCollection(Collection collection) async {
     _logger.i('Adding collection: ${collection.name}');
-    final validationResult = _collectionValidator.validate(collection);
-    if (!validationResult.isValid) {
-      _logger.e('Validation failed for collection: ${collection.name}');
-      throw FormatException(validationResult.errors.first.message);
-    }
     try {
       final added = await _collectionRepository.add(collection);
       _logger.i('Successfully added collection');
@@ -150,11 +139,6 @@ class CollectionService {
 
   Future<void> updateCollection(Collection collection) async {
     _logger.i('Updating collection: ${collection.name}');
-    final validationResult = _collectionValidator.validate(collection);
-    if (!validationResult.isValid) {
-      _logger.e('Validation failed for collection: ${collection.name}');
-      throw FormatException(validationResult.errors.first.message);
-    }
     try {
       await _collectionRepository.update(collection);
       _logger.i('Successfully updated collection');
@@ -171,6 +155,65 @@ class CollectionService {
       _logger.i('Successfully deleted collection');
     } catch (e) {
       _logger.e('Error deleting collection: $e');
+      rethrow;
+    }
+  }
+
+  /// Create initial collections for a new user idempotently.
+  Future<void> createInitialCollections(String userId) async {
+    final redactedUserId = _redactUserId(userId);
+    _logger.i('Creating initial collections for new user: $redactedUserId');
+
+    try {
+      final existingCollections = await getCollectionsForUser(userId);
+      final existingTypes = existingCollections.map((c) => c.type).toSet();
+
+      final collectionsToCreate = <Collection>[];
+
+      if (!existingTypes.contains(CollectionType.inventory)) {
+        _logger.i('Inventory collection not found, preparing to create one.');
+        final inventory = Collection(
+          id: '', // Let repository generate ID
+          name: 'Inventory',
+          userId: userId,
+          type: CollectionType.inventory,
+          productIds: const [],
+        );
+        collectionsToCreate.add(inventory);
+      } else {
+        _logger.i('Inventory collection already exists, skipping creation.');
+      }
+
+      if (!existingTypes.contains(CollectionType.shoppingList)) {
+        _logger.i(
+          'Shopping list collection not found, preparing to create one.',
+        );
+        final shoppingList = Collection(
+          id: '', // Let repository generate ID
+          name: 'Shopping List',
+          userId: userId,
+          type: CollectionType.shoppingList,
+          productIds: const [],
+        );
+        collectionsToCreate.add(shoppingList);
+      } else {
+        _logger.i(
+          'Shopping list collection already exists, skipping creation.',
+        );
+      }
+
+      if (collectionsToCreate.isNotEmpty) {
+        await _collectionRepository.addCollectionsInBatch(collectionsToCreate);
+        _logger.i('Successfully created initial collections for new user.');
+      } else {
+        _logger.i('All initial collections already exist for user.');
+      }
+    } catch (e, s) {
+      _logger.e(
+        'Error creating initial collections for user $redactedUserId',
+        error: e,
+        stackTrace: s,
+      );
       rethrow;
     }
   }
