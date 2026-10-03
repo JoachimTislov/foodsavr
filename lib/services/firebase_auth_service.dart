@@ -27,12 +27,12 @@ class AuthService implements IAuthService {
     required FirebaseFirestore firestore,
     required CollectionService collectionService,
     required Logger logger,
-  })  : _googleSignIn = googleSignIn,
-        _facebookAuth = facebookAuth,
-        _supportsPersistence = supportsPersistence,
-        _firestore = firestore,
-        _collectionService = collectionService,
-        _logger = logger;
+  }) : _googleSignIn = googleSignIn,
+       _facebookAuth = facebookAuth,
+       _supportsPersistence = supportsPersistence,
+       _firestore = firestore,
+       _collectionService = collectionService,
+       _logger = logger;
 
   @override
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
@@ -77,48 +77,51 @@ class AuthService implements IAuthService {
       );
       return currentUser!.linkWithCredential(credential);
     }
-    final userCredential = await _firebaseAuth.createUserWithEmailAndPassword(
+    final newUser = await _firebaseAuth.createUserWithEmailAndPassword(
       email: email,
       password: password,
     );
 
-    if (userCredential.user != null) {
+    if (newUser.user != null) {
       try {
         await retry(
-          () => _collectionService.createInitialCollections(userCredential.user!.uid),
+          () => _collectionService.createInitialCollections(newUser.user!.uid),
           logger: _logger,
           operationName: 'CreateInitialCollections',
         );
       } catch (e, s) {
         _logger.e(
-          'Failed to create initial collections for user ${userCredential.user!.uid} after multiple retries. The user account was created, but seeding failed.',
+          'Failed to create initial collections for user ${newUser.user!.uid} after multiple retries. The user account was created, but seeding failed.',
           error: e,
           stackTrace: s,
         );
         // Do not rethrow; allow signup to succeed.
       }
     }
-    return userCredential;
+    return newUser;
   }
 
   @override
   Future<UserCredential> signInWithGoogle() async {
-    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-
-    if (googleUser == null) {
-      throw FirebaseAuthException(
-        code: 'ERROR_ABORTED_BY_USER',
-        message: 'Sign in aborted by user',
-      );
+    final GoogleSignInAccount googleUser;
+    try {
+      googleUser = await _googleSignIn.authenticate();
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        throw FirebaseAuthException(
+          code: 'ERROR_ABORTED_BY_USER',
+          message: 'Sign in aborted by user',
+        );
+      }
+      rethrow;
     }
 
     // Obtain the auth details from the request
-    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+    final GoogleSignInAuthentication googleAuth = googleUser.authentication;
 
     // Create a new credential
     final credential = GoogleAuthProvider.credential(
       idToken: googleAuth.idToken,
-      accessToken: googleAuth.accessToken,
     );
 
     return _firebaseAuth.signInWithCredential(credential);

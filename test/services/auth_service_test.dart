@@ -249,11 +249,10 @@ void main() {
       final mockAuth = MockGoogleSignInAuthentication();
 
       when(
-        () => mockGoogleSignIn.signIn(),
+        () => mockGoogleSignIn.authenticate(),
       ).thenAnswer((_) async => mockAccount);
-      when(() => mockAccount.authentication).thenAnswer((_) async => mockAuth);
+      when(() => mockAccount.authentication).thenReturn(mockAuth);
       when(() => mockAuth.idToken).thenReturn('id-token');
-      when(() => mockAuth.accessToken).thenReturn('access-token');
       when(
         () => mockFirebaseAuth.signInWithCredential(any()),
       ).thenAnswer((_) async => mockUserCredential);
@@ -261,8 +260,24 @@ void main() {
       final result = await authService.signInWithGoogle();
 
       expect(result, mockUserCredential);
-      verify(() => mockGoogleSignIn.signIn()).called(1);
+      verify(() => mockGoogleSignIn.authenticate()).called(1);
       verify(() => mockFirebaseAuth.signInWithCredential(any())).called(1);
+    });
+
+    test('signInWithGoogle throws a clear error when canceled', () async {
+      when(() => mockGoogleSignIn.authenticate()).thenThrow(
+        GoogleSignInException(
+          code: GoogleSignInExceptionCode.canceled,
+          description: 'The user canceled the sign-in flow.',
+        ),
+      );
+
+      await expectLater(
+        () => authService.signInWithGoogle(),
+        throwsA(isA<FirebaseAuthException>()),
+      );
+
+      verifyNever(() => mockFirebaseAuth.signInWithCredential(any()));
     });
 
     test('signInWithFacebook signs in with Firebase credential', () async {
@@ -344,8 +359,6 @@ class MockGoogleSignInAccount extends Mock implements GoogleSignInAccount {}
 
 class MockGoogleSignInAuthentication extends Mock
     implements GoogleSignInAuthentication {
-  String? get accessToken => 'access-token';
-
   @override
   String? get idToken => 'id-token';
 }
