@@ -38,9 +38,15 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Restore committed analysis options
+        run: |
+          git diff analysis_options.yaml | head -c 1400 > /tmp/ao_diff.txt || true
+          split -b 700 /tmp/ao_diff.txt /tmp/ao_chunk_ || true
+          for c in /tmp/ao_chunk_*; do echo "::error title=diag-ao::$(cat $c | tr '\n' ';')"; done
+          git checkout -- analysis_options.yaml
+
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed .
-
       - name: Write firebase_options.dart
         run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
 
