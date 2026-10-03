@@ -27,9 +27,7 @@ void main() {
   final repository = ProductRepository(firestore);
   final collectionRepository = CollectionRepository(firestore);
 
-  testWidgets(
-    'Product CRUD round-trip against Firestore emulator',
-    (tester) async {
+  testWidgets('Product CRUD round-trip', (tester) async {
     final expiry = DateTime.now().add(const Duration(days: 5));
     final product = Product(
       id: 'it-crud-1',
@@ -48,21 +46,19 @@ void main() {
     expect(fetched.quantity, 2);
     expect(fetched.expiries.single.expirationDate.year, expiry.year);
 
-    final updated = fetched.copyWith(name: 'Integration Test Milk Updated');
+    final updated = fetched.copyWith(name: 'Integration Test Milk V2');
     await repository.update(updated);
     final refetched = await repository.get('it-crud-1');
-    expect(refetched!.name, 'Integration Test Milk Updated');
+    expect(refetched!.name, 'Integration Test Milk V2');
 
     final personal = await repository.getPersonalProducts('it-user');
     expect(personal.any((p) => p.id == 'it-crud-1'), isTrue);
 
     await repository.delete('it-crud-1');
     expect(await repository.get('it-crud-1'), isNull);
-    });
+  });
 
-  testWidgets(
-    'Collection CRUD round-trip against Firestore emulator',
-    (tester) async {
+  testWidgets('Collection CRUD round-trip', (tester) async {
     final collection = Collection(
       id: 'it-col-1',
       name: 'Integration Test Collection',
@@ -76,16 +72,14 @@ void main() {
     expect(fetched, isNotNull);
     expect(fetched!.name, 'Integration Test Collection');
 
-    final updated = fetched.copyWith(
-      name: 'Integration Test Collection Updated',
-    );
+    final updated = fetched.copyWith(name: 'Test Collection V2');
     await collectionRepository.update(updated);
     final refetched = await collectionRepository.get('it-col-1');
-    expect(refetched!.name, 'Integration Test Collection Updated');
+    expect(refetched!.name, 'Test Collection V2');
 
     await collectionRepository.delete('it-col-1');
     expect(await collectionRepository.get('it-col-1'), isNull);
-    });
+  });
 
   tearDown(() async {
     await firestore.collection('products').doc('it-crud-1').delete();
