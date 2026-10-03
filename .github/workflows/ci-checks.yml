@@ -59,7 +59,17 @@ jobs:
         run: dart run scripts/locale/check_localizations.dart
 
       - name: Run tests
-        run: flutter test --no-pub --coverage
+        run: |
+          set +e
+          flutter test --no-pub --coverage > test_output.txt 2>&1
+          code=$?
+          if [ $code -ne 0 ]; then
+            grep -E '\[E\]' test_output.txt | head -8 > failed.txt || true
+            while IFS= read -r line; do echo "::error title=test-failure::$line"; done < failed.txt
+            grep -B2 -A12 '\[E\]' test_output.txt | head -c 650 > ctx.txt || true
+            echo "::error title=test-ctx::$(cat ctx.txt | tr '\n' ';')"
+          fi
+          exit $code
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
