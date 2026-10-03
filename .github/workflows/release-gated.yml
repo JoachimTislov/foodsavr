@@ -30,13 +30,26 @@ jobs:
             const sha = context.payload.workflow_run.head_sha;
             const { owner, repo } = context.repo;
 
+<<<<<<< HEAD
             const isSuccessful = (runs, name) =>
+=======
+            const runsResp = await github.rest.actions.listWorkflowRunsForRepo({
+              owner,
+              repo,
+              head_sha: sha,
+              per_page: 100,
+            });
+
+            const runs = runsResp.data.workflow_runs ?? [];
+            const isSuccessful = (name) =>
+>>>>>>> c08ce2f (ci: add gated release workflow for successful platform builds)
               runs.some((run) =>
                 run.name === name &&
                 run.status === "completed" &&
                 run.conclusion === "success",
               );
 
+<<<<<<< HEAD
             const listRuns = async () =>
               (
                 await github.rest.actions.listWorkflowRunsForRepo({
@@ -68,6 +81,11 @@ jobs:
             }
             const androidOk = isSuccessful(runs, "Android Build");
             const webOk = isSuccessful(runs, "Web Build");
+=======
+            const ciChecksOk = isSuccessful("Format, Analyze, Check Localizations and Run Tests");
+            const androidOk = isSuccessful("Android Build");
+            const webOk = isSuccessful("Web Build");
+>>>>>>> c08ce2f (ci: add gated release workflow for successful platform builds)
 
             const releaseAndroid =
               workflowName === "Android Build" &&
@@ -90,8 +108,11 @@ jobs:
     needs: gate
     if: needs.gate.outputs.release_android == 'true'
     runs-on: ubuntu-latest
+<<<<<<< HEAD
     env:
       HAS_FIREBASE_SECRETS: ${{ secrets.FIREBASE_CLI_TOKEN != '' && secrets.FIREBASE_APP_ID_ANDROID != '' }}
+=======
+>>>>>>> c08ce2f (ci: add gated release workflow for successful platform builds)
     steps:
       - name: Download Android build artifact from triggering run
         uses: dawidd6/action-download-artifact@v11
@@ -109,7 +130,11 @@ jobs:
           path: artifacts/android
 
       - name: Publish to Firebase App Distribution (optional)
+<<<<<<< HEAD
         if: ${{ env.HAS_FIREBASE_SECRETS == 'true' }}
+=======
+        if: ${{ secrets.FIREBASE_CLI_TOKEN != '' && secrets.FIREBASE_APP_ID_ANDROID != '' }}
+>>>>>>> c08ce2f (ci: add gated release workflow for successful platform builds)
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
           appId: ${{ secrets.FIREBASE_APP_ID_ANDROID }}
@@ -118,7 +143,11 @@ jobs:
           file: artifacts/android/app-development-debug.apk
 
       - name: Skip Firebase App Distribution publish
+<<<<<<< HEAD
         if: ${{ env.HAS_FIREBASE_SECRETS != 'true' }}
+=======
+        if: ${{ secrets.FIREBASE_CLI_TOKEN == '' || secrets.FIREBASE_APP_ID_ANDROID == '' }}
+>>>>>>> c08ce2f (ci: add gated release workflow for successful platform builds)
         run: echo "Skipping Firebase App Distribution publish; required secrets are not configured."
 
   release-web:
@@ -126,8 +155,11 @@ jobs:
     needs: gate
     if: needs.gate.outputs.release_web == 'true'
     runs-on: ubuntu-latest
+<<<<<<< HEAD
     env:
       HAS_FIREBASE_SECRETS: ${{ secrets.FIREBASE_CLI_TOKEN != '' && secrets.FIREBASE_APP_ID_ANDROID != '' }}
+=======
+>>>>>>> c08ce2f (ci: add gated release workflow for successful platform builds)
     steps:
       - name: Download web build artifact from triggering run
         uses: dawidd6/action-download-artifact@v11
