@@ -117,7 +117,7 @@ notes:
     - [Helpful openai overview](https://gist.github.com/HelgeSverre/80a7f34f874336324184a0c513c2e6a2)
 
 ## Commercialization & Next Steps
-- [ ] Choose and implement a "Source Available" license (e.g., PolyForm Noncommercial or BSL 1.1) to prevent unauthorized financial benefit by third parties.
+- [x] Choose and implement a "Source Available" license (e.g., PolyForm Noncommercial or BSL 1.1) to prevent unauthorized financial benefit by third parties.
 - [ ] create a new firestore project or setup a backend for production use
     Firestore specific:
     - [ ] read flutter, android/ios/web platform specific and firebase launch todo lists
