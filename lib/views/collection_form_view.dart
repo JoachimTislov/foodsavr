@@ -1,5 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+
 import '../models/collection_model.dart';
 import '../service_locator.dart';
 import '../services/collection_service.dart';

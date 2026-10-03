@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:foodsavr/controllers/user_controller.dart';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
 import 'package:openfoodfacts/openfoodfacts.dart';
@@ -66,7 +67,6 @@ void main() async {
           .timeout(const Duration(seconds: 2));
     } catch (_) {
       // If the GET request fails or times out, the emulators are likely offline.
-      // TODO: consider just starting them
       throw Exception(
         'Firebase Emulators are not running! Please run "make start-firebase-emulators" (see kill-firebase-emulators in Makefile for port details).',
       );
@@ -129,7 +129,9 @@ void main() async {
       fallbackLocale: enLocale,
       startLocale: enLocale,
       useFallbackTranslations: true,
-      child: MyApp(router: createAppRouter(getIt<IAuthService>())),
+      child: MyApp(
+        router: createAppRouter(getIt<IAuthService>(), getIt<UserController>()),
+      ),
     ),
   );
 }

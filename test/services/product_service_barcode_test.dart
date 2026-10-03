@@ -5,8 +5,12 @@ import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/utils/shelf_life.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:foodsavr/interfaces/i_validator.dart';
+import 'package:foodsavr/validation/validation_result.dart'; // Added ValidationResult import
 
 class _MockShelfLifeService extends Mock implements ShelfLifeService {}
+
+class _MockIValidatorProduct extends Mock implements IValidator<Product> {}
 
 class _FakeProduct extends Fake implements Product {}
 
@@ -65,8 +69,18 @@ class _FakeProductRepository implements IProductRepository {
 }
 
 void main() {
+  late _MockIValidatorProduct mockProductValidator;
+
   setUpAll(() {
     registerFallbackValue(_FakeProduct());
+  });
+
+  setUp(() {
+    mockProductValidator = _MockIValidatorProduct();
+    // Stub the validate method to return success by default
+    when(
+      () => mockProductValidator.validate(any()),
+    ).thenReturn(ValidationResult.success());
   });
 
   group('ProductService barcode scan handling', () {
@@ -87,6 +101,7 @@ void main() {
       ).thenReturn(null);
       final service = ProductService(
         repository,
+        mockProductValidator,
         mockShelfLifeService,
         Logger(level: Level.off),
       );
@@ -110,6 +125,7 @@ void main() {
       ).thenReturn(null);
       final service = ProductService(
         repository,
+        mockProductValidator,
         mockShelfLifeService,
         Logger(level: Level.off),
       );
@@ -134,6 +150,7 @@ void main() {
       ).thenReturn(null);
       final service = ProductService(
         repository,
+        mockProductValidator,
         mockShelfLifeService,
         Logger(level: Level.off),
       );

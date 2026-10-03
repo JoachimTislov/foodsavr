@@ -2,7 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/models/collection_model.dart';
-import 'package:foodsavr/controllers/c_auth.dart';
+import 'package:foodsavr/controllers/user_controller.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
@@ -27,7 +27,7 @@ void main() {
   late MockAuthService mockAuthService;
   late MockCollectionService mockCollectionService;
   late MockLogger mockLogger;
-  late AuthController authController;
+  late UserController authController;
   late MockUser mockUser;
   late MockUserCredential mockUserCredential;
 
@@ -40,8 +40,12 @@ void main() {
 
     when(() => mockUser.uid).thenReturn('test-uid');
     when(() => mockUserCredential.user).thenReturn(mockUser);
+    when(() => mockAuthService.currentUser).thenReturn(mockUser);
+    when(
+      () => mockAuthService.authStateChanges,
+    ).thenAnswer((_) => Stream<User?>.fromIterable([mockUser]));
 
-    authController = AuthController(
+    authController = UserController(
       mockAuthService,
       mockLogger,
       translate: (String key) => key,
