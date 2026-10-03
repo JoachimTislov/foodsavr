@@ -571,10 +571,10 @@ packages:
     dependency: "direct main"
     description:
       name: get_it
-      sha256: "568d62f0e68666fb5d95519743b3c24a34c7f19d834b0658c46e26d778461f66"
+      sha256: "2b5c6b077aad30bba9782178baff6076a2044141f1d5f2f15b43bca3fbe74874"
       url: "https://pub.dev"
     source: hosted
-    version: "9.2.1"
+    version: "9.3.0"
   glob:
     dependency: transitive
     description:
@@ -832,10 +832,10 @@ packages:
     dependency: transitive
     description:
       name: listen_it
-      sha256: "4cfc307e943a25c7b500d173523dcebe966b0a323eaa07bd3769f563af19f065"
+      sha256: "137f2576048c1982863141547db0a3c5a200541f47216b507f9fe6545ea696f5"
       url: "https://pub.dev"
     source: hosted
-    version: "5.3.5"
+    version: "6.0.0"
   logger:
     dependency: "direct main"
     description:
@@ -1325,10 +1325,10 @@ packages:
     dependency: "direct main"
     description:
       name: watch_it
-      sha256: "0449f08187ba70833dbca64fd9d7f098a53d4bd27ab5e9f49ae44b4c3a7577fa"
+      sha256: "623695dc6d108e4f317827bf61632c31da4282547879e9a92a90a15538872f9c"
       url: "https://pub.dev"
     source: hosted
-    version: "2.4.2"
+    version: "2.5.0"
   watcher:
     dependency: transitive
     description:
