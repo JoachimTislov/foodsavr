@@ -19,11 +19,20 @@ Future<T> retry<T>(
     } catch (e, s) {
       final attempt = i + 1;
       final name = operationName ?? 'Operation';
-      logger.w('$name failed on attempt $attempt of $retries', error: e, stackTrace: s);
+      logger.w(
+        '$name failed on attempt $attempt of $retries',
+        error: e,
+        stackTrace: s,
+      );
       if (i < retries - 1) {
-        await Future.delayed(delay * attempt); // Increase delay for subsequent retries
+        // Increase delay for subsequent retries.
+        await Future.delayed(delay * attempt);
       } else {
-        logger.e('$name failed after $retries attempts', error: e, stackTrace: s);
+        logger.e(
+          '$name failed after $retries attempts',
+          error: e,
+          stackTrace: s,
+        );
         rethrow;
       }
     }
