@@ -180,7 +180,7 @@ jobs:
           done
       - name: Write dummy google-services.json
         run: |
-          mkdir -p android/app/src/development/debug
+          mkdir -p android/app/src/development/debug android/app/src/production/debug
           cat > android/app/src/development/debug/google-services.json <<'EOT'
           {
             "project_info": {
@@ -210,6 +210,11 @@ jobs:
             "configuration_version": "1"
           }
           EOT
+      - name: Write production google-services.json
+        run: |
+          sed 's/com.foodsavr.app.development/com.foodsavr.app/' \
+            android/app/src/development/debug/google-services.json \
+            > android/app/src/production/debug/google-services.json
       - name: Run integration tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
