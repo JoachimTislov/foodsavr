@@ -38,5 +38,5 @@ This helps us trust that the change is well-informed.
 Consistency is key. Before submitting, make sure your code vibes with the rest of the project. Check out these guides:
 
 *   **Code Style:** We follow [Effective Dart](https://dart.dev/effective-dart) guidelines.
-*   **Folder Structure:** Take a look at how the `lib/` directory is organized by feature. We try to keep a clean separation between data, domain, and presentation layers.
+*   **Folder Structure:** Take a look at how the `lib/` directory is layered (`interfaces/`, `models/`, `repositories/`, `services/`, `views/`, `widgets/`), with feature-specific code under `features/`. We try to keep a clean separation between data, domain, and presentation layers.
 
