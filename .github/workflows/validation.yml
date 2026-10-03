@@ -129,11 +129,16 @@ jobs:
     name: Android integration tests
     needs: changes
     if: ${{ needs.changes.outputs.android == 'true' || needs.changes.outputs.integration == 'true' }}
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
