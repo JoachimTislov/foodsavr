@@ -224,7 +224,7 @@ jobs:
           script: |
             adb reverse tcp:8080 tcp:8080
             adb reverse tcp:9099 tcp:9099
-            flutter test integration_test --no-pub
+            flutter test integration_test --flavor development --no-pub
 
   e2e-web:
     name: Web E2E (Playwright)
