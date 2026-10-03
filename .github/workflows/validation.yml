@@ -33,20 +33,25 @@ jobs:
               - 'lib/**'
               - 'web/**'
               - 'pubspec.yaml'
+              - 'pubspec.lock'
+              - 'test/e2e/**'
             android:
               - 'lib/**'
               - 'android/**'
               - 'pubspec.yaml'
+              - 'pubspec.lock'
             integration:
               - 'integration_test/**'
               - 'test_driver/**'
               - 'lib/**'
               - 'pubspec.yaml'
+              - 'pubspec.lock'
             e2e:
               - 'test/e2e/**'
               - 'lib/**'
               - 'web/**'
               - 'pubspec.yaml'
+              - 'pubspec.lock'
 
   web-smoke:
     name: Web smoke test

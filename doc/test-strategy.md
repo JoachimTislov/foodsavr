@@ -11,7 +11,7 @@ This document defines the evaluation and validation strategy for foodsavr, track
 | Smoke | Playwright (`test/e2e/tests/*.smoke.spec.ts`) | App boots, landing renders, no console errors | Web build affected |
 | Integration (Android) | `flutter test integration_test` on emulator + Firebase emulators | Full app flows on device | Android/integration paths affected |
 | Integration (web) | Playwright (`test/e2e/tests/*.spec.ts`) | Auth, inventory/shopping-list CRUD, transfers, modals | Web paths affected |
-| Firebase emulator tests | Firestore emulator + Auth emulator | CRUD against emulators, security rules validation | `lib/`, `firestore.rules` affected |
+| Firebase emulator tests | Firestore emulator + Auth emulator | CRUD against emulators (permissive rules override in CI; real security-rules validation is tracked separately) | `lib/`, `integration_test/**` affected |
 
 ## Unit vs integration decision rule
 
