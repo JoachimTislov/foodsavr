@@ -9,8 +9,7 @@ import 'package:foodsavr/validation/validation_result.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 
-class _MockCollectionRepository extends Mock
-    implements ICollectionRepository {}
+class _MockCollectionRepository extends Mock implements ICollectionRepository {}
 
 class _StubCollectionValidator implements IValidator<Collection> {
   @override
@@ -92,30 +91,31 @@ void main() {
     });
 
     test('getInventoriesByProductId finds containing inventories', () async {
-      final result = await service.getInventoriesByProductId(
-        'user-123',
-        'p-1',
-      );
+      final result = await service.getInventoriesByProductId('user-123', 'p-1');
       expect(result, [inventory]);
     });
 
-    test('getInventoriesByProductId excludes non-inventory collections',
-        () async {
-      final result = await service.getInventoriesByProductId(
-        'user-123',
-        'p-2',
-      );
-      expect(result, isEmpty);
-    });
+    test(
+      'getInventoriesByProductId excludes non-inventory collections',
+      () async {
+        final result = await service.getInventoriesByProductId(
+          'user-123',
+          'p-2',
+        );
+        expect(result, isEmpty);
+      },
+    );
 
-    test('getInventoryNamesForProducts maps product id to inventory names',
-        () async {
-      final map = await service.getInventoryNamesForProducts(
-        'user-123',
-        const {'p-1'},
-      );
-      expect(map['p-1'], ['Home Fridge']);
-    });
+    test(
+      'getInventoryNamesForProducts maps product id to inventory names',
+      () async {
+        final map = await service.getInventoryNamesForProducts(
+          'user-123',
+          const {'p-1'},
+        );
+        expect(map['p-1'], ['Home Fridge']);
+      },
+    );
   });
 
   group('getCollection', () {

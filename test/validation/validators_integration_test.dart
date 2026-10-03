@@ -171,8 +171,10 @@ void main() {
         category: 'mystery',
       );
       expect(shelfLife.estimateExpiration(unknown, addedDate: added), isNull);
-      expect(shelfLife.estimateExpiration(tagged([]), addedDate: added),
-          isNull);
+      expect(
+        shelfLife.estimateExpiration(tagged([]), addedDate: added),
+        isNull,
+      );
     });
   });
 }
