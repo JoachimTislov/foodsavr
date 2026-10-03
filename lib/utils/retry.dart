@@ -25,7 +25,7 @@ Future<T> retry<T>(
         stackTrace: s,
       );
       if (i < retries - 1) {
-        // Increase delay for subsequent retries.
+        // Increase the delay for subsequent retries.
         await Future.delayed(delay * attempt);
       } else {
         logger.e(
