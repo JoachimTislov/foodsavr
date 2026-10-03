@@ -80,6 +80,8 @@ jobs:
         run: touch assets/.env
       - name: Build generative code
         run: dart run build_runner build --delete-conflicting-outputs
+      - name: Generate web platform files
+        run: flutter create . --platforms web
       - name: Build web
         run: flutter build web --release
       - name: Start Firebase Emulators
@@ -114,7 +116,7 @@ jobs:
     name: Android integration tests
     needs: changes
     if: ${{ needs.changes.outputs.android == 'true' || needs.changes.outputs.integration == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 60
     steps:
       - name: Checkout code
@@ -149,7 +151,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          arch: x86_64
+          arch: arm64
           target: google_apis
           script: |
             adb reverse tcp:8080 tcp:8080
@@ -188,6 +190,8 @@ jobs:
         run: touch assets/.env
       - name: Build generative code
         run: dart run build_runner build --delete-conflicting-outputs
+      - name: Generate web platform files
+        run: flutter create . --platforms web
       - name: Build web
         run: flutter build web --release
       - name: Start Firebase Emulators
