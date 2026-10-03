@@ -58,7 +58,7 @@ void main() {
 
     await repository.delete('it-crud-1');
     expect(await repository.get('it-crud-1'), isNull);
-  });
+    });
 
   testWidgets(
     'Collection CRUD round-trip against Firestore emulator',
@@ -85,7 +85,7 @@ void main() {
 
     await collectionRepository.delete('it-col-1');
     expect(await collectionRepository.get('it-col-1'), isNull);
-  });
+    });
 
   tearDown(() async {
     await firestore.collection('products').doc('it-crud-1').delete();
