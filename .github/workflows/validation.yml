@@ -106,9 +106,9 @@ jobs:
           done
       - name: Serve web build
         run: |
-          npx -y serve build/web -l 8080 --no-clipboard &
+          npx -y serve build/web -l 4173 --no-clipboard &
           for i in $(seq 1 30); do
-            curl -s http://localhost:8080 > /dev/null && break
+            curl -s http://localhost:4173 > /dev/null && break
             sleep 1
           done
       - name: Run Playwright smoke tests
@@ -242,9 +242,9 @@ jobs:
           done
       - name: Serve web build
         run: |
-          npx -y serve build/web -l 8080 --no-clipboard &
+          npx -y serve build/web -l 4173 --no-clipboard &
           for i in $(seq 1 30); do
-            curl -s http://localhost:8080 > /dev/null && break
+            curl -s http://localhost:4173 > /dev/null && break
             sleep 1
           done
       - name: Run Playwright E2E tests
