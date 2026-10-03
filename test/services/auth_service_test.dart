@@ -57,7 +57,8 @@ void main() {
         ).thenAnswer((_) async => mockUserCredential);
 
         when(
-          () => mockFirebaseAuth.setPersistence(Persistence.SESSION),
+          () => mockFirebaseAuth.setPersistence(Per
+sistence.SESSION),
         ).thenAnswer((_) async {});
 
         await authService.signIn(email: email, password: password);
@@ -124,7 +125,8 @@ void main() {
       expect(result, mockUserCredential);
       verify(
         () => mockFirebaseAuth.createUserWithEmailAndPassword(
-          email: email,
+     
+     email: email,
           password: password,
         ),
       ).called(1);
@@ -184,7 +186,8 @@ void main() {
     });
 
     test('signUp retries createInitialCollections and finally fails', () async {
-      const uid = 'some-uid';
+      const uid = 'some-uid'
+;
       final mockUser = MockUser();
       when(() => mockUser.uid).thenReturn(uid);
       when(() => mockUserCredential.user).thenReturn(mockUser);
@@ -245,7 +248,8 @@ void main() {
       ).called(1);
     });
 
-    test('signInWithGoogle signs in with Firebase credential', () async {
+    test('signInWithGoogle signs in with 
+Firebase credential', () async {
       final mockAccount = MockGoogleSignInAccount();
       final mockAuth = MockGoogleSignInAuthentication();
 
@@ -298,7 +302,8 @@ void main() {
       verify(() => mockFirebaseAuth.signInWithCredential(any())).called(1);
     });
 
-    test('signInWithFacebook throws when access token is null', () async {
+    test('signInWithFacebook throws when access tok
+en is null', () async {
       final mockResult = MockLoginResult();
 
       when(() => mockFacebookAuth.login()).thenAnswer((_) async => mockResult);
@@ -357,13 +362,17 @@ class MockGoogleSignIn extends Mock implements GoogleSignIn {}
 
 class MockGoogleSignInAccount extends Mock implements GoogleSignInAccount {}
 
+/// Overrides [idToken] with a plain getter instead of a `when()` stub:
+/// stubbing a real (non-Mock) getter inside `when()` throws
+/// "No method stub was called".
 class MockGoogleSignInAuthentication extends Mock
     implements GoogleSignInAuthentication {
   @override
   String? get idToken => 'id-token';
 }
 
-class MockLoginResult extends Mock implements LoginResult {}
+class MockLoginResult extends Mock implem
+ents LoginResult {}
 
 class MockUser extends Mock implements User {}
 
