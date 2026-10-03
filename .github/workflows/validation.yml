@@ -151,7 +151,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          arch: arm64
+          arch: arm64-v8a
           target: google_apis
           script: |
             adb reverse tcp:8080 tcp:8080

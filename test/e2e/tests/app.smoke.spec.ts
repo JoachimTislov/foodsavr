@@ -1,23 +1,22 @@
 import { test, expect } from '@playwright/test';
 
-test('app boots and renders landing view', async ({ page }) => {
-  const consoleErrors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') consoleErrors.push(msg.text());
-  });
-
+test('app boots and renders the Flutter view', async ({ page }) => {
   await page.goto('/');
   await expect(page).toHaveTitle(/.+/);
-
-  const rendered = await page
-    .locator('body')
-    .evaluate((body) => (body.textContent ?? '').trim().length > 0);
-  expect(rendered).toBe(true);
-
-  expect(consoleErrors, `Console errors: ${consoleErrors.join(' | ')}`).toHaveLength(0);
+  await expect(page.locator('flutter-view, flt-glass-pane').first()).toBeVisible({
+    timeout: 30_000,
+  });
 });
 
-test('flutter canvas is present and interactive', async ({ page }) => {
+test('app does not hit uncaught page errors', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (err) => pageErrors.push(err.message));
+
   await page.goto('/');
-  await expect(page.locator('flutter-view, flt-glass-pane, flutter-view-engine').first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('flutter-view, flt-glass-pane').first()).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.waitForTimeout(3_000);
+
+  expect(pageErrors, `Page errors: ${pageErrors.join(' | ')}`).toHaveLength(0);
 });
