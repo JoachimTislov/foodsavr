@@ -46,7 +46,15 @@ jobs:
           git checkout -- analysis_options.yaml
 
       - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed .
+        run: |
+          dart format --output=none . > fmt_report.txt 2>&1 || true
+          echo "::error title=diag-tail::$(tail -1 fmt_report.txt)"
+          head -4 fmt_report.txt | while IFS= read -r line; do echo "::error title=diag-fmt::$line"; done
+          dart format --output=show test/inventory_visibility_test.dart > f.shown 2>/dev/null || true
+          sed -i '$ d' f.shown || true
+          echo "::error title=diag-diff::$(diff -u test/inventory_visibility_test.dart f.shown 2>&1 | head -c 650 | tr '\n' ';')"
+          echo "::error title=diag-ao::$(sha256sum analysis_options.yaml | head -c 64)"
+          dart format --output=none --set-exit-if-changed .
       - name: Write firebase_options.dart
         run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
 
