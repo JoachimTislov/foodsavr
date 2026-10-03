@@ -38,17 +38,15 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Verify formatting
+      - name: Restore committed analysis options
         run: |
-          echo "::error title=diag-dirty::$(git status --porcelain | head -c 600 | tr '\n' ';')"
-          dart format --output=none . > fmt_report.txt 2>&1 || true
-          echo "::error title=diag-count::$(tail -1 fmt_report.txt)"
-          echo "::error title=diag-sha1::$(sha256sum test/inventory_visibility_test.dart | head -c 64)"
-          echo "::error title=diag-sha2::$(sha256sum lib/views/dashboard_view.dart | head -c 64)"
-          echo "::error title=diag-sha3::$(sha256sum analysis_options.yaml | head -c 64)"
-          echo "::error title=diag-lscount::tracked $(git ls-files '*.dart' | wc -l) find $(find . -name '*.dart' -not -path './.git/*' | wc -l)"
-          head -3 fmt_report.txt | while IFS= read -r line; do echo "::error title=diag-fmt::$line"; done
-          dart format --output=none --set-exit-if-changed .
+          git diff analysis_options.yaml | head -c 1400 > /tmp/ao_diff.txt || true
+          split -b 700 /tmp/ao_diff.txt /tmp/ao_chunk_ || true
+          for c in /tmp/ao_chunk_*; do echo "::error title=diag-ao::$(cat $c | tr '\n' ';')"; done
+          git checkout -- analysis_options.yaml
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
       - name: Write firebase_options.dart
         run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
 
