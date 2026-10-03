@@ -3,25 +3,53 @@ name: Format, Analyze, Check Localizations and Run Tests
 on:
   push:
     branches: [main]
-    paths:
+    paths: &code_paths
       - "**.dart"
       - "lib/**"
       - "test/**"
-      - "assets/**"
+      - "assets/translations/**"
       - "pubspec.yaml"
+      - "pubspec.lock"
+      - "analysis_options.yaml"
   pull_request:
     branches: [main]
-    paths:
-      - "**.dart"
-      - "lib/**"
-      - "test/**"
-      - "assets/**"
-      - "pubspec.yaml"
+    paths: *code_paths
   workflow_dispatch:
 
 jobs:
+  gate:
+    name: Decide whether to run CI
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Decide
+        id: decide
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          subject=$(git log -1 --pretty=%s)
+          parents=$(git show -s --format='%P' HEAD | wc -w)
+          if [ "$parents" -gt 1 ] && echo "$subject" | grep -qE '^Merge pull request #[0-9]+'; then
+            echo "HEAD is a GitHub PR merge; CI already ran on the pull request" >&2
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "run=true" >> "$GITHUB_OUTPUT"
+
   check:
     name: Check & Test
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -43,6 +71,7 @@ jobs:
 
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed .
+
       - name: Write firebase_options.dart
         run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
 
@@ -60,6 +89,7 @@ jobs:
 
       - name: Run tests
         run: flutter test --no-pub --coverage
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
