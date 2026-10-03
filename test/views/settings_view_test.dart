@@ -82,9 +82,8 @@ void main() async {
       getIt.registerSingleton<Logger>(Logger(level: Level.off));
 
       mockAuthService = _MockAuthService();
-      when(
-        () => mockAuthService.authStateChanges,
-      ).thenAnswer((_) => const Stream.empty());
+      when(() => mockAuthService.authStateChanges)
+          .thenAnswer((_) => const Stream.empty());
       when(() => mockAuthService.currentUser).thenReturn(null);
       getIt.registerLazySingleton<IAuthService>(() => mockAuthService);
 
@@ -142,12 +141,10 @@ void main() async {
             break;
         }
       }
-      when(
-        () => groceryStoreAuthService.authorize(any()),
-      ).thenAnswer((_) async {});
-      when(
-        () => groceryStoreAuthService.fetchUserProfile(any()),
-      ).thenAnswer((_) async => null);
+      when(() => groceryStoreAuthService.authorize(any()))
+          .thenAnswer((_) async {});
+      when(() => groceryStoreAuthService.fetchUserProfile(any()))
+          .thenAnswer((_) async => null);
       getIt.registerLazySingleton<IOAuthService>(() => groceryStoreAuthService);
       getIt.registerSingleton<OAuthController>(
         OAuthController(groceryStoreAuthService, getIt<Logger>()),

@@ -149,9 +149,8 @@ class ProfileView extends WatchingWidget {
             const SizedBox(height: 16),
             Text(
               'profile.delete_account'.tr(),
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Text(

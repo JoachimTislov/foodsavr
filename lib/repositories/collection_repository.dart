@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:injectable/injectable.dart';
+
 import '../models/collection_model.dart';
 import '../interfaces/i_collection_repository.dart';
 

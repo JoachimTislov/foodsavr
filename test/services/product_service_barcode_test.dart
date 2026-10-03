@@ -82,9 +82,8 @@ void main() {
         ),
       ]);
       final mockShelfLifeService = _MockShelfLifeService();
-      when(
-        () => mockShelfLifeService.estimateExpiration(any()),
-      ).thenReturn(null);
+      when(() => mockShelfLifeService.estimateExpiration(any()))
+          .thenReturn(null);
       final service = ProductService(
         repository,
         mockShelfLifeService,
@@ -105,9 +104,8 @@ void main() {
     test('creates product for unknown barcode', () async {
       final repository = _FakeProductRepository([]);
       final mockShelfLifeService = _MockShelfLifeService();
-      when(
-        () => mockShelfLifeService.estimateExpiration(any()),
-      ).thenReturn(null);
+      when(() => mockShelfLifeService.estimateExpiration(any()))
+          .thenReturn(null);
       final service = ProductService(
         repository,
         mockShelfLifeService,
@@ -129,9 +127,8 @@ void main() {
     test('throws ArgumentError for empty or whitespace barcode', () async {
       final repository = _FakeProductRepository([]);
       final mockShelfLifeService = _MockShelfLifeService();
-      when(
-        () => mockShelfLifeService.estimateExpiration(any()),
-      ).thenReturn(null);
+      when(() => mockShelfLifeService.estimateExpiration(any()))
+          .thenReturn(null);
       final service = ProductService(
         repository,
         mockShelfLifeService,

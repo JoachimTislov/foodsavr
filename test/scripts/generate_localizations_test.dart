@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:test/test.dart';
 
 void main() {
@@ -12,9 +13,8 @@ void main() {
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('gen_test');
-    assetsDir = await Directory(
-      '${tempDir.path}/assets/translations',
-    ).create(recursive: true);
+    assetsDir = await Directory('${tempDir.path}/assets/translations')
+        .create(recursive: true);
     libDir = await Directory('${tempDir.path}/lib').create(recursive: true);
 
     enJson = File('${assetsDir.path}/en.json');
@@ -96,32 +96,35 @@ void main() {
     expect(firstKeyIndex < secondKeyIndex, isTrue);
   });
 
-  test('Logs a warning when a conflict occurs during stub generation', () async {
-    // Current state has auth.login as a string. Let's try to insert a nested key auth.login.title.
-    await enJson.writeAsString(
-      jsonEncode({
-        'auth': {'login': 'Login'},
-      }),
-    );
-    await mainDart.writeAsString('''
+  test(
+    'Logs a warning when a conflict occurs during stub generation',
+    () async {
+      // Current state has auth.login as a string. Let's try to insert a nested key auth.login.title.
+      await enJson.writeAsString(
+        jsonEncode({
+          'auth': {'login': 'Login'},
+        }),
+      );
+      await mainDart.writeAsString('''
       void main() {
         print("auth.login.title".tr());
       }
     ''');
 
-    final result = await runGenerate();
-    expect(result.exitCode, 0);
-    expect(
-      result.stderr,
-      contains(
-        'WARNING: Key path conflict at "auth.login". Replacing existing leaf value "Login" with a nested structure.',
-      ),
-    );
+      final result = await runGenerate();
+      expect(result.exitCode, 0);
+      expect(
+        result.stderr,
+        contains(
+          'WARNING: Key path conflict at "auth.login". Replacing existing leaf value "Login" with a nested structure.',
+        ),
+      );
 
-    final enMap =
-        jsonDecode(await enJson.readAsString()) as Map<String, dynamic>;
-    expect(enMap['auth'], isA<Map>());
-    expect(enMap['auth']['login'], isA<Map>());
-    expect(enMap['auth']['login']['title'], '[STUB] auth.login.title');
-  });
+      final enMap =
+          jsonDecode(await enJson.readAsString()) as Map<String, dynamic>;
+      expect(enMap['auth'], isA<Map>());
+      expect(enMap['auth']['login'], isA<Map>());
+      expect(enMap['auth']['login']['title'], '[STUB] auth.login.title');
+    },
+  );
 }

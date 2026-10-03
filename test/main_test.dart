@@ -103,9 +103,8 @@ void main() {
       getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
       getIt.registerSingleton<Logger>(Logger(level: Level.off));
       mockAuthService = MockAuthService();
-      when(
-        () => mockAuthService.authStateChanges,
-      ).thenAnswer((_) => Stream.value(null));
+      when(() => mockAuthService.authStateChanges)
+          .thenAnswer((_) => Stream.value(null));
       when(() => mockAuthService.currentUser).thenReturn(null);
       getIt.registerLazySingleton<IAuthService>(() => mockAuthService);
 
@@ -331,9 +330,8 @@ void main() {
     testWidgets('MyApp handles null checks correctly', (tester) async {
       await tester.runAsync(() async {
         final mockAuthService = MockAuthService();
-        when(
-          () => mockAuthService.authStateChanges,
-        ).thenAnswer((_) => Stream.value(null));
+        when(() => mockAuthService.authStateChanges)
+            .thenAnswer((_) => Stream.value(null));
         when(() => mockAuthService.currentUser).thenReturn(null);
 
         final mockUserController = MockUserController();
@@ -370,9 +368,8 @@ void main() {
     testWidgets('supports both English and Norwegian locales', (tester) async {
       await tester.runAsync(() async {
         final mockAuthService = MockAuthService();
-        when(
-          () => mockAuthService.authStateChanges,
-        ).thenAnswer((_) => Stream.value(null));
+        when(() => mockAuthService.authStateChanges)
+            .thenAnswer((_) => Stream.value(null));
         when(() => mockAuthService.currentUser).thenReturn(null);
 
         final mockUserController = MockUserController();
@@ -412,9 +409,8 @@ void main() {
     ) async {
       await tester.runAsync(() async {
         final mockAuthService = MockAuthService();
-        when(
-          () => mockAuthService.authStateChanges,
-        ).thenAnswer((_) => Stream.value(null));
+        when(() => mockAuthService.authStateChanges)
+            .thenAnswer((_) => Stream.value(null));
         when(() => mockAuthService.currentUser).thenReturn(null);
 
         final mockUserController = MockUserController();

@@ -46,9 +46,8 @@ void main() {
 
       // Initial state: user_1 is logged in
       when(() => authService.getUserId()).thenReturn('user_1');
-      when(
-        () => productService.getExpiringSoon('user_1'),
-      ).thenAnswer((_) async => []);
+      when(() => productService.getExpiringSoon('user_1'))
+          .thenAnswer((_) async => []);
       when(
         () => collectionService.getCollectionsForUser(
           'user_1',
@@ -57,9 +56,8 @@ void main() {
       ).thenAnswer((_) async => []);
 
       // Also need to stub user_2 to prevent MissingStubError during the second fetch
-      when(
-        () => productService.getExpiringSoon('user_2'),
-      ).thenAnswer((_) async => []);
+      when(() => productService.getExpiringSoon('user_2'))
+          .thenAnswer((_) async => []);
       when(
         () => collectionService.getCollectionsForUser(
           'user_2',

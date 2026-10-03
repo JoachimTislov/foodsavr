@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
@@ -34,18 +35,16 @@ void main() {
   group('SeedingService Tests', () {
     group('Emulator Check', () {
       test('checkEmulators returns true when emulator is running', () async {
-        when(
-          () => mockClient.get(any()),
-        ).thenAnswer((_) async => http.Response('OK', 200));
+        when(() => mockClient.get(any()))
+            .thenAnswer((_) async => http.Response('OK', 200));
 
         final result = await seedingService.checkEmulators();
         expect(result, isTrue);
       });
 
       test('checkEmulators returns false on connection error', () async {
-        when(
-          () => mockClient.get(any()),
-        ).thenThrow(Exception('Connection refused'));
+        when(() => mockClient.get(any()))
+            .thenThrow(Exception('Connection refused'));
 
         final result = await seedingService.checkEmulators();
         expect(result, isFalse);

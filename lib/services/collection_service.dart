@@ -1,5 +1,6 @@
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
+
 import '../models/collection_model.dart';
 import '../interfaces/i_collection_repository.dart';
 import '../utils/collection_types.dart';
@@ -184,7 +185,9 @@ class CollectionService {
       }
 
       if (!existingTypes.contains(CollectionType.shoppingList)) {
-        _logger.i('Shopping list collection not found, preparing to create one.');
+        _logger.i(
+          'Shopping list collection not found, preparing to create one.',
+        );
         final shoppingList = Collection(
           id: '', // Let repository generate ID
           name: 'Shopping List',
@@ -194,7 +197,9 @@ class CollectionService {
         );
         collectionsToCreate.add(shoppingList);
       } else {
-        _logger.i('Shopping list collection already exists, skipping creation.');
+        _logger.i(
+          'Shopping list collection already exists, skipping creation.',
+        );
       }
 
       if (collectionsToCreate.isNotEmpty) {

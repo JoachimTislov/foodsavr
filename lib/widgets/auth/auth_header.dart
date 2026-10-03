@@ -17,9 +17,8 @@ class AuthHeader extends StatelessWidget {
             isLogin
                 ? 'auth.header.welcome_back'.tr()
                 : 'auth.header.create_account'.tr(),
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.headlineMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8.0),
           Text(
