@@ -40,12 +40,14 @@ jobs:
 
       - name: Verify formatting
         run: |
-          echo "::error title=diag-version::$(dart --version 2>&1 | head -1)"
-          echo "::error title=diag-whichdart::$(which dart)"
-          echo "::error title=diag-flutter::$(flutter --version 2>&1 | head -2 | tr '\n' ';')"
-          echo "::error title=diag-head::$(git rev-parse HEAD) $(git status --porcelain | wc -l) dirty"
+          echo "::error title=diag-dirty::$(git status --porcelain | head -c 600 | tr '\n' ';')"
           dart format --output=none . > fmt_report.txt 2>&1 || true
-          head -6 fmt_report.txt | while IFS= read -r line; do echo "::error title=diag-fmt::$line"; done
+          echo "::error title=diag-count::$(tail -1 fmt_report.txt)"
+          echo "::error title=diag-sha1::$(sha256sum test/inventory_visibility_test.dart | head -c 64)"
+          echo "::error title=diag-sha2::$(sha256sum lib/views/dashboard_view.dart | head -c 64)"
+          echo "::error title=diag-sha3::$(sha256sum analysis_options.yaml | head -c 64)"
+          echo "::error title=diag-lscount::tracked $(git ls-files '*.dart' | wc -l) find $(find . -name '*.dart' -not -path './.git/*' | wc -l)"
+          head -3 fmt_report.txt | while IFS= read -r line; do echo "::error title=diag-fmt::$line"; done
           dart format --output=none --set-exit-if-changed .
       - name: Write firebase_options.dart
         run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
