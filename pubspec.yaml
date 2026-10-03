@@ -31,18 +31,18 @@ dependencies:
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8 # MIT
+  cupertino_icons: ^2.0.0 # MIT
   firebase_core: ^4.14.0 # BSD-3-Clause
   firebase_auth: ^6.5.7 # BSD-3-Clause
   cloud_firestore: ^6.9.0 # BSD-3-Clause
   easy_localization: ^3.0.0 # MIT
-  logger: ^2.6.2 # MIT
+  logger: ^2.8.0 # MIT
   get_it: ^9.2.0 # MIT
-  watch_it: ^2.4.2 # MIT
+  watch_it: ^2.5.0 # MIT
   intl: ^0.20.2 # BSD-3-Clause
   google_sign_in: ^7.2.0 # BSD-3-Clause
   flutter_facebook_auth: ^7.1.5 # MIT
-  go_router: ^18.0.0 # BSD-3-Clause
+  go_router: ^18.0.2 # BSD-3-Clause
   injectable: ^3.0.0 # MIT
   vector_graphics: ^1.2.3 # BSD-3-Clause
   shared_preferences: ^2.3.0 # BSD-3-Clause
@@ -79,7 +79,7 @@ dev_dependencies:
   path: ^1.9.1 # BSD-3-Clause
   shared_preferences_platform_interface: ^2.4.2 # BSD-3-Clause
   json_serializable: ^6.14.1 # BSD-3-Clause
-  freezed: ^3.2.5 # MIT
+  freezed: ^4.0.1 # MIT
   go_router_builder: ^4.4.0 # BSD-3-Clause
 
 # For information on the generic Dart part of this file, see the
