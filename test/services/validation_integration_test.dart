@@ -11,8 +11,7 @@ import 'package:foodsavr/validation/validators/product_model_validator.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 
-class _MockCollectionRepository extends Mock
-    implements ICollectionRepository {}
+class _MockCollectionRepository extends Mock implements ICollectionRepository {}
 
 class _MockProductRepository extends Mock implements IProductRepository {}
 
@@ -81,17 +80,16 @@ void main() {
 
   group('CollectionModelValidator', () {
     test('accepts a valid collection', () {
-      final result = CollectionModelValidator().validate(
-        _validCollection(),
-      );
+      final result = CollectionModelValidator().validate(_validCollection());
       expect(result.isValid, isTrue);
       expect(result.errors, isEmpty);
     });
 
     test('rejects empty and whitespace-only names', () {
+      final validator = CollectionModelValidator();
       for (final name in ['', '   ']) {
-        final result = CollectionModelValidator()
-            .validate(_validCollection().copyWith(name: name));
+        final collection = _validCollection().copyWith(name: name);
+        final result = validator.validate(collection);
         expect(result.isValid, isFalse);
         expect(result.errors.single.field, 'name');
       }
@@ -106,15 +104,15 @@ void main() {
     });
 
     test('rejects an empty name', () {
-      final result = ProductModelValidator().validate(
-        _validProduct().copyWith(name: ''),
-      );
+      final validator = ProductModelValidator();
+      final result = validator.validate(_validProduct().copyWith(name: ''));
       expect(result.isValid, isFalse);
       expect(result.errors.single.field, 'name');
     });
 
     test('rejects a negative non-expiring quantity', () {
-      final result = ProductModelValidator().validate(
+      final validator = ProductModelValidator();
+      final result = validator.validate(
         _validProduct().copyWith(nonExpiringQuantity: -1),
       );
       expect(result.isValid, isFalse);
@@ -122,25 +120,29 @@ void main() {
     });
 
     test('rejects non-positive expiry quantities', () {
-      final result = ProductModelValidator().validate(
-        _validProduct().copyWith(
-          expiries: [
-            ExpiryEntry(quantity: 0, expirationDate: DateTime(2027, 1, 1)),
-          ],
-        ),
+      final validator = ProductModelValidator();
+      final entry = ExpiryEntry(
+        quantity: 0,
+        expirationDate: DateTime(2027, 1, 1),
+      );
+      final result = validator.validate(
+        _validProduct().copyWith(expiries: [entry]),
       );
       expect(result.isValid, isFalse);
       expect(result.errors.single.field, 'expiries[0].quantity');
     });
 
     test('accumulates all violations', () {
-      final result = ProductModelValidator().validate(
+      final validator = ProductModelValidator();
+      final entry = ExpiryEntry(
+        quantity: -2,
+        expirationDate: DateTime(2027, 1, 1),
+      );
+      final result = validator.validate(
         _validProduct().copyWith(
           name: '',
           nonExpiringQuantity: -1,
-          expiries: [
-            ExpiryEntry(quantity: -2, expirationDate: DateTime(2027, 1, 1)),
-          ],
+          expiries: [entry],
         ),
       );
       expect(result.isValid, isFalse);
@@ -151,8 +153,9 @@ void main() {
   group('CollectionService validation integration', () {
     test('addCollection persists a valid collection', () async {
       final collection = _validCollection();
-      when(() => mockCollectionRepository.add(any()))
-          .thenAnswer((_) async => collection);
+      when(
+        () => mockCollectionRepository.add(any()),
+      ).thenAnswer((_) async => collection);
 
       final added = await collectionService.addCollection(collection);
 
@@ -190,8 +193,9 @@ void main() {
   group('ProductService validation integration', () {
     test('addProduct persists a valid product', () async {
       final product = _validProduct();
-      when(() => mockProductRepository.add(any()))
-          .thenAnswer((_) async => product);
+      when(
+        () => mockProductRepository.add(any()),
+      ).thenAnswer((_) async => product);
 
       final added = await productService.addProduct(product);
 
@@ -208,8 +212,7 @@ void main() {
     });
 
     test('updateProduct persists a valid product', () async {
-      when(() => mockProductRepository.update(any()))
-          .thenAnswer((_) async {});
+      when(() => mockProductRepository.update(any())).thenAnswer((_) async {});
 
       await productService.updateProduct(_validProduct());
 
