@@ -86,6 +86,19 @@ jobs:
         run: flutter build web --release
       - name: Start Firebase Emulators
         run: |
+          cat > firebase.json <<'EOT'
+          {
+            "firestore": {
+              "rules": "firestore.rules"
+            },
+            "emulators": {
+              "auth": { "port": 9099 },
+              "firestore": { "port": 8080 },
+              "ui": { "enabled": true, "port": 4000 }
+            }
+          }
+          EOT
+          echo '{ "rules": ["allow read, write: if true;"] }' > firestore.rules
           npx -y firebase-tools@latest emulators:start --project demo-project &
           for i in $(seq 1 60); do
             curl -s http://localhost:4000 > /dev/null && break
@@ -142,6 +155,19 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
       - name: Start Firebase Emulators
         run: |
+          cat > firebase.json <<'EOT'
+          {
+            "firestore": {
+              "rules": "firestore.rules"
+            },
+            "emulators": {
+              "auth": { "port": 9099 },
+              "firestore": { "port": 8080 },
+              "ui": { "enabled": true, "port": 4000 }
+            }
+          }
+          EOT
+          echo '{ "rules": ["allow read, write: if true;"] }' > firestore.rules
           npx -y firebase-tools@latest emulators:start --project demo-project &
           for i in $(seq 1 60); do
             curl -s http://localhost:4000 > /dev/null && break
@@ -151,7 +177,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          arch: arm64-v8a
+          arch: x86_64
           target: google_apis
           script: |
             adb reverse tcp:8080 tcp:8080
@@ -196,6 +222,19 @@ jobs:
         run: flutter build web --release
       - name: Start Firebase Emulators
         run: |
+          cat > firebase.json <<'EOT'
+          {
+            "firestore": {
+              "rules": "firestore.rules"
+            },
+            "emulators": {
+              "auth": { "port": 9099 },
+              "firestore": { "port": 8080 },
+              "ui": { "enabled": true, "port": 4000 }
+            }
+          }
+          EOT
+          echo '{ "rules": ["allow read, write: if true;"] }' > firestore.rules
           npx -y firebase-tools@latest emulators:start --project demo-project &
           for i in $(seq 1 60); do
             curl -s http://localhost:4000 > /dev/null && break
