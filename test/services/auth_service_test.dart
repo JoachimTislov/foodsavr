@@ -57,8 +57,7 @@ void main() {
         ).thenAnswer((_) async => mockUserCredential);
 
         when(
-          () => mockFirebaseAuth.setPersistence(Per
-sistence.SESSION),
+          () => mockFirebaseAuth.setPersistence(Persistence.SESSION),
         ).thenAnswer((_) async {});
 
         await authService.signIn(email: email, password: password);
@@ -125,8 +124,7 @@ sistence.SESSION),
       expect(result, mockUserCredential);
       verify(
         () => mockFirebaseAuth.createUserWithEmailAndPassword(
-     
-     email: email,
+          email: email,
           password: password,
         ),
       ).called(1);
@@ -186,8 +184,7 @@ sistence.SESSION),
     });
 
     test('signUp retries createInitialCollections and finally fails', () async {
-      const uid = 'some-uid'
-;
+      const uid = 'some-uid';
       final mockUser = MockUser();
       when(() => mockUser.uid).thenReturn(uid);
       when(() => mockUserCredential.user).thenReturn(mockUser);
@@ -248,8 +245,7 @@ sistence.SESSION),
       ).called(1);
     });
 
-    test('signInWithGoogle signs in with 
-Firebase credential', () async {
+    test('signInWithGoogle signs in with Firebase credential', () async {
       final mockAccount = MockGoogleSignInAccount();
       final mockAuth = MockGoogleSignInAuthentication();
 
@@ -302,8 +298,7 @@ Firebase credential', () async {
       verify(() => mockFirebaseAuth.signInWithCredential(any())).called(1);
     });
 
-    test('signInWithFacebook throws when access tok
-en is null', () async {
+    test('signInWithFacebook throws when access token is null', () async {
       final mockResult = MockLoginResult();
 
       when(() => mockFacebookAuth.login()).thenAnswer((_) async => mockResult);
@@ -371,8 +366,7 @@ class MockGoogleSignInAuthentication extends Mock
   String? get idToken => 'id-token';
 }
 
-class MockLoginResult extends Mock implem
-ents LoginResult {}
+class MockLoginResult extends Mock implements LoginResult {}
 
 class MockUser extends Mock implements User {}
 
