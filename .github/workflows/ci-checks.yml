@@ -38,9 +38,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Restore committed analysis options
+        run: git checkout -- analysis_options.yaml
+
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed .
-
       - name: Write firebase_options.dart
         run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
 
@@ -58,7 +60,6 @@ jobs:
 
       - name: Run tests
         run: flutter test --no-pub --coverage
-
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:

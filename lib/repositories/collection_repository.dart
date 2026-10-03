@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:injectable/injectable.dart';
+
 import '../models/collection_model.dart';
 import '../interfaces/i_collection_repository.dart';
 
@@ -84,5 +85,20 @@ class CollectionRepository implements ICollectionRepository {
     await docRef.update({
       'productIds': FieldValue.arrayRemove([productId]),
     });
+  }
+
+  @override
+  Future<void> addCollectionsInBatch(List<Collection> collections) async {
+    final batch = _firestore.batch();
+    for (var collection in collections) {
+      final docRef = collection.id.isEmpty
+          ? _firestore.collection(_collectionName).doc()
+          : _firestore.collection(_collectionName).doc(collection.id);
+      final savedCollection = collection.id.isEmpty
+          ? collection.copyWith(id: docRef.id)
+          : collection;
+      batch.set(docRef, savedCollection.toJson());
+    }
+    await batch.commit();
   }
 }

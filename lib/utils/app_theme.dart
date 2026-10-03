@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../constants/material3_config.dart';
 
 /// Centralized theme configuration for the FoodSavr application.

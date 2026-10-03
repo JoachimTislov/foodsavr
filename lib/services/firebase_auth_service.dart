@@ -1,8 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:foodsavr/services/collection_service.dart';
+import 'package:foodsavr/utils/retry.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:injectable/injectable.dart';
+import 'package:logger/logger.dart';
 
 import '../interfaces/i_auth_service.dart';
 
@@ -13,6 +16,8 @@ class AuthService implements IAuthService {
   final FacebookAuth _facebookAuth;
   final bool _supportsPersistence;
   final FirebaseFirestore _firestore;
+  final CollectionService _collectionService;
+  final Logger _logger;
 
   AuthService(
     this._firebaseAuth, {
@@ -20,10 +25,14 @@ class AuthService implements IAuthService {
     required FacebookAuth facebookAuth,
     @Named('supportsPersistence') required bool supportsPersistence,
     required FirebaseFirestore firestore,
+    required CollectionService collectionService,
+    required Logger logger,
   }) : _googleSignIn = googleSignIn,
        _facebookAuth = facebookAuth,
        _supportsPersistence = supportsPersistence,
-       _firestore = firestore;
+       _firestore = firestore,
+       _collectionService = collectionService,
+       _logger = logger;
 
   @override
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
@@ -59,7 +68,7 @@ class AuthService implements IAuthService {
   Future<UserCredential> signUp({
     required String email,
     required String password,
-  }) {
+  }) async {
     final currentUser = _firebaseAuth.currentUser;
     if (currentUser?.isAnonymous == true) {
       final credential = EmailAuthProvider.credential(
@@ -68,15 +77,44 @@ class AuthService implements IAuthService {
       );
       return currentUser!.linkWithCredential(credential);
     }
-    return _firebaseAuth.createUserWithEmailAndPassword(
+    final newUser = await _firebaseAuth.createUserWithEmailAndPassword(
       email: email,
       password: password,
     );
+
+    if (newUser.user != null) {
+      try {
+        await retry(
+          () => _collectionService.createInitialCollections(newUser.user!.uid),
+          logger: _logger,
+          operationName: 'CreateInitialCollections',
+        );
+      } catch (e, s) {
+        _logger.e(
+          'Failed to create initial collections for user ${newUser.user!.uid} after multiple retries. The user account was created, but seeding failed.',
+          error: e,
+          stackTrace: s,
+        );
+        // Do not rethrow; allow signup to succeed.
+      }
+    }
+    return newUser;
   }
 
   @override
   Future<UserCredential> signInWithGoogle() async {
-    final GoogleSignInAccount googleUser = await _googleSignIn.authenticate();
+    final GoogleSignInAccount googleUser;
+    try {
+      googleUser = await _googleSignIn.authenticate();
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        throw FirebaseAuthException(
+          code: 'ERROR_ABORTED_BY_USER',
+          message: 'Sign in aborted by user',
+        );
+      }
+      rethrow;
+    }
 
     // Obtain the auth details from the request
     final GoogleSignInAuthentication googleAuth = googleUser.authentication;

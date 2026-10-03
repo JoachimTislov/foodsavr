@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:foodsavr/services/standalone_seeding_service.dart';
 import 'package:foodsavr/mock_data/collections.dart';
 import 'package:foodsavr/mock_data/global_products.dart';
