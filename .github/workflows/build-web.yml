@@ -21,6 +21,9 @@ on:
       - ".github/workflows/build-web.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-web:
     name: Build Web
