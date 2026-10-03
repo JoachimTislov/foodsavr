@@ -10,6 +10,9 @@ import 'package:foodsavr/controllers/user_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/interfaces/i_collection_repository.dart'; // Explicitly import ICollectionRepository
 import 'package:foodsavr/interfaces/i_product_repository.dart';
+import 'package:foodsavr/interfaces/i_validator.dart'; // Added IValidator import
+import 'package:foodsavr/models/collection_model.dart'; // Added Collection model import
+import 'package:foodsavr/models/product_model.dart'; // Added Product model import
 import 'package:foodsavr/routes/go_router.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/services/collection_service.dart'; // Import CollectionService
@@ -27,11 +30,31 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 
 class _MockShelfLifeService extends Mock implements ShelfLifeService {}
 
+class _MockIValidatorProduct extends Mock implements IValidator<Product> {}
+
+class _MockIValidatorCollection extends Mock
+    implements IValidator<Collection> {}
+
 class _FakeCollectionRepository extends Mock implements ICollectionRepository {}
 
-class _MockUser extends Mock implements User {}
+// Simplified _MockUser and _MockUserCredential
+class _MockUser extends Mock implements User {
+  @override
+  String get uid => 'test_uid';
+  @override
+  bool get isAnonymous => false;
+  @override
+  String? get displayName => 'Test User';
+  @override
+  String? get email => 'test@example.com';
+  @override
+  String? get photoURL => null;
+}
 
-class _MockUserCredential extends Mock implements UserCredential {}
+class _MockUserCredential extends Mock implements UserCredential {
+  @override
+  User? get user => _MockUser();
+}
 
 class _FakeProductRepository extends Mock implements IProductRepository {}
 
@@ -136,6 +159,8 @@ void main() {
     late _FakeAuthService authService;
     late UserController userController;
     late GoRouter router;
+    late _MockIValidatorProduct mockProductValidator;
+    late _MockIValidatorCollection mockCollectionValidator;
 
     setUp(() async {
       SharedPreferencesAsyncPlatform.instance =
@@ -148,6 +173,8 @@ void main() {
       await getIt.reset();
 
       authService = _FakeAuthService();
+      mockProductValidator = _MockIValidatorProduct();
+      mockCollectionValidator = _MockIValidatorCollection();
 
       getIt.registerSingleton<SharedPreferencesWithCache>(prefs);
       getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
@@ -162,6 +189,7 @@ void main() {
       getIt.registerLazySingleton<ProductService>(
         () => ProductService(
           _FakeProductRepository(),
+          mockProductValidator,
           _MockShelfLifeService(),
           Logger(level: Level.off),
         ),
@@ -169,6 +197,7 @@ void main() {
       getIt.registerLazySingleton<CollectionService>(
         () => CollectionService(
           _FakeCollectionRepository(),
+          mockCollectionValidator,
           Logger(level: Level.off),
         ),
       );
