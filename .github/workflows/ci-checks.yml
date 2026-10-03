@@ -40,13 +40,28 @@ jobs:
 
       - name: Verify formatting
         run: |
-          dart --version
-          dart format --output=none . > fmt_report.txt 2>&1 || true
-          while IFS= read -r line; do
-            echo "::error title=dart-format::$line"
-          done < fmt_report.txt
+          {
+            echo "## Dart version"
+            echo '```'
+            dart --version
+            echo '```'
+            echo "## Git state"
+            echo '```'
+            git rev-parse HEAD
+            git status --porcelain | head -50
+            echo '```'
+            echo "## Format report"
+            echo '```'
+            dart format --output=none . 2>&1
+            echo '```'
+            echo "## Diff sample"
+            echo '```diff'
+            dart format -o /tmp/fmtout test/inventory_visibility_test.dart lib/widgets/auth/auth_header.dart > /dev/null 2>&1
+            diff -u test/inventory_visibility_test.dart /tmp/fmtout/test/inventory_visibility_test.dart | head -60
+            diff -u lib/widgets/auth/auth_header.dart /tmp/fmtout/lib/widgets/auth/auth_header.dart | head -60
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
           dart format --output=none --set-exit-if-changed .
-
       - name: Write firebase_options.dart
         run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
 
