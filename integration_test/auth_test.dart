@@ -1,50 +1,70 @@
-import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:foodsavr/main.dart' as app;
+
+const emulatorTestOptions = FirebaseOptions(
+  apiKey: 'AIzaSyDummyKeyForDemoOnly',
+  appId: '1:1234567890:android:dummyid123456',
+  messagingSenderId: '',
+  projectId: 'demo-project',
+);
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('Authentication flow test', (WidgetTester tester) async {
-    app.main();
-    await tester.pumpAndSettle();
+  setUpAll(() async {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(options: emulatorTestOptions);
+    }
+    await FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
+  });
 
-    // Verify app has loaded landing screen
-    expect(find.byType(Scaffold), findsWidgets);
+  tearDown(() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && !user.isAnonymous) {
+      await user.delete();
+    }
+    await FirebaseAuth.instance.signOut();
+  });
 
-    await tester.tap(find.text('Continue with Email'));
-    await tester.pumpAndSettle();
+  testWidgets('sign up, sign in and sign out against Auth emulator', (
+    tester,
+  ) async {
+    final auth = FirebaseAuth.instance;
+    final email =
+        'it-user-${DateTime.now().millisecondsSinceEpoch}@example.com';
+    const password = 'password123';
 
-    await tester.tap(find.text('Sign up'));
-    await tester.pumpAndSettle();
-
-    // Enter email
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Email Address'),
-      'test@example.com',
+    final credential = await auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
     );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Password'),
-      'password123',
+    expect(credential.user, isNotNull);
+    expect(credential.user!.email, email);
+
+    await auth.signOut();
+    expect(auth.currentUser, isNull);
+
+    final signedIn = await auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
     );
+    expect(signedIn.user!.email, email);
 
-    // Agree to terms
-    await tester.tap(find.byType(Checkbox));
-    await tester.pumpAndSettle();
+    await auth.signOut();
+    expect(auth.currentUser, isNull);
+  });
 
-    // Tap Register
-    await tester.tap(find.text('Register'));
-    await tester.pumpAndSettle();
+  testWidgets('sign in with wrong password fails', (tester) async {
+    final auth = FirebaseAuth.instance;
+    const email = 'it-nonexistent@example.com';
 
-    // Assuming successful registration navigates to MainView
-    // Verify we are on Main View (check for some text/widget on MainView)
-    expect(
-      find.text('FoodSavr'),
-      findsOneWidget,
-    ); // Update with actual MainView content
-
-    // Sign Out (assuming logout button exists or simulate logout)
-    // Add logic to tap logout if available in UI, otherwise just verifying successful login flow is good start.
+    await auth.signOut();
+    await expectLater(
+      auth.signInWithEmailAndPassword(email: email, password: 'wrong'),
+      throwsA(isA<FirebaseAuthException>()),
+    );
+    expect(auth.currentUser, isNull);
   });
 }
