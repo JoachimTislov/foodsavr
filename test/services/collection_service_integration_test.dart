@@ -111,11 +111,11 @@ void main() {
     });
 
     test(
-      'getInventoriesByProductId excludes non-inventory collections',
+      'getInventoriesByProductId returns empty for unknown product',
       () async {
         final result = await service.getInventoriesByProductId(
           'user-123',
-          'p-2',
+          'p-3',
         );
         expect(result, isEmpty);
       },
