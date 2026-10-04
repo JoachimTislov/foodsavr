@@ -27,6 +27,18 @@ class _StubCollectionValidator implements IValidator<Collection> {
 }
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(
+      const Collection(
+        id: 'fallback',
+        name: 'fallback',
+        productIds: [],
+        userId: 'fallback',
+        type: CollectionType.inventory,
+      ),
+    );
+  });
+
   late _MockCollectionRepository repository;
   late CollectionService service;
 
