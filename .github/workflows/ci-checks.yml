@@ -11,6 +11,10 @@ on:
       - "pubspec.yaml"
       - "pubspec.lock"
       - "analysis_options.yaml"
+      - "android/**"
+      - "web/**"
+      - "integration_test/**"
+      - "test_driver/**"
   pull_request:
     branches: [main]
     paths: *code_paths

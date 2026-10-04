@@ -32,6 +32,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -51,10 +53,54 @@ jobs:
 
       - name: Write firebase_options.dart
         run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      - name: Write placeholder firebase_options.dart (fork PRs)
+        run: |
+          cat > lib/firebase_options.dart <<'EOT'
+          // Placeholder generated for fork pull requests; the Firebase options
+          // secret is unavailable in this context.
+          import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
+
+          class DefaultFirebaseOptions {
+            static FirebaseOptions get currentPlatform => throw UnsupportedError(
+              'FirebaseOptions not configured for fork PR builds');
+          }
+          EOT
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
 
       - name: Create empty .env file
         run: touch assets/.env
 
+      - name: Write dummy google-services.json (development)
+        run: |
+          mkdir -p android/app/src/development/debug
+          cat > android/app/src/development/debug/google-services.json <<'EOT'
+          {
+            "project_info": {
+              "project_number": "1234567890",
+              "project_id": "demo-project",
+              "storage_bucket": "demo-project.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:1234567890:android:dummyid123456",
+                  "android_client_info": {
+                    "package_name": "com.foodsavr.app.development"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  { "current_key": "AIzaSyDummyKeyForDemoOnly" }
+                ],
+                "services": {}
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOT
+      - name: Build generative code
+        run: dart run build_runner build --delete-conflicting-outputs
       - name: Build development debug APK
         run: flutter build apk --flavor development --debug
 

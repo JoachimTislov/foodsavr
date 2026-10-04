@@ -32,6 +32,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -45,10 +47,28 @@ jobs:
 
       - name: Write firebase_options.dart
         run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      - name: Write placeholder firebase_options.dart (fork PRs)
+        run: |
+          cat > lib/firebase_options.dart <<'EOT'
+          // Placeholder generated for fork pull requests; the Firebase options
+          // secret is unavailable in this context.
+          import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
+
+          class DefaultFirebaseOptions {
+            static FirebaseOptions get currentPlatform => throw UnsupportedError(
+              'FirebaseOptions not configured for fork PR builds');
+          }
+          EOT
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
 
       - name: Create empty .env file
         run: touch assets/.env
 
+      - name: Build generative code
+        run: dart run build_runner build --delete-conflicting-outputs
+      - name: Generate web platform files
+        run: flutter create . --platforms web
       - name: Build web
         run: flutter build web --release
 

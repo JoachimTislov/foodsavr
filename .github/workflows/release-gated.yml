@@ -30,24 +30,44 @@ jobs:
             const sha = context.payload.workflow_run.head_sha;
             const { owner, repo } = context.repo;
 
-            const runsResp = await github.rest.actions.listWorkflowRunsForRepo({
-              owner,
-              repo,
-              head_sha: sha,
-              per_page: 100,
-            });
-
-            const runs = runsResp.data.workflow_runs ?? [];
-            const isSuccessful = (name) =>
+            const isSuccessful = (runs, name) =>
               runs.some((run) =>
                 run.name === name &&
                 run.status === "completed" &&
                 run.conclusion === "success",
               );
 
-            const ciChecksOk = isSuccessful("Format, Analyze, Check Localizations and Run Tests");
-            const androidOk = isSuccessful("Android Build");
-            const webOk = isSuccessful("Web Build");
+            const listRuns = async () =>
+              (
+                await github.rest.actions.listWorkflowRunsForRepo({
+                  owner,
+                  repo,
+                  head_sha: sha,
+                  per_page: 100,
+                })
+              ).data.workflow_runs ?? [];
+
+            const deadline = Date.now() + 15 * 60 * 1000;
+            let runs = [];
+            let ciChecksOk = false;
+            while (Date.now() < deadline) {
+              runs = await listRuns();
+              ciChecksOk = isSuccessful(
+                runs,
+                "Format, Analyze, Check Localizations and Run Tests"
+              );
+              if (ciChecksOk) break;
+              const ciRunning = runs.some(
+                (run) =>
+                  run.name === "Format, Analyze, Check Localizations and Run Tests" &&
+                  run.status !== "completed"
+              );
+              if (!ciRunning) break;
+              core.info("Shared CI still running for " + sha + "; retrying in 30s");
+              await new Promise((resolve) => setTimeout(resolve, 30 * 1000));
+            }
+            const androidOk = isSuccessful(runs, "Android Build");
+            const webOk = isSuccessful(runs, "Web Build");
 
             const releaseAndroid =
               workflowName === "Android Build" &&
@@ -70,6 +90,8 @@ jobs:
     needs: gate
     if: needs.gate.outputs.release_android == 'true'
     runs-on: ubuntu-latest
+    env:
+      HAS_FIREBASE_SECRETS: ${{ secrets.FIREBASE_CLI_TOKEN != '' && secrets.FIREBASE_APP_ID_ANDROID != '' }}
     steps:
       - name: Download Android build artifact from triggering run
         uses: dawidd6/action-download-artifact@v11
@@ -87,7 +109,7 @@ jobs:
           path: artifacts/android
 
       - name: Publish to Firebase App Distribution (optional)
-        if: ${{ secrets.FIREBASE_CLI_TOKEN != '' && secrets.FIREBASE_APP_ID_ANDROID != '' }}
+        if: ${{ env.HAS_FIREBASE_SECRETS == 'true' }}
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
           appId: ${{ secrets.FIREBASE_APP_ID_ANDROID }}
@@ -96,7 +118,7 @@ jobs:
           file: artifacts/android/app-development-debug.apk
 
       - name: Skip Firebase App Distribution publish
-        if: ${{ secrets.FIREBASE_CLI_TOKEN == '' || secrets.FIREBASE_APP_ID_ANDROID == '' }}
+        if: ${{ env.HAS_FIREBASE_SECRETS != 'true' }}
         run: echo "Skipping Firebase App Distribution publish; required secrets are not configured."
 
   release-web:
@@ -104,6 +126,8 @@ jobs:
     needs: gate
     if: needs.gate.outputs.release_web == 'true'
     runs-on: ubuntu-latest
+    env:
+      HAS_FIREBASE_SECRETS: ${{ secrets.FIREBASE_CLI_TOKEN != '' && secrets.FIREBASE_APP_ID_ANDROID != '' }}
     steps:
       - name: Download web build artifact from triggering run
         uses: dawidd6/action-download-artifact@v11
