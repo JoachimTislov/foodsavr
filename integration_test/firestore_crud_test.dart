@@ -15,15 +15,13 @@ const emulatorTestOptions = FirebaseOptions(
   projectId: 'demo-project',
 );
 
-void main() {
+Future<void> main() async {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  setUpAll(() async {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(options: emulatorTestOptions);
-    }
-    FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
-  });
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(options: emulatorTestOptions);
+  }
+  FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
 
   final firestore = FirebaseFirestore.instance;
   final repository = ProductRepository(firestore);
