@@ -107,7 +107,9 @@ jobs:
           rules_version = '2';
           service cloud.firestore {
             match /databases/{database}/documents {
-              allow read, write: if true;
+              match /{document=**} {
+                allow read, write: if true;
+              }
             }
           }
           EOT
@@ -192,7 +194,9 @@ jobs:
           rules_version = '2';
           service cloud.firestore {
             match /databases/{database}/documents {
-              allow read, write: if true;
+              match /{document=**} {
+                allow read, write: if true;
+              }
             }
           }
           EOT
@@ -305,7 +309,9 @@ jobs:
           rules_version = '2';
           service cloud.firestore {
             match /databases/{database}/documents {
-              allow read, write: if true;
+              match /{document=**} {
+                allow read, write: if true;
+              }
             }
           }
           EOT
