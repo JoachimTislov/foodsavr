@@ -4,6 +4,7 @@ import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/validation/validators/product_model_validator.dart';
 import 'package:foodsavr/validation/validators/collection_model_validator.dart';
 import 'package:foodsavr/utils/shelf_life.dart';
+import 'package:foodsavr/validation/validation_result.dart';
 
 void main() {
   final validator = ProductModelValidator();

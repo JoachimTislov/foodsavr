@@ -6,12 +6,22 @@ class _RecordingLogger extends Logger {
   final List<String> messages = [];
 
   @override
-  void w(String? message, {Object? error, StackTrace? stackTrace}) {
+  void w(
+    dynamic message, {
+    DateTime? time,
+    Object? error,
+    StackTrace? stackTrace,
+  }) {
     messages.add('w:$message');
   }
 
   @override
-  void e(String? message, {Object? error, StackTrace? stackTrace}) {
+  void e(
+    dynamic message, {
+    DateTime? time,
+    Object? error,
+    StackTrace? stackTrace,
+  }) {
     messages.add('e:$message');
   }
 }

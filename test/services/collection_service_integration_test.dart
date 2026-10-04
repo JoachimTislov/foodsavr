@@ -149,7 +149,7 @@ void main() {
     });
 
     test('persists valid collection through repository', () async {
-      when(() => repository.add(any)).thenAnswer((_) async => inventory);
+      when(() => repository.add(any())).thenAnswer((_) async => inventory);
       final result = await service.addCollection(inventory);
       expect(result, inventory);
       verify(() => repository.add(inventory)).called(1);
@@ -172,7 +172,7 @@ void main() {
     });
 
     test('delegates valid updates to repository', () async {
-      when(() => repository.update(any)).thenAnswer((_) async {});
+      when(() => repository.update(any())).thenAnswer((_) async {});
       await service.updateCollection(inventory);
       verify(() => repository.update(inventory)).called(1);
     });
