@@ -1,2 +1,5 @@
-path_filters:
-  - "!research/**"
+reviews:
+  path_filters:
+    - "!research/**"
+  auto_review:
+    drafts: true
