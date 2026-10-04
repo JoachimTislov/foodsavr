@@ -8,7 +8,8 @@ This document defines the evaluation and validation strategy for foodsavr, track
 | :--- | :--- | :--- | :--- |
 | Static analysis | `flutter analyze`, Copilot, Qodo, CodeRabbit | Lint, architecture, review | Every PR |
 | Unit | `flutter test test/` | Models, services, validation logic — pure Dart, no Firebase | Every change to `lib/`, `test/` |
-| Smoke | Playwright (`test/e2e/tests/*.smoke.spec.ts`) | App boots, landing renders, no console errors | Web build affected |
+| Smoke (web) | Playwright (`test/e2e/tests/*.smoke.spec.ts`) | App boots, landing renders, no console errors | Web build affected |
+| Smoke (Android) | `adb install` + launch on API 34 emulator | APK installs, main activity resumes in foreground, no fatal crash | Android build affected |
 | Integration (Android) | `flutter test integration_test` on emulator + Firebase emulators | Full app flows on device | Android/integration paths affected |
 | Integration (web) | Playwright (`test/e2e/tests/*.spec.ts`) | Auth, inventory/shopping-list CRUD, transfers, modals | Web paths affected |
 | Firebase emulator tests | Firestore emulator + Auth emulator | CRUD against emulators (permissive rules override in CI; real security-rules validation is tracked separately) | `lib/`, `integration_test/**` affected |
