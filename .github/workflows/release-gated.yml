@@ -1,0 +1,145 @@
+name: Release (Gated)
+
+on:
+  workflow_run:
+    workflows: ["Android Build", "Web Build"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  gate:
+    name: Evaluate release gate
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    outputs:
+      release_android: ${{ steps.evaluate.outputs.release_android }}
+      release_web: ${{ steps.evaluate.outputs.release_web }}
+    steps:
+      - name: Evaluate validation matrix for commit
+        id: evaluate
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const workflowName = context.payload.workflow_run.name;
+            const sha = context.payload.workflow_run.head_sha;
+            const { owner, repo } = context.repo;
+
+            const isSuccessful = (runs, name) =>
+              runs.some((run) =>
+                run.name === name &&
+                run.status === "completed" &&
+                run.conclusion === "success",
+              );
+
+            const listRuns = async () =>
+              (
+                await github.rest.actions.listWorkflowRunsForRepo({
+                  owner,
+                  repo,
+                  head_sha: sha,
+                  per_page: 100,
+                })
+              ).data.workflow_runs ?? [];
+
+            const deadline = Date.now() + 15 * 60 * 1000;
+            let runs = [];
+            let ciChecksOk = false;
+            while (Date.now() < deadline) {
+              runs = await listRuns();
+              ciChecksOk = isSuccessful(
+                runs,
+                "Format, Analyze, Check Localizations and Run Tests"
+              );
+              if (ciChecksOk) break;
+              const ciRunning = runs.some(
+                (run) =>
+                  run.name === "Format, Analyze, Check Localizations and Run Tests" &&
+                  run.status !== "completed"
+              );
+              if (!ciRunning) break;
+              core.info("Shared CI still running for " + sha + "; retrying in 30s");
+              await new Promise((resolve) => setTimeout(resolve, 30 * 1000));
+            }
+            const androidOk = isSuccessful(runs, "Android Build");
+            const webOk = isSuccessful(runs, "Web Build");
+
+            const releaseAndroid =
+              workflowName === "Android Build" &&
+              ciChecksOk &&
+              androidOk;
+            const releaseWeb =
+              workflowName === "Web Build" &&
+              ciChecksOk &&
+              webOk;
+
+            core.setOutput("release_android", String(releaseAndroid));
+            core.setOutput("release_web", String(releaseWeb));
+
+            core.info(`workflow: ${workflowName}`);
+            core.info(`sha: ${sha}`);
+            core.info(`ciChecksOk=${ciChecksOk}, androidOk=${androidOk}, webOk=${webOk}`);
+
+  release-android:
+    name: Release Android candidate
+    needs: gate
+    if: needs.gate.outputs.release_android == 'true'
+    runs-on: ubuntu-latest
+    env:
+      HAS_FIREBASE_SECRETS: ${{ secrets.FIREBASE_CLI_TOKEN != '' && secrets.FIREBASE_APP_ID_ANDROID != '' }}
+    steps:
+      - name: Download Android build artifact from triggering run
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          run_id: ${{ github.event.workflow_run.id }}
+          name: android-apk-debug
+          path: artifacts/android
+          if_no_artifact_found: fail
+
+      - name: Upload release candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-android-candidate
+          path: artifacts/android
+
+      - name: Publish to Firebase App Distribution (optional)
+        if: ${{ env.HAS_FIREBASE_SECRETS == 'true' }}
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_APP_ID_ANDROID }}
+          token: ${{ secrets.FIREBASE_CLI_TOKEN }}
+          groups: testers
+          file: artifacts/android/app-development-debug.apk
+
+      - name: Skip Firebase App Distribution publish
+        if: ${{ env.HAS_FIREBASE_SECRETS != 'true' }}
+        run: echo "Skipping Firebase App Distribution publish; required secrets are not configured."
+
+  release-web:
+    name: Release Web candidate
+    needs: gate
+    if: needs.gate.outputs.release_web == 'true'
+    runs-on: ubuntu-latest
+    env:
+      HAS_FIREBASE_SECRETS: ${{ secrets.FIREBASE_CLI_TOKEN != '' && secrets.FIREBASE_APP_ID_ANDROID != '' }}
+    steps:
+      - name: Download web build artifact from triggering run
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          run_id: ${{ github.event.workflow_run.id }}
+          name: web-build
+          path: artifacts/web
+          if_no_artifact_found: fail
+
+      - name: Upload release candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-web-candidate
+          path: artifacts/web
