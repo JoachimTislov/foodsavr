@@ -1,0 +1,342 @@
+name: Validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    outputs:
+      flutter: ${{ steps.filter.outputs.flutter }}
+      web: ${{ steps.filter.outputs.web }}
+      android: ${{ steps.filter.outputs.android }}
+      integration: ${{ steps.filter.outputs.integration }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Path filters
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            flutter:
+              - 'lib/**'
+              - 'pubspec.yaml'
+              - 'pubspec.lock'
+            web:
+              - 'lib/**'
+              - 'web/**'
+              - 'pubspec.yaml'
+              - 'pubspec.lock'
+              - 'test/e2e/**'
+            android:
+              - 'lib/**'
+              - 'android/**'
+              - 'pubspec.yaml'
+              - 'pubspec.lock'
+            integration:
+              - 'integration_test/**'
+              - 'test_driver/**'
+              - 'lib/**'
+              - 'pubspec.yaml'
+              - 'pubspec.lock'
+            e2e:
+              - 'test/e2e/**'
+              - 'lib/**'
+              - 'web/**'
+              - 'pubspec.yaml'
+              - 'pubspec.lock'
+
+  web-smoke:
+    name: Web smoke test
+    needs: changes
+    if: ${{ needs.changes.outputs.web == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.6
+          channel: stable
+          cache: true
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Write firebase_options.dart
+        run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
+      - name: Create empty .env file
+        run: touch assets/.env
+      - name: Build generative code
+        run: dart run build_runner build --delete-conflicting-outputs
+      - name: Generate web platform files
+        run: flutter create . --platforms web
+      - name: Build web
+        run: flutter build web --release
+      - name: Start Firebase Emulators
+        run: |
+          cat > firebase.json <<'EOT'
+          {
+            "firestore": {
+              "rules": "firestore.rules"
+            },
+            "emulators": {
+              "auth": { "port": 9099 },
+              "firestore": { "port": 8080 },
+              "ui": { "enabled": true, "port": 4000 }
+            }
+          }
+          EOT
+          cat > firestore.rules <<'EOT'
+          rules_version = '2';
+          service cloud.firestore {
+            match /databases/{database}/documents {
+              match /{document=**} {
+                allow read, write: if true;
+              }
+            }
+          }
+          EOT
+          npx -y firebase-tools@latest emulators:start --project demo-project &
+          for i in $(seq 1 60); do
+            curl -s http://localhost:4000 > /dev/null && break
+            sleep 2
+          done
+      - name: Serve web build
+        run: |
+          npx -y serve build/web -l 4173 --no-clipboard &
+          for i in $(seq 1 30); do
+            curl -s http://localhost:4173 > /dev/null && break
+            sleep 1
+          done
+      - name: Run Playwright smoke tests
+        working-directory: test/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npx playwright test --project=smoke
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-smoke-artifacts
+          path: test/e2e/playwright-report/
+          retention-days: 7
+
+  android-integration:
+    name: Android integration tests
+    needs: changes
+    if: ${{ needs.changes.outputs.android == 'true' || needs.changes.outputs.integration == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # Non-blocking while the on-device suite is stabilized (#164/#165):
+    # the emulator and test execution work, individual tests still need
+    # emulator-seeded flows.
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.6
+          channel: stable
+          cache: true
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Write firebase_options.dart
+        run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
+      - name: Create empty .env file
+        run: touch assets/.env
+      - name: Build generative code
+        run: dart run build_runner build --delete-conflicting-outputs
+      - name: Start Firebase Emulators
+        run: |
+          cat > firebase.json <<'EOT'
+          {
+            "firestore": {
+              "rules": "firestore.rules"
+            },
+            "emulators": {
+              "auth": { "port": 9099 },
+              "firestore": { "port": 8080 },
+              "ui": { "enabled": true, "port": 4000 }
+            }
+          }
+          EOT
+          cat > firestore.rules <<'EOT'
+          rules_version = '2';
+          service cloud.firestore {
+            match /databases/{database}/documents {
+              match /{document=**} {
+                allow read, write: if true;
+              }
+            }
+          }
+          EOT
+          npx -y firebase-tools@latest emulators:start --project demo-project &
+          for i in $(seq 1 60); do
+            curl -s http://localhost:4000 > /dev/null && break
+            sleep 2
+          done
+      - name: Write minimal .env
+        run: echo 'CI_TEST=1' > assets/.env
+      - name: Write dummy google-services.json
+        run: |
+          mkdir -p android/app/src/development/debug android/app/src/production/debug
+          cat > android/app/src/development/debug/google-services.json <<'EOT'
+          {
+            "project_info": {
+              "project_number": "1234567890",
+              "project_id": "demo-project",
+              "storage_bucket": "demo-project.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:1234567890:android:dummyid123456",
+                  "android_client_info": {
+                    "package_name": "com.foodsavr.app.development"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  { "current_key": "AIzaSyDummyKeyForDemoOnly" }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "google_api_initializer": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOT
+      - name: Write production google-services.json
+        run: |
+          sed 's/com.foodsavr.app.development/com.foodsavr.app/' \
+            android/app/src/development/debug/google-services.json \
+            > android/app/src/production/debug/google-services.json
+      - name: Run integration tests on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          script: |
+            adb reverse tcp:8080 tcp:8080
+            adb reverse tcp:9099 tcp:9099
+            flutter test integration_test --flavor development --no-pub
+
+  e2e-web:
+    name: Web E2E (Playwright)
+    needs: changes
+    if: ${{ needs.changes.outputs.e2e == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.6
+          channel: stable
+          cache: true
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Write firebase_options.dart
+        run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
+      - name: Create empty .env file
+        run: touch assets/.env
+      - name: Build generative code
+        run: dart run build_runner build --delete-conflicting-outputs
+      - name: Generate web platform files
+        run: flutter create . --platforms web
+      - name: Build web
+        run: flutter build web --release
+      - name: Start Firebase Emulators
+        run: |
+          cat > firebase.json <<'EOT'
+          {
+            "firestore": {
+              "rules": "firestore.rules"
+            },
+            "emulators": {
+              "auth": { "port": 9099 },
+              "firestore": { "port": 8080 },
+              "ui": { "enabled": true, "port": 4000 }
+            }
+          }
+          EOT
+          cat > firestore.rules <<'EOT'
+          rules_version = '2';
+          service cloud.firestore {
+            match /databases/{database}/documents {
+              match /{document=**} {
+                allow read, write: if true;
+              }
+            }
+          }
+          EOT
+          npx -y firebase-tools@latest emulators:start --project demo-project &
+          for i in $(seq 1 60); do
+            curl -s http://localhost:4000 > /dev/null && break
+            sleep 2
+          done
+      - name: Serve web build
+        run: |
+          npx -y serve build/web -l 4173 --no-clipboard &
+          for i in $(seq 1 30); do
+            curl -s http://localhost:4173 > /dev/null && break
+            sleep 1
+          done
+      - name: Run Playwright E2E tests
+        working-directory: test/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npx playwright test
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: test/e2e/playwright-report/
+          retention-days: 7
