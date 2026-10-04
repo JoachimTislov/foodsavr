@@ -23,6 +23,9 @@ Future<void> main() async {
   }
   FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
 
+  final runId = DateTime.now().millisecondsSinceEpoch;
+  final productId = 'it-crud-1-$runId';
+  final collectionId = 'it-col-1-$runId';
   final firestore = FirebaseFirestore.instance;
   final repository = ProductRepository(firestore);
   final collectionRepository = CollectionRepository(firestore);
@@ -30,7 +33,7 @@ Future<void> main() async {
   testWidgets('Product CRUD round-trip', (tester) async {
     final expiry = DateTime.now().add(const Duration(days: 5));
     final product = Product(
-      id: 'it-crud-1',
+      id: productId,
       name: 'Integration Test Milk',
       description: 'Created by firestore_crud_test',
       userId: 'it-user',
@@ -40,7 +43,7 @@ Future<void> main() async {
     );
 
     await repository.add(product);
-    final fetched = await repository.get('it-crud-1');
+    final fetched = await repository.get(productId);
     expect(fetched, isNotNull);
     expect(fetched!.name, 'Integration Test Milk');
     expect(fetched.quantity, 2);
@@ -48,19 +51,19 @@ Future<void> main() async {
 
     final updated = fetched.copyWith(name: 'Integration Test Milk V2');
     await repository.update(updated);
-    final refetched = await repository.get('it-crud-1');
+    final refetched = await repository.get(productId);
     expect(refetched!.name, 'Integration Test Milk V2');
 
     final personal = await repository.getPersonalProducts('it-user');
-    expect(personal.any((p) => p.id == 'it-crud-1'), isTrue);
+    expect(personal.any((p) => p.id == productId), isTrue);
 
-    await repository.delete('it-crud-1');
-    expect(await repository.get('it-crud-1'), isNull);
+    await repository.delete(productId);
+    expect(await repository.get(productId), isNull);
   });
 
   testWidgets('Collection CRUD round-trip', (tester) async {
     final collection = Collection(
-      id: 'it-col-1',
+      id: collectionId,
       name: 'Integration Test Collection',
       productIds: const [],
       userId: 'it-user',
@@ -68,21 +71,21 @@ Future<void> main() async {
     );
 
     await collectionRepository.add(collection);
-    final fetched = await collectionRepository.get('it-col-1');
+    final fetched = await collectionRepository.get(collectionId);
     expect(fetched, isNotNull);
     expect(fetched!.name, 'Integration Test Collection');
 
     final updated = fetched.copyWith(name: 'Test Collection V2');
     await collectionRepository.update(updated);
-    final refetched = await collectionRepository.get('it-col-1');
+    final refetched = await collectionRepository.get(collectionId);
     expect(refetched!.name, 'Test Collection V2');
 
-    await collectionRepository.delete('it-col-1');
-    expect(await collectionRepository.get('it-col-1'), isNull);
+    await collectionRepository.delete(collectionId);
+    expect(await collectionRepository.get(collectionId), isNull);
   });
 
   tearDown(() async {
-    await firestore.collection('products').doc('it-crud-1').delete();
-    await firestore.collection('collections').doc('it-col-1').delete();
+    await firestore.collection('products').doc(productId).delete();
+    await firestore.collection('collections').doc(collectionId).delete();
   });
 }

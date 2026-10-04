@@ -58,13 +58,23 @@ void main() {
 
   testWidgets('sign in with wrong password fails', (tester) async {
     final auth = FirebaseAuth.instance;
-    const email = 'it-nonexistent@example.com';
+    final email =
+        'it-user-${DateTime.now().millisecondsSinceEpoch}@example.com';
+    const password = 'password123';
 
-    await auth.signOut();
+    final credential = await auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    expect(credential.user, isNotNull);
+
     await expectLater(
       auth.signInWithEmailAndPassword(email: email, password: 'wrong'),
       throwsA(isA<FirebaseAuthException>()),
     );
+    expect(auth.currentUser, isNotNull);
+    await credential.user!.delete();
+    await auth.signOut();
     expect(auth.currentUser, isNull);
   });
 }
