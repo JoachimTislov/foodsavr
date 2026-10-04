@@ -106,6 +106,7 @@ abstract class ExpiryEntry with _$ExpiryEntry {
 }
 
 @freezed
+@JsonSerializable(explicitToJson: true)
 abstract class Product with _$Product {
   const Product._();
   const factory Product({
