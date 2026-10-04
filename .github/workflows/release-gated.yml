@@ -31,6 +31,7 @@ jobs:
             const { owner, repo } = context.repo;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
             const isSuccessful = (runs, name) =>
 =======
             const runsResp = await github.rest.actions.listWorkflowRunsForRepo({
@@ -43,6 +44,9 @@ jobs:
             const runs = runsResp.data.workflow_runs ?? [];
             const isSuccessful = (name) =>
 >>>>>>> c08ce2f (ci: add gated release workflow for successful platform builds)
+=======
+            const isSuccessful = (runs, name) =>
+>>>>>>> 4070f02 (ci: fix build steps and harden release gate)
               runs.some((run) =>
                 run.name === name &&
                 run.status === "completed" &&
@@ -50,6 +54,9 @@ jobs:
               );
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 4070f02 (ci: fix build steps and harden release gate)
             const listRuns = async () =>
               (
                 await github.rest.actions.listWorkflowRunsForRepo({
@@ -81,11 +88,14 @@ jobs:
             }
             const androidOk = isSuccessful(runs, "Android Build");
             const webOk = isSuccessful(runs, "Web Build");
+<<<<<<< HEAD
 =======
             const ciChecksOk = isSuccessful("Format, Analyze, Check Localizations and Run Tests");
             const androidOk = isSuccessful("Android Build");
             const webOk = isSuccessful("Web Build");
 >>>>>>> c08ce2f (ci: add gated release workflow for successful platform builds)
+=======
+>>>>>>> 4070f02 (ci: fix build steps and harden release gate)
 
             const releaseAndroid =
               workflowName === "Android Build" &&
@@ -109,10 +119,15 @@ jobs:
     if: needs.gate.outputs.release_android == 'true'
     runs-on: ubuntu-latest
 <<<<<<< HEAD
+<<<<<<< HEAD
     env:
       HAS_FIREBASE_SECRETS: ${{ secrets.FIREBASE_CLI_TOKEN != '' && secrets.FIREBASE_APP_ID_ANDROID != '' }}
 =======
 >>>>>>> c08ce2f (ci: add gated release workflow for successful platform builds)
+=======
+    env:
+      HAS_FIREBASE_SECRETS: ${{ secrets.FIREBASE_CLI_TOKEN != '' && secrets.FIREBASE_APP_ID_ANDROID != '' }}
+>>>>>>> 4070f02 (ci: fix build steps and harden release gate)
     steps:
       - name: Download Android build artifact from triggering run
         uses: dawidd6/action-download-artifact@v11
@@ -131,10 +146,14 @@ jobs:
 
       - name: Publish to Firebase App Distribution (optional)
 <<<<<<< HEAD
+<<<<<<< HEAD
         if: ${{ env.HAS_FIREBASE_SECRETS == 'true' }}
 =======
         if: ${{ secrets.FIREBASE_CLI_TOKEN != '' && secrets.FIREBASE_APP_ID_ANDROID != '' }}
 >>>>>>> c08ce2f (ci: add gated release workflow for successful platform builds)
+=======
+        if: ${{ env.HAS_FIREBASE_SECRETS == 'true' }}
+>>>>>>> 4070f02 (ci: fix build steps and harden release gate)
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
           appId: ${{ secrets.FIREBASE_APP_ID_ANDROID }}
@@ -144,10 +163,14 @@ jobs:
 
       - name: Skip Firebase App Distribution publish
 <<<<<<< HEAD
+<<<<<<< HEAD
         if: ${{ env.HAS_FIREBASE_SECRETS != 'true' }}
 =======
         if: ${{ secrets.FIREBASE_CLI_TOKEN == '' || secrets.FIREBASE_APP_ID_ANDROID == '' }}
 >>>>>>> c08ce2f (ci: add gated release workflow for successful platform builds)
+=======
+        if: ${{ env.HAS_FIREBASE_SECRETS != 'true' }}
+>>>>>>> 4070f02 (ci: fix build steps and harden release gate)
         run: echo "Skipping Firebase App Distribution publish; required secrets are not configured."
 
   release-web:
@@ -156,10 +179,15 @@ jobs:
     if: needs.gate.outputs.release_web == 'true'
     runs-on: ubuntu-latest
 <<<<<<< HEAD
+<<<<<<< HEAD
     env:
       HAS_FIREBASE_SECRETS: ${{ secrets.FIREBASE_CLI_TOKEN != '' && secrets.FIREBASE_APP_ID_ANDROID != '' }}
 =======
 >>>>>>> c08ce2f (ci: add gated release workflow for successful platform builds)
+=======
+    env:
+      HAS_FIREBASE_SECRETS: ${{ secrets.FIREBASE_CLI_TOKEN != '' && secrets.FIREBASE_APP_ID_ANDROID != '' }}
+>>>>>>> 4070f02 (ci: fix build steps and harden release gate)
     steps:
       - name: Download web build artifact from triggering run
         uses: dawidd6/action-download-artifact@v11
