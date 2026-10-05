@@ -228,10 +228,6 @@ jobs:
     if: ${{ !cancelled() && needs.android-smoke.result == 'success' && (needs.changes.outputs.android == 'true' || needs.changes.outputs.integration == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    # Non-blocking while the on-device suite is stabilized (#164/#165):
-    # the emulator and test execution work, individual tests still need
-    # emulator-seeded flows.
-    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v6

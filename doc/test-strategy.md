@@ -31,7 +31,7 @@ If an existing unit test mocks more than one repository/service boundary, it sho
 ## CI wiring
 
 - `.github/workflows/ci-checks.yml` — format, analyze, localization, unit tests, coverage (existing).
-- `.github/workflows/validation.yml` — path-filtered smoke, Android integration, and Playwright E2E jobs via `dorny/paths-filter`.
+- `.github/workflows/validation.yml` — path-filtered smoke, Android integration, and Playwright E2E jobs via `dorny/paths-filter`. The Android integration job (`reactivecircus/android-emulator-runner`, API 34, KVM on ubuntu-latest) is a required, blocking gate for `lib/**`, `android/**`, and `integration_test/**` changes.
 - Playwright lives in `test/e2e/` (`npm ci && npx playwright test`); smoke specs use the `.smoke.spec.ts` suffix and run in the `smoke` project.
 - Firebase emulators must be running for integration and E2E suites (`make start-firebase-emulators` locally; started in CI jobs).
 
