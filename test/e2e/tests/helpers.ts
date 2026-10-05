@@ -1,8 +1,22 @@
 import { expect, type Page } from '@playwright/test';
 
-const FIRESTORE_HOST = process.env.FIRESTORE_EMULATOR_HOST ?? 'http://localhost:8080';
-const AUTH_HOST = process.env.FIREBASE_AUTH_EMULATOR_HOST ?? 'http://localhost:9099';
+const FIRESTORE_HOST = normalizeHost(
+  process.env.FIRESTORE_EMULATOR_HOST,
+  'http://localhost:8080',
+);
+const AUTH_HOST = normalizeHost(
+  process.env.FIREBASE_AUTH_EMULATOR_HOST,
+  'http://localhost:9099',
+);
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID ?? 'demo-project';
+
+// Firebase emulator host variables use the `host:port` form without a scheme.
+function normalizeHost(value: string | undefined, fallback: string): string {
+  if (!value) return fallback;
+  return value.startsWith('http://') || value.startsWith('https://')
+    ? value
+    : `http://${value}`;
+}
 
 export async function openApp(page: Page) {
   await page.goto('/');
@@ -50,6 +64,8 @@ export interface SeedCollection {
   productIds?: string[];
 }
 
+const seededCollectionIds = new Set<string>();
+
 export async function seedCollection(collection: SeedCollection): Promise<void> {
   const res = await fetch(
     `${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/collections?documentId=${collection.id}`,
@@ -76,17 +92,43 @@ export async function seedCollection(collection: SeedCollection): Promise<void> 
     res.ok || res.status === 409,
     `seeding collection ${collection.id} failed: ${res.status}`,
   ).toBeTruthy();
+  seededCollectionIds.add(collection.id);
 }
 
+// Deletes only collections this test suite created: explicitly seeded IDs
+// plus any document whose name uses the suite's `E2E ` prefix (collections
+// created through the UI dialog get random doc IDs). Unrelated emulator data
+// from other tests survives cleanup.
 export async function deleteSeededCollections(): Promise<void> {
-  const res = await fetch(
+  const listRes = await fetch(
     `${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/collections?pageSize=100`,
   );
-  if (!res.ok) return;
-  const body = (await res.json()) as { documents?: { name: string }[] };
+  expect(
+    listRes.ok,
+    `listing collections for cleanup failed: ${listRes.status}`,
+  ).toBeTruthy();
+  const body = (await listRes.json()) as {
+    documents?: { name: string; fields?: { name?: { stringValue?: string } } }[];
+  };
+
+  const ownedIds = new Set(seededCollectionIds);
   for (const doc of body.documents ?? []) {
-    await fetch(`${FIRESTORE_HOST}/v1/${doc.name}`, { method: 'DELETE' });
+    const id = doc.name.split('/').pop() as string;
+    const name = doc.fields?.name?.stringValue ?? '';
+    if (name.startsWith('E2E ')) ownedIds.add(id);
   }
+
+  for (const id of ownedIds) {
+    const res = await fetch(
+      `${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/collections/${id}`,
+      { method: 'DELETE' },
+    );
+    expect(
+      res.ok || res.status === 404,
+      `deleting seeded collection ${id} failed: ${res.status}`,
+    ).toBeTruthy();
+  }
+  seededCollectionIds.clear();
 }
 
 export async function createInventoryViaDialog(page: Page, name: string): Promise<void> {
