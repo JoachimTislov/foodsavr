@@ -237,5 +237,13 @@
 		"title": "Overfør lager",
 		"toLocation": "Til sted",
 		"transfer_items": "Overfør {count} varer"
+	},
+	"receipt": {
+		"scanTitle": "Skann kvittering",
+		"scanShort": "Skann kvittering",
+		"scanHint": "Hold kvitteringen stille inne i rammen",
+		"progress": "Gjenkjent: {percent}% · {items} varer",
+		"addItems": "Legg varer til lageret",
+		"ingestError": "Kunne ikke legge til kvitteringsvarer: {error}"
 	}
 }
