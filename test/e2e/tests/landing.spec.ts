@@ -9,7 +9,7 @@ test('landing view loads and stays alive', async ({ page }) => {
   await expect(page.locator('flutter-view, flt-glass-pane').first()).toBeVisible();
 });
 
-test.fixme('no uncaught exceptions during initial navigation', async ({ page }) => {
+test('no uncaught exceptions during initial navigation', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (err) => pageErrors.push(err.message));
 

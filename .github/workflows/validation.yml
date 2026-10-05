@@ -81,8 +81,8 @@ jobs:
         run: flutter pub get
       - name: Write firebase_options.dart
         run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
-      - name: Create empty .env file
-        run: touch assets/.env
+      - name: Write minimal .env
+        run: echo 'CI_TEST=1' > assets/.env
       - name: Build generative code
         run: dart run build_runner build --delete-conflicting-outputs
       - name: Generate web platform files
@@ -139,10 +139,93 @@ jobs:
           path: test/e2e/playwright-report/
           retention-days: 7
 
+  android-smoke:
+    name: Android smoke test
+    needs: changes
+    if: ${{ needs.changes.outputs.android == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.6
+          channel: stable
+          cache: true
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Write firebase_options.dart
+        run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
+      - name: Write minimal .env
+        run: echo 'CI_TEST=1' > assets/.env
+      - name: Build generative code
+        run: dart run build_runner build --delete-conflicting-outputs
+      - name: Write dummy google-services.json (development)
+        run: |
+          mkdir -p android/app/src/development/debug
+          cat > android/app/src/development/debug/google-services.json <<'EOT'
+          {
+            "project_info": {
+              "project_number": "1234567890",
+              "project_id": "demo-project",
+              "storage_bucket": "demo-project.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:1234567890:android:dummyid123456",
+                  "android_client_info": {
+                    "package_name": "com.foodsavr.app.development"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  { "current_key": "AIzaSyDummyKeyForDemoOnly" }
+                ],
+                "services": {}
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOT
+      - name: Build development debug APK
+        run: flutter build apk --flavor development --debug
+      - name: Install, launch and verify APK on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          script: |
+            set -e
+            adb install -r build/app/outputs/flutter-apk/app-development-debug.apk
+            adb shell am start -W -n com.foodsavr.app.development/.MainActivity
+            adb wait-for-device
+            for i in $(seq 1 30); do adb shell pidof com.foodsavr.app.development > /dev/null && break; sleep 1; done
+            adb shell pidof com.foodsavr.app.development
+            for i in $(seq 1 10); do adb shell "dumpsys activity activities | grep -q 'mResumedActivity.*com.foodsavr.app.development/.MainActivity'" && break; sleep 1; done; adb shell "dumpsys activity activities | grep -q 'mResumedActivity.*com.foodsavr.app.development/.MainActivity'"
+            for i in $(seq 1 10); do adb shell "dumpsys window windows | grep -q 'mCurrentFocus.*com.foodsavr.app.development'" && break; sleep 1; done; adb shell "dumpsys window windows | grep -q 'mCurrentFocus.*com.foodsavr.app.development'"
+            for i in $(seq 1 15); do adb shell "dumpsys gfxinfo com.foodsavr.app.development | grep -q 'Total frames rendered: [1-9]' && break; sleep 2; done; adb shell "dumpsys gfxinfo com.foodsavr.app.development | grep -q 'Total frames rendered: [1-9]'"
+            sleep 5
+            adb logcat -d -s AndroidRuntime:E | (! grep -q 'FATAL EXCEPTION')
+            adb logcat -d | grep -v 'FlutterJNI\|chromium\|eglCodecCommon' | (! grep -qi 'unhandled exception\|FATAL EXCEPTION')
+
   android-integration:
     name: Android integration tests
-    needs: changes
-    if: ${{ needs.changes.outputs.android == 'true' || needs.changes.outputs.integration == 'true' }}
+    needs: [changes, android-smoke]
+    if: ${{ !cancelled() && needs.android-smoke.result == 'success' && (needs.changes.outputs.android == 'true' || needs.changes.outputs.integration == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     # Non-blocking while the on-device suite is stabilized (#164/#165):
@@ -172,8 +255,8 @@ jobs:
         run: flutter pub get
       - name: Write firebase_options.dart
         run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
-      - name: Create empty .env file
-        run: touch assets/.env
+      - name: Write minimal .env
+        run: echo 'CI_TEST=1' > assets/.env
       - name: Build generative code
         run: dart run build_runner build --delete-conflicting-outputs
       - name: Start Firebase Emulators
@@ -205,8 +288,6 @@ jobs:
             curl -s http://localhost:4000 > /dev/null && break
             sleep 2
           done
-      - name: Write minimal .env
-        run: echo 'CI_TEST=1' > assets/.env
       - name: Write dummy google-services.json
         run: |
           mkdir -p android/app/src/development/debug android/app/src/production/debug
@@ -257,8 +338,8 @@ jobs:
 
   e2e-web:
     name: Web E2E (Playwright)
-    needs: changes
-    if: ${{ needs.changes.outputs.e2e == 'true' }}
+    needs: [changes, web-smoke]
+    if: ${{ !cancelled() && needs.web-smoke.result == 'success' && needs.changes.outputs.e2e == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -283,8 +364,8 @@ jobs:
         run: flutter pub get
       - name: Write firebase_options.dart
         run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
-      - name: Create empty .env file
-        run: touch assets/.env
+      - name: Write minimal .env
+        run: echo 'CI_TEST=1' > assets/.env
       - name: Build generative code
         run: dart run build_runner build --delete-conflicting-outputs
       - name: Generate web platform files
