@@ -213,10 +213,7 @@ jobs:
             adb install -r build/app/outputs/flutter-apk/app-development-debug.apk
             adb shell am start -W -n com.foodsavr.app.development/.MainActivity
             adb wait-for-device
-            for i in $(seq 1 30); do
-              adb shell pidof com.foodsavr.app.development > /dev/null && break
-              sleep 1
-            done
+            for i in $(seq 1 30); do adb shell pidof com.foodsavr.app.development > /dev/null && break; sleep 1; done
             adb shell pidof com.foodsavr.app.development
             for i in $(seq 1 10); do adb shell "dumpsys activity activities | grep -q 'mResumedActivity.*com.foodsavr.app.development/.MainActivity'" && break; sleep 1; done; adb shell "dumpsys activity activities | grep -q 'mResumedActivity.*com.foodsavr.app.development/.MainActivity'"
             for i in $(seq 1 10); do adb shell "dumpsys window windows | grep -q 'mCurrentFocus.*com.foodsavr.app.development'" && break; sleep 1; done; adb shell "dumpsys window windows | grep -q 'mCurrentFocus.*com.foodsavr.app.development'"
