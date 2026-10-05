@@ -11,10 +11,14 @@ import '../utils/shelf_life.dart';
 
 @lazySingleton
 class ProductService {
+  static const _cacheTtl = Duration(minutes: 2);
+
   final IProductRepository _productRepository;
   final IValidator<Product> _productValidator;
   final ShelfLifeService _shelfLifeService;
   final Logger _logger;
+
+  final Map<String, (DateTime, List<Product>)> _productsCache = {};
 
   ProductService(
     this._productRepository,
@@ -22,6 +26,8 @@ class ProductService {
     this._shelfLifeService,
     this._logger,
   );
+
+  void _invalidateCache() => _productsCache.clear();
 
   String _normalizeBarcode(String barcode) {
     var normalized = barcode.trim();
@@ -96,6 +102,7 @@ class ProductService {
         tags: existingProduct.tags,
       );
       await _productRepository.update(updatedProduct);
+      _invalidateCache();
       final validationResult = _productValidator.validate(updatedProduct);
       if (!validationResult.isValid) {
         _logger.e(
@@ -164,6 +171,7 @@ class ProductService {
         );
 
         final addedProduct = await _productRepository.add(newProduct);
+        _invalidateCache();
         final validationResult = _productValidator.validate(addedProduct);
         if (!validationResult.isValid) {
           _logger.e('Validation failed for new product: ${addedProduct.name}');
@@ -200,15 +208,29 @@ class ProductService {
 
   /// Fetches all products for a specific user
   /// Returns empty list if userId is null (no user logged in)
-  Future<List<Product>> getProducts(String? userId) async {
+  Future<List<Product>> getProducts(
+    String? userId, {
+    bool forceRefresh = false,
+  }) async {
     if (userId == null) {
       _logger.w('No user logged in, returning empty product list.');
       return [];
     }
 
+    final cached = _productsCache[userId];
+    if (!forceRefresh && cached != null) {
+      final (fetchedAt, products) = cached;
+      if (DateTime.now().difference(fetchedAt) < _cacheTtl) {
+        _logger.i('Returning cached products for user: $userId');
+        return products;
+      }
+      _productsCache.remove(userId);
+    }
+
     _logger.i('Fetching products for user: $userId');
     try {
       final products = await _productRepository.getProducts(userId);
+      _productsCache[userId] = (DateTime.now(), products);
       _logger.i('Successfully fetched ${products.length} products for user.');
       return products;
     } catch (e) {
@@ -279,6 +301,7 @@ class ProductService {
     }
     try {
       final addedProduct = await _productRepository.add(product);
+      _invalidateCache();
       _logger.i('Successfully added product: ${product.name}');
       return addedProduct;
     } catch (e) {
@@ -296,6 +319,7 @@ class ProductService {
     }
     try {
       await _productRepository.update(product);
+      _invalidateCache();
       _logger.i('Successfully updated product: ${product.name}');
     } catch (e) {
       _logger.e('Error updating product: $e');
@@ -307,6 +331,7 @@ class ProductService {
     _logger.i('Deleting product: $id');
     try {
       await _productRepository.delete(id);
+      _invalidateCache();
       _logger.i('Successfully deleted product: $id');
     } catch (e) {
       _logger.e('Error deleting product: $e');
