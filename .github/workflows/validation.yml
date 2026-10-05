@@ -248,6 +248,23 @@ jobs:
       - name: Install dependencies
         working-directory: firestore-rules
         run: npm ci
+      - name: Start Firestore emulator
+        run: |
+          cat > firebase.json <<'EOT'
+          {
+            "firestore": {
+              "rules": "firestore.rules"
+            },
+            "emulators": {
+              "firestore": { "port": 8080 }
+            }
+          }
+          EOT
+          npx -y firebase-tools@latest emulators:start --project demo-project &
+          for i in $(seq 1 60); do
+            curl -s http://localhost:8080 > /dev/null && break
+            sleep 2
+          done
       - name: Run rules unit tests
         working-directory: firestore-rules
         run: npx jest --ci
