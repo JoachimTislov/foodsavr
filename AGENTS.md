@@ -9,6 +9,7 @@
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-10-05 | PR2 for #163: added core-flow Playwright specs (`navigation.spec.ts`, `collections.spec.ts`, `transfers.spec.ts`) with Firestore-emulator REST seeding helpers; fixed flaky landing smoke (auto-login race vs. semantics-node detach — dispatchEvent click + dashboard fallback); updated test-strategy doc. All 10 specs green locally. |
 | 2026-10-05 | PR #176 merged (smoke suites for web and Android, closes #162). Prior to merge: Codecov `Check & Test` failed once on a transient TLS handshake; retriggered green; addressed all CodeRabbit findings (bounded/retried adb waits, one-line pidof poll, console-error assertions, gfxinfo frame-render check, smoke gates on heavier suites). |
 | 2026-10-04 | PR #176 review (round 2): fixed CodeRabbit major finding — emulator runner runs each `script:` line in a separate `sh -c`, so the multiline `pidof` poll collapsed to a one-liner (97c0629); replied and thread resolved. |
 | 2026-10-04 | PR #176 review: fixed 2 CodeRabbit findings in `android-smoke` (bounded 30s `pidof` poll replacing unbounded wait loop; 10x retry on resumed-activity/window-focus checks + 5s delayed logcat snapshot); replied to both threads and marked resolved. |

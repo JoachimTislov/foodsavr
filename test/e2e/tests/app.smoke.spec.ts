@@ -32,7 +32,20 @@ test('app does not hit uncaught page errors or console errors', async ({ page })
 
 test('landing renders and auth view is reachable', async ({ page }) => {
   await openApp(page);
-  await expect(page.getByText('Inventory Login')).toBeVisible({ timeout: 15_000 });
-  await page.getByRole('button', { name: 'Continue with Email' }).click();
+  const login = page.getByText('Inventory Login');
+  const dashboard = page.getByRole('tab', { name: 'Dashboard' });
+  // Dev builds auto-login bob@example.com against the auth emulator, so the
+  // login view may be replaced by the dashboard before we can interact.
+  await Promise.race([
+    login.waitFor({ timeout: 20_000 }),
+    dashboard.waitFor({ timeout: 20_000 }),
+  ]);
+  if (await dashboard.count()) return;
+  await expect(login).toBeVisible();
+  // Flutter re-renders semantics nodes during animations, which detaches the
+  // element mid-click; dispatch the click event directly instead.
+  await page
+    .getByRole('button', { name: 'Continue with Email' })
+    .dispatchEvent('click');
   await expect(page.getByText('Welcome Back')).toBeVisible({ timeout: 15_000 });
 });
