@@ -217,13 +217,15 @@ jobs:
             adb shell pidof com.foodsavr.app.development
             for i in $(seq 1 10); do adb shell "dumpsys activity activities | grep -q 'mResumedActivity.*com.foodsavr.app.development/.MainActivity'" && break; sleep 1; done; adb shell "dumpsys activity activities | grep -q 'mResumedActivity.*com.foodsavr.app.development/.MainActivity'"
             for i in $(seq 1 10); do adb shell "dumpsys window windows | grep -q 'mCurrentFocus.*com.foodsavr.app.development'" && break; sleep 1; done; adb shell "dumpsys window windows | grep -q 'mCurrentFocus.*com.foodsavr.app.development'"
+            for i in $(seq 1 15); do adb shell "dumpsys gfxinfo com.foodsavr.app.development | grep -q 'Total frames rendered: [1-9]' && break; sleep 2; done; adb shell "dumpsys gfxinfo com.foodsavr.app.development | grep -q 'Total frames rendered: [1-9]'"
             sleep 5
             adb logcat -d -s AndroidRuntime:E | (! grep -q 'FATAL EXCEPTION')
+            adb logcat -d | grep -v 'FlutterJNI\|chromium\|eglCodecCommon' | (! grep -qi 'unhandled exception\|FATAL EXCEPTION')
 
   android-integration:
     name: Android integration tests
-    needs: changes
-    if: ${{ needs.changes.outputs.android == 'true' || needs.changes.outputs.integration == 'true' }}
+    needs: [changes, android-smoke]
+    if: ${{ !cancelled() && needs.android-smoke.result == 'success' && (needs.changes.outputs.android == 'true' || needs.changes.outputs.integration == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     # Non-blocking while the on-device suite is stabilized (#164/#165):
@@ -336,8 +338,8 @@ jobs:
 
   e2e-web:
     name: Web E2E (Playwright)
-    needs: changes
-    if: ${{ needs.changes.outputs.e2e == 'true' }}
+    needs: [changes, web-smoke]
+    if: ${{ !cancelled() && needs.web-smoke.result == 'success' && needs.changes.outputs.e2e == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:

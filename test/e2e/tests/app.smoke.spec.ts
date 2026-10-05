@@ -9,15 +9,25 @@ test('app boots and renders the Flutter view', async ({ page }) => {
   });
 });
 
-test('app does not hit uncaught page errors', async ({ page }) => {
+test('app does not hit uncaught page errors or console errors', async ({ page }) => {
   const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
   page.on('pageerror', (err) => pageErrors.push(err.message));
+  page.on('console', (msg) => {
+    if (msg.type() !== 'error') return;
+    // App Check calls reCAPTCHA with the placeholder site key in CI, which
+    // always returns 400. Those third-party resource failures are expected.
+    const url = msg.location()?.url ?? '';
+    if (url.includes('recaptcha')) return;
+    consoleErrors.push(msg.text());
+  });
   await page.goto('/');
   await expect(page.locator('flutter-view, flt-glass-pane').first()).toBeVisible({
     timeout: 30_000,
   });
   await page.waitForTimeout(3_000);
   expect(pageErrors, `Page errors: ${pageErrors.join(' | ')}`).toHaveLength(0);
+  expect(consoleErrors, `Console errors: ${consoleErrors.join(' | ')}`).toHaveLength(0);
 });
 
 test('landing renders and auth view is reachable', async ({ page }) => {
