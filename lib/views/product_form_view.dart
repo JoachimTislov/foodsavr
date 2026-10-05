@@ -9,6 +9,7 @@ import '../services/product_service.dart';
 import '../services/collection_service.dart';
 import '../interfaces/i_auth_service.dart';
 import '../widgets/product/quantity_section.dart';
+import '../views/expiry_scan_view.dart';
 import '../widgets/product/expiries_section.dart';
 import '../constants/product_categories.dart';
 
@@ -256,6 +257,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
                 ExpiriesSection(
                   expiries: _expiries,
                   onAdd: _addExpiry,
+                  onScan: _scanExpiry,
                   onRemove: (idx) => setState(() => _expiries.removeAt(idx)),
                 ),
               ],
@@ -285,6 +287,21 @@ class _ProductFormContentState extends State<_ProductFormContent> {
         ),
       ],
     );
+  }
+
+  Future<void> _scanExpiry() async {
+    final date = await Navigator.of(context, rootNavigator: true)
+        .push<DateTime>(
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (context) => const ExpiryScanView(),
+          ),
+        );
+    if (date != null && mounted) {
+      setState(() {
+        _expiries.add(ExpiryEntry(quantity: 1, expirationDate: date));
+      });
+    }
   }
 
   Future<void> _addExpiry() async {
