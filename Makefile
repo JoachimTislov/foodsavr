@@ -161,7 +161,7 @@ worktree:
 
 # --- Automation & Gemini Targets ---
 
-.PHONY: task locale-seed remote-seed feature research resolve-comments unit-tests integration-tests analyze-architecture
+.PHONY: task locale-seed remote-seed feature research resolve-comments unit-tests integration-tests analyze-architecture rules-test
 
 task:
 	@if [ -z "$(msg)" ]; then \
@@ -174,6 +174,10 @@ task:
 locale-seed: start-firebase-emulators
 	@echo "Seeding local emulator data using standalone seeder..."
 	@dart run scripts/seed_database.dart
+
+rules-test:
+	@echo "Running Firestore security rules unit tests..."
+	cd firestore-rules && npm ci && npx jest --ci
 
 remote-seed:
 	@if [ -z "$(env)" ]; then \

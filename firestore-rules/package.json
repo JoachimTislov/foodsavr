@@ -1,0 +1,11 @@
+{
+  "name": "foodsavr-firestore-rules-tests",
+  "private": true,
+  "scripts": {
+    "test": "jest"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "jest": "^29.7.0"
+  }
+}

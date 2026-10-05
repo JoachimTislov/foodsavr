@@ -13,7 +13,6 @@ web
 functions
 .firebaserc
 firebase.json
-firestore.rules
 storage.rules
 google-services.json
 firebase_options.dart

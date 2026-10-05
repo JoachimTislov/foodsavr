@@ -17,6 +17,7 @@ jobs:
       android: ${{ steps.filter.outputs.android }}
       integration: ${{ steps.filter.outputs.integration }}
       e2e: ${{ steps.filter.outputs.e2e }}
+      rules: ${{ steps.filter.outputs.rules }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -52,6 +53,10 @@ jobs:
               - 'web/**'
               - 'pubspec.yaml'
               - 'pubspec.lock'
+            rules:
+              - 'firestore.rules'
+              - 'firestore-rules/**'
+              - '.github/workflows/validation.yml'
 
   web-smoke:
     name: Web smoke test
@@ -221,6 +226,31 @@ jobs:
             sleep 5
             adb logcat -d -s AndroidRuntime:E | (! grep -q 'FATAL EXCEPTION')
             adb logcat -d | grep -v 'FlutterJNI\|chromium\|eglCodecCommon' | (! grep -qi 'unhandled exception\|FATAL EXCEPTION')
+
+  firestore-rules:
+    name: Firestore security rules
+    needs: changes
+    if: ${{ needs.changes.outputs.rules == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        working-directory: firestore-rules
+        run: npm ci
+      - name: Run rules unit tests
+        working-directory: firestore-rules
+        run: npx jest --ci
 
   android-integration:
     name: Android integration tests
