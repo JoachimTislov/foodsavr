@@ -3,8 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../constants/privacy_notice.dart';
-import '../constants/terms_of_service.dart';
+import '../constants/legal_docs.dart';
 import '../service_locator.dart';
 import '../controllers/user_controller.dart';
 import '../utils/config.dart';
@@ -73,13 +72,15 @@ class _AuthViewState extends State<AuthView> {
     await _controller.signInWithFacebook();
   }
 
-  void _showPrivacyNotice() {
+  Future<void> _showPrivacyNotice() async {
+    final content = await LegalDocs.privacyNotice();
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('common.privacy_notice'.tr()),
-          content: SingleChildScrollView(child: Text(PrivacyNotice.content)),
+          content: SingleChildScrollView(child: Text(content)),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -91,13 +92,15 @@ class _AuthViewState extends State<AuthView> {
     );
   }
 
-  void _showTermsOfService() {
+  Future<void> _showTermsOfService() async {
+    final content = await LegalDocs.termsOfService();
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('common.terms_of_service'.tr()),
-          content: SingleChildScrollView(child: Text(TermsOfService.content)),
+          content: SingleChildScrollView(child: Text(content)),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),

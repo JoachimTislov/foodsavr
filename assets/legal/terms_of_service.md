@@ -1,7 +1,3 @@
-// lib/constants/terms_of_service.dart
-
-class TermsOfService {
-  static const String content = """
 ## Terms of Service for FoodSavr
 
 **Last Updated:** February 17, 2026
@@ -56,5 +52,3 @@ These Terms shall be governed and construed in accordance with the laws of Norwa
 ### 11. Contact Us
 
 If you have any questions about these Terms, please contact us at todo@gmail.com.
-""";
-}

@@ -3,8 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../constants/privacy_notice.dart';
-import '../constants/terms_of_service.dart';
+import '../constants/legal_docs.dart';
 import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
 import '../utils/theme_notifier.dart';
@@ -124,19 +123,19 @@ class _SettingsViewState extends State<SettingsView> {
                 _SettingsTile(
                   icon: Icons.description_outlined,
                   title: 'settings.terms_of_service'.tr(),
-                  onTap: () => _showLegalDialog(
+                  onTap: () => _showLegalDoc(
                     context,
                     title: 'common.terms_of_service'.tr(),
-                    content: TermsOfService.content,
+                    loadContent: LegalDocs.termsOfService,
                   ),
                 ),
                 _SettingsTile(
                   icon: Icons.privacy_tip_outlined,
                   title: 'settings.privacy_policy'.tr(),
-                  onTap: () => _showLegalDialog(
+                  onTap: () => _showLegalDoc(
                     context,
                     title: 'common.privacy_notice'.tr(),
-                    content: PrivacyNotice.content,
+                    loadContent: LegalDocs.privacyNotice,
                   ),
                 ),
                 _SettingsTile(
@@ -153,11 +152,13 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
-  void _showLegalDialog(
+  Future<void> _showLegalDoc(
     BuildContext context, {
     required String title,
-    required String content,
-  }) {
+    required Future<String> Function() loadContent,
+  }) async {
+    final content = await loadContent();
+    if (!context.mounted) return;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
