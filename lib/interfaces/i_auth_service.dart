@@ -14,6 +14,10 @@ abstract class IAuthService {
   Future<UserCredential> signInWithFacebook();
   Future<UserCredential> signInAsGuest();
   Future<void> sendPasswordResetEmail(String email);
+  Future<void> changeEmail({
+    required String currentPassword,
+    required String newEmail,
+  });
   Future<void> signOut();
   Stream<User?> get authStateChanges;
   User? get currentUser;

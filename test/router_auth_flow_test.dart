@@ -129,6 +129,14 @@ class _FakeAuthService implements IAuthService {
   Future<void> sendPasswordResetEmail(String email) {
     throw UnimplementedError();
   }
+
+  @override
+  Future<void> changeEmail({
+    required String currentPassword,
+    required String newEmail,
+  }) {
+    throw UnimplementedError();
+  }
 }
 
 class _TestApp extends StatelessWidget {

@@ -182,6 +182,7 @@
 	"profile": {
 		"account_settings": "Account Settings",
 		"change_email": "Change Email",
+		"change_email_sent": "Verification email sent. Check your inbox to confirm the change.",
 		"create_account": "Create account",
 		"danger_zone": "Danger Zone",
 		"deleteAccountConfirmation": "Yes, Delete Account",
@@ -190,6 +191,7 @@
 		"error_delete_account": "Failed to delete account. Please try again.",
 		"error_sign_out": "Failed to sign out. Please try again.",
 		"forgot_password": "Forgot Password",
+		"new_email": "New Email Address",
 		"log_out": "Log Out",
 		"title": "Profile",
 		"two_factor_auth": "Two-factor Authentication"

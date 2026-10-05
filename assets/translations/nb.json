@@ -182,6 +182,7 @@
 	"profile": {
 		"account_settings": "Kontoinnstillinger",
 		"change_email": "Endre e-post",
+		"change_email_sent": "Verifikasjons-e-post sendt. Sjekk innboksen din for å bekrefte endringen.",
 		"create_account": "Opprett konto",
 		"danger_zone": "Faresone",
 		"deleteAccountConfirmation": "Ja, slett konto",
@@ -190,6 +191,7 @@
 		"error_delete_account": "Klarte ikke å slette konto. Vennligst prøv igjen.",
 		"error_sign_out": "Klarte ikke å logge ut. Vennligst prøv igjen.",
 		"forgot_password": "Glemt passord",
+		"new_email": "Ny e-postadresse",
 		"log_out": "Logg ut",
 		"title": "Profil",
 		"two_factor_auth": "To-faktor autentisering"

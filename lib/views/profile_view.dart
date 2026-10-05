@@ -67,10 +67,14 @@ class ProfileView extends WatchingWidget {
                     _SettingsItem(
                       icon: Icons.lock_reset,
                       label: 'profile.forgot_password'.tr(),
+                      onTap: () =>
+                          _showForgotPasswordSheet(context, authController),
                     ),
                     _SettingsItem(
                       icon: Icons.mail_outline,
                       label: 'profile.change_email'.tr(),
+                      onTap: () =>
+                          _showChangeEmailSheet(context, authController),
                     ),
                     _SettingsItem(
                       icon: Icons.security,
@@ -111,6 +115,148 @@ class ProfileView extends WatchingWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showForgotPasswordSheet(
+    BuildContext context,
+    UserController controller,
+  ) {
+    final emailController = TextEditingController(text: controller.email ?? '');
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Theme.of(sheetContext).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'profile.forgot_password'.tr(),
+                style: Theme.of(sheetContext).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: 'auth.form.email.label'.tr(),
+                  hintText: 'auth.form.email.hint'.tr(),
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.pop(sheetContext);
+                  await controller.forgotPassword(emailController.text);
+                },
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(56),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: Text('auth.reset.email_prompt'.tr()),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => Navigator.pop(sheetContext),
+                style: TextButton.styleFrom(
+                  minimumSize: const Size.fromHeight(56),
+                ),
+                child: Text('common.cancel'.tr()),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showChangeEmailSheet(BuildContext context, UserController controller) {
+    final passwordController = TextEditingController();
+    final emailController = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Theme.of(sheetContext).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'profile.change_email'.tr(),
+                style: Theme.of(sheetContext).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: 'auth.form.password.label'.tr(),
+                  hintText: 'auth.form.password.hint'.tr(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: 'profile.new_email'.tr(),
+                  hintText: 'auth.form.email.hint'.tr(),
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.pop(sheetContext);
+                  await controller.changeEmail(
+                    currentPassword: passwordController.text,
+                    newEmail: emailController.text,
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(56),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: Text('common.save'.tr()),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => Navigator.pop(sheetContext),
+                style: TextButton.styleFrom(
+                  minimumSize: const Size.fromHeight(56),
+                ),
+                child: Text('common.cancel'.tr()),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
