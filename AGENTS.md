@@ -9,6 +9,7 @@
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-10-05 | PR #177 review round 1 wrap-up: posted in-thread reply on the remaining CodeRabbit comment (transfer-view location assertion — skipped with reason, view uses static demo locations); all 4 threads now resolved or replied. |
 | 2026-10-05 | PR #177 review: fixed 3 CodeRabbit findings (normalize emulator host env vars; suite-owned-only cleanup; assert list/DELETE responses) and skipped 1 with reason (transfer view uses static demo locations, not Firestore collections); replied on the PR; second push ce5769d. |
 | 2026-10-05 | PR2 for #163: added core-flow Playwright specs (`navigation.spec.ts`, `collections.spec.ts`, `transfers.spec.ts`) with Firestore-emulator REST seeding helpers; fixed flaky landing smoke (auto-login race vs. semantics-node detach — dispatchEvent click + dashboard fallback); updated test-strategy doc. All 10 specs green locally. |
 | 2026-10-05 | PR #176 merged (smoke suites for web and Android, closes #162). Prior to merge: Codecov `Check & Test` failed once on a transient TLS handshake; retriggered green; addressed all CodeRabbit findings (bounded/retried adb waits, one-line pidof poll, console-error assertions, gfxinfo frame-render check, smoke gates on heavier suites). |
