@@ -12,6 +12,8 @@ const BOB = 'bob';
 const ADMIN = 'admin-user';
 
 function rulesPath() {
+  const override = process.env.FIRESTORE_RULES_PATH;
+  if (override) return override;
   return path.join(__dirname, '..', '..', 'firestore.rules');
 }
 
