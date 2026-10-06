@@ -119,6 +119,15 @@ class ProfileView extends WatchingWidget {
     );
   }
 
+  void _showActionResult(BuildContext context, UserController controller) {
+    final success = controller.successMessage;
+    final error = controller.errorMessage;
+    if (success == null && error == null) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(success ?? error!)));
+  }
+
   void _showForgotPasswordSheet(
     BuildContext context,
     UserController controller,
@@ -161,6 +170,9 @@ class ProfileView extends WatchingWidget {
                 onPressed: () async {
                   Navigator.pop(sheetContext);
                   await controller.forgotPassword(emailController.text);
+                  if (context.mounted) {
+                    _showActionResult(context, controller);
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(56),
@@ -237,6 +249,9 @@ class ProfileView extends WatchingWidget {
                     currentPassword: passwordController.text,
                     newEmail: emailController.text,
                   );
+                  if (context.mounted) {
+                    _showActionResult(context, controller);
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(56),
