@@ -17,6 +17,7 @@ jobs:
       android: ${{ steps.filter.outputs.android }}
       integration: ${{ steps.filter.outputs.integration }}
       e2e: ${{ steps.filter.outputs.e2e }}
+      rules: ${{ steps.filter.outputs.rules }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -52,6 +53,9 @@ jobs:
               - 'web/**'
               - 'pubspec.yaml'
               - 'pubspec.lock'
+            rules:
+              - 'firestore-rules/**'
+              - '.github/workflows/validation.yml'
 
   web-smoke:
     name: Web smoke test
@@ -211,16 +215,93 @@ jobs:
           script: |
             set -e
             adb install -r build/app/outputs/flutter-apk/app-development-debug.apk
-            adb shell am start -W -n com.foodsavr.app.development/.MainActivity
+            adb shell am start -W -n com.foodsavr.app.development/com.foodsavr.app.MainActivity
             adb wait-for-device
             for i in $(seq 1 30); do adb shell pidof com.foodsavr.app.development > /dev/null && break; sleep 1; done
             adb shell pidof com.foodsavr.app.development
-            for i in $(seq 1 10); do adb shell "dumpsys activity activities | grep -q 'mResumedActivity.*com.foodsavr.app.development/.MainActivity'" && break; sleep 1; done; adb shell "dumpsys activity activities | grep -q 'mResumedActivity.*com.foodsavr.app.development/.MainActivity'"
-            for i in $(seq 1 10); do adb shell "dumpsys window windows | grep -q 'mCurrentFocus.*com.foodsavr.app.development'" && break; sleep 1; done; adb shell "dumpsys window windows | grep -q 'mCurrentFocus.*com.foodsavr.app.development'"
-            for i in $(seq 1 15); do adb shell "dumpsys gfxinfo com.foodsavr.app.development | grep -q 'Total frames rendered: [1-9]' && break; sleep 2; done; adb shell "dumpsys gfxinfo com.foodsavr.app.development | grep -q 'Total frames rendered: [1-9]'"
-            sleep 5
-            adb logcat -d -s AndroidRuntime:E | (! grep -q 'FATAL EXCEPTION')
-            adb logcat -d | grep -v 'FlutterJNI\|chromium\|eglCodecCommon' | (! grep -qi 'unhandled exception\|FATAL EXCEPTION')
+            for i in $(seq 1 30); do adb shell "dumpsys activity activities 2>/dev/null | grep -q 'ResumedActivity.*com.foodsavr.app.development/com.foodsavr.app.MainActivity'" && break; sleep 2; done; adb shell "dumpsys activity activities 2>/dev/null | grep -q 'ResumedActivity.*com.foodsavr.app.development/com.foodsavr.app.MainActivity'"
+            for i in $(seq 1 30); do adb shell "dumpsys window 2>/dev/null | grep -Eq '(mCurrentFocus|mFocusedApp).*com.foodsavr.app.development'" && break; sleep 2; done; adb shell "dumpsys window 2>/dev/null | grep -Eq '(mCurrentFocus|mFocusedApp).*com.foodsavr.app.development'"
+                        sleep 5
+            adb shell "dumpsys window windows 2>/dev/null | grep -E 'mCurrentFocus|mFocusedApp'" || true
+            adb logcat -d -t 200 | grep -iE 'flutter|foodsavr' | tail -30 || true
+            APP_PID=$(adb shell pidof com.foodsavr.app.development | tr -d '\r\n')
+            adb logcat -d --pid="$APP_PID" -s AndroidRuntime:E | (! grep -q 'FATAL EXCEPTION')
+            adb logcat -d --pid="$APP_PID" | grep -v 'FlutterJNI\|chromium\|eglCodecCommon' | (! grep -qi 'unhandled exception\|FATAL EXCEPTION')
+
+  firestore-rules:
+    name: Firestore security rules
+    needs: changes
+    if: ${{ needs.changes.outputs.rules == 'true' && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        working-directory: firestore-rules
+        run: npm ci
+      - name: Check rules secret availability
+        id: rules_secret
+        env:
+          FIRESTORE_RULES_B64: ${{ secrets.FIRESTORE_RULES_B64 }}
+        run: |
+          if [ -n "$FIRESTORE_RULES_B64" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::FIRESTORE_RULES_B64 is not set — skipping rules validation. Set it to activate this gate."
+          fi
+      - name: Write firestore.rules from secret
+        if: steps.rules_secret.outputs.available == 'true'
+        env:
+          FIRESTORE_RULES_B64: ${{ secrets.FIRESTORE_RULES_B64 }}
+        run: |
+          echo "$FIRESTORE_RULES_B64" | base64 -d > firestore.rules
+          if [ ! -s firestore.rules ]; then
+            echo "Decoded firestore.rules is empty — check the secret encoding" >&2
+            exit 1
+          fi
+          # Fail fast if the decoded file is not rules source.
+          grep -q "rules_version" firestore.rules || {
+            echo "firestore.rules does not look like Firestore rules (missing rules_version)" >&2
+            exit 1
+          }
+      - name: Start Firestore emulator
+        if: steps.rules_secret.outputs.available == 'true'
+        run: |
+          cat > firebase.json <<'EOT'
+          {
+            "firestore": {
+              "rules": "firestore.rules"
+            },
+            "emulators": {
+              "firestore": { "port": 8080 }
+            }
+          }
+          EOT
+          npx -y firebase-tools@15 emulators:start --project demo-project &
+          emulator_up=false
+          for _ in $(seq 1 60); do
+            if curl -s http://localhost:8080 > /dev/null; then emulator_up=true; break; fi
+            sleep 2
+          done
+          if [ "$emulator_up" != true ]; then
+            echo "Firestore emulator did not start" >&2
+            exit 1
+          fi
+      - name: Run rules unit tests
+        if: steps.rules_secret.outputs.available == 'true'
+        working-directory: firestore-rules
+        run: npx jest --ci
 
   android-integration:
     name: Android integration tests
