@@ -439,14 +439,15 @@ class _SettingsGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
+    return Material(
+      color: colorScheme.surface,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
+        side: BorderSide(
           color: colorScheme.outlineVariant.withValues(alpha: 0.1),
         ),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
           for (int i = 0; i < items.length; i++) ...[
