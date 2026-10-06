@@ -53,12 +53,8 @@ class _CountingProductRepository implements IProductRepository {
   Future<void> update(Product entity) async {}
 }
 
-Product _product(String id) => Product(
-      id: id,
-      name: 'Product $id',
-      description: '',
-      userId: 'user-1',
-    );
+Product _product(String id) =>
+    Product(id: id, name: 'Product $id', description: '', userId: 'user-1');
 
 void main() {
   late _MockIValidatorProduct mockProductValidator;
@@ -71,9 +67,8 @@ void main() {
   setUp(() {
     mockProductValidator = _MockIValidatorProduct();
     mockShelfLifeService = _MockShelfLifeService();
-    when(() => mockProductValidator.validate(any())).thenReturn(
-      const ValidationResult([]),
-    );
+    when(() => mockProductValidator.validate(any()))
+        .thenReturn(const ValidationResult([]));
   });
 
   ProductService _service(_CountingProductRepository repository) =>
