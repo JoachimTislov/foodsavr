@@ -9,6 +9,7 @@
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-10-06 | Per user request, `firestore.rules` is no longer publicly tracked: untracked + gitignored again; CI injects it from a `FIRESTORE_RULES_B64` secret; test accepts `FIRESTORE_RULES_PATH` override. History rewritten to purge the file from all commits; force-push orphaned PR #179 (auto-closed) → reopened as PR #185; GitGuardian false positive (pre-existing secret in old main commit) resolved by rebasing onto real main. Rules CI job fails until the user sets the secret. |
 | 2026-10-05 | PR #179 review wrap-up: CodeRabbit confirmed all 4 fixes and withdrew nothing further; one new minor (pin `firebase-tools`, fail fast on emulator startup) fixed in 06c700c and replied. PR #177 transfer-thread finding withdrawn by CodeRabbit after skip explanation. No Codex comments found on any open PR. |
 | 2026-10-05 | PR #179 review: triggered CodeRabbit via mention (was rate-limited); fixed 3 authorization-bypass findings in `firestore.rules` (non-admin `isGlobal` create/set, owner `userId` re-assignment on update, admin-registry client writes) + 3 new denial tests (16 total green); `make rules-test` now depends on `start-firebase-emulators`; replied in all 4 threads (f3c0b58). |
 | 2026-10-05 | PR #179 follow-ups: merged main after #177 (AGENTS.md/test-strategy conflicts — note: a conflicting PR gets no CI at all, GitHub can't build the merge ref); fixed CI — `@firebase/rules-unit-testing` needs a running Firestore emulator, added emulator startup to the `firestore-rules` job; job green in 55s. |
