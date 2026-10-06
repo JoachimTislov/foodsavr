@@ -9,6 +9,7 @@
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-10-06 | PR #185 CI green: rules job now skips with a warning while `FIRESTORE_RULES_B64` is unset (sandbox forbids setting secrets) and activates automatically once set, with fail-fast checks for empty/invalid decodes; PR body and issue #165 updated. |
 | 2026-10-06 | Per user request, `firestore.rules` is no longer publicly tracked: untracked + gitignored again; CI injects it from a `FIRESTORE_RULES_B64` secret; test accepts `FIRESTORE_RULES_PATH` override. History rewritten to purge the file from all commits; force-push orphaned PR #179 (auto-closed) → reopened as PR #185; GitGuardian false positive (pre-existing secret in old main commit) resolved by rebasing onto real main. Rules CI job fails until the user sets the secret. |
 | 2026-10-05 | PR #179 review wrap-up: CodeRabbit confirmed all 4 fixes and withdrew nothing further; one new minor (pin `firebase-tools`, fail fast on emulator startup) fixed in 06c700c and replied. PR #177 transfer-thread finding withdrawn by CodeRabbit after skip explanation. No Codex comments found on any open PR. |
 | 2026-10-05 | PR #179 review: triggered CodeRabbit via mention (was rate-limited); fixed 3 authorization-bypass findings in `firestore.rules` (non-admin `isGlobal` create/set, owner `userId` re-assignment on update, admin-registry client writes) + 3 new denial tests (16 total green); `make rules-test` now depends on `start-firebase-emulators`; replied in all 4 threads (f3c0b58). |
