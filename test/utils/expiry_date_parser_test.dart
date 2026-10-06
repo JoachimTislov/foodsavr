@@ -44,6 +44,14 @@ void main() {
     expect(ExpiryDateParser.findExpiryDate('01.01.${now.year + 20}'), isNull);
   });
 
+  test('ignores implausible dates on lines with expiry hints', () {
+    expect(ExpiryDateParser.findExpiryDate('BEST BEFORE 01.01.2020'), isNull);
+    expect(
+      ExpiryDateParser.findExpiryDate('EXP 01.01.${DateTime.now().year + 20}'),
+      isNull,
+    );
+  });
+
   test('returns null for text without dates', () {
     expect(ExpiryDateParser.findExpiryDate('No dates here'), isNull);
     expect(ExpiryDateParser.findExpiryDate(''), isNull);

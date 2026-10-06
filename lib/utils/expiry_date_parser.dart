@@ -32,13 +32,13 @@ class ExpiryDateParser {
       final iso = _parseIso(line);
       if (iso != null) {
         candidates.add(iso);
-        if (hasHint) return iso;
+        if (hasHint && _isPlausible(iso)) return iso;
         continue;
       }
       final european = _parseEuropean(line);
       if (european != null) {
         candidates.add(european);
-        if (hasHint) return european;
+        if (hasHint && _isPlausible(european)) return european;
       }
     }
 
