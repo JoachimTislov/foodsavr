@@ -99,6 +99,25 @@ describe('products', () => {
     await assertFails(db.collection('products').doc('p3').set(ownedProduct(ALICE)));
   });
 
+  test('a non-admin cannot create or set isGlobal on a product', async () => {
+    const db = aliceDb();
+    await assertFails(
+      db.collection('products').doc('p6').set(ownedProduct(ALICE, { isGlobal: true })),
+    );
+    await seedProduct('p7', ownedProduct(ALICE));
+    await assertFails(
+      db.collection('products').doc('p7').update({ isGlobal: true }),
+    );
+  });
+
+  test('an owner cannot re-assign userId on update', async () => {
+    await seedProduct('p8', ownedProduct(ALICE));
+    const db = aliceDb();
+    await assertFails(
+      db.collection('products').doc('p8').update({ userId: BOB }),
+    );
+  });
+
   test('signed-in users can read global products', async () => {
     await seedProduct('p4', ownedProduct('global', { isGlobal: true }));
     await assertSucceeds(bobDb().collection('products').doc('p4').get());
@@ -188,6 +207,20 @@ describe('collections', () => {
       db.collection('collections').doc('c2').update({ name: 'Stolen' }),
     );
   });
+
+  test('an owner cannot re-assign userId on update', async () => {
+    const db = aliceDb();
+    await db.collection('collections').doc('c3').set({
+      id: 'c3',
+      name: 'Pantry',
+      userId: ALICE,
+      productIds: [],
+      type: 'inventory',
+    });
+    await assertFails(
+      db.collection('collections').doc('c3').update({ userId: BOB }),
+    );
+  });
 });
 
 describe('roles', () => {
@@ -198,8 +231,11 @@ describe('roles', () => {
     await assertFails(db.collection('roles').doc('admins').set({ [ALICE]: true }));
   });
 
-  test('admins can read the admin registry', async () => {
+  test('admins can read but not write the admin registry', async () => {
     await seedAdmin();
     await assertSucceeds(adminDb().collection('roles').doc('admins').get());
+    await assertFails(
+      adminDb().collection('roles').doc('admins').update({ [BOB]: true }),
+    );
   });
 });
