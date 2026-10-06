@@ -6,7 +6,7 @@ const {
   initializeTestEnvironment,
 } = require('@firebase/rules-unit-testing');
 
-const PROJECT_ID = 'demo-project';
+const PROJECT_ID = 'demo-rules-test';
 const ALICE = 'alice';
 const BOB = 'bob';
 const ADMIN = 'admin-user';

@@ -229,7 +229,7 @@ jobs:
   firestore-rules:
     name: Firestore security rules
     needs: changes
-    if: ${{ needs.changes.outputs.rules == 'true' }}
+    if: ${{ needs.changes.outputs.rules == 'true' && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

@@ -9,6 +9,7 @@
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-10-06 | PR #185 CI green; CodeRabbit round on da7f84e: fixed 3 of 5 — secret no longer supplied to PR runs (`github.event_name != 'pull_request'` guard against exfiltration via edited tests), rules tests use dedicated `demo-rules-test` project (was shared `demo-project`, `seedAdmin()` could clobber dev admin registry), corrected test-strategy claim that `make locale-seed` provides `firestore.rules`; skipped 2 (secret-change trigger — repo lacks a deploy workflow for rules; emulator startup bounding — `start-firebase-emulators` no longer a `rules-test` dependency, CI path already fails fast); pushed. |
 | 2026-10-06 | PR #185 review posted (approve with comments): gate never executed against real rules while secret unset; secret-drift concern; minor test coverage gaps; fixed `make rules-test` double-emulator issue by dropping the `start-firebase-emulators` dependency (`initializeTestEnvironment` manages its own emulator); pushed. |
 | 2026-10-06 | PR #185 merge-conflict fix: merged main after #178 (AGENTS.md event-log conflict only); pushed. |
 | 2026-10-05 | PR #178 for #164: dropped `continue-on-error` from the Android integration CI job (suite green on the three most recent non-skipped runs) making it a blocking gate; documented gate status in test-strategy; updated issues #164 and #158 epic checkboxes. |

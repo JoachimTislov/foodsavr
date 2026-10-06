@@ -13,7 +13,7 @@ This document defines the evaluation and validation strategy for foodsavr, track
 | Integration (Android) | `flutter test integration_test` on emulator + Firebase emulators | Full app flows on device | Android/integration paths affected |
 | Integration (web) | Playwright (`test/e2e/tests/*.spec.ts`) | Tab navigation, inventory/shopping-list creation dialogs, transfer view (Firestore-emulator-seeded inventories) | Web paths affected |
 | Firebase emulator tests | Firestore emulator + Auth emulator | CRUD against emulators (permissive rules override in CI app suites) | `lib/`, `integration_test/**` affected |
-| Firestore security rules | `@firebase/rules-unit-testing` (`firestore-rules/`) | Owner-based access on `products`, `user_products`, `global_products`, `collections`, `roles` | `firestore-rules/**` affected; the `firestore.rules` file itself is untracked (injected in CI from the `FIRESTORE_RULES_B64` secret, present locally via `make locale-seed` dev setup) |
+| Firestore security rules | `@firebase/rules-unit-testing` (`firestore-rules/`) | Owner-based access on `products`, `user_products`, `global_products`, `collections`, `roles` | `firestore-rules/**` affected; the `firestore.rules` file itself is untracked (injected in CI from the `FIRESTORE_RULES_B64` secret; locally, obtain the file out-of-band and place it at the repo root, or point `FIRESTORE_RULES_PATH` at it) |
 
 ## Unit vs integration decision rule
 
