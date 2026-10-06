@@ -20,6 +20,7 @@ class ReceiptIngestionService {
     String userId,
   ) async {
     final products = <Product>[];
+    var failedItems = 0;
     for (final position in receipt.positions) {
       final name = position.product.formattedValue.trim();
       if (name.isEmpty) continue;
@@ -34,10 +35,16 @@ class ReceiptIngestionService {
       try {
         products.add(await _productService.addProduct(product));
       } catch (e) {
+        failedItems++;
         _logger.e('Failed to add receipt line item "$name": $e');
       }
     }
     _logger.i('Ingested ${products.length} products from receipt');
+    if (failedItems > 0) {
+      throw StateError(
+        'Failed to save $failedItems of ${receipt.positions.length} receipt items',
+      );
+    }
     return products;
   }
 
