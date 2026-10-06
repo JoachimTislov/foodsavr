@@ -19,6 +19,7 @@ class ProductService {
   final Logger _logger;
 
   final Map<String, (DateTime, List<Product>)> _productsCache = {};
+  int _cacheGeneration = 0;
 
   ProductService(
     this._productRepository,
@@ -27,7 +28,10 @@ class ProductService {
     this._logger,
   );
 
-  void _invalidateCache() => _productsCache.clear();
+  void _invalidateCache() {
+    _productsCache.clear();
+    _cacheGeneration++;
+  }
 
   String _normalizeBarcode(String barcode) {
     var normalized = barcode.trim();
@@ -228,9 +232,12 @@ class ProductService {
     }
 
     _logger.i('Fetching products for user: $userId');
+    final generation = _cacheGeneration;
     try {
       final products = await _productRepository.getProducts(userId);
-      _productsCache[userId] = (DateTime.now(), products);
+      if (generation == _cacheGeneration) {
+        _productsCache[userId] = (DateTime.now(), products);
+      }
       _logger.i('Successfully fetched ${products.length} products for user.');
       return products;
     } catch (e) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_product_repository.dart';
 import 'package:foodsavr/models/product_model.dart';
@@ -13,6 +15,42 @@ class _MockShelfLifeService extends Mock implements ShelfLifeService {}
 class _MockIValidatorProduct extends Mock implements IValidator<Product> {}
 
 class _FakeProduct extends Fake implements Product {}
+
+class _GatedProductRepository implements IProductRepository {
+  final List<Product> _products;
+  final Completer<void> _gate;
+  int getProductsCalls = 0;
+
+  _GatedProductRepository(this._products, this._gate);
+
+  @override
+  Future<Product> add(Product entity) async => entity;
+
+  @override
+  Future<void> delete(String id) async {}
+
+  @override
+  Future<Product?> get(String id) async => null;
+
+  @override
+  Future<List<Product>> getAll() async => _products;
+
+  @override
+  Future<List<Product>> getGlobalProducts() async => _products;
+
+  @override
+  Future<List<Product>> getPersonalProducts(String userId) async => _products;
+
+  @override
+  Future<List<Product>> getProducts(String userId) async {
+    getProductsCalls++;
+    await _gate.future;
+    return _products;
+  }
+
+  @override
+  Future<void> update(Product entity) async {}
+}
 
 class _CountingProductRepository implements IProductRepository {
   final List<Product> _products;
@@ -72,13 +110,12 @@ void main() {
     ).thenReturn(const ValidationResult([]));
   });
 
-  ProductService makeService(_CountingProductRepository repository) =>
-      ProductService(
-        repository,
-        mockProductValidator,
-        mockShelfLifeService,
-        Logger(),
-      );
+  ProductService makeService(IProductRepository repository) => ProductService(
+    repository,
+    mockProductValidator,
+    mockShelfLifeService,
+    Logger(),
+  );
 
   test('getProducts caches per user within TTL', () async {
     final repository = _CountingProductRepository([_product('p1')]);
@@ -120,4 +157,21 @@ void main() {
 
     expect(repository.getProductsCalls, 2);
   });
+
+  test(
+    'in-flight fetch does not write stale data after invalidation',
+    () async {
+      final gate = Completer<void>();
+      final repository = _GatedProductRepository([_product('p1')], gate);
+      final service = makeService(repository);
+
+      final first = service.getProducts('user-1');
+      await service.deleteProduct('p1');
+      gate.complete();
+      await first;
+
+      await service.getProducts('user-1');
+      expect(repository.getProductsCalls, 2);
+    },
+  );
 }
