@@ -175,7 +175,7 @@ locale-seed: start-firebase-emulators
 	@echo "Seeding local emulator data using standalone seeder..."
 	@dart run scripts/seed_database.dart
 
-rules-test: start-firebase-emulators
+rules-test:
 	@echo "Running Firestore security rules unit tests..."
 	cd firestore-rules && npm ci && npx jest --ci
 

@@ -9,6 +9,7 @@
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-10-06 | PR #185 review posted (approve with comments): gate never executed against real rules while secret unset; secret-drift concern; minor test coverage gaps; fixed `make rules-test` double-emulator issue by dropping the `start-firebase-emulators` dependency (`initializeTestEnvironment` manages its own emulator); pushed. |
 | 2026-10-06 | PR #185 merge-conflict fix: merged main after #178 (AGENTS.md event-log conflict only); pushed. |
 | 2026-10-05 | PR #178 for #164: dropped `continue-on-error` from the Android integration CI job (suite green on the three most recent non-skipped runs) making it a blocking gate; documented gate status in test-strategy; updated issues #164 and #158 epic checkboxes. |
 | 2026-10-06 | PR #185 CI green: rules job now skips with a warning while `FIRESTORE_RULES_B64` is unset (sandbox forbids setting secrets) and activates automatically once set, with fail-fast checks for empty/invalid decodes; PR body and issue #165 updated. |
