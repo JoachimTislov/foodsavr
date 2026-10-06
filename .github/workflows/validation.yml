@@ -54,7 +54,6 @@ jobs:
               - 'pubspec.yaml'
               - 'pubspec.lock'
             rules:
-              - 'firestore.rules'
               - 'firestore-rules/**'
               - '.github/workflows/validation.yml'
 
@@ -248,6 +247,8 @@ jobs:
       - name: Install dependencies
         working-directory: firestore-rules
         run: npm ci
+      - name: Write firestore.rules from secret
+        run: echo "${{ secrets.FIRESTORE_RULES_B64 }}" | base64 -d > firestore.rules
       - name: Start Firestore emulator
         run: |
           cat > firebase.json <<'EOT'
