@@ -260,11 +260,16 @@ jobs:
             }
           }
           EOT
-          npx -y firebase-tools@latest emulators:start --project demo-project &
-          for i in $(seq 1 60); do
-            curl -s http://localhost:8080 > /dev/null && break
+          npx -y firebase-tools@15 emulators:start --project demo-project &
+          emulator_up=false
+          for _ in $(seq 1 60); do
+            if curl -s http://localhost:8080 > /dev/null; then emulator_up=true; break; fi
             sleep 2
           done
+          if [ "$emulator_up" != true ]; then
+            echo "Firestore emulator did not start" >&2
+            exit 1
+          fi
       - name: Run rules unit tests
         working-directory: firestore-rules
         run: npx jest --ci
