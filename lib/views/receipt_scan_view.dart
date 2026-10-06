@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -71,8 +70,7 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
     if (_errorMessage != null) {
       body = Center(child: Text(_errorMessage!));
     } else if (_isCameraReady && _cameraController != null) {
-      final matchPercentage =
-          _progress?.validationResult.matchPercentage ?? 0;
+      final matchPercentage = _progress?.validationResult.matchPercentage ?? 0;
       final positions = _progress?.mergedReceipt.positions ?? [];
       body = Stack(
         fit: StackFit.expand,
@@ -96,10 +94,12 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
             left: 24,
             right: 24,
             child: Text(
-              'receipt.progress'.tr(namedArgs: {
-                'percent': '$matchPercentage',
-                'items': '${positions.length}',
-              }),
+              'receipt.progress'.tr(
+                namedArgs: {
+                  'percent': '$matchPercentage',
+                  'items': '${positions.length}',
+                },
+              ),
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.white),
             ),

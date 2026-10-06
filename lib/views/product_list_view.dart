@@ -134,16 +134,13 @@ class _ProductListViewState extends State<ProductListView> {
             FloatingActionButton.extended(
               heroTag: 'receipt_scan_fab',
               onPressed: () async {
-                final ingested = await Navigator.of(
-                  context,
-                  rootNavigator: true,
-                ).push<bool>(
-                  MaterialPageRoute(
-                    fullscreenDialog: true,
-                    builder: (context) =>
-                        ReceiptScanView(userId: _userId!),
-                  ),
-                );
+                final ingested =
+                    await Navigator.of(context, rootNavigator: true).push<bool>(
+                      MaterialPageRoute(
+                        fullscreenDialog: true,
+                        builder: (context) => ReceiptScanView(userId: _userId),
+                      ),
+                    );
                 if (ingested == true && mounted) {
                   await _reloadProductsAfterMutation();
                 }
@@ -153,19 +150,19 @@ class _ProductListViewState extends State<ProductListView> {
             ),
           if (!widget.showGlobalProducts && _userId != null)
             const SizedBox(height: 12),
-            FloatingActionButton.extended(
-              heroTag: 'product_list_fab',
-              onPressed: () async {
-                final result = await ProductAddHelper.startAddProductFlow(
-                  context,
-                );
-                if (result == true && mounted) {
-                  await _reloadProductsAfterMutation();
-                }
-              },
-              icon: const Icon(Icons.qr_code_scanner),
-              label: Text('product.scanBarcode'.tr()),
-            ),
+          FloatingActionButton.extended(
+            heroTag: 'product_list_fab',
+            onPressed: () async {
+              final result = await ProductAddHelper.startAddProductFlow(
+                context,
+              );
+              if (result == true && mounted) {
+                await _reloadProductsAfterMutation();
+              }
+            },
+            icon: const Icon(Icons.qr_code_scanner),
+            label: Text('product.scanBarcode'.tr()),
+          ),
         ],
       ),
       body: CustomScrollView(
