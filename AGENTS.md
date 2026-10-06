@@ -9,6 +9,7 @@
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-10-05 | PR #179 review: triggered CodeRabbit via mention (was rate-limited); fixed 3 authorization-bypass findings in `firestore.rules` (non-admin `isGlobal` create/set, owner `userId` re-assignment on update, admin-registry client writes) + 3 new denial tests (16 total green); `make rules-test` now depends on `start-firebase-emulators`; replied in all 4 threads (f3c0b58). |
 | 2026-10-05 | PR #179 follow-ups: merged main after #177 (AGENTS.md/test-strategy conflicts — note: a conflicting PR gets no CI at all, GitHub can't build the merge ref); fixed CI — `@firebase/rules-unit-testing` needs a running Firestore emulator, added emulator startup to the `firestore-rules` job; job green in 55s. |
 | 2026-10-05 | PR #179 for #165: added tracked owner-based `firestore.rules`, `firestore-rules/` Jest suite (13 tests) via `@firebase/rules-unit-testing`, path-filtered CI job, `make rules-test` target; updated issues #165 and test-strategy doc. |
 | 2026-10-05 | PR #177 review round 1 wrap-up: posted in-thread reply on the remaining CodeRabbit comment (transfer-view location assertion — skipped with reason, view uses static demo locations); all 4 threads now resolved or replied. |
