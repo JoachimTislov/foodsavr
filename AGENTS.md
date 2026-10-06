@@ -9,14 +9,12 @@
 
 | Date (UTC) | Event |
 |---|---|
-<<<<<<< Updated upstream
+| 2026-10-06 | PR #185 CodeRabbit follow-up (discussion_r4197363135, previously skipped as moot — now valid again since `rules-test` regained the emulator prerequisite): bounded `start-firebase-emulators` to 120s, detect exited emulator process, print captured startup log on failure; replied in thread; pushed. |
 | 2026-10-06 | PR #185 CodeRabbit round on 5d8e57e: restored `start-firebase-emulators` prerequisite for `make rules-test` (now safe — tests use dedicated `demo-rules-test` project, isolated from dev `demo-project` data and its permissive rules); replied on the pre-merge-gate finding (needs a GitHub environment + approval gate for the secret, owner action); skipped docstring warning (not repo convention); pushed. |
 | 2026-10-06 | PR #185 CI green; CodeRabbit round on da7f84e: fixed 3 of 5 — secret no longer supplied to PR runs (`github.event_name != 'pull_request'` guard against exfiltration via edited tests), rules tests use dedicated `demo-rules-test` project (was shared `demo-project`, `seedAdmin()` could clobber dev admin registry), corrected test-strategy claim that `make locale-seed` provides `firestore.rules`; skipped 2 (secret-change trigger — repo lacks a deploy workflow for rules; emulator startup bounding — `start-firebase-emulators` no longer a `rules-test` dependency, CI path already fails fast); pushed. |
 | 2026-10-06 | PR #185 review posted (approve with comments): gate never executed against real rules while secret unset; secret-drift concern; minor test coverage gaps; fixed `make rules-test` double-emulator issue by dropping the `start-firebase-emulators` dependency (`initializeTestEnvironment` manages its own emulator); pushed. |
 | 2026-10-06 | PR #185 merge-conflict fix: merged main after #178 (AGENTS.md event-log conflict only); pushed. |
-=======
 | 2026-10-06 | Added `firebase-rules` Make target to upload `firestore.rules` as the `FIRESTORE_RULES_B64` repository and Dependabot secrets. |
->>>>>>> Stashed changes
 | 2026-10-05 | PR #178 for #164: dropped `continue-on-error` from the Android integration CI job (suite green on the three most recent non-skipped runs) making it a blocking gate; documented gate status in test-strategy; updated issues #164 and #158 epic checkboxes. |
 | 2026-10-06 | PR #185 CI green: rules job now skips with a warning while `FIRESTORE_RULES_B64` is unset (sandbox forbids setting secrets) and activates automatically once set, with fail-fast checks for empty/invalid decodes; PR body and issue #165 updated. |
 | 2026-10-06 | Per user request, `firestore.rules` is no longer publicly tracked: untracked + gitignored again; CI injects it from a `FIRESTORE_RULES_B64` secret; test accepts `FIRESTORE_RULES_PATH` override. History rewritten to purge the file from all commits; force-push orphaned PR #179 (auto-closed) → reopened as PR #185; GitGuardian false positive (pre-existing secret in old main commit) resolved by rebasing onto real main. Rules CI job fails until the user sets the secret. |

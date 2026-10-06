@@ -44,10 +44,25 @@ firebase-rules:
 start-firebase-emulators:
 	@if ! lsof -ti :9099 -sTCP:LISTEN > /dev/null; then \
 		echo "Starting Firebase Emulators..."; \
-		firebase emulators:start --project demo-project > /dev/null 2>&1 & \
-		until lsof -ti :8080 -sTCP:LISTEN > /dev/null && lsof -ti :9099 -sTCP:LISTEN > /dev/null; do \
+		firebase emulators:start --project demo-project > /tmp/firebase-emulators.log 2>&1 & \
+		emu_pid=$$!; \
+		for _ in $$(seq 1 120); do \
+			if lsof -ti :8080 -sTCP:LISTEN > /dev/null && lsof -ti :9099 -sTCP:LISTEN > /dev/null; then \
+				break; \
+			fi; \
+			if ! kill -0 $$emu_pid 2> /dev/null; then \
+				echo "Firebase Emulator process exited during startup:" >&2; \
+				tail -20 /tmp/firebase-emulators.log >&2; \
+				exit 1; \
+			fi; \
 			sleep 1; \
 		done; \
+		if ! (lsof -ti :8080 -sTCP:LISTEN > /dev/null && lsof -ti :9099 -sTCP:LISTEN > /dev/null); then \
+			echo "Firebase Emulators did not become ready within 120s:" >&2; \
+			tail -20 /tmp/firebase-emulators.log >&2; \
+			kill $$emu_pid 2> /dev/null || true; \
+			exit 1; \
+		fi; \
 	else \
 		echo "Firebase Emulators already running"; \
 	fi
