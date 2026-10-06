@@ -247,9 +247,34 @@ jobs:
       - name: Install dependencies
         working-directory: firestore-rules
         run: npm ci
+      - name: Check rules secret availability
+        id: rules_secret
+        env:
+          FIRESTORE_RULES_B64: ${{ secrets.FIRESTORE_RULES_B64 }}
+        run: |
+          if [ -n "$FIRESTORE_RULES_B64" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::FIRESTORE_RULES_B64 is not set — skipping rules validation. Set it to activate this gate."
+          fi
       - name: Write firestore.rules from secret
-        run: echo "${{ secrets.FIRESTORE_RULES_B64 }}" | base64 -d > firestore.rules
+        if: steps.rules_secret.outputs.available == 'true'
+        env:
+          FIRESTORE_RULES_B64: ${{ secrets.FIRESTORE_RULES_B64 }}
+        run: |
+          echo "$FIRESTORE_RULES_B64" | base64 -d > firestore.rules
+          if [ ! -s firestore.rules ]; then
+            echo "Decoded firestore.rules is empty — check the secret encoding" >&2
+            exit 1
+          fi
+          # Fail fast if the decoded file is not rules source.
+          grep -q "rules_version" firestore.rules || {
+            echo "firestore.rules does not look like Firestore rules (missing rules_version)" >&2
+            exit 1
+          }
       - name: Start Firestore emulator
+        if: steps.rules_secret.outputs.available == 'true'
         run: |
           cat > firebase.json <<'EOT'
           {
@@ -272,6 +297,7 @@ jobs:
             exit 1
           fi
       - name: Run rules unit tests
+        if: steps.rules_secret.outputs.available == 'true'
         working-directory: firestore-rules
         run: npx jest --ci
 
