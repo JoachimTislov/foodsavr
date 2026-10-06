@@ -13,10 +13,7 @@ class _FakeProduct extends Fake implements Product {}
 
 RecognizedPosition _position(String name) {
   return RecognizedPosition(
-    product: RecognizedProduct(
-      line: const ReceiptTextLine(),
-      value: name,
-    ),
+    product: RecognizedProduct(line: const ReceiptTextLine(), value: name),
     price: RecognizedPrice(line: const ReceiptTextLine(), value: 1.0),
     timestamp: DateTime.now(),
     operation: Operation.none,
@@ -55,12 +52,10 @@ void main() {
       positions: [_position('Milk'), _position('Bread')],
       timestamp: DateTime.now(),
     );
-    when(() => mockProductService.addProduct(any()))
-        .thenThrow(Exception('storage write failed'));
+    when(
+      () => mockProductService.addProduct(any()),
+    ).thenThrow(Exception('storage write failed'));
 
-    expect(
-      () => service.ingestReceipt(receipt, 'user-1'),
-      throwsStateError,
-    );
+    expect(() => service.ingestReceipt(receipt, 'user-1'), throwsStateError);
   });
 }
