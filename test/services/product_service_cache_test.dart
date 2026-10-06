@@ -67,11 +67,12 @@ void main() {
   setUp(() {
     mockProductValidator = _MockIValidatorProduct();
     mockShelfLifeService = _MockShelfLifeService();
-    when(() => mockProductValidator.validate(any()))
-        .thenReturn(const ValidationResult([]));
+    when(
+      () => mockProductValidator.validate(any()),
+    ).thenReturn(const ValidationResult([]));
   });
 
-  ProductService _service(_CountingProductRepository repository) =>
+  ProductService makeService(_CountingProductRepository repository) =>
       ProductService(
         repository,
         mockProductValidator,
@@ -81,7 +82,7 @@ void main() {
 
   test('getProducts caches per user within TTL', () async {
     final repository = _CountingProductRepository([_product('p1')]);
-    final service = _service(repository);
+    final service = makeService(repository);
 
     await service.getProducts('user-1');
     await service.getProducts('user-1');
@@ -91,7 +92,7 @@ void main() {
 
   test('getProducts with forceRefresh bypasses the cache', () async {
     final repository = _CountingProductRepository([_product('p1')]);
-    final service = _service(repository);
+    final service = makeService(repository);
 
     await service.getProducts('user-1');
     await service.getProducts('user-1', forceRefresh: true);
@@ -101,7 +102,7 @@ void main() {
 
   test('mutation invalidates the cache', () async {
     final repository = _CountingProductRepository([_product('p1')]);
-    final service = _service(repository);
+    final service = makeService(repository);
 
     await service.getProducts('user-1');
     await service.deleteProduct('p1');
@@ -112,7 +113,7 @@ void main() {
 
   test('cache is scoped per user', () async {
     final repository = _CountingProductRepository([_product('p1')]);
-    final service = _service(repository);
+    final service = makeService(repository);
 
     await service.getProducts('user-1');
     await service.getProducts('user-2');
