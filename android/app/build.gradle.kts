@@ -58,6 +58,11 @@ android {
         if (!manifestPlaceholders.containsKey("appAuthRedirectScheme")) {
             manifestPlaceholders["appAuthRedirectScheme"] = "foodsavr"
         }
+        // Default placeholder so the manifest merges even before FACEBOOK_APP_ID
+        // is added to .env; Facebook sign-in is unavailable in that case.
+        if (!manifestPlaceholders.containsKey("FACEBOOK_APP_ID")) {
+            manifestPlaceholders["FACEBOOK_APP_ID"] = "0"
+        }
     }
 
     flavorDimensions += "environment"
