@@ -44,7 +44,7 @@ class _ProductListViewState extends State<ProductListView> {
     _userId = _authService.getUserId();
   }
 
-  Future<void> _fetchProducts() async {
+  Future<void> _fetchProducts({bool forceRefresh = false}) async {
     List<Product> fetchedProducts;
     if (widget.showGlobalProducts) {
       fetchedProducts = await _productService.getAllProducts();
@@ -53,7 +53,10 @@ class _ProductListViewState extends State<ProductListView> {
         setState(() => _products = []);
         return;
       }
-      fetchedProducts = await _productService.getProducts(_userId);
+      fetchedProducts = await _productService.getProducts(
+        _userId,
+        forceRefresh: forceRefresh,
+      );
     }
 
     if (!widget.showGlobalProducts) {
@@ -120,7 +123,7 @@ class _ProductListViewState extends State<ProductListView> {
 
     return RetryScaffold(
       errorMessage: 'product.errorLoading'.tr(),
-      onRefresh: _fetchProducts,
+      onRefresh: () => _fetchProducts(forceRefresh: true),
       fetchOnInit: true,
       isBodyScrollable: true,
       floatingActionButton: FloatingActionButton.extended(

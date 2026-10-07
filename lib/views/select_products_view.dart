@@ -53,7 +53,10 @@ class _SelectProductsViewState extends State<SelectProductsView> {
 
   Future<void> _refreshProducts() async {
     final userId = _authService.getUserId();
-    final products = await _productService.getProducts(userId);
+    final products = await _productService.getProducts(
+      userId,
+      forceRefresh: true,
+    );
     if (!mounted) return;
     _controller.loadProducts(products);
   }
