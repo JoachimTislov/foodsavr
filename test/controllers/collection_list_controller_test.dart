@@ -28,10 +28,7 @@ void main() {
         CollectionType.shoppingList,
       );
       expect(controller.collections, hasLength(1));
-      expect(
-        controller.collections.single.type,
-        CollectionType.shoppingList,
-      );
+      expect(controller.collections.single.type, CollectionType.shoppingList);
     });
 
     test('loadCollections defaults to inventories without a filter', () {

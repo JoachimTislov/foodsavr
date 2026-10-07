@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:watch_it/watch_it.dart';
 
 import '../controllers/dashboard_controller.dart';
+import '../service_locator.dart';
 import '../utils/collection_types.dart'; // Import CollectionType
 import '../utils/product_add_helper.dart';
 import '../widgets/common/retry_scaffold.dart';
