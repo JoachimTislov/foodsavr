@@ -16,6 +16,7 @@ import '../utils/product_add_helper.dart';
 import '../utils/view_mode_helper.dart';
 import '../widgets/product/view_mode_toggle.dart';
 import 'product_detail_view.dart';
+import 'receipt_scan_view.dart';
 
 class ProductListView extends StatefulWidget {
   final bool showGlobalProducts;
@@ -126,16 +127,43 @@ class _ProductListViewState extends State<ProductListView> {
       onRefresh: () => _fetchProducts(forceRefresh: true),
       fetchOnInit: true,
       isBodyScrollable: true,
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'product_list_fab',
-        onPressed: () async {
-          final result = await ProductAddHelper.startAddProductFlow(context);
-          if (result == true && mounted) {
-            await _reloadProductsAfterMutation();
-          }
-        },
-        icon: const Icon(Icons.qr_code_scanner),
-        label: Text('product.scanBarcode'.tr()),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!widget.showGlobalProducts && _userId != null)
+            FloatingActionButton.extended(
+              heroTag: 'receipt_scan_fab',
+              onPressed: () async {
+                final ingested =
+                    await Navigator.of(context, rootNavigator: true).push<bool>(
+                      MaterialPageRoute(
+                        fullscreenDialog: true,
+                        builder: (context) => ReceiptScanView(userId: _userId),
+                      ),
+                    );
+                if (ingested == true && mounted) {
+                  await _reloadProductsAfterMutation();
+                }
+              },
+              icon: const Icon(Icons.receipt_long),
+              label: Text('receipt.scanShort'.tr()),
+            ),
+          if (!widget.showGlobalProducts && _userId != null)
+            const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'product_list_fab',
+            onPressed: () async {
+              final result = await ProductAddHelper.startAddProductFlow(
+                context,
+              );
+              if (result == true && mounted) {
+                await _reloadProductsAfterMutation();
+              }
+            },
+            icon: const Icon(Icons.qr_code_scanner),
+            label: Text('product.scanBarcode'.tr()),
+          ),
+        ],
       ),
       body: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),

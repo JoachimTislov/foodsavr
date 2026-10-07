@@ -29,7 +29,8 @@ class ExpiriesSection extends StatelessWidget {
               'product.expiries'.tr(),
               style: Theme.of(context).textTheme.titleSmall,
             ),
-            Row(
+            Wrap(
+              spacing: 8,
               children: [
                 if (onScan != null)
                   TextButton.icon(

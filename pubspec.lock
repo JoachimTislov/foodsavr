@@ -389,7 +389,7 @@ packages:
     dependency: transitive
     description:
       name: firebase_auth_web
-      sha256: "cfb98837959f3677696c997856cc8dedbb3e52367397ec80437b85b735ad6c17"
+      sha256: cfb98837959f3677696c997856cc8dedbb3e52367397ec80437b85b735ad6c17
       url: "https://pub.dev"
     source: hosted
     version: "6.2.7"
@@ -575,6 +575,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  fuzzywuzzy:
+    dependency: transitive
+    description:
+      name: fuzzywuzzy
+      sha256: "3004379ffd6e7f476a0c2091f38f16588dc45f67de7adf7c41aa85dec06b432c"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.2.0"
   get_it:
     dependency: "direct main"
     description:
@@ -619,26 +627,26 @@ packages:
     dependency: "direct main"
     description:
       name: google_mlkit_barcode_scanning
-      sha256: "4dcd732ea49d10d08d8dc6dbed916edd2b455290fcb1bdef686fc41b73b94f20"
+      sha256: dbf4df99cb490b12e95dcedde3e6741ce711942904f7049da601dfede91c1e0f
       url: "https://pub.dev"
     source: hosted
-    version: "0.16.0"
+    version: "0.14.2"
   google_mlkit_commons:
     dependency: transitive
     description:
       name: google_mlkit_commons
-      sha256: c7fc384bdb66c3b83e24e3a41818e61d7a378d900f65f5e775344fbca95a0917
+      sha256: "3e69fea4211727732cc385104e675ad1e40b29f12edd492ee52fa108423a6124"
       url: "https://pub.dev"
     source: hosted
-    version: "0.12.0"
+    version: "0.11.1"
   google_mlkit_text_recognition:
     dependency: "direct main"
     description:
       name: google_mlkit_text_recognition
-      sha256: be0b6df9b70c534443e482fc1433d559b0541bffcc1a1e5ed50b5e48f2225682
+      sha256: "10a8d1a64fa21efda89514f6df88bbb7885be3ae1bfb7a6d229132d802a20d22"
       url: "https://pub.dev"
     source: hosted
-    version: "0.17.0"
+    version: "0.15.1"
   google_sign_in:
     dependency: "direct main"
     description:
@@ -1068,6 +1076,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.0"
+  receipt_recognition:
+    dependency: "direct main"
+    description:
+      name: receipt_recognition
+      sha256: "1737698da25348a8723212061628beca65a31741af8c3ae3c708761acf8250ca"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.9"
   record_use:
     dependency: transitive
     description:
@@ -1458,5 +1474,5 @@ packages:
     source: hosted
     version: "3.1.3"
 sdks:
-  dart: ">=3.12.0 <4.0.0"
+  dart: ">=3.13.0 <4.0.0"
   flutter: ">=3.44.0"

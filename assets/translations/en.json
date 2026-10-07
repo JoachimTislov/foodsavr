@@ -237,5 +237,13 @@
 		"title": "Transfer Inventory",
 		"toLocation": "To Location",
 		"transfer_items": "Transfer {count} items"
+	},
+	"receipt": {
+		"scanTitle": "Scan Receipt",
+		"scanShort": "Scan Receipt",
+		"scanHint": "Hold the receipt steady inside the frame",
+		"progress": "Recognized: {percent}% · {items} items",
+		"addItems": "Add items to inventory",
+		"ingestError": "Failed to add receipt items: {error}"
 	}
 }
