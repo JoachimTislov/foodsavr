@@ -174,11 +174,15 @@ class AuthService implements IAuthService {
       );
     }
 
-    final credential = EmailAuthProvider.credential(
-      email: user.email!,
-      password: currentPassword,
-    );
-    await user.reauthenticateWithCredential(credential);
+    final hasPasswordProvider = user.providerData
+        .any((info) => info.providerId == EmailAuthProvider.PROVIDER_ID);
+    if (hasPasswordProvider) {
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+      await user.reauthenticateWithCredential(credential);
+    }
     await user.verifyBeforeUpdateEmail(newEmail);
     _logger.i('Verification email sent for email change.');
   }

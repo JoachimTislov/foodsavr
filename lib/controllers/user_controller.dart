@@ -192,6 +192,7 @@ class UserController extends ChangeNotifier {
     if (_isLoading) return;
 
     if (newEmail.trim().isEmpty) {
+      _successMessage = null;
       _errorMessage = _tr('auth.reset.email_prompt');
       notifyListeners();
       return;
