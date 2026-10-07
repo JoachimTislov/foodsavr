@@ -68,6 +68,27 @@ guest user's existing app data.
 
 Reference: https://firebase.google.com/docs/auth/web/anonymous-auth
 
+### Facebook authentication
+
+The Dart-side Facebook sign-in flow is already implemented
+(`FirebaseAuthService.signInWithFacebook`). To enable it on Android, the
+Facebook app ID must be exposed to the build:
+
+1.  In `.env`, add `FACEBOOK_APP_ID=<your Facebook app ID>`. The Android build
+    exposes every `.env` variable as a manifest placeholder, and the manifest
+    declares `com.facebook.CallbackActivity` with a `fb<FACEBOOK_APP_ID>`
+    login scheme.
+2.  In the Facebook app dashboard, add the Android platform with the FoodSavr
+    package name (`com.foodsavr.app` / `com.foodsavr.app.development`) and key
+    hashes.
+3.  In Firebase Authentication, enable **Facebook** as a sign-in provider and
+    paste the Facebook app ID and app secret.
+
+Without `FACEBOOK_APP_ID` in `.env`, the build still succeeds (the placeholder
+falls back to `0`) but the Facebook login button cannot complete sign-in.
+
+Reference: https://developers.facebook.com/docs/facebook-login/android
+
 ### Common commands
 
 | Command | Description |
