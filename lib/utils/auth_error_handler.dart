@@ -21,6 +21,8 @@ class AuthErrorHandler {
           return 'auth.error.user_disabled'.tr();
         case 'requires-recent-login':
           return 'auth.error.requires_recent_login'.tr();
+        case 'operation-not-allowed-in-current-mode':
+          return 'profile.change_email_federated'.tr();
         default:
           return 'auth.error.unknown'.tr();
       }
