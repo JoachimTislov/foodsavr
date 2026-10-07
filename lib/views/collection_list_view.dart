@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:flutter/material.dart';
 
+import '../controllers/collection_list_controller.dart';
+import '../interfaces/i_auth_service.dart';
 import '../models/collection_model.dart';
 import '../service_locator.dart';
 import '../services/collection_service.dart';
@@ -13,7 +14,6 @@ import 'collection_form_view.dart';
 
 class CollectionListView extends StatefulWidget {
   final CollectionType? typeFilter;
-
   const CollectionListView({super.key, this.typeFilter});
 
   @override
@@ -21,118 +21,121 @@ class CollectionListView extends StatefulWidget {
 }
 
 class _CollectionListViewState extends State<CollectionListView> {
-  List<Collection> _collections = [];
   late final CollectionService _collectionService;
+  late final CollectionListController _controller;
 
   @override
   void initState() {
     super.initState();
     _collectionService = getIt<CollectionService>();
+    _controller = CollectionListController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   // similar to collection detail view
   Future<void> _fetchCollections() async {
     var userId = getIt<IAuthService>().getUserId();
     if (userId == null) {
-      if (mounted) setState(() => _collections = []);
+      _controller.clear();
       return;
     }
-
     final all = await _collectionService.getCollectionsForUser(userId);
-    final filtered = widget.typeFilter != null
-        ? all.where((c) => c.type == widget.typeFilter).toList()
-        : all.where((c) => c.type == CollectionType.inventory).toList();
-
-    if (mounted) {
-      setState(() {
-        _collections = filtered;
-      });
-    }
+    _controller.loadCollections(all, widget.typeFilter);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-
     return RetryScaffold(
       errorMessage: 'collection.loadError'.tr(),
       onRefresh: _fetchCollections,
       fetchOnInit: true,
       isBodyScrollable: true,
-      floatingActionButton: _collections.isEmpty
-          ? const SizedBox.shrink()
-          : FloatingActionButton(
-              heroTag:
-                  'collection_list_fab_${widget.typeFilter?.name ?? 'all'}',
-              onPressed: () async {
-                final result = await CollectionFormView.show(
-                  context,
-                  type: widget.typeFilter ?? CollectionType.inventory,
-                );
-                if (!mounted) return;
-                if (result == true) {
-                  await _fetchCollections(); // Refetch if modified
-                }
-              },
-              child: const Icon(Icons.add),
-            ),
-      body: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(
-            child: Container(
-              padding: EdgeInsets.only(
-                left: 24,
-                top: MediaQuery.of(context).padding.top + 16,
-                right: 16,
-                bottom: 16,
+      floatingActionButton: ListenableBuilder(
+        listenable: _controller,
+        builder: (context, _) => _controller.collections.isEmpty
+            ? const SizedBox.shrink()
+            : FloatingActionButton(
+                heroTag:
+                    'collection_list_fab_${widget.typeFilter?.name ?? 'all'}',
+                onPressed: () async {
+                  final result = await CollectionFormView.show(
+                    context,
+                    type: widget.typeFilter ?? CollectionType.inventory,
+                  );
+                  if (!mounted) return;
+                  if (result == true) {
+                    await _fetchCollections(); // Refetch if modified
+                  }
+                },
+                child: const Icon(Icons.add),
               ),
-              decoration: BoxDecoration(
-                color: colorScheme.surface,
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(24),
+      ),
+      body: ListenableBuilder(
+        listenable: _controller,
+        builder: (context, _) => CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Container(
+                padding: EdgeInsets.only(
+                  left: 24,
+                  top: MediaQuery.of(context).padding.top + 16,
+                  right: 16,
+                  bottom: 16,
+                ),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(24),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      widget.typeFilter == CollectionType.shoppingList
+                          ? 'dashboard.shoppingList'.tr()
+                          : 'dashboard.myInventory'.tr(),
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    widget.typeFilter == CollectionType.shoppingList
-                        ? 'dashboard.shoppingList'.tr()
-                        : 'dashboard.myInventory'.tr(),
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                ],
-              ),
             ),
-          ),
-          if (_collections.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: _EmptyCollectionListState(
-                typeFilter: widget.typeFilter,
-                onRefresh: _fetchCollections,
+            if (_controller.collections.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: _EmptyCollectionListState(
+                  typeFilter: widget.typeFilter,
+                  onRefresh: _fetchCollections,
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.only(top: 12, bottom: 20),
+                sliver: SliverList.builder(
+                  itemCount: _controller.collections.length,
+                  itemBuilder: (context, index) {
+                    final collection = _controller.collections[index];
+                    return CollectionCard(
+                      collection: collection,
+                      onTap: () => _navigateToCollectionDetail(collection),
+                    );
+                  },
+                ),
               ),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.only(top: 12, bottom: 20),
-              sliver: SliverList.builder(
-                itemCount: _collections.length,
-                itemBuilder: (context, index) {
-                  final collection = _collections[index];
-                  return CollectionCard(
-                    collection: collection,
-                    onTap: () => _navigateToCollectionDetail(collection),
-                  );
-                },
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -149,7 +152,6 @@ class _CollectionListViewState extends State<CollectionListView> {
 class _EmptyCollectionListState extends StatelessWidget {
   final CollectionType? typeFilter;
   final Future<void> Function() onRefresh;
-
   const _EmptyCollectionListState({
     required this.typeFilter,
     required this.onRefresh,
@@ -159,7 +161,6 @@ class _EmptyCollectionListState extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

@@ -1,13 +1,9 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:watch_it/watch_it.dart';
 
-import '../interfaces/i_auth_service.dart';
-import '../models/product_model.dart';
-import '../models/collection_model.dart';
-import '../service_locator.dart';
-import '../services/product_service.dart';
-import '../services/collection_service.dart';
+import '../controllers/dashboard_controller.dart';
 import '../utils/collection_types.dart'; // Import CollectionType
 import '../utils/product_add_helper.dart';
 import '../widgets/common/retry_scaffold.dart';
@@ -16,65 +12,22 @@ import '../widgets/dashboard/expiring_soon_section.dart';
 import '../widgets/dashboard/dashboard_action_chip.dart';
 import 'collection_form_view.dart';
 
-class DashboardView extends StatefulWidget {
+class DashboardView extends WatchingWidget {
   const DashboardView({super.key});
 
-  @override
-  State<DashboardView> createState() => _DashboardViewState();
-}
-
-class _DashboardViewState extends State<DashboardView> {
-  late final IAuthService _authService;
-  late final ProductService _productService;
-  late final CollectionService _collectionService;
-  List<Product> _expiringSoon = [];
-  List<Collection> _inventories = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _authService = getIt<IAuthService>();
-    _productService = getIt<ProductService>();
-    _collectionService = getIt<CollectionService>();
-  }
-
-  Future<void> _refreshDashboard() async {
-    final userId = _authService.getUserId();
-    if (userId == null) {
-      if (mounted) {
-        setState(() {
-          _expiringSoon = [];
-          _inventories = [];
-        });
-      }
-      return;
-    }
-
-    final results = await Future.wait([
-      _productService.getExpiringSoon(userId),
-      _collectionService.getCollectionsForUser(
-        userId,
-        type: CollectionType.inventory,
-      ),
-    ]);
-
-    if (mounted) {
-      setState(() {
-        _expiringSoon = results[0] as List<Product>;
-        _inventories = results[1] as List<Collection>;
-      });
-    }
-  }
+  Future<void> _refreshDashboard() => getIt<DashboardController>().load();
 
   @override
   Widget build(BuildContext context) {
+    final controller = watchIt<DashboardController>();
+    final expiringSoon = controller.expiringSoon;
+    final inventories = controller.inventories;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
     final today = DateFormat.yMMMMEEEEd(
       context.locale.toString(),
     ).format(DateTime.now());
-
     return RetryScaffold(
       fetchOnInit: true,
       onRefresh: _refreshDashboard,
@@ -114,7 +67,7 @@ class _DashboardViewState extends State<DashboardView> {
               ],
             ),
             const SizedBox(height: 32),
-            ExpiringSoonSection(products: _expiringSoon),
+            ExpiringSoonSection(products: expiringSoon),
             const SizedBox(height: 24),
             Text(
               'dashboard.overview'.tr(),
@@ -133,7 +86,7 @@ class _DashboardViewState extends State<DashboardView> {
                     iconColor: colorScheme.primary,
                     onTap: () => context.go('/dashboard/product-list'),
                   ),
-                  if (_inventories.length > 1)
+                  if (inventories.length > 1)
                     OverviewCard(
                       title: 'dashboard.transfer'.tr(),
                       subtitle: 'dashboard.moveItems'.tr(),
@@ -149,7 +102,6 @@ class _DashboardViewState extends State<DashboardView> {
                     onTap: () => context.go('/dashboard/global-products'),
                   ),
                 ];
-
                 return GridView.count(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),

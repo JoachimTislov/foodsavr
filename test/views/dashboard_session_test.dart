@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foodsavr/controllers/dashboard_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/services/product_service.dart';
@@ -35,6 +36,13 @@ void main() {
     getIt.registerSingleton<IAuthService>(MockAuthService());
     getIt.registerSingleton<ProductService>(MockProductService());
     getIt.registerSingleton<CollectionService>(MockCollectionService());
+    getIt.registerSingleton<DashboardController>(
+      DashboardController(
+        getIt<IAuthService>(),
+        getIt<ProductService>(),
+        getIt<CollectionService>(),
+      ),
+    );
   });
 
   testWidgets(
