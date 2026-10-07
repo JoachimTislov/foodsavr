@@ -174,8 +174,9 @@ class AuthService implements IAuthService {
       );
     }
 
-    final hasPasswordProvider = user.providerData
-        .any((info) => info.providerId == EmailAuthProvider.PROVIDER_ID);
+    final hasPasswordProvider = user.providerData.any(
+      (info) => info.providerId == EmailAuthProvider.PROVIDER_ID,
+    );
     if (hasPasswordProvider) {
       final credential = EmailAuthProvider.credential(
         email: user.email!,
