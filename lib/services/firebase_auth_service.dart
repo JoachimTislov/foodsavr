@@ -177,13 +177,18 @@ class AuthService implements IAuthService {
     final hasPasswordProvider = user.providerData.any(
       (info) => info.providerId == EmailAuthProvider.PROVIDER_ID,
     );
-    if (hasPasswordProvider) {
-      final credential = EmailAuthProvider.credential(
-        email: user.email!,
-        password: currentPassword,
+    if (!hasPasswordProvider) {
+      throw FirebaseAuthException(
+        code: 'operation-not-allowed-in-current-mode',
+        message:
+            'Email change requires an account with a linked password provider.',
       );
-      await user.reauthenticateWithCredential(credential);
     }
+    final credential = EmailAuthProvider.credential(
+      email: user.email!,
+      password: currentPassword,
+    );
+    await user.reauthenticateWithCredential(credential);
     await user.verifyBeforeUpdateEmail(newEmail);
     _logger.i('Verification email sent for email change.');
   }

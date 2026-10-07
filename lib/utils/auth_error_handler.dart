@@ -19,6 +19,8 @@ class AuthErrorHandler {
           return 'auth.error.operation_not_allowed'.tr();
         case 'user-disabled':
           return 'auth.error.user_disabled'.tr();
+        case 'requires-recent-login':
+          return 'auth.error.requires_recent_login'.tr();
         default:
           return 'auth.error.unknown'.tr();
       }

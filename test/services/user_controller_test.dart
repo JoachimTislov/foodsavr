@@ -191,7 +191,7 @@ void main() {
           newEmail: any(named: 'newEmail'),
         ),
       );
-      expect(authController.errorMessage, 'auth.reset.email_prompt');
+      expect(authController.errorMessage, 'profile.new_email_prompt');
     });
 
     test('changeEmail sets error message on failure', () async {

@@ -193,7 +193,7 @@ class UserController extends ChangeNotifier {
 
     if (newEmail.trim().isEmpty) {
       _successMessage = null;
-      _errorMessage = _tr('auth.reset.email_prompt');
+      _errorMessage = _tr('profile.new_email_prompt');
       notifyListeners();
       return;
     }
