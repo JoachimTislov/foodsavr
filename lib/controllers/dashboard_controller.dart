@@ -11,7 +11,7 @@ import '../utils/collection_types.dart';
 /// Holds the dashboard state and the logic to load it, keeping the view free
 /// of service logic and manual setState calls. The view rebuilds reactively
 /// via watch_it when this notifier changes.
-@injectable
+@lazySingleton
 class DashboardController extends ChangeNotifier {
   final IAuthService _authService;
   final ProductService _productService;

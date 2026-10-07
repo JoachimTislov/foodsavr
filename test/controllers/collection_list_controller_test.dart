@@ -3,13 +3,15 @@ import 'package:foodsavr/controllers/collection_list_controller.dart';
 import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/utils/collection_types.dart';
 
-Collection _collection(CollectionType type) => Collection(
-      id: 'id-${type.name}',
-      name: type.name,
-      productIds: const [],
-      userId: 'user_1',
-      type: type,
-    );
+Collection _collection(CollectionType type) {
+  return Collection(
+    id: 'id-${type.name}',
+    name: type.name,
+    productIds: const [],
+    userId: 'user_1',
+    type: type,
+  );
+}
 
 void main() {
   group('CollectionListController', () {
