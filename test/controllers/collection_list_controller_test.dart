@@ -28,20 +28,17 @@ void main() {
 
     test('loadCollections filters by the given type', () {
       final controller = CollectionListController();
-      controller.loadCollections(
-        [_inventory, _shoppingList],
-        CollectionType.shoppingList,
-      );
+      controller.loadCollections([
+        _inventory,
+        _shoppingList,
+      ], CollectionType.shoppingList);
       expect(controller.collections, hasLength(1));
       expect(controller.collections.single.type, CollectionType.shoppingList);
     });
 
     test('loadCollections defaults to inventories without a filter', () {
       final controller = CollectionListController();
-      controller.loadCollections(
-        [_inventory, _shoppingList],
-        null,
-      );
+      controller.loadCollections([_inventory, _shoppingList], null);
       expect(controller.collections, hasLength(1));
       expect(controller.collections.single.type, CollectionType.inventory);
     });
@@ -56,10 +53,7 @@ void main() {
 
     test('clear empties the list and notifies', () {
       final controller = CollectionListController();
-      controller.loadCollections(
-        [_inventory],
-        CollectionType.inventory,
-      );
+      controller.loadCollections([_inventory], CollectionType.inventory);
       var notified = false;
       controller.addListener(() => notified = true);
       controller.clear();
