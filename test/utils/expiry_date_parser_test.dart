@@ -52,6 +52,34 @@ void main() {
     );
   });
 
+  test('prefers EXP date over MFG date on the same line', () {
+    final mfgYear = DateTime.now().year + 1;
+    final text = 'MFG $mfgYear-01-01 EXP $mfgYear-03-14';
+    final date = ExpiryDateParser.findExpiryDate(text);
+    expect(date, DateTime(mfgYear, 3, 14));
+  });
+
+  test('prefers the first date following the hint over later ones', () {
+    final year = DateTime.now().year + 1;
+    final text = 'BEST BEFORE 15.06.$year 01.01.$year';
+    final date = ExpiryDateParser.findExpiryDate(text);
+    expect(date, DateTime(year, 6, 15));
+  });
+
+  test('falls back to hinted date from an earlier line', () {
+    final year = DateTime.now().year + 1;
+    final text = 'EXP 15.06.$year\nLOT 123';
+    final date = ExpiryDateParser.findExpiryDate(text);
+    expect(date, DateTime(year, 6, 15));
+  });
+
+  test('ignores hinted date that is implausible', () {
+    final year = DateTime.now().year + 1;
+    final text = 'EXP 01.01.2020 15.06.$year';
+    final date = ExpiryDateParser.findExpiryDate(text);
+    expect(date, DateTime(year, 6, 15));
+  });
+
   test('returns null for text without dates', () {
     expect(ExpiryDateParser.findExpiryDate('No dates here'), isNull);
     expect(ExpiryDateParser.findExpiryDate(''), isNull);
