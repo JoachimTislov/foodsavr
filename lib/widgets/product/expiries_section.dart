@@ -6,12 +6,14 @@ import '../../models/product_model.dart';
 class ExpiriesSection extends StatelessWidget {
   final List<ExpiryEntry> expiries;
   final VoidCallback onAdd;
+  final VoidCallback? onScan;
   final ValueChanged<int> onRemove;
 
   const ExpiriesSection({
     super.key,
     required this.expiries,
     required this.onAdd,
+    this.onScan,
     required this.onRemove,
   });
 
@@ -27,10 +29,20 @@ class ExpiriesSection extends StatelessWidget {
               'product.expiries'.tr(),
               style: Theme.of(context).textTheme.titleSmall,
             ),
-            TextButton.icon(
-              icon: const Icon(Icons.add),
-              label: Text('product.add_expiry'.tr()),
-              onPressed: onAdd,
+            Row(
+              children: [
+                if (onScan != null)
+                  TextButton.icon(
+                    icon: const Icon(Icons.document_scanner_outlined),
+                    label: Text('product.scan_expiry'.tr()),
+                    onPressed: onScan,
+                  ),
+                TextButton.icon(
+                  icon: const Icon(Icons.add),
+                  label: Text('product.add_expiry'.tr()),
+                  onPressed: onAdd,
+                ),
+              ],
             ),
           ],
         ),
