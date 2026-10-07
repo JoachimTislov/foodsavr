@@ -6,6 +6,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foodsavr/controllers/dashboard_controller.dart';
 import 'package:foodsavr/controllers/user_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/interfaces/i_collection_repository.dart'; // Explicitly import ICollectionRepository
@@ -210,6 +211,13 @@ void main() {
         ),
       );
       getIt.registerFactory<UserController>(() => userController);
+      getIt.registerLazySingleton<DashboardController>(
+        () => DashboardController(
+          authService,
+          getIt<ProductService>(),
+          getIt<CollectionService>(),
+        ),
+      );
     });
 
     tearDown(() async {
