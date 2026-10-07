@@ -14,38 +14,53 @@ class ReceiptIngestionService {
   ReceiptIngestionService(this._productService, this._logger);
 
   /// Adds every recognized line item as a product for [userId].
-  /// Returns the created products.
+  /// Returns the created products; throws only when every line item fails.
   Future<List<Product>> ingestReceipt(
     RecognizedReceipt receipt,
     String userId,
   ) async {
-    final products = <Product>[];
-    var failedItems = 0;
+    final result = await ingestReceiptDetailed(receipt, userId);
+    if (result.savedProducts.isEmpty && receipt.positions.isNotEmpty) {
+      throw StateError(
+        'Failed to save all ${receipt.positions.length} receipt items',
+      );
+    }
+    if (result.failedItems > 0) {
+      _logger.w(
+        'Partial ingestion: saved ${result.savedProducts.length}, '
+        'failed ${result.failedItems} receipt items',
+      );
+    }
+    return result.savedProducts;
+  }
+
+  /// Adds every recognized line item and reports saved and failed items.
+  Future<ReceiptIngestionResult> ingestReceiptDetailed(
+    RecognizedReceipt receipt,
+    String userId,
+  ) async {
+    final saved = <Product>[];
+    var failed = 0;
     for (final position in receipt.positions) {
       final name = position.product.formattedValue.trim();
       if (name.isEmpty) continue;
       final quantity = _quantityFromPosition(position);
       final product = Product(
-        id: '${DateTime.now().microsecondsSinceEpoch}-${products.length}',
+        id: '${DateTime.now().microsecondsSinceEpoch}-${saved.length}',
         name: name,
         description: '',
         userId: userId,
         nonExpiringQuantity: quantity,
       );
       try {
-        products.add(await _productService.addProduct(product));
+        saved.add(await _productService.addProduct(product));
       } catch (e) {
-        failedItems++;
+        failed++;
         _logger.e('Failed to add receipt line item "$name": $e');
       }
     }
-    _logger.i('Ingested ${products.length} products from receipt');
-    if (failedItems > 0) {
-      throw StateError(
-        'Failed to save $failedItems of ${receipt.positions.length} receipt items',
-      );
-    }
-    return products;
+    _logger.i('Ingested ${saved.length} products from receipt');
+    return ReceiptIngestionResult(savedProducts: saved, failedItems: failed);
   }
 
   int _quantityFromPosition(RecognizedPosition position) {
@@ -55,4 +70,16 @@ class ReceiptIngestionService {
     }
     return 1;
   }
+}
+
+/// Outcome of ingesting a receipt: which products were saved and how
+/// many line items failed.
+class ReceiptIngestionResult {
+  const ReceiptIngestionResult({
+    required this.savedProducts,
+    required this.failedItems,
+  });
+
+  final List<Product> savedProducts;
+  final int failedItems;
 }

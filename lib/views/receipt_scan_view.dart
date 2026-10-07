@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,6 +31,7 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
   bool _isCameraReady = false;
   bool _isProcessingFrame = false;
   bool _isIngesting = false;
+  bool _disposed = false;
   String? _errorMessage;
 
   @override
@@ -49,6 +51,7 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _disposed = true;
     _cameraController?.dispose();
     _recognizer?.close();
     super.dispose();
@@ -71,7 +74,10 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
       body = Center(child: Text(_errorMessage!));
     } else if (_isCameraReady && _cameraController != null) {
       final matchPercentage = _progress?.validationResult.matchPercentage ?? 0;
-      final positions = _progress?.mergedReceipt.positions ?? [];
+      final mergedReceipt = _progress?.mergedReceipt;
+      final positions = mergedReceipt?.positions ?? [];
+      final canIngest =
+          !_isIngesting && mergedReceipt != null && mergedReceipt.isConfirmed;
       body = Stack(
         fit: StackFit.expand,
         children: [
@@ -109,9 +115,7 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
             left: 24,
             right: 24,
             child: FilledButton.icon(
-              onPressed: _isIngesting || positions.isEmpty
-                  ? null
-                  : () => _ingest(_progress!.mergedReceipt),
+              onPressed: canIngest ? () => _ingest(mergedReceipt) : null,
               icon: _isIngesting
                   ? const SizedBox(
                       width: 18,
@@ -191,7 +195,10 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
 
       await controller.initialize();
       await controller.startImageStream(_processCameraImage);
-      if (!mounted) return;
+      if (!mounted || _disposed) {
+        await controller.dispose();
+        return;
+      }
       setState(() {
         _cameraController = controller;
         _isCameraReady = true;
@@ -222,6 +229,13 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
     _isProcessingFrame = true;
     try {
       await recognizer.processImage(inputImage);
+    } catch (e) {
+      await cameraController.stopImageStream();
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'receipt.ingestError'.tr(namedArgs: {'error': '$e'});
+      });
+      return;
     } finally {
       _isProcessingFrame = false;
     }
@@ -235,10 +249,21 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
       image.format.raw,
     );
     if (inputImageFormat == null) return null;
-    final rotation = InputImageRotationValue.fromRawValue(
+    final sensorRotation = InputImageRotationValue.fromRawValue(
       description.sensorOrientation,
     );
-    if (rotation == null) return null;
+    if (sensorRotation == null) return null;
+    var rotation = sensorRotation;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final deviceOrientation = _cameraController?.value.deviceOrientation;
+      if (deviceOrientation != null) {
+        rotation = _compensateAndroidRotation(
+          sensorRotation,
+          deviceOrientation,
+          description.lensDirection,
+        );
+      }
+    }
     return InputImage.fromBytes(
       bytes: Uint8List.fromList(bytes),
       metadata: InputImageMetadata(
@@ -249,4 +274,28 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
       ),
     );
   }
+}
+
+InputImageRotation _compensateAndroidRotation(
+  InputImageRotation sensorRotation,
+  DeviceOrientation deviceOrientation,
+  CameraLensDirection lensDirection,
+) {
+  var rotationCompensation = sensorRotation.rawValue;
+  switch (deviceOrientation) {
+    case DeviceOrientation.portraitUp:
+      rotationCompensation = sensorRotation.rawValue;
+    case DeviceOrientation.landscapeLeft:
+      rotationCompensation = sensorRotation.rawValue + 90;
+    case DeviceOrientation.portraitDown:
+      rotationCompensation = sensorRotation.rawValue + 180;
+    case DeviceOrientation.landscapeRight:
+      rotationCompensation = sensorRotation.rawValue + 270;
+  }
+  var compensation = rotationCompensation % 360;
+  if (lensDirection == CameraLensDirection.front) {
+    compensation = (360 - compensation) % 360;
+  }
+  return InputImageRotationValue.fromRawValue(compensation) ??
+      InputImageRotation.rotation0deg;
 }
