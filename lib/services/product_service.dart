@@ -19,6 +19,7 @@ class ProductService {
   final Logger _logger;
 
   final Map<String, (DateTime, List<Product>)> _productsCache = {};
+  final Map<String, int> _fetchSequence = {};
   int _cacheGeneration = 0;
 
   ProductService(
@@ -226,17 +227,22 @@ class ProductService {
       final (fetchedAt, products) = cached;
       if (DateTime.now().difference(fetchedAt) < _cacheTtl) {
         _logger.i('Returning cached products for user: $userId');
-        return products;
+        return List.of(products);
       }
       _productsCache.remove(userId);
     }
-
+    final sequence = (_fetchSequence[userId] ?? 0) + 1;
+    _fetchSequence[userId] = sequence;
     _logger.i('Fetching products for user: $userId');
     final generation = _cacheGeneration;
     try {
-      final products = await _productRepository.getProducts(userId);
-      if (generation == _cacheGeneration) {
-        _productsCache[userId] = (DateTime.now(), products);
+      var products = await _productRepository.getProducts(userId);
+      if (generation != _cacheGeneration) {
+        _logger.i('Cache invalidated during fetch, retrying for user: $userId');
+        products = await _productRepository.getProducts(userId);
+      }
+      if (sequence == _fetchSequence[userId]) {
+        _productsCache[userId] = (DateTime.now(), List.of(products));
       }
       _logger.i('Successfully fetched ${products.length} products for user.');
       return products;
