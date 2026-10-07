@@ -3,15 +3,21 @@ import 'package:foodsavr/controllers/collection_list_controller.dart';
 import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/utils/collection_types.dart';
 
-Collection _collection(CollectionType type) {
-  return Collection(
-    id: 'id-${type.name}',
-    name: type.name,
-    productIds: const [],
-    userId: 'user_1',
-    type: type,
-  );
-}
+const _inventory = Collection(
+  id: 'inventory',
+  name: 'inventory',
+  productIds: [],
+  userId: 'user_1',
+  type: CollectionType.inventory,
+);
+
+const _shoppingList = Collection(
+  id: 'shopping-list',
+  name: 'shopping-list',
+  productIds: [],
+  userId: 'user_1',
+  type: CollectionType.shoppingList,
+);
 
 void main() {
   group('CollectionListController', () {
@@ -23,10 +29,7 @@ void main() {
     test('loadCollections filters by the given type', () {
       final controller = CollectionListController();
       controller.loadCollections(
-        [
-          _collection(CollectionType.inventory),
-          _collection(CollectionType.shoppingList),
-        ],
+        [_inventory, _shoppingList],
         CollectionType.shoppingList,
       );
       expect(controller.collections, hasLength(1));
@@ -36,10 +39,7 @@ void main() {
     test('loadCollections defaults to inventories without a filter', () {
       final controller = CollectionListController();
       controller.loadCollections(
-        [
-          _collection(CollectionType.inventory),
-          _collection(CollectionType.shoppingList),
-        ],
+        [_inventory, _shoppingList],
         null,
       );
       expect(controller.collections, hasLength(1));
@@ -57,7 +57,7 @@ void main() {
     test('clear empties the list and notifies', () {
       final controller = CollectionListController();
       controller.loadCollections(
-        [_collection(CollectionType.inventory)],
+        [_inventory],
         CollectionType.inventory,
       );
       var notified = false;
