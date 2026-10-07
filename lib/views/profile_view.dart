@@ -67,10 +67,14 @@ class ProfileView extends WatchingWidget {
                     _SettingsItem(
                       icon: Icons.lock_reset,
                       label: 'profile.forgot_password'.tr(),
+                      onTap: () =>
+                          _showForgotPasswordSheet(context, authController),
                     ),
                     _SettingsItem(
                       icon: Icons.mail_outline,
                       label: 'profile.change_email'.tr(),
+                      onTap: () =>
+                          _showChangeEmailSheet(context, authController),
                     ),
                     _SettingsItem(
                       icon: Icons.security,
@@ -111,6 +115,76 @@ class ProfileView extends WatchingWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showActionResult(BuildContext context, UserController controller) {
+    final success = controller.successMessage;
+    final error = controller.errorMessage;
+    if (success == null && error == null) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(success ?? error!)));
+  }
+
+  void _showForgotPasswordSheet(
+    BuildContext context,
+    UserController controller,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Theme.of(sheetContext).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: _ForgotPasswordSheetFields(
+            controller: controller,
+            onCompleted: () {
+              Navigator.pop(sheetContext);
+              if (context.mounted) {
+                _showActionResult(context, controller);
+              }
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showChangeEmailSheet(BuildContext context, UserController controller) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Theme.of(sheetContext).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: _ChangeEmailSheetFields(
+            controller: controller,
+            onCompleted: () {
+              Navigator.pop(sheetContext);
+              if (context.mounted) {
+                _showActionResult(context, controller);
+              }
+            },
+          ),
+        ),
       ),
     );
   }
@@ -278,14 +352,15 @@ class _SettingsGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
+    return Material(
+      color: colorScheme.surface,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
+        side: BorderSide(
           color: colorScheme.outlineVariant.withValues(alpha: 0.1),
         ),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
           for (int i = 0; i < items.length; i++) ...[
@@ -344,6 +419,165 @@ class _SettingsItem extends StatelessWidget {
         ),
       ),
       trailing: null,
+    );
+  }
+}
+
+class _ForgotPasswordSheetFields extends StatefulWidget {
+  const _ForgotPasswordSheetFields({
+    required this.controller,
+    required this.onCompleted,
+  });
+
+  final UserController controller;
+  final VoidCallback onCompleted;
+
+  @override
+  State<_ForgotPasswordSheetFields> createState() =>
+      _ForgotPasswordSheetFieldsState();
+}
+
+class _ForgotPasswordSheetFieldsState
+    extends State<_ForgotPasswordSheetFields> {
+  late final TextEditingController _emailController;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController = TextEditingController(
+      text: widget.controller.email ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'profile.forgot_password'.tr(),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _emailController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: InputDecoration(
+            labelText: 'auth.form.email.label'.tr(),
+            hintText: 'auth.form.email.hint'.tr(),
+          ),
+        ),
+        const SizedBox(height: 24),
+        ElevatedButton(
+          onPressed: () async {
+            await widget.controller.forgotPassword(_emailController.text);
+            widget.onCompleted();
+          },
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size.fromHeight(56),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: Text('auth.reset.email_prompt'.tr()),
+        ),
+        const SizedBox(height: 12),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          style: TextButton.styleFrom(minimumSize: const Size.fromHeight(56)),
+          child: Text('common.cancel'.tr()),
+        ),
+      ],
+    );
+  }
+}
+
+class _ChangeEmailSheetFields extends StatefulWidget {
+  const _ChangeEmailSheetFields({
+    required this.controller,
+    required this.onCompleted,
+  });
+
+  final UserController controller;
+  final VoidCallback onCompleted;
+
+  @override
+  State<_ChangeEmailSheetFields> createState() =>
+      _ChangeEmailSheetFieldsState();
+}
+
+class _ChangeEmailSheetFieldsState extends State<_ChangeEmailSheetFields> {
+  final _passwordController = TextEditingController();
+  final _emailController = TextEditingController();
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'profile.change_email'.tr(),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _passwordController,
+          obscureText: true,
+          decoration: InputDecoration(
+            labelText: 'auth.form.password.label'.tr(),
+            hintText: 'auth.form.password.hint'.tr(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _emailController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: InputDecoration(
+            labelText: 'profile.new_email'.tr(),
+            hintText: 'auth.form.email.hint'.tr(),
+          ),
+        ),
+        const SizedBox(height: 24),
+        ElevatedButton(
+          onPressed: () async {
+            await widget.controller.changeEmail(
+              currentPassword: _passwordController.text,
+              newEmail: _emailController.text,
+            );
+            widget.onCompleted();
+          },
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size.fromHeight(56),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: Text('common.save'.tr()),
+        ),
+        const SizedBox(height: 12),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          style: TextButton.styleFrom(minimumSize: const Size.fromHeight(56)),
+          child: Text('common.cancel'.tr()),
+        ),
+      ],
     );
   }
 }

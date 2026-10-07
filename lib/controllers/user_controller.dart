@@ -185,6 +185,34 @@ class UserController extends ChangeNotifier {
     }
   }
 
+  Future<void> changeEmail({
+    required String currentPassword,
+    required String newEmail,
+  }) async {
+    if (_isLoading) return;
+
+    if (newEmail.trim().isEmpty) {
+      _successMessage = null;
+      _errorMessage = _tr('profile.new_email_prompt');
+      notifyListeners();
+      return;
+    }
+
+    _setLoading(true);
+    try {
+      await _authService.changeEmail(
+        currentPassword: currentPassword,
+        newEmail: newEmail.trim(),
+      );
+      _successMessage = _tr('profile.change_email_sent');
+    } catch (e) {
+      _logger.e('Change email error: $e');
+      _errorMessage = AuthErrorHandler.getErrorMessage(e);
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   void _setLoading(bool value) {
     _isLoading = value;
     if (value) {

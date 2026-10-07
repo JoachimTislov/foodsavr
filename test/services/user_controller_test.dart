@@ -154,5 +154,73 @@ void main() {
       expect(authController.isLoading, false);
       expect(authController.errorMessage, null);
     });
+
+    test('changeEmail sets success message on success', () async {
+      when(
+        () => mockAuthService.changeEmail(
+          currentPassword: 'password',
+          newEmail: 'new@test.com',
+        ),
+      ).thenAnswer((_) async {});
+
+      await authController.changeEmail(
+        currentPassword: 'password',
+        newEmail: 'new@test.com',
+      );
+
+      verify(
+        () => mockAuthService.changeEmail(
+          currentPassword: 'password',
+          newEmail: 'new@test.com',
+        ),
+      ).called(1);
+      expect(authController.successMessage, 'profile.change_email_sent');
+      expect(authController.errorMessage, null);
+      expect(authController.isLoading, false);
+    });
+
+    test('changeEmail rejects empty email without calling service', () async {
+      await authController.changeEmail(
+        currentPassword: 'password',
+        newEmail: '   ',
+      );
+
+      verifyNever(
+        () => mockAuthService.changeEmail(
+          currentPassword: any(named: 'currentPassword'),
+          newEmail: any(named: 'newEmail'),
+        ),
+      );
+      expect(authController.errorMessage, 'profile.new_email_prompt');
+    });
+
+    test('changeEmail sets error message on failure', () async {
+      when(
+        () => mockAuthService.changeEmail(
+          currentPassword: 'password',
+          newEmail: 'new@test.com',
+        ),
+      ).thenThrow(Exception('reauth failed'));
+
+      await authController.changeEmail(
+        currentPassword: 'password',
+        newEmail: 'new@test.com',
+      );
+
+      expect(authController.errorMessage, isNotNull);
+      expect(authController.successMessage, null);
+      expect(authController.isLoading, false);
+    });
+
+    test('forgotPassword sets success message on success', () async {
+      when(
+        () => mockAuthService.sendPasswordResetEmail('test@test.com'),
+      ).thenAnswer((_) async {});
+
+      await authController.forgotPassword('test@test.com');
+
+      expect(authController.successMessage, 'auth.reset.email_sent');
+      expect(authController.errorMessage, null);
+    });
   });
 }

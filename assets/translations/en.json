@@ -3,6 +3,7 @@
 		"error": {
 			"email_already_in_use": "The account already exists for that email.",
 			"invalid_email": "The email address is not valid.",
+			"requires_recent_login": "This action requires a recent sign-in. Please sign in again and retry.",
 			"operation_not_allowed": "Operation not allowed.",
 			"unknown": "An undefined Error happened.",
 			"user_disabled": "The user account has been disabled.",
@@ -182,6 +183,9 @@
 	"profile": {
 		"account_settings": "Account Settings",
 		"change_email": "Change Email",
+		"change_email_federated": "Email change is only supported for accounts with a password. Sign in with email and password to change your email.",
+		"change_email_sent": "Verification email sent. Check your inbox to confirm the change.",
+		"new_email_prompt": "Please enter the new email address.",
 		"create_account": "Create account",
 		"danger_zone": "Danger Zone",
 		"deleteAccountConfirmation": "Yes, Delete Account",
@@ -190,6 +194,7 @@
 		"error_delete_account": "Failed to delete account. Please try again.",
 		"error_sign_out": "Failed to sign out. Please try again.",
 		"forgot_password": "Forgot Password",
+		"new_email": "New Email Address",
 		"log_out": "Log Out",
 		"title": "Profile",
 		"two_factor_auth": "Two-factor Authentication"

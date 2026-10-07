@@ -86,6 +86,14 @@ class _FakeAuthService implements IAuthService {
     throw UnimplementedError();
   }
 
+  @override
+  Future<void> changeEmail({
+    required String currentPassword,
+    required String newEmail,
+  }) {
+    throw UnimplementedError();
+  }
+
   Future<void> dispose() async {
     await _controller.close();
   }

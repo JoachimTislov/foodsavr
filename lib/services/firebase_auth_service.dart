@@ -162,6 +162,38 @@ class AuthService implements IAuthService {
   }
 
   @override
+  Future<void> changeEmail({
+    required String currentPassword,
+    required String newEmail,
+  }) async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null || user.isAnonymous || user.email == null) {
+      throw FirebaseAuthException(
+        code: 'no-current-user',
+        message: 'No signed-in email account to update.',
+      );
+    }
+
+    final hasPasswordProvider = user.providerData.any(
+      (info) => info.providerId == EmailAuthProvider.PROVIDER_ID,
+    );
+    if (!hasPasswordProvider) {
+      throw FirebaseAuthException(
+        code: 'operation-not-allowed-in-current-mode',
+        message:
+            'Email change requires an account with a linked password provider.',
+      );
+    }
+    final credential = EmailAuthProvider.credential(
+      email: user.email!,
+      password: currentPassword,
+    );
+    await user.reauthenticateWithCredential(credential);
+    await user.verifyBeforeUpdateEmail(newEmail);
+    _logger.i('Verification email sent for email change.');
+  }
+
+  @override
   Future<void> signOut() {
     final currentUser = _firebaseAuth.currentUser;
     if (currentUser?.isAnonymous == true) {

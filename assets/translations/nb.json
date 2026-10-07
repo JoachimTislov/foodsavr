@@ -4,6 +4,7 @@
 			"email_already_in_use": "Kontoen finnes allerede for denne e-posten.",
 			"invalid_email": "E-postadressen er ikke gyldig.",
 			"operation_not_allowed": "Operasjonen er ikke tillatt.",
+			"requires_recent_login": "Denne handlingen krever nylig innlogging. Logg inn på nytt og prøv igjen.",
 			"unknown": "En udefinert feil oppstod.",
 			"user_disabled": "Brukerkontoen er deaktivert.",
 			"user_not_found": "Ingen bruker funnet for denne e-posten.",
@@ -182,6 +183,9 @@
 	"profile": {
 		"account_settings": "Kontoinnstillinger",
 		"change_email": "Endre e-post",
+		"change_email_federated": "Endring av e-post støttes kun for kontoer med passord. Logg inn med e-post og passord for å endre e-posten din.",
+		"change_email_sent": "Verifikasjons-e-post sendt. Sjekk innboksen din for å bekrefte endringen.",
+		"new_email_prompt": "Vennligst skriv inn den nye e-postadressen.",
 		"create_account": "Opprett konto",
 		"danger_zone": "Faresone",
 		"deleteAccountConfirmation": "Ja, slett konto",
@@ -190,6 +194,7 @@
 		"error_delete_account": "Klarte ikke å slette konto. Vennligst prøv igjen.",
 		"error_sign_out": "Klarte ikke å logge ut. Vennligst prøv igjen.",
 		"forgot_password": "Glemt passord",
+		"new_email": "Ny e-postadresse",
 		"log_out": "Logg ut",
 		"title": "Profil",
 		"two_factor_auth": "To-faktor autentisering"
