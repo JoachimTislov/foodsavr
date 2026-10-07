@@ -1,6 +1,6 @@
 import 'dart:io';
-
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -25,6 +25,7 @@ class _ExpiryScanViewState extends State<ExpiryScanView>
   late final ExpiryScannerService _expiryScannerService;
   bool _isCameraReady = false;
   bool _isProcessingFrame = false;
+  bool _disposed = false;
   String? _errorMessage;
 
   @override
@@ -38,7 +39,9 @@ class _ExpiryScanViewState extends State<ExpiryScanView>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _disposed = true;
     _cameraController?.dispose();
+    _expiryScannerService.close();
     super.dispose();
   }
 
@@ -137,7 +140,10 @@ class _ExpiryScanViewState extends State<ExpiryScanView>
 
       await controller.initialize();
       await controller.startImageStream(_processCameraImage);
-      if (!mounted) return;
+      if (!mounted || _disposed) {
+        await controller.dispose();
+        return;
+      }
       setState(() {
         _cameraController = controller;
         _isCameraReady = true;
@@ -164,7 +170,19 @@ class _ExpiryScanViewState extends State<ExpiryScanView>
     if (inputImage == null) return;
     _isProcessingFrame = true;
     try {
-      final date = await _expiryScannerService.scanExpiryDate(inputImage);
+      final DateTime? date;
+      try {
+        date = await _expiryScannerService.scanExpiryDate(inputImage);
+      } catch (e) {
+        await cameraController.stopImageStream();
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = 'product.scanUnavailable'.tr(
+            namedArgs: {'error': '$e'},
+          );
+        });
+        return;
+      }
       if (date == null) return;
       HapticFeedback.vibrate();
       SystemSound.play(SystemSoundType.click);
@@ -184,9 +202,20 @@ class _ExpiryScanViewState extends State<ExpiryScanView>
       image.format.raw,
     );
     if (inputImageFormat == null) return null;
-    final rotation = InputImageRotationValue.fromRawValue(
+    final sensorRotation = InputImageRotationValue.fromRawValue(
       description.sensorOrientation,
     );
+    var rotation = sensorRotation;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final deviceOrientation = _cameraController?.value.deviceOrientation;
+      if (deviceOrientation != null) {
+        rotation = _compensateAndroidRotation(
+          sensorRotation,
+          deviceOrientation,
+          description.lensDirection,
+        );
+      }
+    }
     if (rotation == null) return null;
     return InputImage.fromBytes(
       bytes: Uint8List.fromList(bytes),
@@ -198,4 +227,29 @@ class _ExpiryScanViewState extends State<ExpiryScanView>
       ),
     );
   }
+}
+
+InputImageRotation _compensateAndroidRotation(
+  InputImageRotation? sensorRotation,
+  DeviceOrientation deviceOrientation,
+  CameraLensDirection lensDirection,
+) {
+  final rotation = sensorRotation ?? InputImageRotation.rotation0deg;
+  var rotationCompensation = rotation.rawValue;
+  switch (deviceOrientation) {
+    case DeviceOrientation.portraitUp:
+      rotationCompensation = rotation.rawValue;
+    case DeviceOrientation.landscapeLeft:
+      rotationCompensation = rotation.rawValue + 90;
+    case DeviceOrientation.portraitDown:
+      rotationCompensation = rotation.rawValue + 180;
+    case DeviceOrientation.landscapeRight:
+      rotationCompensation = rotation.rawValue + 270;
+  }
+  var compensation = rotationCompensation % 360;
+  if (lensDirection == CameraLensDirection.front) {
+    compensation = (360 - compensation) % 360;
+  }
+  return InputImageRotationValue.fromRawValue(compensation) ??
+      InputImageRotation.rotation0deg;
 }
