@@ -1,7 +1,3 @@
-// lib/constants/privacy_notice.dart
-
-class PrivacyNotice {
-  static const String content = """
 ## Privacy Policy for FoodSavr
 
 **Last Updated:** February 17, 2026
@@ -57,5 +53,3 @@ We may update this Privacy Policy from time to time. We will notify you of any c
 ### 8. Contact Us
 
 If you have any questions about this Privacy Policy, please contact us at todo@gmail.com.
-""";
-}

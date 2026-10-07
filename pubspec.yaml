@@ -94,6 +94,7 @@ flutter:
 
   assets:
     - assets/.env
+    - assets/legal/
     - assets/translations/
     - path: assets/logos/
       transformers:
