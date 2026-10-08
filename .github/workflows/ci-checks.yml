@@ -76,6 +76,13 @@ jobs:
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed .
 
+      - name: Show formatting diff (temporary debug)
+        if: failure()
+        run: |
+          dart format test/controllers/dashboard_controller_test.dart || true
+          git diff -- test/controllers/dashboard_controller_test.dart
+        continue-on-error: true
+
       - name: Write firebase_options.dart
         run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
 
