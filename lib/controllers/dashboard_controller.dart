@@ -25,13 +25,17 @@ class DashboardController extends ChangeNotifier {
 
   List<Product> _expiringSoon = const [];
   List<Collection> _inventories = const [];
+  int _loadGeneration = 0;
 
   List<Product> get expiringSoon => _expiringSoon;
   List<Collection> get inventories => _inventories;
 
   /// Loads the dashboard data for the current user and notifies listeners.
   /// Completes normally when there is no signed-in user (state is cleared).
+  /// Stale loads are discarded: if the signed-in user changes (or signs out)
+  /// while a load is pending, the older results are never published.
   Future<void> load() async {
+    final generation = ++_loadGeneration;
     final userId = _authService.getUserId();
     if (userId == null) {
       _expiringSoon = const [];
@@ -47,6 +51,8 @@ class DashboardController extends ChangeNotifier {
         type: CollectionType.inventory,
       ),
     ]);
+
+    if (generation != _loadGeneration) return;
 
     _expiringSoon = results[0] as List<Product>;
     _inventories = results[1] as List<Collection>;
