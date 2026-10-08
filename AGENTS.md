@@ -9,7 +9,6 @@
 
 | Date (UTC) | Event |
 |---|---|
-| 2026-10-08 | PR #202 for #191 (epic #188): created pure-Dart `packages/foodsavr_core` skeleton — LineItem model, Normalizer (NO/EN unit synonyms, embedded quantity), FuzzyMatcher (barcode exact + Jaccard/Levenshtein blend), ShelfLifeInferer (keyword categories, overridable defaults), ConfidenceGate (autoAdd/confirm/hold), IngestionPipeline; 5 test files; root pubspec path dependency (rewiring is #192); pushed. |
 | 2026-10-06 | Draft PR #187 for #66/#69/#29 (alpha, unlinked): added DashboardController (@injectable ChangeNotifier) + DashboardView as WatchingWidget (watchIt, no setState), CollectionListController + ListenableBuilder in CollectionListView, controller unit tests incl. current-user refresh regression; dashboard_session_test registers DashboardController. |
 | 2026-10-06 | PR #185 CodeRabbit follow-up (discussion_r4197363135, previously skipped as moot — now valid again since `rules-test` regained the emulator prerequisite): bounded `start-firebase-emulators` to 120s, detect exited emulator process, print captured startup log on failure; replied in thread; pushed. |
 | 2026-10-06 | PR #185 CodeRabbit round on 5d8e57e: restored `start-firebase-emulators` prerequisite for `make rules-test` (now safe — tests use dedicated `demo-rules-test` project, isolated from dev `demo-project` data and its permissive rules); replied on the pre-merge-gate finding (needs a GitHub environment + approval gate for the secret, owner action); skipped docstring warning (not repo convention); pushed. |
