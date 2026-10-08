@@ -45,7 +45,7 @@ class ImportService implements IImportService {
           products.addAll(await _remaClient.getProducts(userId));
           _logger.i('Rema products: $products');
         case Provider.coop:
-          products.addAll(await _coopClient.getProducts());
+          products.addAll(await _coopClient.getProducts(userId));
           _logger.i('Coop products: $products');
         case Provider.trumf:
         // later
