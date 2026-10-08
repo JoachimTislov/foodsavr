@@ -147,7 +147,7 @@ jobs:
     name: Android smoke test
     needs: changes
     if: ${{ needs.changes.outputs.android == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - name: Checkout code
@@ -307,7 +307,7 @@ jobs:
     name: Android integration tests
     needs: [changes, android-smoke]
     if: ${{ !cancelled() && needs.android-smoke.result == 'success' && (needs.changes.outputs.android == 'true' || needs.changes.outputs.integration == 'true') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - name: Checkout code

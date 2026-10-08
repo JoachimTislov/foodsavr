@@ -20,10 +20,10 @@ what you have and what you need.
 - [x] **Third-party integration (Rema Æ app):** Connect with supported grocery stores for easier purchase history import.
 - [x] **Shopping List view:** A basic, manual list for groceries to buy, without direct connection to inventory levels.
 - [x] **Customizable Settings:** Language, themes, and app behavior.
-- [ ] **Receipt Scanning:** Quickly add items to your inventory by scanning receipts.
-- [ ] **Expiration Tracking:** Get timely reminders before your food expires to reduce waste.
-- [ ] **Consumption Analysis:** The app learns your consumption patterns to better predict when you'll run out of items.
-- [ ] **Meal Planning Sync:** Integrate your inventory with meal plans to create your shopping list.
+- [x] **Receipt Scanning:** Quickly add items to your inventory by scanning receipts.
+- [ ] **Expiration Tracking:** Get timely reminders before your food expires to reduce waste. (local reminders planned — #198)
+- [ ] **Consumption Analysis:** The app learns your consumption patterns to better predict when you'll run out of items. (auto-generated shopping list planned — #195)
+- [ ] **Meal Planning Sync:** Integrate your inventory with meal plans to create your shopping list. (tracked in #196)
 
 ## Tech Stack
 
