@@ -106,32 +106,32 @@ void main() {
     test(
       'load discards results when a newer load or sign-out intervened',
       () async {
-      final firstLoadProducts = Completer<List<dynamic>>();
-      final firstLoadCollections = Completer<List<dynamic>>();
-      when(() => mockAuthService.getUserId()).thenReturn('user_1');
-      when(
-        () => mockProductService.getExpiringSoon('user_1'),
-      ).thenAnswer((_) => firstLoadProducts.future);
-      when(
-        () => mockCollectionService.getCollectionsForUser(
-          'user_1',
-          type: CollectionType.inventory,
-        ),
-      ).thenAnswer((_) => firstLoadCollections.future);
-      final firstLoad = controller.load();
+        final firstLoadProducts = Completer<List<dynamic>>();
+        final firstLoadCollections = Completer<List<dynamic>>();
+        when(() => mockAuthService.getUserId()).thenReturn('user_1');
+        when(
+          () => mockProductService.getExpiringSoon('user_1'),
+        ).thenAnswer((_) => firstLoadProducts.future);
+        when(
+          () => mockCollectionService.getCollectionsForUser(
+            'user_1',
+            type: CollectionType.inventory,
+          ),
+        ).thenAnswer((_) => firstLoadCollections.future);
+        final firstLoad = controller.load();
 
-      when(() => mockAuthService.getUserId()).thenReturn(null);
-      await controller.load();
-      expect(controller.expiringSoon, isEmpty);
-      expect(controller.inventories, isEmpty);
+        when(() => mockAuthService.getUserId()).thenReturn(null);
+        await controller.load();
+        expect(controller.expiringSoon, isEmpty);
+        expect(controller.inventories, isEmpty);
 
-      firstLoadProducts.complete(const []);
-      firstLoadCollections.complete(const []);
-      await firstLoad;
+        firstLoadProducts.complete(const []);
+        firstLoadCollections.complete(const []);
+        await firstLoad;
 
-      expect(controller.expiringSoon, isEmpty);
-      expect(controller.inventories, isEmpty);
-    },
+        expect(controller.expiringSoon, isEmpty);
+        expect(controller.inventories, isEmpty);
+      },
     );
   });
 }
