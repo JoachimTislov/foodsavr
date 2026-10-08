@@ -1,0 +1,13 @@
+name: foodsavr_core
+description: FoodSavr core ingestion logic: LineItem normalization, fuzzy matching, shelf-life inference, and confidence gating. Pure Dart, shared by the app and the future MCP server.
+version: 0.1.0
+publish_to: "none"
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+
+dev_dependencies:
+  lints: ^1.0.0
+  test: ^1.25.0

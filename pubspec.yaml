@@ -40,6 +40,8 @@ dependencies:
   get_it: ^9.2.0 # MIT
   watch_it: ^2.5.0 # MIT
   intl: ^0.20.2 # BSD-3-Clause
+  foodsavr_core:
+    path: packages/foodsavr_core
   google_sign_in: ^7.2.0 # BSD-3-Clause
   flutter_facebook_auth: ^7.1.5 # MIT
   go_router: ^18.0.2 # BSD-3-Clause
