@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/controllers/dashboard_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:foodsavr/models/collection_model.dart';
+import 'package:foodsavr/models/product_model.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/utils/collection_types.dart';
@@ -106,8 +108,8 @@ void main() {
     test(
       'load discards results when a newer load or sign-out intervened',
       () async {
-        final firstLoadProducts = Completer<List<dynamic>>();
-        final firstLoadCollections = Completer<List<dynamic>>();
+        final firstLoadProducts = Completer<List<Product>>();
+        final firstLoadCollections = Completer<List<Collection>>();
         when(() => mockAuthService.getUserId()).thenReturn('user_1');
         when(
           () => mockProductService.getExpiringSoon('user_1'),
