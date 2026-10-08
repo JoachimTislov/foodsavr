@@ -1,4 +1,3 @@
-import 'line_item.dart';
 import 'matcher.dart';
 
 /// What the pipeline decided for an item.

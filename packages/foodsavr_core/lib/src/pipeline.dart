@@ -1,4 +1,4 @@
-import 'package:meta/immutable.dart';
+import 'package:meta/meta.dart';
 
 import 'confidence_gate.dart';
 import 'line_item.dart';
@@ -36,10 +36,10 @@ class IngestionPipeline {
     FuzzyMatcher? matcher,
     ShelfLifeInferer? shelfLife,
     ConfidenceGate? gate,
-  })  : _normalizer = normalizer ?? Normalizer(),
-        _matcher = matcher ?? FuzzyMatcher(),
-        _shelfLife = shelfLife ?? ShelfLifeInferer(),
-        _gate = gate ?? ConfidenceGate();
+  }) : _normalizer = normalizer ?? Normalizer(),
+       _matcher = matcher ?? FuzzyMatcher(),
+       _shelfLife = shelfLife ?? ShelfLifeInferer(),
+       _gate = gate ?? ConfidenceGate();
 
   final Normalizer _normalizer;
   final FuzzyMatcher _matcher;
@@ -47,10 +47,7 @@ class IngestionPipeline {
   final ConfidenceGate _gate;
 
   /// Runs one raw input through the full pipeline.
-  PipelineResult process(
-    LineItem input,
-    Iterable<CatalogProduct> catalog,
-  ) {
+  PipelineResult process(LineItem input, Iterable<CatalogProduct> catalog) {
     final normalized = _normalizer.normalize(input.rawName);
     var item = input.copyWith(
       normalizedName: normalized.name,
@@ -84,6 +81,5 @@ class IngestionPipeline {
   List<PipelineResult> processAll(
     Iterable<LineItem> inputs,
     Iterable<CatalogProduct> catalog,
-  ) =>
-      inputs.map((i) => process(i, catalog)).toList();
+  ) => inputs.map((i) => process(i, catalog)).toList();
 }

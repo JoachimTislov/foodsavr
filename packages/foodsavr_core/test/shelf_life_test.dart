@@ -21,7 +21,10 @@ void main() {
 
     test('produce and pantry keywords', () {
       expect(s.infer(item('banan')), s.defaultFor(FoodCategory.produce));
-      expect(s.infer(item('spagetti pasta')), s.defaultFor(FoodCategory.pantry));
+      expect(
+        s.infer(item('spagetti pasta')),
+        s.defaultFor(FoodCategory.pantry),
+      );
     });
 
     test('unknown items return null', () {

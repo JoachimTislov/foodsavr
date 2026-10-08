@@ -1,4 +1,4 @@
-import 'package:meta/immutable.dart';
+import 'package:meta/meta.dart';
 
 /// Where a line item came from.
 enum IngestionSource {
@@ -39,8 +39,8 @@ class LineItem {
     this.matchConfidence = 0,
     this.inferredShelfLifeDays,
     DateTime? registeredAt,
-  })  : registeredAt = registeredAt ?? purchasedAt,
-        assert(quantity > 0, 'quantity must be positive');
+  }) : registeredAt = registeredAt ?? purchasedAt,
+       assert(quantity > 0, 'quantity must be positive');
 
   final String id;
   final String rawName;
@@ -79,22 +79,20 @@ class LineItem {
     String? matchedProductId,
     double? matchConfidence,
     int? inferredShelfLifeDays,
-  }) =>
-      LineItem(
-        id: id,
-        rawName: rawName ?? this.rawName,
-        normalizedName: normalizedName ?? this.normalizedName,
-        quantity: quantity ?? this.quantity,
-        unit: unit ?? this.unit,
-        price: price ?? this.price,
-        barcode: barcode ?? this.barcode,
-        source: source ?? this.source,
-        purchasedAt: purchasedAt ?? this.purchasedAt,
-        matchedProductId: matchedProductId ?? this.matchedProductId,
-        matchConfidence: matchConfidence ?? this.matchConfidence,
-        inferredShelfLifeDays:
-            inferredShelfLifeDays ?? this.inferredShelfLifeDays,
-      );
+  }) => LineItem(
+    id: id,
+    rawName: rawName ?? this.rawName,
+    normalizedName: normalizedName ?? this.normalizedName,
+    quantity: quantity ?? this.quantity,
+    unit: unit ?? this.unit,
+    price: price ?? this.price,
+    barcode: barcode ?? this.barcode,
+    source: source ?? this.source,
+    purchasedAt: purchasedAt ?? this.purchasedAt,
+    matchedProductId: matchedProductId ?? this.matchedProductId,
+    matchConfidence: matchConfidence ?? this.matchConfidence,
+    inferredShelfLifeDays: inferredShelfLifeDays ?? this.inferredShelfLifeDays,
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -116,20 +114,20 @@ class LineItem {
 
   @override
   int get hashCode => Object.hash(
-        id,
-        rawName,
-        normalizedName,
-        quantity,
-        unit,
-        price,
-        barcode,
-        source,
-        purchasedAt,
-        registeredAt,
-        matchedProductId,
-        matchConfidence,
-        inferredShelfLifeDays,
-      );
+    id,
+    rawName,
+    normalizedName,
+    quantity,
+    unit,
+    price,
+    barcode,
+    source,
+    purchasedAt,
+    registeredAt,
+    matchedProductId,
+    matchConfidence,
+    inferredShelfLifeDays,
+  );
 
   @override
   String toString() =>

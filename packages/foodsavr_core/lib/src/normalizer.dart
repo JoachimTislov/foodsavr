@@ -31,8 +31,15 @@ class Normalizer {
   );
 
   /// Quantity-only prefix, e.g. "2 STK TINE MELK".
-  static final RegExp _bareQuantityPrefix =
-      RegExp(r'^(\d+(?:[.,]\d+)?)\s+(?=\S)', caseSensitive: false);
+  static final RegExp _bareQuantityPrefix = RegExp(
+    r'^(\d+(?:[.,]\d+)?)\s+(?=\S)',
+    caseSensitive: false,
+  );
+
+  static final RegExp _trailingQuantity = RegExp(
+    r'\s*(\d+(?:[.,]\d+)?)\s*(ml|l|ltr|liter|g|kg|stk|stykk|pc|pcs|pk|pkk|pack|pakke|ea)\s*$',
+    caseSensitive: false,
+  );
 
   static final RegExp _noiseSuffix = RegExp(
     r'\b(gratis|tilbud|rabatt|discount|offer)\b',
@@ -67,20 +74,11 @@ class Normalizer {
     }
 
     // Also consume a trailing "<amount> <unit>" like "melk 1 l".
-    final trailing = _quantityPrefix.firstMatch(' ${text}');
-    if (trailing != null && trailing.start > 0) {
-      final tail = text.substring(text.length - trailing.group(0)!.length + 1);
-      final tailMatch = RegExp(
-        r'(\d+(?:[.,]\d+)?)\s*(ml|l|ltr|liter|g|kg|stk|stykk|pc|pcs|pk|pkk|pack|pakke|ea)\s*$',
-        caseSensitive: false,
-      ).firstMatch(text);
-      if (tailMatch != null) {
-        quantity = double.parse(tailMatch.group(1)!.replaceAll(',', '.'));
-        unit = _unitTokens[tailMatch.group(2)!.toLowerCase()] ?? unit;
-        text = text.substring(0, tailMatch.start);
-      }
-      // tail only used for the guard; ignore otherwise.
-      assert(tail.isNotEmpty || tail.isEmpty);
+    final tailMatch = _trailingQuantity.firstMatch(text);
+    if (tailMatch != null) {
+      quantity = double.parse(tailMatch.group(1)!.replaceAll(',', '.'));
+      unit = _unitTokens[tailMatch.group(2)!.toLowerCase()] ?? unit;
+      text = text.substring(0, tailMatch.start);
     }
 
     text = text
@@ -89,11 +87,7 @@ class Normalizer {
         .trim()
         .replaceAll(RegExp(r'\s+'), ' ');
 
-    return NormalizedName(
-      name: text,
-      quantity: quantity,
-      unit: unit,
-    );
+    return NormalizedName(name: text, quantity: quantity, unit: unit);
   }
 }
 

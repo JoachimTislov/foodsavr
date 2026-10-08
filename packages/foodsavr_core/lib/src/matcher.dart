@@ -1,4 +1,6 @@
-import 'package:meta/immutable.dart';
+import 'dart:math' as math;
+
+import 'package:meta/meta.dart';
 
 import 'line_item.dart';
 
@@ -95,13 +97,29 @@ class FuzzyMatcher {
     // "melk" vs "chocolate milk drink" on equal token overlap.
     final joinedQuery = query.join(' ');
     final joinedCandidate = candidate.join(' ');
-    final lev = 1 - _levenshtein(joinedQuery, joinedCandidate) /
-        _maxLen(joinedQuery, joinedCandidate);
-    final blended = (score + (score > 0 ? lev : 0)) / 2;
+    final lev =
+        1 -
+        _levenshtein(joinedQuery, joinedCandidate) /
+            _maxLen(joinedQuery, joinedCandidate);
+    var blended = (score + (score > 0 ? lev : 0)) / 2;
+
+    // Containment: "brødboller" contains "brød"; "hviteost" contains the
+    // keyword "ost". Scaled with sqrt so long derivations still score well.
+    final keywordTexts = [joinedCandidate, ...keywords.map(_joinTokens)];
+    for (final k in keywordTexts) {
+      final longer = joinedQuery.length >= k.length ? joinedQuery : k;
+      final shorter = longer == joinedQuery ? k : joinedQuery;
+      if (shorter.isEmpty || !longer.contains(shorter)) continue;
+      final containment = math.sqrt(shorter.length / longer.length);
+      blended = blended > containment ? blended : containment;
+    }
+
     return blended >= exactThreshold && query.containsAll(candidate)
         ? 1.0
         : blended;
   }
+
+  String _joinTokens(String s) => _tokens(s).join(' ');
 
   double _jaccard(Set<String> a, Set<String> b) {
     final intersection = a.where(b.contains).length;
@@ -115,8 +133,10 @@ class FuzzyMatcher {
       .where((t) => t.isNotEmpty && t.length > 1)
       .toSet();
 
-  int _maxLen(String a, String b) =>
-      a.length > b.length ? a.length : b.length == 0 ? 1 : b.length;
+  int _maxLen(String a, String b) {
+    if (a.length >= b.length) return a.length;
+    return b.isEmpty ? 1 : b.length;
+  }
 
   /// Classic two-row Levenshtein distance.
   int _levenshtein(String a, String b) {

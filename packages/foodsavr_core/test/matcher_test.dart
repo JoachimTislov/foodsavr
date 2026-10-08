@@ -2,11 +2,7 @@ import 'package:foodsavr_core/src/line_item.dart';
 import 'package:foodsavr_core/src/matcher.dart';
 import 'package:test/test.dart';
 
-LineItem item(
-  String name, {
-  String? barcode,
-  String normalized = '',
-}) =>
+LineItem item(String name, {String? barcode, String normalized = ''}) =>
     LineItem(
       id: 'i1',
       rawName: name,
@@ -18,11 +14,7 @@ void main() {
   final catalog = [
     const CatalogProduct(id: 'p1', name: 'Tine Melk'),
     const CatalogProduct(id: 'p2', name: 'Brød'),
-    const CatalogProduct(
-      id: 'p3',
-      name: 'Jarlsberg Ost',
-      keywords: ['cheese'],
-    ),
+    const CatalogProduct(id: 'p3', name: 'Jarlsberg Ost', keywords: ['cheese']),
     const CatalogProduct(id: 'p4', name: 'Melk', barcode: '7037320000000'),
   ];
 
@@ -61,7 +53,11 @@ void main() {
 
     test('keywords broaden matching', () {
       final cheese = [
-        const CatalogProduct(id: 'c1', name: 'Norwegian Cheese', keywords: ['ost']),
+        const CatalogProduct(
+          id: 'c1',
+          name: 'Norwegian Cheese',
+          keywords: ['ost'],
+        ),
       ];
       final r = m.match(item('x', normalized: 'hviteost'), cheese);
       expect(r.product!.id, 'c1');

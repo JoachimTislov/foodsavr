@@ -20,9 +20,8 @@ enum FoodCategory {
 /// ingestion can propose sensible expiry dates for items that arrive without
 /// one (receipts, loyalty imports).
 class ShelfLifeInferer {
-  ShelfLifeInferer({
-    Map<FoodCategory, int> defaults = defaultDays,
-  }) : _defaults = Map.of(defaults);
+  ShelfLifeInferer({Map<FoodCategory, int> defaults = defaultDays})
+    : _defaults = Map.of(defaults);
 
   static const Map<FoodCategory, int> defaultDays = {
     FoodCategory.dairy: 7,

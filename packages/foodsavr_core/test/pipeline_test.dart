@@ -35,10 +35,7 @@ void main() {
     });
 
     test('no match always holds', () {
-      expect(
-        gate.decide(const MatchResult.none()),
-        ConfidenceDecision.hold,
-      );
+      expect(gate.decide(const MatchResult.none()), ConfidenceDecision.hold);
     });
   });
 
@@ -94,10 +91,17 @@ void main() {
 
     test('plausible-but-not-exact match needs confirmation', () {
       final r = pipeline.process(
-        LineItem(id: 'i4', rawName: 'brødboller', source: IngestionSource.freeText),
+        LineItem(
+          id: 'i4',
+          rawName: 'brødboller',
+          source: IngestionSource.freeText,
+        ),
         catalog,
       );
-      expect(r.decision, isAnyOf(ConfidenceDecision.confirm, ConfidenceDecision.autoAdd));
+      expect(
+        r.decision,
+        anyOf([ConfidenceDecision.confirm, ConfidenceDecision.autoAdd]),
+      );
       expect(r.match.hasMatch, isTrue);
     });
 
