@@ -103,8 +103,9 @@ void main() {
       verify(() => mockProductService.getExpiringSoon('user_2')).called(1);
     });
 
-    test('load discards results when a newer load or sign-out intervened',
-        () async {
+    test(
+      'load discards results when a newer load or sign-out intervened',
+      () async {
       final firstLoadProducts = Completer<List<dynamic>>();
       final firstLoadCollections = Completer<List<dynamic>>();
       when(() => mockAuthService.getUserId()).thenReturn('user_1');
@@ -130,6 +131,7 @@ void main() {
 
       expect(controller.expiringSoon, isEmpty);
       expect(controller.inventories, isEmpty);
-    });
+    },
+    );
   });
 }
