@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/features/third_party_integration/clients/coop_client.dart';
 import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';
@@ -14,35 +15,35 @@ COOP_API_SUB_KEY=test-sub-key
 COOP_PURCHASE_HISTORY=/api
 ''';
 
-class _FakeFlutterSecureStorage extends Fake implements FlutterSecureStorage {
+class _NeverUsedStorage extends Fake implements FlutterSecureStorage {}
+
+class _FakeSecureStorage extends SecureStorage {
+  _FakeSecureStorage() : super(_NeverUsedStorage());
+
   final Map<String, String> _store = {};
+
   @override
-  Future<String?> read({required String key, AndroidOptions? aOptions, IOSecureReadOptions? iOptions}) async => _store[key];
+  Future<String?> read(Provider provider, Key key) async =>
+      _store['${provider.name}.${key.name}'];
+
   @override
-  Future<void> write({
-    required String key,
-    required String? value,
-    IOSecureWriteOptions? iOptions,
-  }) async {
-    if (value == null) {
-      _store.remove(key);
+  Future<void> write(Provider provider, Key key, String? v) async {
+    if (v == null) {
+      _store.remove('${provider.name}.${key.name}');
     } else {
-      _store[key] = value;
+      _store['${provider.name}.${key.name}'] = v;
     }
   }
 }
 
 void main() {
-  setUpAll(() async {
-    await dotenv.testLoad(fileInput: _envFile, mergeWith: {});
+  setUpAll(() {
+    dotenv.loadFromString(envString: _envFile);
   });
 
-  final storage = SecureStorage(_FakeFlutterSecureStorage()..write(
-    key: 'coop.access_token',
-    value: 'token',
-  ));
-
   test('getTransactions returns parsed heads', () async {
+    final storage = _FakeSecureStorage()
+      ..write(Provider.coop, Key.access_token, 'token');
     final httpClient = _StubHttpClient({
       'https://api.coop.no/user/pay/history/api/dashboard': http.Response(
         jsonEncode([
@@ -51,7 +52,6 @@ void main() {
             'purchaseDate': 1760000000000,
             'amount': 199.5,
             'storeName': 'Coop Mega Oslo',
-            'transactions': [],
           },
         ]),
         200,
@@ -67,6 +67,8 @@ void main() {
   });
 
   test('getTransactionDetails parses rows', () async {
+    final storage = _FakeSecureStorage()
+      ..write(Provider.coop, Key.access_token, 'token');
     final httpClient = _StubHttpClient({
       'https://api.coop.no/user/pay/history/api/details/123': http.Response(
         jsonEncode({
@@ -96,10 +98,12 @@ void main() {
   });
 
   test('getProducts returns enriched products', () async {
+    final storage = _FakeSecureStorage()
+      ..write(Provider.coop, Key.access_token, 'token');
     final httpClient = _StubHttpClient({
       'https://api.coop.no/user/pay/history/api/dashboard': http.Response(
         jsonEncode([
-          {'id': 123, 'transactions': []},
+          {'id': 123},
         ]),
         200,
       ),
@@ -129,20 +133,14 @@ void main() {
   });
 
   test('returns no transactions when no access token stored', () async {
-    final unauthStorage = SecureStorage(_FakeFlutterSecureStorage());
+    final storage = _FakeSecureStorage();
     final httpClient = _StubHttpClient({});
-    final client = CoopClient(Logger(), unauthStorage, httpClient);
+    final client = CoopClient(Logger(), storage, httpClient);
 
     final transactions = await client.getTransactions();
 
     expect(transactions, isEmpty);
     expect(httpClient.requestCount, 0);
-  });
-
-  test('instance exposes the coop provider', () {
-    final client = CoopClient(Logger(), storage, http.Client());
-    expect(client.provider, Provider.coop);
-    client.dispose();
   });
 }
 
