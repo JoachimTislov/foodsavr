@@ -1,3 +1,4 @@
+import 'package:foodsavr/features/third_party_integration/models/coop/transaction_model.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'transaction_head_model.freezed.dart';
