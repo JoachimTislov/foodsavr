@@ -52,8 +52,7 @@ class Normalizer {
   ({double quantity, String unit})? extractQuantity(String input) {
     final match = _quantityPattern.firstMatch(input);
     if (match == null) return null;
-    final quantity =
-        double.parse(match.group(1)!.replaceAll(',', '.'));
+    final quantity = double.parse(match.group(1)!.replaceAll(',', '.'));
     final unit = _unitSynonyms[match.group(2)!.toLowerCase()]!;
     return (quantity: quantity, unit: unit);
   }

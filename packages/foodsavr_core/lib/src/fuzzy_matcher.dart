@@ -2,8 +2,7 @@ import 'line_item.dart';
 
 /// Levenshtein-based fuzzy matcher against a product catalog.
 class FuzzyMatcher {
-  FuzzyMatcher({required Map<String, String> catalog})
-    : _catalog = catalog;
+  FuzzyMatcher({required Map<String, String> catalog}) : _catalog = catalog;
 
   /// Maps catalog product id -> product name.
   final Map<String, String> _catalog;
@@ -56,7 +55,7 @@ class FuzzyMatcher {
     if (t.isEmpty) return s.length;
 
     var prev = List<int>.generate(t.length + 1, (i) => i);
-    final curr = List<int>.filled(t.length + 1, 0);
+    var curr = List<int>.filled(t.length + 1, 0);
 
     for (var i = 0; i < s.length; i++) {
       curr[0] = i + 1;

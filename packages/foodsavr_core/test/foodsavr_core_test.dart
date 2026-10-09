@@ -32,18 +32,15 @@ void main() {
     });
 
     test('extracts quantity and unit', () {
-      expect(
-        normalizer.extractQuantity('1l milk'),
-        (quantity: 1.0, unit: 'l'),
-      );
-      expect(
-        normalizer.extractQuantity('Milk 0,5 L'),
-        (quantity: 0.5, unit: 'l'),
-      );
-      expect(
-        normalizer.extractQuantity('Kjøtt 750 g'),
-        (quantity: 750.0, unit: 'g'),
-      );
+      expect(normalizer.extractQuantity('1l milk'), (quantity: 1.0, unit: 'l'));
+      expect(normalizer.extractQuantity('Milk 0,5 L'), (
+        quantity: 0.5,
+        unit: 'l',
+      ));
+      expect(normalizer.extractQuantity('Kjøtt 750 g'), (
+        quantity: 750.0,
+        unit: 'g',
+      ));
       expect(normalizer.extractQuantity('Milk'), isNull);
     });
 

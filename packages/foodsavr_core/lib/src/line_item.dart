@@ -80,9 +80,7 @@ class LineItem {
       quantity: (json['quantity'] as num).toDouble(),
       unit: json['unit'] as String?,
       price: (json['price'] as num?)?.toDouble(),
-      source: LineItemSource.values.firstWhere(
-        (s) => s.name == json['source'],
-      ),
+      source: LineItemSource.values.firstWhere((s) => s.name == json['source']),
       barcode: json['barcode'] as String?,
       purchasedAt: json['purchasedAt'] == null
           ? null
@@ -111,16 +109,16 @@ class LineItem {
 
   @override
   int get hashCode => Object.hash(
-        rawName,
-        normalizedName,
-        quantity,
-        unit,
-        price,
-        source,
-        barcode,
-        purchasedAt,
-        productId,
-        matchConfidence,
-        category,
-      );
+    rawName,
+    normalizedName,
+    quantity,
+    unit,
+    price,
+    source,
+    barcode,
+    purchasedAt,
+    productId,
+    matchConfidence,
+    category,
+  );
 }
