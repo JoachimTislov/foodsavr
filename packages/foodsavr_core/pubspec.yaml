@@ -1,0 +1,20 @@
+name: foodsavr_core
+description: >-
+  Shared FoodSavr domain logic: normalization of arbitrary food inputs into a
+  unified LineItem format, fuzzy product matching, shelf-life inference, and
+  confidence-based confirmation. Consumed by the Flutter app and the planned
+  MCP server so ingestion logic exists exactly once.
+version: 0.1.0
+publish_to: "none"
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  # Deliberately dependency-free for now: keep this package pure Dart and
+  # portable to a server context. Add packages only with strong justification.
+  meta: ^1.16.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.26.0
