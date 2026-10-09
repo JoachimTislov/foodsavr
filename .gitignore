@@ -72,3 +72,6 @@ app.*.map.json
 /android/app/release
 .check.sha256
 gha-creds-*.json
+# foodsavr_core local package build artifacts
+packages/foodsavr_core/.dart_tool/
+packages/foodsavr_core/.packages
