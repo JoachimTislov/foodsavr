@@ -155,10 +155,7 @@ class _StubHttpClient extends http.BaseClient {
     requestCount++;
     final response = _routes[request.url.toString()];
     if (response == null) {
-      return http.StreamedResponse(
-        Stream.value(utf8.encode('not found')),
-        404,
-      );
+      return http.StreamedResponse(Stream.value(utf8.encode('not found')), 404);
     }
     return http.StreamedResponse(
       Stream.value(response.bodyBytes),

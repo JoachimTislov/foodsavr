@@ -11,6 +11,7 @@ abstract class CoopTransactionRow with _$CoopTransactionRow {
     String? productDescription,
     String? name,
     String? prodtxt1,
+
     /// EAN barcode
     String? prodtxt3,
     double? price,
@@ -20,8 +21,7 @@ abstract class CoopTransactionRow with _$CoopTransactionRow {
     double? discount,
   }) = _CoopTransactionRow;
 
-  String get displayName =>
-      prodtxt1 ?? name ?? productDescription ?? 'N/A';
+  String get displayName => prodtxt1 ?? name ?? productDescription ?? 'N/A';
 
   factory CoopTransactionRow.fromJson(Map<String, dynamic> json) =>
       _$CoopTransactionRowFromJson(json);

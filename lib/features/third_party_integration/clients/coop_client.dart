@@ -17,17 +17,15 @@ final class CoopClient extends Client {
   Future<List<CoopTransactionHead>> getTransactions() async {
     final data = await fetch('COOP_PURCHASE_HISTORY', '/dashboard');
     if (data is! List) return [];
-    final heads =
-        data.map((json) => CoopTransactionHead.fromJson(json)).toList();
+    final heads = data
+        .map((json) => CoopTransactionHead.fromJson(json))
+        .toList();
     logger.i('Coop transactions: ${heads.length}');
     return heads;
   }
 
   Future<CoopTransactionDetails> getTransactionDetails(int id) async {
-    final data = await fetch(
-      'COOP_PURCHASE_HISTORY',
-      '/details/$id',
-    );
+    final data = await fetch('COOP_PURCHASE_HISTORY', '/details/$id');
     final details = CoopTransactionDetails.fromJson(data);
     logger.i(details);
     return details;
