@@ -54,7 +54,7 @@ dependencies:
   google_mlkit_text_recognition: ^0.15.1 # MIT
   receipt_recognition: ^0.2.9 # MIT
   firebase_app_check: ^0.4.3 # BSD-3-Clause
-  flutter_secure_storage: ^10.3.1 # BSD-3-Clause
+  flutter_secure_storage: ^10.3.4 # BSD-3-Clause
   webview_flutter: ^4.13.1 # BSD-3-Clause
   flutter_dotenv: ^6.0.1 # MIT
   json_annotation: ^4.12.0 # BSD-3-Clause
