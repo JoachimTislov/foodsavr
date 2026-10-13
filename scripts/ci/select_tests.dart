@@ -76,8 +76,8 @@ void main(List<String> args) async {
 
   // Escape hatch: manual or self-scope change forces the full suite.
   if (forceAll) {
-    print('reason=forced full run');
-    print('files=ALL');
+    stdout.writeln('reason=forced full run');
+    stdout.writeln('files=ALL');
     return;
   }
 
@@ -88,16 +88,16 @@ void main(List<String> args) async {
   ])).split('\n').where((l) => l.trim().isNotEmpty).toSet();
 
   if (changed.any(selfScope.contains)) {
-    print('reason=selection machinery changed; full run');
-    print('files=ALL');
+    stdout.writeln('reason=selection machinery changed; full run');
+    stdout.writeln('files=ALL');
     return;
   }
 
   final changedDart = changed.where((c) => c.endsWith('.dart')).toSet();
   if (changedDart.isEmpty) {
     // Nothing code-related changed; still pin core workflows (cheap, vital).
-    print('reason=no dart changes; core workflow pin only');
-    print('files=${coreWorkflows.join(' ')}');
+    stdout.writeln('reason=no dart changes; core workflow pin only');
+    stdout.writeln('files=${coreWorkflows.join(' ')}');
     return;
   }
 
@@ -121,8 +121,8 @@ void main(List<String> args) async {
 
   // Spec/infra changes (docs, workflows other than self-scope) don't expand
   // the slice; core workflows still run.
-  print('reason=relational selection + core workflow pin');
-  print('files=${affected.join(' ')}');
+  stdout.writeln('reason=relational selection + core workflow pin');
+  stdout.writeln('files=${affected.join(' ')}');
   _writeDebug(
     jsonEncode({'changed': changed.toList(), 'selected': affected.toList()}),
   );
