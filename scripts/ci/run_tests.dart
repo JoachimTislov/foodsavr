@@ -29,8 +29,7 @@ Set<String> transitiveDeps(String entry) {
             : 'lib/${parts.skip(1).join('/')}';
       } else {
         final base = File(file).parent.path;
-        final candidate =
-            Uri.file('$base/$spec').normalizePath().toFilePath();
+        final candidate = Uri.file('$base/$spec').normalizePath().toFilePath();
         path = File(candidate).existsSync() ? candidate : '';
       }
       if (path.isNotEmpty &&
@@ -70,13 +69,12 @@ Future<void> main() async {
   if (isAll) {
     tests = [
       ...Directory('test').listSync(recursive: true).whereType<File>(),
-      ...Directory('integration_test').listSync(recursive: true).whereType<File>(),
+      ...Directory('integration_test')
+          .listSync(recursive: true)
+          .whereType<File>(),
     ].map((f) => f.path).where((p) => p.endsWith('_test.dart')).toList();
   } else {
-    tests = selected
-        .split(' ')
-        .where((t) => t.trim().isNotEmpty)
-        .toList();
+    tests = selected.split(' ').where((t) => t.trim().isNotEmpty).toList();
   }
 
   final toRun = <String>[];
@@ -120,7 +118,8 @@ Future<void> main() async {
   for (final test in toRun) {
     final hash = await hashOf(test);
     File('$hashDir/$hash.green').writeAsStringSync(
-      jsonEncode({'test': test, 'sha': hash, 'ts': DateTime.now().toIso8601String()}),
+      jsonEncode(
+          {'test': test, 'sha': hash, 'ts': DateTime.now().toIso8601String()}),
     );
   }
 }

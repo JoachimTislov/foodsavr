@@ -108,7 +108,9 @@ void main(List<String> args) async {
   // intersects the changed files is affected.
   final testFiles = [
     ...Directory('test').listSync(recursive: true).whereType<File>(),
-    ...Directory('integration_test').listSync(recursive: true).whereType<File>(),
+    ...Directory('integration_test')
+        .listSync(recursive: true)
+        .whereType<File>(),
   ].map((f) => f.path).where((p) => p.endsWith('_test.dart')).toList();
 
   final affected = <String>{...coreWorkflows};
