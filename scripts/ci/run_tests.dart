@@ -86,7 +86,7 @@ Future<void> main() async {
       exit(2);
     }
     final hash = await hashOf(norm);
-    final marker = File('$hashDir/${hash}.green');
+    final marker = File('$hashDir/$hash.green');
     if (!isAll && marker.existsSync()) {
       cachedGreen.add(norm);
     } else {
