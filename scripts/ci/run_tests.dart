@@ -69,9 +69,9 @@ Future<void> main() async {
   if (isAll) {
     tests = [
       ...Directory('test').listSync(recursive: true).whereType<File>(),
-      ...Directory('integration_test')
-          .listSync(recursive: true)
-          .whereType<File>(),
+      ...Directory(
+        'integration_test',
+      ).listSync(recursive: true).whereType<File>(),
     ].map((f) => f.path).where((p) => p.endsWith('_test.dart')).toList();
   } else {
     tests = selected.split(' ').where((t) => t.trim().isNotEmpty).toList();
@@ -105,11 +105,12 @@ Future<void> main() async {
     return;
   }
 
-  final res = await Process.run(
-    'flutter',
-    ['test', '--no-pub', '--coverage', ...toRun],
-    runInShell: true,
-  );
+  final res = await Process.run('flutter', [
+    'test',
+    '--no-pub',
+    '--coverage',
+    ...toRun,
+  ], runInShell: true);
   stdout.write(res.stdout);
   stderr.write(res.stderr);
   if (res.exitCode != 0) {
@@ -118,8 +119,11 @@ Future<void> main() async {
   for (final test in toRun) {
     final hash = await hashOf(test);
     File('$hashDir/$hash.green').writeAsStringSync(
-      jsonEncode(
-          {'test': test, 'sha': hash, 'ts': DateTime.now().toIso8601String()}),
+      jsonEncode({
+        'test': test,
+        'sha': hash,
+        'ts': DateTime.now().toIso8601String(),
+      }),
     );
   }
 }

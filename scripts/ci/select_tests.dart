@@ -85,10 +85,7 @@ void main(List<String> args) async {
     'diff',
     '--name-only',
     baseRef.isNotEmpty ? '$baseRef...HEAD' : 'HEAD',
-  ]))
-      .split('\n')
-      .where((l) => l.trim().isNotEmpty)
-      .toSet();
+  ])).split('\n').where((l) => l.trim().isNotEmpty).toSet();
 
   if (changed.any(selfScope.contains)) {
     print('reason=selection machinery changed; full run');
@@ -108,9 +105,9 @@ void main(List<String> args) async {
   // intersects the changed files is affected.
   final testFiles = [
     ...Directory('test').listSync(recursive: true).whereType<File>(),
-    ...Directory('integration_test')
-        .listSync(recursive: true)
-        .whereType<File>(),
+    ...Directory(
+      'integration_test',
+    ).listSync(recursive: true).whereType<File>(),
   ].map((f) => f.path).where((p) => p.endsWith('_test.dart')).toList();
 
   final affected = <String>{...coreWorkflows};
@@ -126,10 +123,9 @@ void main(List<String> args) async {
   // the slice; core workflows still run.
   print('reason=relational selection + core workflow pin');
   print('files=${affected.join(' ')}');
-  _writeDebug(jsonEncode({
-    'changed': changed.toList(),
-    'selected': affected.toList(),
-  }));
+  _writeDebug(
+    jsonEncode({'changed': changed.toList(), 'selected': affected.toList()}),
+  );
 }
 
 void _writeDebug(String json) {
