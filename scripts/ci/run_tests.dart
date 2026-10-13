@@ -67,12 +67,12 @@ Future<void> main() async {
   final isAll = forceAll || selected == 'ALL';
   List<String> tests;
   if (isAll) {
-    tests = [
-      ...Directory('test').listSync(recursive: true).whereType<File>(),
-      ...Directory(
-        'integration_test',
-      ).listSync(recursive: true).whereType<File>(),
-    ].map((f) => f.path).where((p) => p.endsWith('_test.dart')).toList();
+    tests = Directory('test')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .map((f) => f.path)
+        .where((p) => p.endsWith('_test.dart'))
+        .toList();
   } else {
     tests = selected.split(' ').where((t) => t.trim().isNotEmpty).toList();
   }

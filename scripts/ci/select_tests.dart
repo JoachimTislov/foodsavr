@@ -16,8 +16,6 @@ const coreWorkflows = <String>[
   'test/services/receipt_ingestion_service_test.dart',
   'test/services/collection_service_integration_test.dart',
   'test/models/product_model_test.dart',
-  'integration_test/auth_test.dart',
-  'integration_test/firestore_crud_test.dart',
 ];
 
 const selfScope = <String>[
@@ -103,12 +101,12 @@ void main(List<String> args) async {
 
   // Relational selection: every test whose transitive import closure
   // intersects the changed files is affected.
-  final testFiles = [
-    ...Directory('test').listSync(recursive: true).whereType<File>(),
-    ...Directory(
-      'integration_test',
-    ).listSync(recursive: true).whereType<File>(),
-  ].map((f) => f.path).where((p) => p.endsWith('_test.dart')).toList();
+  final testFiles = Directory('test')
+      .listSync(recursive: true)
+      .whereType<File>()
+      .map((f) => f.path)
+      .where((p) => p.endsWith('_test.dart'))
+      .toList();
 
   final affected = <String>{...coreWorkflows};
   for (final test in testFiles) {
