@@ -105,20 +105,23 @@ Future<void> main() async {
     return;
   }
 
-  final res = await Process.run('flutter', [
-    'test',
-    '--no-pub',
-    '--coverage',
-    ...toRun,
-  ], runInShell: true);
-  stdout.write(res.stdout);
+  final unit = toRun.where((t) => !t.startsWith('integration_test')).toList();
+  final integration = toRun
+      .where((t) => t.startsWith('integration_test'))
+      .toList();
+  int exitCode = 0;
+  if (unit.isNotEmpty) {
+    exitCode = await _runFlutter(unit);
+  }
+  if (exitCode == 0 && integration.isNotEmpty) {
+    exitCode = await _runFlutter(integration);
+  }
   final cov = File('coverage/lcov.info');
   if (!cov.existsSync()) {
     cov.createSync(recursive: true);
   }
-  stderr.write(res.stderr);
-  if (res.exitCode != 0) {
-    exit(res.exitCode);
+  if (exitCode != 0) {
+    exit(exitCode);
   }
   for (final test in toRun) {
     final hash = await hashOf(test);
@@ -130,4 +133,16 @@ Future<void> main() async {
       }),
     );
   }
+}
+
+Future<int> _runFlutter(List<String> tests) async {
+  final res = await Process.run('flutter', [
+    'test',
+    '--no-pub',
+    '--coverage',
+    ...tests,
+  ], runInShell: true);
+  stdout.write(res.stdout);
+  stderr.write(res.stderr);
+  return res.exitCode;
 }
