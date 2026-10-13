@@ -91,7 +91,7 @@ jobs:
       - name: Localization check
         run: dart run scripts/locale/check_localizations.dart
 
-      - name: Select tests (ADR 0002: relational selection + core pin)
+      - name: "Select tests (ADR 0002 relational selection + core pin)"
         id: select
         run: |
           dart run scripts/ci/select_tests.dart | tee selection.txt
@@ -106,7 +106,7 @@ jobs:
           restore-keys: |
             test-hashes-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}-
 
-      - name: Run tests (selected slice, cached-green skip, core workflows pinned)
+      - name: "Run tests (selected slice, cached-green skip, core workflows pinned)"
         run: dart run scripts/ci/run_tests.dart
         env:
           SELECTED_FILES: ${{ steps.select.outputs.files }}
