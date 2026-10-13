@@ -13,5 +13,5 @@ The system shall behave as the intended usage induces: tests apply against the m
 
 - **Hash-based caching**: per-test input hashes (test file + transitive imports); a matching previously-green hash skips the test as cached-green.
 - **Relational selection**: changed files map to the tests that relate to them through import relations; only the affected slice runs.
-- **Core workflow pinning**: login (`test/services/auth_service_test.dart`, `test/router_auth_flow_test.dart`), receipt scanning (`test/services/receipt_ingestion_service_test.dart`), inventory synchronization (`test/services/collection_service_integration_test.dart`, `integration_test/`), and domain/model invariants always run on CI triggers.
+- **Core workflow pinning**: login (`test/services/auth_service_test.dart`, `test/router_auth_flow_test.dart`), receipt scanning (`test/services/receipt_ingestion_service_test.dart`), inventory synchronization (`test/services/collection_service_integration_test.dart`), and domain/model invariants always run on CI triggers. Device-dependent `integration_test/` suites stay in the Android emulator workflow (`build-android.yml`), not the unit gate.
 - **Escape hatch**: full suite via `workflow_dispatch` or whenever `scripts/ci/select_tests.dart` or its relation map changes.
