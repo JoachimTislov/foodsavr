@@ -91,8 +91,26 @@ jobs:
       - name: Localization check
         run: dart run scripts/locale/check_localizations.dart
 
-      - name: Run tests
-        run: flutter test --no-pub --coverage
+      - name: Select tests (ADR 0002: relational selection + core pin)
+        id: select
+        run: |
+          dart run scripts/ci/select_tests.dart | tee selection.txt
+          echo "files=$(grep '^files=' selection.txt | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
+          echo "reason=$(grep '^reason=' selection.txt | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore test hash cache
+        uses: actions/cache@v4
+        with:
+          path: .test-hashes/
+          key: test-hashes-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}-${{ github.sha }}
+          restore-keys: |
+            test-hashes-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}-
+
+      - name: Run tests (selected slice, cached-green skip, core workflows pinned)
+        run: dart run scripts/ci/run_tests.dart
+        env:
+          SELECTED_FILES: ${{ steps.select.outputs.files }}
+          FORCE_ALL: ${{ github.event_name == 'workflow_dispatch' }}
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
