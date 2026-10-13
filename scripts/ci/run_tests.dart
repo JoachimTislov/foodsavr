@@ -28,10 +28,14 @@ Set<String> transitiveDeps(String entry) {
             ? 'packages/foodsavr_core/lib/${parts.skip(2).join('/')}'
             : 'lib/${parts.skip(1).join('/')}';
       } else {
-        path = File('${File(entry).parent.path}/$spec')
-            .resolveSymbolicLinksSync();
+        final base = File(file).parent.path;
+        final candidate =
+            Uri.file('$base/$spec').normalizePath().toFilePath();
+        path = File(candidate).existsSync() ? candidate : '';
       }
-      if (File(path).existsSync() && !path.contains('.dart_tool')) {
+      if (path.isNotEmpty &&
+          File(path).existsSync() &&
+          !path.contains('.dart_tool')) {
         queue.add(path);
       }
     }
