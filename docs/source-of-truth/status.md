@@ -21,3 +21,4 @@ Replay record per session. Store session ID, issue, PR, commit SHAs; forward to 
 |---|---|---|---|---|---|
 | vibe-848bbd-bootstrap | #213 | (this PR) | 103a70f baseline | all (bootstrap absorb) | folder created; all domains un-synced pending audit |
 | vibe-848bbd-audit | #213 | #214 | head of vibe/source-of-truth-bootstrap-848bbd | all 8 domains | zero discrepancies; every spec claim verified read-only against code (collections, services, clients, core exports, workflows, tests); all domains marked synced |
+| vibe-848bbd-verification | #213 | #215 | head of vibe/optimized-verification-loop-848bbd | ci-workflows, qa-testing | ADR 0002 + ADR 0003 implemented and CI-verified green (206 tests, 2m20s); 6 autonomous fix commits per ADR 0003 |
