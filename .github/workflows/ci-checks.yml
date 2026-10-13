@@ -59,6 +59,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -94,6 +96,7 @@ jobs:
       - name: "Select tests (ADR 0002 relational selection + core pin)"
         id: select
         run: |
+          set -o pipefail
           dart run scripts/ci/select_tests.dart | tee selection.txt
           echo "files=$(grep '^files=' selection.txt | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
           echo "reason=$(grep '^reason=' selection.txt | cut -d= -f2-)" >> "$GITHUB_OUTPUT"

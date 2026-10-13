@@ -112,6 +112,10 @@ Future<void> main() async {
     ...toRun,
   ], runInShell: true);
   stdout.write(res.stdout);
+  final cov = File('coverage/lcov.info');
+  if (!cov.existsSync()) {
+    cov.createSync(recursive: true);
+  }
   stderr.write(res.stderr);
   if (res.exitCode != 0) {
     exit(res.exitCode);
