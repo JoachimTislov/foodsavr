@@ -93,6 +93,9 @@ jobs:
       - name: Localization check
         run: dart run scripts/locale/check_localizations.dart
 
+      - name: "Shape-sync check (ADR 0004)"
+        run: dart run scripts/ci/check_shape_sync.dart
+
       - name: "Select tests (ADR 0002 relational selection + core pin)"
         id: select
         run: |

@@ -1,0 +1,100 @@
+# Service & Integration Registry
+# Authoritative registry of FoodSavr's service and integration surface.
+# Sync sessions compare entries against lib/services/ and
+# lib/features/third_party_integration/ (code anchors per entry).
+# Shape rules per docs/source-of-truth/decisions/0004-truth-in-shapes.md
+
+version: 1
+app:
+  services:
+    - id: barcode_scanner_service
+      anchor: lib/services/barcode_scanner_service.dart
+      domain: ingestion-pipeline
+      status: built
+      description: ML Kit barcode scanning
+    - id: expiry_scanner_service
+      anchor: lib/services/expiry_scanner_service.dart
+      domain: ingestion-pipeline
+      status: built
+      description: OCR expiry-date scanning
+    - id: receipt_ingestion_service
+      anchor: lib/services/receipt_ingestion_service.dart
+      domain: ingestion-pipeline
+      status: built
+      description: Receipt ingestion via receipt_recognition; not yet routed through foodsavr_core
+    - id: product_service
+      anchor: lib/services/product_service.dart
+      domain: data-model
+      status: built
+      description: Products with Open Food Facts enrichment and caching
+    - id: collection_service
+      anchor: lib/services/collection_service.dart
+      domain: data-model
+      status: built
+      description: Inventory collections
+    - id: firebase_auth_service
+      anchor: lib/services/firebase_auth_service.dart
+      domain: architecture
+      status: built
+      description: Firebase authentication
+    - id: secure_storage_service
+      anchor: lib/services/secure_storage_service.dart
+      domain: architecture
+      status: built
+      description: Credential storage
+    - id: seeding_service
+      anchor: lib/services/seeding_service.dart
+      domain: qa-testing
+      status: built
+      description: Seed data for tests
+    - id: standalone_seeding_service
+      anchor: lib/services/standalone_seeding_service.dart
+      domain: qa-testing
+      status: built
+      description: Standalone seed data
+
+third_party_integrations:
+  clients:
+    - id: rema
+      anchor: lib/features/third_party_integration/clients/rema_client.dart
+      domain: integrations
+      status: built
+      description: Rema 1000 loyalty API client
+    - id: coop
+      anchor: lib/features/third_party_integration/clients/coop_client.dart
+      domain: integrations
+      status: stub
+      description: Coop client stub returning empty lists (#194)
+    - id: trumf
+      anchor: null
+      domain: integrations
+      status: researched
+      description: Researched only, no client exists
+    - id: storebox
+      anchor: null
+      domain: integrations
+      status: researched
+      description: Researched only, no client exists
+  services:
+    - id: import_service
+      anchor: lib/features/third_party_integration/services/import_service.dart
+      domain: integrations
+      status: built
+    - id: oauth_service
+      anchor: lib/features/third_party_integration/services/oauth_service.dart
+      domain: integrations
+      status: built
+
+core_package:
+  id: foodsavr_core
+  anchor: packages/foodsavr_core
+  domain: mcp-server
+  status: built-skeleton
+  description: Pure Dart pipeline (LineItem, Normalizer, Matcher, ShelfLife, ConfidenceGate, Pipeline); not yet wired into app ingestion (#192)
+  exports:
+    - line_item
+    - normalizer
+    - matcher
+    - shelf_life
+    - confidence_gate
+    - pipeline

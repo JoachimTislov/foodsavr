@@ -1,0 +1,43 @@
+# MCP Tool Contract
+# Spec-ahead contract for the remote MCP server (#171). Transport: streamable
+# HTTP. Auth: OAuth 2.1. Logic shared with the app exclusively through
+# foodsavr_core. Shape rules per decisions/0004-truth-in-shapes.md.
+
+version: 0.1-spec
+status: spec-ahead
+transport: streamable-http
+auth: oauth-2.1
+tools:
+  - name: ingest_receipt
+    description: Normalize a receipt (image or structured lines) into LineItems and add them to inventory
+    input:
+      type: object
+      properties:
+        receipt: { description: Image bytes, URL, or raw text lines }
+        collectionId: { type: string }
+    output:
+      $ref: schemas/line-item.schema.json
+      many: true
+  - name: read_orders
+    description: Read orders/transactions from a connected integration (Rema/Coop/Trumf) as LineItems
+    input:
+      type: object
+      properties:
+        provider: { type: string, enum: [rema, coop, trumf] }
+        since: { type: string, format: date-time }
+    output:
+      $ref: schemas/line-item.schema.json
+      many: true
+  - name: generate_shopping_list
+    description: Auto-generate a shopping list from inventory, consumption history, and meal plans
+    input:
+      type: object
+      properties:
+        collectionId: { type: string }
+        maxItems: { type: integer }
+    output:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: schemas/line-item.schema.json }

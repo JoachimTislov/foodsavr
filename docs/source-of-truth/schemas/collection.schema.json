@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "foodsavr://collection",
+  "title": "Collection",
+  "description": "Inventory collection grouping products. Code anchor: lib/models/collection_model.dart. Firestore collection: collections",
+  "type": "object",
+  "required": ["id", "name", "productIds", "userId"],
+  "properties": {
+    "id": { "type": "string" },
+    "name": { "type": "string" },
+    "productIds": { "type": "array", "items": { "type": "string" } },
+    "userId": { "type": "string" }
+  },
+  "additionalProperties": false
+}

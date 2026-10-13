@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "foodsavr://line-item",
+  "title": "LineItem",
+  "description": "Universal normalized food item flowing through the ingestion pipeline. Code anchor: packages/foodsavr_core/lib/src/line_item.dart",
+  "type": "object",
+  "required": ["id", "rawName"],
+  "properties": {
+    "id": { "type": "string", "description": "Unique item id" },
+    "rawName": { "type": "string", "description": "Input as received" },
+    "normalizedName": { "type": "string", "default": "", "description": "Cleaned form used for matching" },
+    "quantity": { "type": "number", "exclusiveMinimum": 0, "default": 1, "description": "Must be positive (asserted in constructor)" },
+    "unit": {
+      "type": "string",
+      "enum": ["piece", "gram", "kilogram", "liter", "milliliter", "package"],
+      "default": "piece",
+      "description": "LineItemUnit"
+    },
+    "price": { "type": ["number", "null"], "default": null },
+    "barcode": { "type": ["string", "null"], "default": null },
+    "source": {
+      "type": "string",
+      "enum": ["receipt", "loyaltyApi", "barcode", "freeText"],
+      "default": "freeText",
+      "description": "IngestionSource"
+    },
+    "purchasedAt": { "type": ["string", "null"], "format": "date-time", "default": null },
+    "registeredAt": { "type": ["string", "null"], "format": "date-time", "description": "Falls back to purchasedAt when absent" },
+    "matchedProductId": { "type": ["string", "null"], "default": null, "description": "Filled by the matcher" },
+    "matchConfidence": { "type": "number", "minimum": 0, "maximum": 1, "default": 0, "description": "Similarity of normalized name to matched product" },
+    "inferredShelfLifeDays": { "type": ["integer", "null"], "default": null, "description": "Category-based default, filled by shelf-life inference" }
+  },
+  "additionalProperties": false
+}
