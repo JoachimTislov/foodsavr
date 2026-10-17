@@ -124,10 +124,24 @@ class ShelfLifeInferer {
     return category == null ? null : defaultFor(category);
   }
 
+  static final RegExp _tokenSplit = RegExp(r'[^\p{L}\p{N}]+', unicode: true);
+
   /// First matching category for a (normalized, lowercase) [name].
+  ///
+  /// Short keywords (three characters or fewer) match only as whole
+  /// tokens, so keys like "ost" or "is" cannot match inside unrelated
+  /// words such as "toast" or "pistasj".
   FoodCategory? categorize(String name) {
+    final tokens = name
+        .split(_tokenSplit)
+        .where((t) => t.isNotEmpty)
+        .toSet();
     for (final e in _keywordCategories.entries) {
-      if (name.contains(e.key)) return e.value;
+      if (e.key.length <= 3) {
+        if (tokens.contains(e.key)) return e.value;
+      } else if (name.contains(e.key)) {
+        return e.value;
+      }
     }
     return null;
   }

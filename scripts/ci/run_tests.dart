@@ -13,29 +13,45 @@ const hashDir = '.test-hashes';
 Set<String> transitiveDeps(String entry) {
   final seen = <String>{};
   final queue = <String>[entry];
-  final importRe = RegExp(r'''(?:import|export|part)\s+'([^']+)''');
+  final importRe = RegExp(
+    r"""(?:import|export|part)\s+['"]([^'"]+)['"]""",
+  );
+  final condRe = RegExp(
+    r"""^\s*['"]([^'"]+)['"]\s+if\s*\(.*?\)\s*['"]([^'"]+)['"]""",
+  );
   while (queue.isNotEmpty) {
     final file = queue.removeLast();
     if (!seen.add(file)) continue;
     if (!File(file).existsSync()) continue;
     for (final match in importRe.allMatches(File(file).readAsStringSync())) {
-      final spec = match.group(1)!;
-      if (spec.startsWith('dart:')) continue;
-      String path;
-      if (spec.startsWith('package:')) {
-        final parts = spec.substring(7).split('/');
-        path = parts.first == 'foodsavr_core'
-            ? 'packages/foodsavr_core/lib/${parts.skip(2).join('/')}'
-            : 'lib/${parts.skip(1).join('/')}';
-      } else {
-        final base = File(file).parent.path;
-        final candidate = Uri.file('$base/$spec').normalizePath().toFilePath();
-        path = File(candidate).existsSync() ? candidate : '';
-      }
-      if (path.isNotEmpty &&
-          File(path).existsSync() &&
-          !path.contains('.dart_tool')) {
-        queue.add(path);
+      final specs = <String>[match.group(1)!];
+      while (specs.isNotEmpty) {
+        final spec = specs.removeLast();
+        if (spec.startsWith('dart:')) continue;
+        final cond = condRe.firstMatch(spec);
+        if (cond != null) {
+          specs
+            ..add(cond.group(1)!)
+            ..add(cond.group(2)!);
+          continue;
+        }
+        String path;
+        if (spec.startsWith('package:')) {
+          final parts = spec.substring(7).split('/');
+          path = parts.first == 'foodsavr_core'
+              ? 'packages/foodsavr_core/lib/${parts.skip(2).join('/')}'
+              : 'lib/${parts.skip(1).join('/')}';
+        } else {
+          final base = File(file).parent.path;
+          final candidate =
+              Uri.file('$base/$spec').normalizePath().toFilePath();
+          path = File(candidate).existsSync() ? candidate : '';
+        }
+        if (path.isNotEmpty &&
+            File(path).existsSync() &&
+            !path.contains('.dart_tool')) {
+          queue.add(path);
+        }
       }
     }
   }
@@ -102,6 +118,15 @@ Future<void> main() async {
 
   if (toRun.isEmpty) {
     stdout.writeln('All selected tests are cached green.');
+    // Codecov expects coverage for every run; produce a coverage report when
+    // no test executed (an all-cached-green run creates none).
+    final cov = File('coverage/lcov.info');
+    if (!cov.existsSync()) {
+      await _runFlutter([]);
+      if (!cov.existsSync()) {
+        cov.createSync(recursive: true);
+      }
+    }
     return;
   }
 

@@ -105,13 +105,16 @@ class _ExpiryScanViewState extends State<ExpiryScanView>
   }
 
   Future<void> _tearDownCamera() async {
-    await _cameraController?.stopImageStream();
-    await _cameraController?.dispose();
-    if (!mounted) return;
-    setState(() {
-      _cameraController = null;
-      _isCameraReady = false;
-    });
+    final controller = _cameraController;
+    if (controller == null) return;
+    _cameraController = null;
+    if (mounted) {
+      setState(() => _isCameraReady = false);
+    }
+    if (controller.value.isStreamingImages) {
+      await controller.stopImageStream();
+    }
+    await controller.dispose();
   }
 
   Future<void> _initializeCamera() async {
@@ -139,7 +142,6 @@ class _ExpiryScanViewState extends State<ExpiryScanView>
       );
 
       await controller.initialize();
-      await controller.startImageStream(_processCameraImage);
       if (!mounted || _disposed) {
         await controller.dispose();
         return;
@@ -149,10 +151,11 @@ class _ExpiryScanViewState extends State<ExpiryScanView>
         _isCameraReady = true;
         _errorMessage = null;
       });
+      await controller.startImageStream(_processCameraImage);
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'product.scanUnavailable'.tr(
+        _errorMessage = 'product.expiryScanUnavailable'.tr(
           namedArgs: {'error': '$e'},
         );
       });
@@ -177,7 +180,7 @@ class _ExpiryScanViewState extends State<ExpiryScanView>
         await cameraController.stopImageStream();
         if (!mounted) return;
         setState(() {
-          _errorMessage = 'product.scanUnavailable'.tr(
+          _errorMessage = 'product.expiryScanUnavailable'.tr(
             namedArgs: {'error': '$e'},
           );
         });
