@@ -38,6 +38,8 @@ Own the task from discovery through a green pull request.
   changes, execute `gh pr edit --add-reviewer JoachimTislov` as an explicit
   workflow step, then wait for review and CI. For non-source changes, execute
   `gh pr merge --auto --rebase` only after all relevant checks are green.
+- Update stale pull-request branches with `gh pr update-branch --rebase`;
+  never create a merge commit to update a PR branch.
 
 ## Review protocol
 

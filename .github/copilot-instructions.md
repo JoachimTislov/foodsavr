@@ -57,7 +57,9 @@ planning, recipes, and reducing food waste.
    auto-merge disabled and run `gh pr edit --add-reviewer JoachimTislov` to
    request review from JoachimTislov. Otherwise, after all checks relevant to
    the changed paths are green, enable auto-merge with
-   `gh pr merge --auto --rebase`.
+   `gh pr merge --auto --rebase`. Update stale branches with
+   `gh pr update-branch --rebase`; never update a PR branch by creating a
+   merge commit.
 6. Append one row per action to the event log in `AGENTS.md`.
 
 ## Merge policy
