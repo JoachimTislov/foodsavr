@@ -12,3 +12,10 @@ updates:
       day: saturday
       time: "12:00"
       timezone: Europe/Oslo
+  - package-ecosystem: "pub"
+    directory: "/packages/foodsavr_core"
+    schedule:
+      interval: "weekly"
+      day: saturday
+      time: "12:00"
+      timezone: Europe/Oslo
