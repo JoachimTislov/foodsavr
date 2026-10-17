@@ -2,6 +2,7 @@
 
 Open work is tracked in GitHub issues. Start from the entrypoint epic:
 
+- **#212 — Epic: Markdown source of truth (`docs/source-of-truth/`) — agents align all work against it (sync loop: #213)**
 - **#188 — Epic: Close current gaps (entrypoint, task list with sequenced, standalone PR-sized tasks)**
 
 Other open epics/tracking issues:
