@@ -30,6 +30,10 @@ Own the task from discovery through a green pull request.
   ruleset-only pull requests. Never auto-merge a pull request that changes
   application source code under `lib/`, `test/`, `integration_test/`, or
   platform source directories.
+- Before enabling auto-merge, wait for every workflow check relevant to the
+  changed paths to pass; unrelated skipped jobs do not block the PR. For a PR
+  that touches application source code, keep auto-merge disabled and request
+  `JoachimTislov` as reviewer with `gh pr edit --add-reviewer JoachimTislov`.
 
 ## Review protocol
 

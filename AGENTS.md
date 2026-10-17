@@ -9,6 +9,7 @@
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-10-17 | Defined path-aware merge handling: wait for all relevant workflow checks, auto-merge non-source PRs when green, and request JoachimTislov review instead of auto-merging source PRs. |
 | 2026-10-17 | Added the merge policy: enable auto-merge after green CI for documentation, configuration, and ruleset-only PRs; do not auto-merge PRs touching application source code. |
 | 2026-10-17 | Added the Copilot single-entry instructions, scoped Flutter/Firestore/CI/docs instruction profiles, autonomous development agent, and emulator-only Copilot setup workflow; `make check` was blocked by the pre-existing Dart 3.12.2 versus `freezed` >=3.13.0 SDK mismatch. |
 | 2026-10-08 | PR #201 for #190 (epic #188): rewrote TODO.md to only genuinely open items linked to tracking issues (entrypoint header → epic #188); README Receipt Scanning checked off (#183/#184), unchecked features annotated with #195/#196/#198; full removed-item → merged-PR mapping in the PR body; pushed. |

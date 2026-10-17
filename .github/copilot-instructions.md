@@ -61,3 +61,8 @@ When CI is green, enable auto-merge for documentation, configuration, and
 ruleset-only pull requests. Do not auto-merge a pull request that changes
 application source code, including files under `lib/`, `test/`,
 `integration_test/`, or platform source directories.
+
+Before auto-merging, wait for every workflow check relevant to the changed
+paths to pass; skipped unrelated jobs do not block the PR. For any PR that
+touches application source code, do not enable auto-merge and request review
+from `JoachimTislov` with `gh pr edit --add-reviewer JoachimTislov`.
