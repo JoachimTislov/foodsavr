@@ -62,6 +62,10 @@ planning, recipes, and reducing food waste.
    merge commit.
 6. Append one row per action to the event log in `AGENTS.md`.
 
+The `PR autonomy` workflow performs step 5 automatically: it requests
+`JoachimTislov` review for source changes and enables rebase-only auto-merge for
+non-source changes. Repository rulesets remain the final enforcement layer.
+
 ## Merge policy
 
 When CI is green, enable auto-merge for documentation, configuration, and

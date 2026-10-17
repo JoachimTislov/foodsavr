@@ -40,6 +40,9 @@ Own the task from discovery through a green pull request.
   `gh pr merge --auto --rebase` only after all relevant checks are green.
 - Update stale pull-request branches with `gh pr update-branch --rebase`;
   never create a merge commit to update a PR branch.
+- The `PR autonomy` workflow performs the post-PR source-review request and
+  non-source rebase-only auto-merge action automatically; verify its outcome
+  rather than requiring a manual UI action.
 
 ## Review protocol
 

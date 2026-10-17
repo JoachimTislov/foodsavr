@@ -1,0 +1,73 @@
+name: PR autonomy
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_run:
+    workflows:
+      - Format, Analyze, Check Localizations and Run Tests
+      - Validation
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+jobs:
+  act:
+    name: Apply PR policy
+    if: >-
+      github.event_name == 'pull_request_target' ||
+      (github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_PR: ${{ github.event.pull_request.number }}
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_REPOSITORY: ${{ github.event.workflow_run.repository.full_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request_target" ]; then
+            number="$EVENT_PR"
+          else
+            if [ "$RUN_REPOSITORY" != "${{ github.repository }}" ]; then
+              echo "The completed workflow is from another repository; skipping."
+              exit 0
+            fi
+            number=$(gh pr list --repo "${{ github.repository }}" --head "$RUN_BRANCH" \
+              --state open --json number --jq '.[0].number')
+          fi
+          if [ -z "${number:-}" ]; then
+            echo "No open pull request found; skipping."
+            exit 0
+          fi
+          files=$(gh pr view "$number" --repo "${{ github.repository }}" \
+            --json files --jq '.files[].path')
+          {
+            echo "number=$number"
+            echo "source=false"
+          } >> "$GITHUB_OUTPUT"
+          if printf '%s\n' "$files" | grep -Eq \
+            '^(lib/|test/|integration_test/|android/|ios/|macos/|linux/|web/|windows/)'; then
+            sed -i 's/source=false/source=true/' "$GITHUB_OUTPUT"
+          fi
+
+      - name: Request source review
+        if: steps.pr.outputs.number != '' && steps.pr.outputs.source == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr edit "${{ steps.pr.outputs.number }}" --repo "${{ github.repository }}" \
+          --add-reviewer JoachimTislov
+
+      - name: Enable rebase-only auto-merge
+        if: steps.pr.outputs.number != '' && steps.pr.outputs.source != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr merge "${{ steps.pr.outputs.number }}" --repo "${{ github.repository }}" \
+          --auto --rebase
