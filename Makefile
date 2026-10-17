@@ -1,4 +1,4 @@
-.PHONY: reload-env run-dev run-prod build-apk-debug build-apk-release dev-chrome-prod dev-chrome firebase-options firebase-rules start-firebase-emulators kill-firebase-emulators deps generate-code view-emulator check _run-checks analyze fmt fix test clean locales locale-check locale-clean generate-locales preflight push worktree
+.PHONY: reload-env run-dev run-prod build-apk-debug build-apk-release dev-chrome-prod dev-chrome build-web serve-web firebase-options firebase-rules start-firebase-emulators kill-firebase-emulators deps generate-code view-emulator check _run-checks analyze fmt fix test clean locales locale-check locale-clean generate-locales preflight push worktree
 
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
 FLUTTER_INSTALL := flutter install
@@ -32,6 +32,16 @@ dev-chrome-prod: deps
 
 dev-chrome: deps start-firebase-emulators
 	@$(FLUTTER_RUN_CMD) -d chrome
+
+BASE_HREF ?= /
+build-web: deps
+	@echo "Building web (base-href $(BASE_HREF))..."
+	@flutter create . --platforms web
+	@flutter build web --release --base-href "$(BASE_HREF)"
+
+serve-web: build-web
+	@echo "Serving build/web at http://localhost:8080 ..."
+	@cd build/web && python3 -m http.server 8080
 
 firebase-options:
 	@base64 -w 0 lib/firebase_options.dart | gh secret set FIREBASE_OPTIONS_B64
