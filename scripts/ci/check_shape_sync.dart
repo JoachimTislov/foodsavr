@@ -23,20 +23,42 @@ void checkAnchors() {
   final reg = File(
     '$repo/docs/source-of-truth/registries/services.yaml',
   ).readAsStringSync();
-  final anchorRe = RegExp(r'anchor:\s*(\S+)');
-  final statusRe = RegExp(r'status:\s*(\S+)');
-  final anchors = anchorRe.allMatches(reg).map((m) => m.group(1)!).toList();
-  final statuses = statusRe.allMatches(reg).map((m) => m.group(1)!).toList();
-  for (final anchor in anchors) {
-    if (anchor == 'null') continue;
+  final anchors = <String>[];
+  final entries = <Map<String, String>>[];
+  for (final line in reg.split('\n')) {
+    final id = RegExp(r'^\s*-\s+id:\s*(\S+)\s*$').firstMatch(line);
+    if (id != null) {
+      entries.add({'id': id.group(1)!});
+      continue;
+    }
+    if (entries.isEmpty) continue;
+    final anchor = RegExp(r'^\s+anchor:\s*(\S+)').firstMatch(line);
+    if (anchor != null) {
+      entries.last['anchor'] = anchor.group(1)!;
+      if (anchor.group(1) != 'null') anchors.add(anchor.group(1)!);
+    }
+    final status = RegExp(r'^\s+status:\s*(\S+)').firstMatch(line);
+    if (status != null) entries.last['status'] = status.group(1)!;
+  }
+  for (final entry in entries) {
+    final status = entry['status'];
+    final anchor = entry['anchor'];
+    final requiresAnchor =
+        status == 'built' || status == 'stub' || status == 'built-skeleton';
+    if (requiresAnchor &&
+        (anchor == null || anchor == 'null')) {
+      fail('registry entry ${entry['id']} with status $status requires an '
+          'anchor');
+      continue;
+    }
+    if (anchor == null || anchor == 'null') continue;
     if (!File('$repo/$anchor').existsSync() &&
         !Directory('$repo/$anchor').existsSync()) {
       fail('registry anchor missing in repo: $anchor');
     }
   }
   stdout.writeln(
-    'anchors: ${anchors.where((a) => a != "null").length} checked, '
-    '${statuses.length} registry entries',
+    'anchors: ${anchors.length} checked, ${entries.length} registry entries',
   );
 }
 
@@ -62,11 +84,19 @@ void checkSchemas() {
     }
     final code = anchorFile.readAsStringSync();
     final props = (schema['properties'] as Map<String, dynamic>).keys.toSet();
-    final missing = props.where((p) => !code.contains(p)).toList();
-    for (final m in missing) {
+    final title = schema['title'] as String? ?? '';
+    final fields = _declaredFields(code, title);
+    for (final p in props.where((p) => !fields.contains(p))) {
       fail(
-        '${entity.uri.pathSegments.last}: property "$m" not found in code '
+        '${entity.uri.pathSegments.last}: property "$p" not found in code '
         'anchor $anchorPath',
+      );
+    }
+    final modelName = title;
+    for (final f in fields.where((f) => !props.contains(f))) {
+      fail(
+        '${entity.uri.pathSegments.last}: model field "$f" of $modelName '
+        'missing from schema properties',
       );
     }
     stdout.writeln(
@@ -74,6 +104,62 @@ void checkSchemas() {
       'checked against $anchorPath',
     );
   }
+}
+
+/// Field names declared by the anchored Dart class: constructor parameters
+/// and plain `final` field declarations.
+Set<String> _declaredFields(String code, String className) {
+  final fields = <String>{};
+  final enumValues = <String>{};
+  for (final m in RegExp(r'enum\s+\w+\s*\{(.*?)\}', dotAll: true)
+      .allMatches(code)) {
+    for (final v in m.group(1)!.split(',')) {
+      final vm = RegExp(r'([a-zA-Z][a-zA-Z0-9]*)').allMatches(v.trim());
+      if (vm.isNotEmpty) enumValues.add(vm.last.group(1)!);
+    }
+  }
+  final ctor = RegExp(
+    '(?:const\s+)?(?:factory\s+)?' + className + r'\s*\((.*)',
+    dotAll: true,
+  );
+  final ctorMatch = ctor.firstMatch(code);
+  if (ctorMatch != null) {
+    final body = ctorMatch.group(1)!;
+    final end = _matchingParenIndex(body);
+    if (end != null) {
+      final params = body.substring(0, end);
+      final cleaned = params
+          .replaceAll(RegExp(r'//[^\n]*'), ' ')
+          .replaceAll(RegExp(r'\s+'), ' ');
+      for (final raw in cleaned.split(',')) {
+        final param = raw.trim();
+        final m = RegExp(r'([a-zA-Z][a-zA-Z0-9]*)$').firstMatch(param);
+        if (m != null && !enumValues.contains(m.group(1)!)) {
+          fields.add(m.group(1)!);
+        }
+      }
+    }
+  }
+  for (final m in RegExp(
+    r'final\s+[\w<>?,\s]+?\s+([a-z]\w*)\s*;',
+  ).allMatches(code)) {
+    fields.add(m.group(1)!);
+  }
+  return fields;
+}
+
+/// Index of the `)` matching the `(` that opens [body], or null.
+int? _matchingParenIndex(String body) {
+  var depth = 1;
+  for (var i = 0; i < body.length; i++) {
+    if (body[i] == '(') {
+      depth++;
+    } else if (body[i] == ')') {
+      depth--;
+      if (depth == 0) return i;
+    }
+  }
+  return null;
 }
 
 void main() {

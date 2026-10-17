@@ -79,6 +79,7 @@ class LineItem {
     String? matchedProductId,
     double? matchConfidence,
     int? inferredShelfLifeDays,
+    DateTime? registeredAt,
   }) => LineItem(
     id: id,
     rawName: rawName ?? this.rawName,
@@ -92,6 +93,7 @@ class LineItem {
     matchedProductId: matchedProductId ?? this.matchedProductId,
     matchConfidence: matchConfidence ?? this.matchConfidence,
     inferredShelfLifeDays: inferredShelfLifeDays ?? this.inferredShelfLifeDays,
+    registeredAt: registeredAt ?? this.registeredAt,
   );
 
   @override
