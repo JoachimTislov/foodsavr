@@ -53,7 +53,12 @@ planning, recipes, and reducing food waste.
 4. For each task, run `make worktree` and `make task`, implement the change,
    run `make check`, commit, push, open a PR, monitor CI, fix failures, respond
    to reviews, and repeat until green.
-5. Append one row per action to the event log in `AGENTS.md`.
+5. Inspect the PR file list. If it contains application source code, keep
+   auto-merge disabled and run `gh pr edit --add-reviewer JoachimTislov` to
+   request review from JoachimTislov. Otherwise, after all checks relevant to
+   the changed paths are green, enable auto-merge with
+   `gh pr merge --auto --rebase`.
+6. Append one row per action to the event log in `AGENTS.md`.
 
 ## Merge policy
 

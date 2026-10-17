@@ -9,6 +9,7 @@
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-10-17 | Added an explicit post-PR workflow step to inspect changed files, request JoachimTislov review for source changes, and use rebase-only auto-merge for non-source changes after relevant checks pass. |
 | 2026-10-17 | Defined path-aware merge handling: wait for all relevant workflow checks, auto-merge non-source PRs when green, and request JoachimTislov review instead of auto-merging source PRs. |
 | 2026-10-17 | Added the merge policy: enable auto-merge after green CI for documentation, configuration, and ruleset-only PRs; do not auto-merge PRs touching application source code. |
 | 2026-10-17 | Added the Copilot single-entry instructions, scoped Flutter/Firestore/CI/docs instruction profiles, autonomous development agent, and emulator-only Copilot setup workflow; `make check` was blocked by the pre-existing Dart 3.12.2 versus `freezed` >=3.13.0 SDK mismatch. |

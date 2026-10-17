@@ -34,6 +34,10 @@ Own the task from discovery through a green pull request.
   changed paths to pass; unrelated skipped jobs do not block the PR. For a PR
   that touches application source code, keep auto-merge disabled and request
   `JoachimTislov` as reviewer with `gh pr edit --add-reviewer JoachimTislov`.
+- After opening or updating every PR, inspect its changed files. For source
+  changes, execute `gh pr edit --add-reviewer JoachimTislov` as an explicit
+  workflow step, then wait for review and CI. For non-source changes, execute
+  `gh pr merge --auto --rebase` only after all relevant checks are green.
 
 ## Review protocol
 
