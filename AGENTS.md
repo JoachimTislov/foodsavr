@@ -9,6 +9,7 @@
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-10-17 | Added the Copilot single-entry instructions, scoped Flutter/Firestore/CI/docs instruction profiles, autonomous development agent, and emulator-only Copilot setup workflow; `make check` was blocked by the pre-existing Dart 3.12.2 versus `freezed` >=3.13.0 SDK mismatch. |
 | 2026-10-08 | PR #201 for #190 (epic #188): rewrote TODO.md to only genuinely open items linked to tracking issues (entrypoint header → epic #188); README Receipt Scanning checked off (#183/#184), unchecked features annotated with #195/#196/#198; full removed-item → merged-PR mapping in the PR body; pushed. |
 | 2026-10-06 | Draft PR #187 for #66/#69/#29 (alpha, unlinked): added DashboardController (@injectable ChangeNotifier) + DashboardView as WatchingWidget (watchIt, no setState), CollectionListController + ListenableBuilder in CollectionListView, controller unit tests incl. current-user refresh regression; dashboard_session_test registers DashboardController. |
 | 2026-10-06 | PR #185 CodeRabbit follow-up (discussion_r4197363135, previously skipped as moot — now valid again since `rules-test` regained the emulator prerequisite): bounded `start-firebase-emulators` to 120s, detect exited emulator process, print captured startup log on failure; replied in thread; pushed. |

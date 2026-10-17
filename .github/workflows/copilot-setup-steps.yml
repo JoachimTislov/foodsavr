@@ -1,0 +1,54 @@
+name: Copilot setup steps
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    name: Prepare autonomous development environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.6
+          channel: stable
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: firestore-rules/package-lock.json
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15
+
+      - name: Prepare emulator-only environment
+        run: |
+          touch assets/.env
+          printf '%s\n' \
+            '{"emulators":{"auth":{"port":9099},"firestore":{"port":8080}}}' \
+            > firebase.json
+
+      - name: Install dependencies
+        run: make deps
+
+      - name: Analyze
+        run: make analyze
+
+      - name: Test
+        run: make test
+
+      - name: Firestore rules test
+        run: |
+          if [ -f firestore.rules ]; then
+            make rules-test
+          else
+            echo "firestore.rules is not present; rules test requires the repository-provided rules file."
+          fi
