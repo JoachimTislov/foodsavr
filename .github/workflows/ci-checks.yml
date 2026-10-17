@@ -15,6 +15,7 @@ on:
       - "web/**"
       - "integration_test/**"
       - "test_driver/**"
+      - ".github/workflows/**"
   pull_request:
     branches: [main]
     paths: *code_paths

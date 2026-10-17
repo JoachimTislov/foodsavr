@@ -9,6 +9,7 @@
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-10-17 | Diagnosed PR #219 blocked without `Check & Test`: ci-checks path filters omitted `.github/workflows/**`; added workflow changes to the CI path set so required checks are scheduled. |
 | 2026-10-17 | Added the `PR autonomy` workflow to request JoachimTislov review for source PRs and enable rebase-only auto-merge for non-source PRs without manual UI action. |
 | 2026-10-17 | Restricted autonomous PR updates to rebase-only branch updates; merge commits must not be created when refreshing a PR branch. |
 | 2026-10-17 | Added an explicit post-PR workflow step to inspect changed files, request JoachimTislov review for source changes, and use rebase-only auto-merge for non-source changes after relevant checks pass. |
