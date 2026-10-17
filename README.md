@@ -53,3 +53,7 @@ software for commercial purposes.
 ---
 
 For a complete overview of all project documentation, start with the [Documentation Introduction](./doc/introduction.md).
+
+## Documentation
+
+The canonical spec lives in [`docs/source-of-truth/`](docs/source-of-truth/INDEX.md).
