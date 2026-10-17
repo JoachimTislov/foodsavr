@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "foodsavr://product",
+  "title": "Product",
+  "description": "Inventory product (freezed). Code anchor: lib/models/product_model.dart. Firestore collection: products",
+  "type": "object",
+  "required": ["id", "name", "description", "userId"],
+  "properties": {
+    "id": { "type": "string" },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "userId": { "type": "string", "description": "Owner of the product" },
+    "expiries": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "required": ["quantity", "expirationDate"],
+        "properties": {
+          "quantity": { "type": "integer", "minimum": 0 },
+          "expirationDate": { "type": "string", "format": "date-time" }
+        }
+      },
+      "description": "Quantities and their expiration dates (ExpiryEntry)"
+    },
+    "nonExpiringQuantity": { "type": "integer", "default": 0 },
+    "category": { "type": ["string", "null"] },
+    "imageUrl": { "type": ["string", "null"] },
+    "barcode": { "type": ["string", "null"] },
+    "isGlobal": { "type": "boolean", "default": false },
+    "registryType": {
+      "type": "string",
+      "enum": ["global", "personal", "current"],
+      "default": "current",
+      "description": "Scope in the shared products collection: global = shared registry, personal = user-owned template, current = concrete inventory item"
+    },
+    "mappedFromProductId": { "type": ["string", "null"] },
+    "tags": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Labels from APIs like Open Food Facts" }
+  },
+  "additionalProperties": false
+}
