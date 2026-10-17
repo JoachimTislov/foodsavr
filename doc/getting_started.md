@@ -63,3 +63,27 @@ You'll also need a Firebase project.
     ```sh
     flutter run --flavor development
     ```
+
+## Running on the Web
+
+For quick iteration in a browser, use:
+
+```sh
+make dev-chrome
+```
+
+To build a release web bundle locally (same command CI uses for the GitHub Pages test environment) and serve it:
+
+```sh
+make serve-web
+```
+
+If you will host the bundle under a subpath (like GitHub Pages does), set the base href to match:
+
+```sh
+make serve-web BASE_HREF=/foodsavr/
+```
+
+## Web test environment (GitHub Pages)
+
+Every push to `main` that changes web-affecting paths deploys a release web build to GitHub Pages — this is the project's shared **test environment** for trying the app in a browser without a local toolchain. It is not a production deployment target (production is Android; see #125). The deploy lives in `.github/workflows/build-web.yml` (`deploy-pages` job) and runs only on trusted `main` pushes; pull requests build and upload an artifact but never deploy.
