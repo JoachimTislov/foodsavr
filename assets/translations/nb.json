@@ -165,6 +165,7 @@
 		"scanBarcodeHint": "Juster strekkoden innenfor rammen",
 		"scanSingleBarcodeHint": "Flere strekkoder oppdaget. Fokuser på én strekkode.",
 		"scanUnavailable": "Strekkodeskanner utilgjengelig: {error}",
+		"expiryScanUnavailable": "Utløpsskanner utilgjengelig: {error}",
 		"search_hint": "Søk i matskapet ditt...",
 		"select": "Velg produkter",
 		"soonest_expiration": "Nærmeste utløpsdato",

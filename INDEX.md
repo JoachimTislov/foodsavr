@@ -1,5 +1,7 @@
 # FoodSavr Codebase Index
 
+Start with the [source-of-truth index](docs/source-of-truth/INDEX.md).
+
 This document maps the core files and folders of the codebase. Instead of guessing where to look, **always consult this index first** to understand the directory structure and to figure out what context each file provides.
 
 ## Layers Summary

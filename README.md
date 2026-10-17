@@ -38,6 +38,8 @@ Want to tinker with the code? Check out the **[Getting Started guide](./doc/gett
 
 ## How to Contribute
 
+Contributors must start with the [source-of-truth index](docs/source-of-truth/INDEX.md) before using the documentation below.
+
 Got an idea or want to fix something? Awesome! We have a few guidelines for contributing that are pretty different from most projects, especially regarding AI-assisted code.
 
 Please check out our **[CONTRIBUTING.md](./CONTRIBUTING.md)** for the full scoop on how to get started.

@@ -109,7 +109,13 @@ class FuzzyMatcher {
     for (final k in keywordTexts) {
       final longer = joinedQuery.length >= k.length ? joinedQuery : k;
       final shorter = longer == joinedQuery ? k : joinedQuery;
-      if (shorter.isEmpty || !longer.contains(shorter)) continue;
+      if (shorter.length < 3 || !longer.contains(shorter)) continue;
+      final shortStart = longer.indexOf(shorter);
+      final atBoundary =
+          shortStart == 0 ||
+          shortStart + shorter.length == longer.length ||
+          _hasTokenBoundary(longer, shortStart, shortStart + shorter.length);
+      if (!atBoundary) continue;
       final containment = math.sqrt(shorter.length / longer.length);
       blended = blended > containment ? blended : containment;
     }
@@ -120,6 +126,13 @@ class FuzzyMatcher {
   }
 
   String _joinTokens(String s) => _tokens(s).join(' ');
+
+  /// Whether the substring [start, end) sits on token boundaries in [s].
+  bool _hasTokenBoundary(String s, int start, int end) {
+    bool isBoundary(int i) =>
+        i <= 0 || i >= s.length || !RegExp(r'[\w\u00e6\u00f8\u00e5]').hasMatch(s[i]);
+    return isBoundary(start) && isBoundary(end);
+  }
 
   double _jaccard(Set<String> a, Set<String> b) {
     final intersection = a.where(b.contains).length;

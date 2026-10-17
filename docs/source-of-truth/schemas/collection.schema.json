@@ -9,6 +9,8 @@
     "id": { "type": "string" },
     "name": { "type": "string" },
     "productIds": { "type": "array", "items": { "type": "string" } },
+    "description": { "type": ["string", "null"], "default": null },
+    "type": { "type": "string", "enum": ["inventory", "shoppingList"], "default": "inventory", "description": "CollectionType" },
     "userId": { "type": "string" }
   },
   "additionalProperties": false

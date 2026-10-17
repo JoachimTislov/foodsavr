@@ -30,6 +30,17 @@ void main() {
       expect(i.registeredAt, t);
     });
 
+    test('copyWith preserves registeredAt', () {
+      final t = DateTime(2026, 1, 1);
+      final i = LineItem(
+        id: 'x',
+        rawName: 'Melk',
+        purchasedAt: t,
+        registeredAt: DateTime(2025, 6, 1),
+      );
+      final c = i.copyWith(matchedProductId: 'p1');
+      expect(c.registeredAt, DateTime(2025, 6, 1));
+    });
     test('equality is value-based', () {
       final a = LineItem(id: 'x', rawName: 'Melk');
       final b = LineItem(id: 'x', rawName: 'Melk');

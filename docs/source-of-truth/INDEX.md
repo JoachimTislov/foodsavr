@@ -13,7 +13,7 @@ This folder is the canonical spec of FoodSavr (#212). Code and existing docs are
 7. [status.md](status.md) — built vs spec'd vs unbuilt, and the session ledger
 8. [decisions/](decisions/) — ADRs
 
-Shaped artifacts (authoritative where they exist, per ADR 0004): [schemas/](schemas/), [registries/](registries/services.yaml), [contracts/](contracts/mcp-tools.yaml) — mechanically validated against code by `scripts/ci/check_shape_sync.dart` in CI.
+Shaped artifacts (authoritative where they exist, per ADR 0004): [schemas/](schemas/) and [registries/](registries/services.yaml) — mechanically validated against code (registry anchors; schema properties vs anchored model fields, in both directions) by `scripts/ci/check_shape_sync.dart` in CI. [contracts/](contracts/mcp-tools.yaml) are spec-ahead and not validated by that checker.
 
 ## Authoritative vs derived
 

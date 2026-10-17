@@ -1,5 +1,7 @@
 # Agent Instructions
 
+Before changing code or documentation, read [docs/source-of-truth/INDEX.md](docs/source-of-truth/INDEX.md) and follow its sync process.
+
 ## User preferences
 
 - Be minimal. Write nothing beyond what the user strictly needs to know.
