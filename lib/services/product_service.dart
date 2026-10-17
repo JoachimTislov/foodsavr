@@ -127,7 +127,7 @@ class ProductService {
       final configuration = off.ProductQueryConfiguration(
         normalizedBarcode,
         language: _getOFFLanguage(languageCode),
-        version: off.ProductQueryVersion.v3,
+        version: off.ProductQueryVersion.latestVersion,
         fields: [
           off.ProductField.NAME,
           off.ProductField.IMAGE_FRONT_URL,
