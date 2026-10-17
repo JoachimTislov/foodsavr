@@ -27,6 +27,12 @@ void main() {
       );
     });
 
+    test('short keywords do not match inside unrelated words', () {
+      expect(s.categorize('toast'), isNull);
+      expect(s.categorize('leverpostei'), isNull);
+      expect(s.categorize('pistasj'), isNull);
+      expect(s.categorize('toast med ost'), FoodCategory.dairy);
+    });
     test('unknown items return null', () {
       expect(s.infer(item('wunderbaum')), isNull);
     });

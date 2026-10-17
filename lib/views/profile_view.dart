@@ -476,18 +476,25 @@ class _ForgotPasswordSheetFieldsState
           ),
         ),
         const SizedBox(height: 24),
-        ElevatedButton(
-          onPressed: () async {
-            await widget.controller.forgotPassword(_emailController.text);
-            widget.onCompleted();
-          },
-          style: ElevatedButton.styleFrom(
-            minimumSize: const Size.fromHeight(56),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+        ListenableBuilder(
+          listenable: widget.controller,
+          builder: (context, _) => ElevatedButton(
+            onPressed: widget.controller.isLoading
+                ? null
+                : () async {
+                    await widget.controller.forgotPassword(
+                      _emailController.text,
+                    );
+                    if (mounted) widget.onCompleted();
+                  },
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size.fromHeight(56),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
+            child: Text('auth.reset.email_prompt'.tr()),
           ),
-          child: Text('auth.reset.email_prompt'.tr()),
         ),
         const SizedBox(height: 12),
         TextButton(
@@ -555,21 +562,26 @@ class _ChangeEmailSheetFieldsState extends State<_ChangeEmailSheetFields> {
           ),
         ),
         const SizedBox(height: 24),
-        ElevatedButton(
-          onPressed: () async {
-            await widget.controller.changeEmail(
-              currentPassword: _passwordController.text,
-              newEmail: _emailController.text,
-            );
-            widget.onCompleted();
-          },
-          style: ElevatedButton.styleFrom(
-            minimumSize: const Size.fromHeight(56),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+        ListenableBuilder(
+          listenable: widget.controller,
+          builder: (context, _) => ElevatedButton(
+            onPressed: widget.controller.isLoading
+                ? null
+                : () async {
+                    await widget.controller.changeEmail(
+                      currentPassword: _passwordController.text,
+                      newEmail: _emailController.text,
+                    );
+                    if (mounted) widget.onCompleted();
+                  },
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size.fromHeight(56),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
+            child: Text('common.save'.tr()),
           ),
-          child: Text('common.save'.tr()),
         ),
         const SizedBox(height: 12),
         TextButton(
