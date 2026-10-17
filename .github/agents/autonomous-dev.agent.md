@@ -26,6 +26,10 @@ Own the task from discovery through a green pull request.
   `make rules-test`.
 - Commit with a descriptive Conventional Commit message, then run `make push`.
 - Open or update the pull request and monitor all CI checks until green.
+- When CI is green, enable auto-merge for documentation, configuration, and
+  ruleset-only pull requests. Never auto-merge a pull request that changes
+  application source code under `lib/`, `test/`, `integration_test/`, or
+  platform source directories.
 
 ## Review protocol
 
