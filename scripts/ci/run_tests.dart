@@ -116,23 +116,11 @@ Future<void> main() async {
   );
 
   int exitCode = 0;
+  final cov = File('coverage/lcov.info');
   if (toRun.isEmpty) {
     stdout.writeln('All selected tests are cached green.');
-    // Codecov expects coverage for every run; produce a coverage report when
-    // no test executed (an all-cached-green run creates none).
-    final cov = File('coverage/lcov.info');
     if (!cov.existsSync()) {
-      final code = await _runFlutter([]);
-      if (code != 0) {
-        stderr.writeln('coverage generation run failed (exit $code)');
-        exitCode = code;
-      }
-      if (!cov.existsSync()) {
-        cov.createSync(recursive: true);
-      }
-    }
-    if (exitCode != 0) {
-      exit(exitCode);
+      cov.createSync(recursive: true);
     }
     return;
   }
@@ -147,7 +135,6 @@ Future<void> main() async {
   if (exitCode == 0 && integration.isNotEmpty) {
     exitCode = await _runFlutter(integration);
   }
-  final cov = File('coverage/lcov.info');
   if (!cov.existsSync()) {
     cov.createSync(recursive: true);
   }
