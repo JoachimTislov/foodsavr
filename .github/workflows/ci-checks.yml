@@ -72,14 +72,6 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Vibe format diff
-        run: |
-          dart format .
-          echo "=====FORMAT DIFF BEGIN====="
-          git diff
-          echo "=====FORMAT DIFF END====="
-          exit 1
-
       - name: Restore committed analysis options
         run: git checkout -- analysis_options.yaml
 
