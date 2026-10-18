@@ -126,11 +126,13 @@ Set<String> _declaredFields(String code, String className) {
     dotAll: true,
   );
   final ctorMatch = ctor.firstMatch(code);
+  stderr.writeln('DEBUG className=$className ctorMatch=${ctorMatch != null}');
   if (ctorMatch != null) {
     final body = ctorMatch.group(1)!;
     final end = _matchingParenIndex(body);
     if (end != null) {
       final params = body.substring(0, end);
+      stderr.writeln('DEBUG end=$end params=${params.length} chars');
       final cleaned = params
           .replaceAll(RegExp(r'//[^\n]*'), ' ')
           .replaceAll(RegExp(r'\s+'), ' ');
@@ -148,6 +150,7 @@ Set<String> _declaredFields(String code, String className) {
   ).allMatches(code)) {
     fields.add(m.group(1)!);
   }
+  stderr.writeln('DEBUG fields=$fields');
   return fields;
 }
 
