@@ -1,11 +1,11 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
+import '../controllers/product_list_controller.dart';
 import '../models/product_model.dart';
 import '../service_locator.dart';
-import '../services/product_service.dart';
 import '../services/collection_service.dart';
-import '../interfaces/i_auth_service.dart';
+import '../services/product_service.dart';
 import '../widgets/product/product_card_compact.dart';
 import '../widgets/common/empty_state_widget.dart';
 import '../widgets/common/retry_scaffold.dart';
@@ -28,77 +28,37 @@ class ProductListView extends StatefulWidget {
 }
 
 class _ProductListViewState extends State<ProductListView> {
-  List<Product> _products = [];
-  late final ProductService _productService;
-  late final CollectionService _collectionService;
-  late final IAuthService _authService;
-  late final String? _userId;
-  ProductViewMode _viewMode = ProductViewMode.normal;
-  Map<String, List<String>> _productInventories = {};
+  late final ProductListController _controller;
 
   @override
   void initState() {
     super.initState();
-    _productService = getIt<ProductService>();
-    _collectionService = getIt<CollectionService>();
-    _authService = getIt<IAuthService>();
-    _userId = _authService.getUserId();
+    _controller = ProductListController(
+      productService: getIt<ProductService>(),
+      collectionService: getIt<CollectionService>(),
+      authService: getIt(),
+      showGlobalProducts: widget.showGlobalProducts,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchProducts({bool forceRefresh = false}) async {
-    List<Product> fetchedProducts;
-    if (widget.showGlobalProducts) {
-      fetchedProducts = await _productService.getAllProducts();
-    } else {
-      if (_userId == null && mounted) {
-        setState(() => _products = []);
-        return;
-      }
-      fetchedProducts = await _productService.getProducts(
-        _userId,
-        forceRefresh: forceRefresh,
-      );
-    }
-
-    if (!widget.showGlobalProducts) {
-      try {
-        await _loadInventoryNames(fetchedProducts);
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'product.inventoryLoadError'.tr(namedArgs: {'error': '$e'}),
-              ),
+    await _controller.load(forceRefresh: forceRefresh);
+    if (_controller.inventoryLoadError != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'product.inventoryLoadError'.tr(
+              namedArgs: {'error': '${_controller.inventoryLoadError}'},
             ),
-          );
-        }
-      }
-    }
-
-    if (mounted) {
-      setState(() {
-        _products = fetchedProducts;
-      });
-    }
-  }
-
-  Future<void> _loadInventoryNames(List<Product> products) async {
-    if (_userId == null) {
-      if (mounted) setState(() => _productInventories = {});
-      return;
-    }
-
-    final productIds = products.map((p) => p.id).toSet();
-    final inventoryMap = await _collectionService.getInventoryNamesForProducts(
-      _userId,
-      productIds,
-    );
-
-    if (mounted) {
-      setState(() {
-        _productInventories = inventoryMap;
-      });
+          ),
+        ),
+      );
     }
   }
 
@@ -130,15 +90,17 @@ class _ProductListViewState extends State<ProductListView> {
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (!widget.showGlobalProducts && _userId != null)
+          if (!widget.showGlobalProducts && _controller.userId != null)
             FloatingActionButton.extended(
               heroTag: 'receipt_scan_fab',
               onPressed: () async {
+                final userId = _controller.userId;
+                if (userId == null) return;
                 final ingested =
                     await Navigator.of(context, rootNavigator: true).push<bool>(
                       MaterialPageRoute(
                         fullscreenDialog: true,
-                        builder: (context) => ReceiptScanView(userId: _userId),
+                        builder: (context) => ReceiptScanView(userId: userId),
                       ),
                     );
                 if (ingested == true && mounted) {
@@ -148,7 +110,7 @@ class _ProductListViewState extends State<ProductListView> {
               icon: const Icon(Icons.receipt_long),
               label: Text('receipt.scanShort'.tr()),
             ),
-          if (!widget.showGlobalProducts && _userId != null)
+          if (!widget.showGlobalProducts && _controller.userId != null)
             const SizedBox(height: 12),
           FloatingActionButton.extended(
             heroTag: 'product_list_fab',
@@ -165,83 +127,93 @@ class _ProductListViewState extends State<ProductListView> {
           ),
         ],
       ),
-      body: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(
-            child: Container(
-              padding: EdgeInsets.only(
-                left: 16,
-                top: MediaQuery.of(context).padding.top + 16,
-                right: 16,
-                bottom: 16,
-              ),
-              decoration: BoxDecoration(
-                color: colorScheme.surface,
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(24),
-                ),
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  ViewModeToggle(
-                    viewMode: _viewMode,
-                    onModeChanged: (mode) {
-                      setState(() {
-                        _viewMode = mode;
-                      });
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (_products.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: EmptyStateWidget(
-                icon: Icons.inventory_2_outlined,
-                title: 'product.noProductsFound'.tr(),
-                subtitle: 'product.addFirst'.tr(),
-              ),
-            )
-          else
-            SliverPadding(
-              padding: EdgeInsets.only(
-                top: _viewMode == ProductViewMode.compact ? 4 : 8,
-                bottom: 80,
-              ),
-              sliver: SliverList.builder(
-                itemCount: _products.length,
-                itemBuilder: (context, index) {
-                  final product = _products[index];
-                  return _buildProductCard(product);
-                },
-              ),
-            ),
-        ],
+      body: ListenableBuilder(
+        listenable: _controller,
+        builder: (context, _) => _buildBody(context, theme, colorScheme, title),
       ),
     );
   }
 
+  Widget _buildBody(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme colorScheme,
+    String title,
+  ) {
+    final products = _controller.products;
+    final viewMode = _controller.viewMode;
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverToBoxAdapter(
+          child: Container(
+            padding: EdgeInsets.only(
+              left: 16,
+              top: MediaQuery.of(context).padding.top + 16,
+              right: 16,
+              bottom: 16,
+            ),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(24),
+              ),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                ViewModeToggle(
+                  viewMode: viewMode,
+                  onModeChanged: _controller.setViewMode,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (products.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: EmptyStateWidget(
+              icon: Icons.inventory_2_outlined,
+              title: 'product.noProductsFound'.tr(),
+              subtitle: 'product.addFirst'.tr(),
+            ),
+          )
+        else
+          SliverPadding(
+            padding: EdgeInsets.only(
+              top: viewMode == ProductViewMode.compact ? 4 : 8,
+              bottom: 80,
+            ),
+            sliver: SliverList.builder(
+              itemCount: products.length,
+              itemBuilder: (context, index) {
+                final product = products[index];
+                return _buildProductCard(product);
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildProductCard(Product product) {
-    switch (_viewMode) {
+    switch (_controller.viewMode) {
       case ProductViewMode.compact:
         return ProductCardCompact(
           product: product,
@@ -256,7 +228,7 @@ class _ProductListViewState extends State<ProductListView> {
         return ProductCardDetails(
           product: product,
           onTap: () => _navigateToProductDetail(product),
-          inventoryNames: _productInventories[product.id],
+          inventoryNames: _controller.productInventories[product.id],
           onEdit: () async {
             final result = await ProductFormView.show(
               context,
@@ -299,7 +271,7 @@ class _ProductListViewState extends State<ProductListView> {
             onPressed: () async {
               Navigator.of(dialogContext).pop();
               try {
-                await _productService.deleteProduct(product.id);
+                await getIt<ProductService>().deleteProduct(product.id);
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(

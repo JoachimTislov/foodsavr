@@ -100,8 +100,12 @@ Future<void> main() async {
     '${tests.length} total selected.',
   );
 
+  final cov = File('coverage/lcov.info');
   if (toRun.isEmpty) {
     stdout.writeln('All selected tests are cached green.');
+    if (!cov.existsSync()) {
+      cov.createSync(recursive: true);
+    }
     return;
   }
 
@@ -115,10 +119,6 @@ Future<void> main() async {
   }
   if (exitCode == 0 && integration.isNotEmpty) {
     exitCode = await _runFlutter(integration);
-  }
-  final cov = File('coverage/lcov.info');
-  if (!cov.existsSync()) {
-    cov.createSync(recursive: true);
   }
   if (exitCode != 0) {
     exit(exitCode);
