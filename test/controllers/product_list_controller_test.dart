@@ -166,7 +166,9 @@ void main() {
         ).thenAnswer((_) async => products);
         when(
           () => mockCollectionService.getCollectionsForUser(userId),
-        ).thenAnswer((_) async => throw Exception('network down'));
+        ).thenAnswer(
+          (_) => Future<List<Collection>>.error(Exception('network down')),
+        );
 
         final controller = buildController();
         await controller.load();
