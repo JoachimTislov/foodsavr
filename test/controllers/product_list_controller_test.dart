@@ -85,10 +85,12 @@ void main() {
           ),
         ];
         when(() => mockAuthService.getUserId()).thenReturn(userId);
-        when(() => mockProductService.getProducts(userId, forceRefresh: false))
-            .thenAnswer((_) async => products);
-        when(() => mockCollectionService.getCollectionsForUser(userId))
-            .thenAnswer((_) async => collections);
+        when(
+          () => mockProductService.getProducts(userId, forceRefresh: false),
+        ).thenAnswer((_) async => products);
+        when(
+          () => mockCollectionService.getCollectionsForUser(userId),
+        ).thenAnswer((_) async => collections);
 
         final controller = buildController();
         var notifications = 0;
@@ -111,8 +113,9 @@ void main() {
       when(
         () => mockProductService.getProducts(firstUserId, forceRefresh: true),
       ).thenAnswer((_) async => []);
-      when(() => mockCollectionService.getCollectionsForUser(firstUserId))
-          .thenAnswer((_) async => []);
+      when(
+        () => mockCollectionService.getCollectionsForUser(firstUserId),
+      ).thenAnswer((_) async => []);
 
       final controller = buildController();
       await controller.load(forceRefresh: true);
@@ -121,8 +124,9 @@ void main() {
       when(
         () => mockProductService.getProducts(secondUserId, forceRefresh: true),
       ).thenAnswer((_) async => [_product('p9', 'Cheese')]);
-      when(() => mockCollectionService.getCollectionsForUser(secondUserId))
-          .thenAnswer((_) async => []);
+      when(
+        () => mockCollectionService.getCollectionsForUser(secondUserId),
+      ).thenAnswer((_) async => []);
 
       await controller.load(forceRefresh: true);
 
@@ -137,8 +141,9 @@ void main() {
     });
 
     test('load fetches global products without collections', () async {
-      when(() => mockProductService.getAllProducts())
-          .thenAnswer((_) async => [_product('g1', 'Global')]);
+      when(
+        () => mockProductService.getAllProducts(),
+      ).thenAnswer((_) async => [_product('g1', 'Global')]);
 
       final controller = buildController(showGlobalProducts: true);
       await controller.load();
@@ -156,10 +161,12 @@ void main() {
         const userId = 'user_1';
         final products = [_product('p1', 'Milk')];
         when(() => mockAuthService.getUserId()).thenReturn(userId);
-        when(() => mockProductService.getProducts(userId, forceRefresh: false))
-            .thenAnswer((_) async => products);
-        when(() => mockCollectionService.getCollectionsForUser(userId))
-            .thenAnswer((_) async => throw Exception('network down'));
+        when(
+          () => mockProductService.getProducts(userId, forceRefresh: false),
+        ).thenAnswer((_) async => products);
+        when(
+          () => mockCollectionService.getCollectionsForUser(userId),
+        ).thenAnswer((_) async => throw Exception('network down'));
 
         final controller = buildController();
         await controller.load();
