@@ -13,9 +13,7 @@ const hashDir = '.test-hashes';
 Set<String> transitiveDeps(String entry) {
   final seen = <String>{};
   final queue = <String>[entry];
-  final importRe = RegExp(
-    r"""(?:import|export|part)\s+['"]([^'"]+)['"]""",
-  );
+  final importRe = RegExp(r"""(?:import|export|part)\s+['"]([^'"]+)['"]""");
   final condRe = RegExp(
     r"""^\s*['"]([^'"]+)['"]\s+if\s*\(.*?\)\s*['"]([^'"]+)['"]""",
   );
@@ -43,8 +41,9 @@ Set<String> transitiveDeps(String entry) {
               : 'lib/${parts.skip(1).join('/')}';
         } else {
           final base = File(file).parent.path;
-          final candidate =
-              Uri.file('$base/$spec').normalizePath().toFilePath();
+          final candidate = Uri.file(
+            '$base/$spec',
+          ).normalizePath().toFilePath();
           path = File(candidate).existsSync() ? candidate : '';
         }
         if (path.isNotEmpty &&

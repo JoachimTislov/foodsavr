@@ -132,10 +132,7 @@ class ShelfLifeInferer {
   /// tokens, so keys like "ost" or "is" cannot match inside unrelated
   /// words such as "toast" or "pistasj".
   FoodCategory? categorize(String name) {
-    final tokens = name
-        .split(_tokenSplit)
-        .where((t) => t.isNotEmpty)
-        .toSet();
+    final tokens = name.split(_tokenSplit).where((t) => t.isNotEmpty).toSet();
     for (final e in _keywordCategories.entries) {
       if (e.key.length <= 3) {
         if (tokens.contains(e.key)) return e.value;
