@@ -122,7 +122,7 @@ Set<String> _declaredFields(String code, String className) {
     }
   }
   final ctor = RegExp(
-    '(?:const\s+)?(?:factory\s+)?' + className + r'\s*\((.*)',
+    r'(?:const\s+)?(?:factory\s+)?$className\s*\((.*)',
     dotAll: true,
   );
   final ctorMatch = ctor.firstMatch(code);
