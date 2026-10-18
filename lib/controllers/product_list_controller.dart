@@ -33,6 +33,7 @@ class ProductListController extends ChangeNotifier {
   List<Product> _products = const [];
   Map<String, List<String>> _productInventories = const {};
   ProductViewMode _viewMode = ProductViewMode.normal;
+  bool _disposed = false;
 
   /// Set when fetching inventory names failed during the last [load];
   /// the product list itself is still published.
@@ -44,9 +45,7 @@ class ProductListController extends ChangeNotifier {
 
   /// The signed-in user at the start of the last [load]; null when signed out
   /// (or when showing global products, which are not user-scoped).
-  String? get userId => _showGlobalProducts
-      ? null
-      : _authService.getUserId();
+  String? get userId => _showGlobalProducts ? null : _authService.getUserId();
 
   /// Applies the view mode and notifies only when it changed.
   void setViewMode(ProductViewMode mode) {
@@ -61,6 +60,7 @@ class ProductListController extends ChangeNotifier {
   Future<void> load({bool forceRefresh = false}) async {
     final userId = _showGlobalProducts ? null : _authService.getUserId();
     if (!_showGlobalProducts && userId == null) {
+      if (_disposed) return;
       _products = const [];
       _productInventories = const {};
       inventoryLoadError = null;
@@ -76,13 +76,14 @@ class ProductListController extends ChangeNotifier {
     final collectionsFuture = _showGlobalProducts || userId == null
         ? Future.value(const <Collection>[])
         : _collectionService.getCollectionsForUser(userId).catchError((
-          Object e,
-        ) {
-          inventoryError = e;
-          return const <Collection>[];
-        });
+            Object e,
+          ) {
+            inventoryError = e;
+            return const <Collection>[];
+          });
 
     final results = await Future.wait([productsFuture, collectionsFuture]);
+    if (_disposed) return;
     final products = results[0] as List<Product>;
     final collections = results[1] as List<Collection>;
 
@@ -103,6 +104,13 @@ class ProductListController extends ChangeNotifier {
     } else {
       _productInventories = const {};
     }
+    if (_disposed) return;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }
