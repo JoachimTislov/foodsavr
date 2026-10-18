@@ -67,9 +67,8 @@ class _ProductListViewState extends State<ProductListView> {
       await _fetchProducts();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('product.errorLoading'.tr())));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('product.errorLoading'.tr())));
     }
   }
 
@@ -94,12 +93,13 @@ class _ProductListViewState extends State<ProductListView> {
             FloatingActionButton.extended(
               heroTag: 'receipt_scan_fab',
               onPressed: () async {
+                final userId = _controller.userId;
+                if (userId == null) return;
                 final ingested =
                     await Navigator.of(context, rootNavigator: true).push<bool>(
                       MaterialPageRoute(
                         fullscreenDialog: true,
-                        builder: (context) =>
-                            ReceiptScanView(userId: _controller.userId),
+                        builder: (context) => ReceiptScanView(userId: userId),
                       ),
                     );
                 if (ingested == true && mounted) {
