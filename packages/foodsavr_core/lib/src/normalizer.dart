@@ -96,21 +96,13 @@ class Normalizer {
         .trim()
         .replaceAll(RegExp(r'\s+'), ' ');
 
-    return NormalizedName(
-      name: text,
-      quantity: quantity,
-      unit: unit,
-    );
+    return NormalizedName(name: text, quantity: quantity, unit: unit);
   }
 }
 
 /// Result of [Normalizer.normalize].
 class NormalizedName {
-  const NormalizedName({
-    required this.name,
-    required this.quantity,
-    this.unit,
-  });
+  const NormalizedName({required this.name, required this.quantity, this.unit});
 
   final String name;
   final double quantity;

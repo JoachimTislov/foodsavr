@@ -45,10 +45,11 @@ void checkAnchors() {
     final anchor = entry['anchor'];
     final requiresAnchor =
         status == 'built' || status == 'stub' || status == 'built-skeleton';
-    if (requiresAnchor &&
-        (anchor == null || anchor == 'null')) {
-      fail('registry entry ${entry['id']} with status $status requires an '
-          'anchor');
+    if (requiresAnchor && (anchor == null || anchor == 'null')) {
+      fail(
+        'registry entry ${entry['id']} with status $status requires an '
+        'anchor',
+      );
       continue;
     }
     if (anchor == null || anchor == 'null') continue;
@@ -111,8 +112,10 @@ void checkSchemas() {
 Set<String> _declaredFields(String code, String className) {
   final fields = <String>{};
   final enumValues = <String>{};
-  for (final m in RegExp(r'enum\s+\w+\s*\{(.*?)\}', dotAll: true)
-      .allMatches(code)) {
+  for (final m in RegExp(
+    r'enum\s+\w+\s*\{(.*?)\}',
+    dotAll: true,
+  ).allMatches(code)) {
     for (final v in m.group(1)!.split(',')) {
       final vm = RegExp(r'([a-zA-Z][a-zA-Z0-9]*)').allMatches(v.trim());
       if (vm.isNotEmpty) enumValues.add(vm.last.group(1)!);

@@ -130,7 +130,9 @@ class FuzzyMatcher {
   /// Whether the substring [start, end) sits on token boundaries in [s].
   bool _hasTokenBoundary(String s, int start, int end) {
     bool isBoundary(int i) =>
-        i <= 0 || i >= s.length || !RegExp(r'[\w\u00e6\u00f8\u00e5]').hasMatch(s[i]);
+        i <= 0 ||
+        i >= s.length ||
+        !RegExp(r'[\w\u00e6\u00f8\u00e5]').hasMatch(s[i]);
     return isBoundary(start) && isBoundary(end);
   }
 
