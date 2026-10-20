@@ -319,6 +319,30 @@ void main() {
       verifyNever(() => mockFirebaseAuth.signInWithCredential(any()));
     });
 
+    test('deleteAccount deletes user data and account', () async {
+      const uid = 'some-uid';
+      final mockUser = MockUser();
+      when(() => mockFirebaseAuth.currentUser).thenReturn(mockUser);
+      when(() => mockUser.isAnonymous).thenReturn(false);
+      when(() => mockUser.uid).thenReturn(uid);
+      when(() => mockUser.delete()).thenAnswer((_) async {});
+      when(() => mockUserCredential.user).thenReturn(mockUser);
+      final mockCollection = MockCollection();
+      final mockQuerySnap = MockQuerySnapshot();
+      final mockQuery = MockQuery();
+      when(() => mockFirestore.collection('products')).thenReturn(mockCollection);
+      when(() => mockFirestore.collection('collections')).thenReturn(mockCollection);
+      when(() => mockCollection.where('userId', isEqualTo: uid)).thenReturn(mockQuery);
+      when(() => mockQuery.get()).thenAnswer((_) async => mockQuerySnap);
+      when(() => mockQuerySnap.docs).thenReturn([]);
+      await authService.deleteAccount();
+      verify(() => mockUser.delete()).called(1);
+    });
+    test('deleteAccount with no current user does nothing', () async {
+      when(() => mockFirebaseAuth.currentUser).thenReturn(null);
+      await authService.deleteAccount();
+      verifyNever(() => mockFirebaseAuth.signOut());
+    });
     test('signOut calls signOut', () async {
       final mockUser = MockUser();
       when(() => mockFirebaseAuth.currentUser).thenReturn(mockUser);
@@ -372,6 +396,9 @@ class MockUser extends Mock implements User {}
 
 class MockUserCredential extends Mock implements UserCredential {}
 
+class MockCollection extends Mock implements CollectionReference<Map<String, dynamic>> {}
+class MockQuery extends Mock implements Query<Map<String, dynamic>> {}
+class MockQuerySnapshot extends Mock implements QuerySnapshot<Map<String, dynamic>> {}
 class MockCollectionService extends Mock implements CollectionService {}
 
 class MockLogger extends Mock implements Logger {}

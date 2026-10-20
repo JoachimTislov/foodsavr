@@ -234,6 +234,26 @@ class AuthService implements IAuthService {
     }
   }
 
+  @override
+  Future<void> deleteAccount() {
+    final currentUser = _firebaseAuth.currentUser;
+    if (currentUser == null) {
+      return Future.value();
+    }
+    if (currentUser.isAnonymous) {
+      return _cleanupAndSignOutAnonymousUser(currentUser);
+    }
+    return _deleteDocumentsForUser(
+      collectionName: 'products',
+      userId: currentUser.uid,
+    ).then((_) => _deleteDocumentsForUser(
+      collectionName: 'collections',
+      userId: currentUser.uid,
+    )).then((_) => currentUser.delete()).then((_) {
+      _logger.i('User account deleted: ${currentUser.uid}');
+    });
+  }
+
   Future<void> _deleteDocumentsForUser({
     required String collectionName,
     required String userId,
