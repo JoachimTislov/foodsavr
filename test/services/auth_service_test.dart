@@ -319,6 +319,21 @@ void main() {
       verifyNever(() => mockFirebaseAuth.signInWithCredential(any()));
     });
 
+    test('deleteAccount deletes the Firebase account', () async {
+      const uid = 'some-uid';
+      final mockUser = MockUser();
+      when(() => mockFirebaseAuth.currentUser).thenReturn(mockUser);
+      when(() => mockUser.isAnonymous).thenReturn(false);
+      when(() => mockUser.uid).thenReturn(uid);
+      when(() => mockUser.delete()).thenAnswer((_) async {});
+      await authService.deleteAccount();
+      verify(() => mockUser.delete()).called(1);
+    });
+    test('deleteAccount with no current user does nothing', () async {
+      when(() => mockFirebaseAuth.currentUser).thenReturn(null);
+      await authService.deleteAccount();
+      verifyNever(() => mockFirebaseAuth.signOut());
+    });
     test('signOut calls signOut', () async {
       final mockUser = MockUser();
       when(() => mockFirebaseAuth.currentUser).thenReturn(mockUser);

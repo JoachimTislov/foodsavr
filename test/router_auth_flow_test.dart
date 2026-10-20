@@ -101,6 +101,10 @@ class _FakeAuthService implements IAuthService {
   }
 
   @override
+  @override
+  Future<void> deleteAccount() async {}
+
+  @override
   Future<void> signOut() async {
     _userId = null;
     _controller.add(null);

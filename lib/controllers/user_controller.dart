@@ -235,13 +235,11 @@ class UserController extends ChangeNotifier {
     }
   }
 
-  // Placeholder for deleteAccount.
   Future<void> deleteAccount() async {
     if (_isLoading) return;
     _setLoading(true);
-    await Future.delayed(const Duration(seconds: 1));
     try {
-      // await _authService.deleteAccount();
+      await _authService.deleteAccount();
     } catch (e) {
       _logger.e('Delete account error: $e');
       _errorMessage = _tr('profile.error_delete_account');
