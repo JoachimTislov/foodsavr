@@ -211,10 +211,7 @@ class AuthService implements IAuthService {
   }
 
   Future<void> _cleanupAndSignOutAnonymousUser(User user) async {
-    await _deleteDocumentsForUser(
-      collectionName: 'products',
-      userId: user.uid,
-    );
+    await _deleteDocumentsForUser(collectionName: 'products', userId: user.uid);
     await _deleteDocumentsForUser(
       collectionName: 'collections',
       userId: user.uid,

@@ -334,16 +334,20 @@ void main() {
       final collectionDocSnap = MockQueryDocumentSnapshot();
       final productSnap = MockQuerySnapshot();
       final collectionSnap = MockQuerySnapshot();
-      when(() => mockFirestore.collection('products'))
-          .thenReturn(productCollection);
-      when(() => mockFirestore.collection('collections'))
-          .thenReturn(collectionCollection);
+      when(
+        () => mockFirestore.collection('products'),
+      ).thenReturn(productCollection);
+      when(
+        () => mockFirestore.collection('collections'),
+      ).thenReturn(collectionCollection);
       final productQuery = MockQuery();
       final collectionQuery = MockQuery();
-      when(() => productCollection.where('userId', isEqualTo: uid))
-          .thenReturn(productQuery);
-      when(() => collectionCollection.where('userId', isEqualTo: uid))
-          .thenReturn(collectionQuery);
+      when(
+        () => productCollection.where('userId', isEqualTo: uid),
+      ).thenReturn(productQuery);
+      when(
+        () => collectionCollection.where('userId', isEqualTo: uid),
+      ).thenReturn(collectionQuery);
       when(() => productQuery.get()).thenAnswer((_) async => productSnap);
       when(() => collectionQuery.get()).thenAnswer((_) async => collectionSnap);
       when(() => productDocSnap.reference).thenReturn(productDoc);
@@ -421,15 +425,30 @@ class MockUser extends Mock implements User {}
 
 class MockUserCredential extends Mock implements UserCredential {}
 
-class MockCollection extends Mock implements CollectionReference<Map<String, dynamic>> {}
+class MockCollection extends Mock
+    implements CollectionReference<Map<String, dynamic>> {}
+
 class MockQuery extends Mock implements Query<Map<String, dynamic>> {}
-class MockQuerySnapshot extends Mock implements QuerySnapshot<Map<String, dynamic>> {}
-class MockCollection extends Mock implements CollectionReference<Map<String, dynamic>> {}
+
+class MockQuerySnapshot extends Mock
+    implements QuerySnapshot<Map<String, dynamic>> {}
+
+class MockCollection extends Mock
+    implements CollectionReference<Map<String, dynamic>> {}
+
 class MockQuery extends Mock implements Query<Map<String, dynamic>> {}
-class MockQuerySnapshot extends Mock implements QuerySnapshot<Map<String, dynamic>> {}
-class MockQueryDocumentSnapshot extends Mock implements QueryDocumentSnapshot<Map<String, dynamic>> {}
-class MockDocumentReference extends Mock implements DocumentReference<Map<String, dynamic>> {}
+
+class MockQuerySnapshot extends Mock
+    implements QuerySnapshot<Map<String, dynamic>> {}
+
+class MockQueryDocumentSnapshot extends Mock
+    implements QueryDocumentSnapshot<Map<String, dynamic>> {}
+
+class MockDocumentReference extends Mock
+    implements DocumentReference<Map<String, dynamic>> {}
+
 class MockWriteBatch extends Mock implements WriteBatch {}
+
 class MockCollectionService extends Mock implements CollectionService {}
 
 class MockLogger extends Mock implements Logger {}
