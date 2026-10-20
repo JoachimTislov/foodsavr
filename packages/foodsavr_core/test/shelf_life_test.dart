@@ -32,6 +32,8 @@ void main() {
       expect(s.categorize('leverpostei'), isNull);
       expect(s.categorize('pistasj'), isNull);
       expect(s.categorize('toast med ost'), FoodCategory.dairy);
+      expect(s.categorize('iskrem'), FoodCategory.frozen);
+      expect(s.categorize('vaniljeis'), FoodCategory.frozen);
     });
     test('unknown items return null', () {
       expect(s.infer(item('wunderbaum')), isNull);

@@ -99,6 +99,8 @@ class ShelfLifeInferer {
     'frozen': FoodCategory.frozen,
     'frossen': FoodCategory.frozen,
     'is': FoodCategory.frozen,
+    'iskrem': FoodCategory.frozen,
+    'vaniljeis': FoodCategory.frozen,
     'ice': FoodCategory.frozen,
     'juice': FoodCategory.beverages,
     'saft': FoodCategory.beverages,

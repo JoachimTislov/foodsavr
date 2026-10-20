@@ -109,12 +109,18 @@ class FuzzyMatcher {
     for (final k in keywordTexts) {
       final longer = joinedQuery.length >= k.length ? joinedQuery : k;
       final shorter = longer == joinedQuery ? k : joinedQuery;
-      if (shorter.length < 3 || !longer.contains(shorter)) continue;
-      final shortStart = longer.indexOf(shorter);
-      final atBoundary =
-          shortStart == 0 ||
-          shortStart + shorter.length == longer.length ||
-          _hasTokenBoundary(longer, shortStart, shortStart + shorter.length);
+      if (shorter.length < 3) continue;
+      var atBoundary = false;
+      var shortStart = longer.indexOf(shorter);
+      while (shortStart >= 0 && !atBoundary) {
+        atBoundary =
+            shortStart == 0 ||
+            shortStart + shorter.length == longer.length ||
+            _hasTokenBoundary(longer, shortStart, shortStart + shorter.length);
+        if (!atBoundary) {
+          shortStart = longer.indexOf(shorter, shortStart + 1);
+        }
+      }
       if (!atBoundary) continue;
       final containment = math.sqrt(shorter.length / longer.length);
       blended = blended > containment ? blended : containment;

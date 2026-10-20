@@ -45,13 +45,14 @@ Set<String> transitiveDeps(String entry) {
   while (queue.isNotEmpty) {
     final file = queue.removeLast();
     if (!seen.add(file)) continue;
+    if (!File(file).existsSync()) continue;
     final dir = File(file).parent.path;
     final importRe = RegExp(
       r"""(?:import|export|part)\s+['"]([^'"]+)['"]""",
       multiLine: true,
     );
     for (final match in importRe.allMatches(File(file).readAsStringSync())) {
-      for (final path in _resolveSpec(match.group(1)!, dir)) {
+      for (final path in _resolveSpec(match.group(0)!.trim(), dir)) {
         if (!path.contains('/.dart_tool/')) {
           queue.add(path);
         }
@@ -68,7 +69,7 @@ List<String> _resolveSpec(String spec, String dir) {
   final specs = <String>[spec];
   final results = <String>[];
   final condRe = RegExp(
-    r"""^\s*['"]([^'"]+)['"]\s+if\s*\(.*?\)\s*['"]([^'"]+)['"]""",
+    r"""['"]([^'"]+)['"]\s+if\s*\(.*?\)\s*['"]([^'"]+)['"]""",
   );
   while (specs.isNotEmpty) {
     final s = specs.removeLast();
