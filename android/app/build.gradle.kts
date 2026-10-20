@@ -18,6 +18,13 @@ val envProperties = Properties().apply {
     }
 }
 
+val keystoreProperties = Properties().apply {
+    val keystoreFile = rootProject.file("../../android/key.properties")
+    if (keystoreFile.exists()) {
+        load(FileInputStream(keystoreFile))
+    }
+}
+
 android {
     namespace = "com.foodsavr.app"
     compileSdk = flutter.compileSdkVersion
@@ -76,10 +83,10 @@ android {
     signingConfigs {
         if (keystoreProperties.containsKey("storeFile")) {
             create("release") {
-                storeFile = rootProject.file("../${keystoreProperties["storeFile"]}")
-                storePassword = keystoreProperties["storePassword"] as String?
-                keyAlias = keystoreProperties["keyAlias"] as String?
-                keyPassword = keystoreProperties["keyPassword"] as String?
+                storeFile = rootProject.file(keystoreProperties["storeFile"])
+                storePassword = keystoreProperties["storePassword"]
+                keyAlias = keystoreProperties["keyAlias"]
+                keyPassword = keystoreProperties["keyPassword"]
             }
         }
     }

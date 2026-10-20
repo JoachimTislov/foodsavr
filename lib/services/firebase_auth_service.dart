@@ -211,47 +211,37 @@ class AuthService implements IAuthService {
   }
 
   Future<void> _cleanupAndSignOutAnonymousUser(User user) async {
-    Object? cleanupError;
-    StackTrace? cleanupStackTrace;
-    try {
-      await _deleteDocumentsForUser(
-        collectionName: 'products',
-        userId: user.uid,
-      );
-      await _deleteDocumentsForUser(
-        collectionName: 'collections',
-        userId: user.uid,
-      );
-      await user.delete();
-    } catch (e, st) {
-      cleanupError = e;
-      cleanupStackTrace = st;
-    } finally {
-      await _firebaseAuth.signOut();
-    }
-    if (cleanupError != null) {
-      Error.throwWithStackTrace(cleanupError, cleanupStackTrace!);
-    }
+    await _deleteDocumentsForUser(
+      collectionName: 'products',
+      userId: user.uid,
+    );
+    await _deleteDocumentsForUser(
+      collectionName: 'collections',
+      userId: user.uid,
+    );
+    await user.delete();
+    await _firebaseAuth.signOut();
   }
 
   @override
-  Future<void> deleteAccount() {
+  Future<void> deleteAccount() async {
     final currentUser = _firebaseAuth.currentUser;
     if (currentUser == null) {
-      return Future.value();
+      return;
     }
     if (currentUser.isAnonymous) {
       return _cleanupAndSignOutAnonymousUser(currentUser);
     }
-    return _deleteDocumentsForUser(
+    await currentUser.delete();
+    await _deleteDocumentsForUser(
       collectionName: 'products',
       userId: currentUser.uid,
-    ).then((_) => _deleteDocumentsForUser(
+    );
+    await _deleteDocumentsForUser(
       collectionName: 'collections',
       userId: currentUser.uid,
-    )).then((_) => currentUser.delete()).then((_) {
-      _logger.i('User account deleted: ${currentUser.uid}');
-    });
+    );
+    _logger.i('User account deleted: ${currentUser.uid}');
   }
 
   Future<void> _deleteDocumentsForUser({
