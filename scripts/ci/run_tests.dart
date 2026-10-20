@@ -115,6 +115,7 @@ Future<void> main() async {
     '${tests.length} total selected.',
   );
 
+  int exitCode = 0;
   if (toRun.isEmpty) {
     stdout.writeln('All selected tests are cached green.');
     // Codecov expects coverage for every run; produce a coverage report when
@@ -130,6 +131,9 @@ Future<void> main() async {
         cov.createSync(recursive: true);
       }
     }
+    if (exitCode != 0) {
+      exit(exitCode);
+    }
     return;
   }
 
@@ -137,7 +141,6 @@ Future<void> main() async {
   final integration = toRun
       .where((t) => t.startsWith('integration_test'))
       .toList();
-  int exitCode = 0;
   if (unit.isNotEmpty) {
     exitCode = await _runFlutter(unit);
   }
