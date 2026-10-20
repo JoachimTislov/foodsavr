@@ -121,7 +121,11 @@ Future<void> main() async {
     // no test executed (an all-cached-green run creates none).
     final cov = File('coverage/lcov.info');
     if (!cov.existsSync()) {
-      await _runFlutter([]);
+      final code = await _runFlutter([]);
+      if (code != 0) {
+        stderr.writeln('coverage generation run failed (exit $code)');
+        exitCode = code;
+      }
       if (!cov.existsSync()) {
         cov.createSync(recursive: true);
       }

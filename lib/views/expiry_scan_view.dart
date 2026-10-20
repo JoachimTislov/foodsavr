@@ -112,9 +112,14 @@ class _ExpiryScanViewState extends State<ExpiryScanView>
       setState(() => _isCameraReady = false);
     }
     if (controller.value.isStreamingImages) {
-      await controller.stopImageStream();
+      try {
+        await controller.stopImageStream();
+      } finally {
+        await controller.dispose();
+      }
+    } else {
+      await controller.dispose();
     }
-    await controller.dispose();
   }
 
   Future<void> _initializeCamera() async {

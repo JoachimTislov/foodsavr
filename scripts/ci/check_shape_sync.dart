@@ -43,6 +43,10 @@ void checkAnchors() {
   for (final entry in entries) {
     final status = entry['status'];
     final anchor = entry['anchor'];
+    if (status == null) {
+      fail('registry entry ${entry['id']} is missing a status');
+      continue;
+    }
     final requiresAnchor =
         status == 'built' || status == 'stub' || status == 'built-skeleton';
     if (requiresAnchor && (anchor == null || anchor == 'null')) {
@@ -144,7 +148,7 @@ Set<String> _declaredFields(String code, String className) {
     }
   }
   for (final m in RegExp(
-    r'final\s+[\w<>?,\s]+?\s+([a-z]\w*)\s*;',
+    r'final\s+[\w<>?,\s]+?\s+([a-z]\w*)\s*(?:=[^;]+)?;',
   ).allMatches(code)) {
     fields.add(m.group(1)!);
   }
