@@ -4,6 +4,7 @@
 
 - Be minimal. Write nothing beyond what the user strictly needs to know.
 - Always log events (what was changed, committed, pushed, replied) when doing repo work.
+- Push in bulk; validate as much as possible locally before pushing to avoid failing CI runs.
 
 ## Source of truth & sync rules
 
