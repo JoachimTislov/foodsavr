@@ -17,6 +17,7 @@
 ## Event log
 
 | Date (UTC) | Event |
+| 2026-10-20 | Review rounds: PR #225 edc668d (fix broken Gradle keystoreProperties, absolute storeFile paths, deleteAccount ordering account-first, anonymous session retention, test batch verification, dart-format; PR body now links #105/#126) and PR #221 4430585 (all 9 CodeRabbit findings: camera dispose, matcher occurrence loop, iskrem/vaniljeis keywords, shape-sync status + initialized-final checks, coverage failure propagation, conditional import URIs, deleted-path guard, ingestion-pipeline drift wording); replied on both PRs; pushed. |
 | 2026-10-17 | PR #225 (alpha readiness): implemented deleteAccount end-to-end (IAuthService/AuthService/UserController, was placeholder; deletes products/collections docs then account; Play Store requirement) + Android release signing config via android/key.properties with debug fallback (#126/#108) + *.jks gitignore + AuthService.deleteAccount tests; flutter unavailable in sandbox, CI to verify; pushed. |
 |---|---|
 | 2026-10-17 | PR #220 for #218: added `deploy-pages` job to build-web.yml (GitHub Pages web test env, main-push only, `--base-href` for subpath), Makefile `build-web`/`serve-web` targets, getting-started/test-strategy docs; issue #218 opened; pushed. |
