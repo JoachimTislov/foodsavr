@@ -17,6 +17,7 @@
 ## Event log
 
 | Date (UTC) | Event |
+| 2026-10-17 | PR #225 (alpha readiness): implemented deleteAccount end-to-end (IAuthService/AuthService/UserController, was placeholder; deletes products/collections docs then account; Play Store requirement) + Android release signing config via android/key.properties with debug fallback (#126/#108) + *.jks gitignore + AuthService.deleteAccount tests; flutter unavailable in sandbox, CI to verify; pushed. |
 |---|---|
 | 2026-10-17 | PR #220 for #218: added `deploy-pages` job to build-web.yml (GitHub Pages web test env, main-push only, `--base-href` for subpath), Makefile `build-web`/`serve-web` targets, getting-started/test-strategy docs; issue #218 opened; pushed. |
 | 2026-10-08 | PR #201 for #190 (epic #188): rewrote TODO.md to only genuinely open items linked to tracking issues (entrypoint header → epic #188); README Receipt Scanning checked off (#183/#184), unchecked features annotated with #195/#196/#198; full removed-item → merged-PR mapping in the PR body; pushed. |
