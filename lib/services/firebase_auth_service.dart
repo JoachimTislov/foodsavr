@@ -230,14 +230,22 @@ class AuthService implements IAuthService {
       return _cleanupAndSignOutAnonymousUser(currentUser);
     }
     await currentUser.delete();
-    await _deleteDocumentsForUser(
-      collectionName: 'products',
-      userId: currentUser.uid,
-    );
-    await _deleteDocumentsForUser(
-      collectionName: 'collections',
-      userId: currentUser.uid,
-    );
+    try {
+      await _deleteDocumentsForUser(
+        collectionName: 'products',
+        userId: currentUser.uid,
+      );
+      await _deleteDocumentsForUser(
+        collectionName: 'collections',
+        userId: currentUser.uid,
+      );
+    } catch (e, s) {
+      _logger.e(
+        'Failed to clean up documents for deleted user ${currentUser.uid}',
+        error: e,
+        stackTrace: s,
+      );
+    }
     _logger.i('User account deleted: ${currentUser.uid}');
   }
 
