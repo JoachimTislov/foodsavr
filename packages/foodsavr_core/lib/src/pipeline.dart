@@ -48,11 +48,15 @@ class IngestionPipeline {
 
   /// Runs one raw input through the full pipeline.
   PipelineResult process(LineItem input, Iterable<CatalogProduct> catalog) {
-    final normalized = _normalizer.normalize(input.rawName);
+    final normalized = _normalizer.normalize(
+      input.rawName,
+      fallbackQuantity: input.quantity,
+      fallbackUnit: input.unit,
+    );
     var item = input.copyWith(
       normalizedName: normalized.name,
       quantity: normalized.quantity,
-      unit: normalized.unit,
+      unit: normalized.unit ?? input.unit,
     );
 
     // Barcode hits are always exact.

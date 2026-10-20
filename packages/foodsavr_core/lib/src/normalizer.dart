@@ -26,7 +26,7 @@ class Normalizer {
   };
 
   static final RegExp _quantityPrefix = RegExp(
-    r'^(\d+(?:[.,]\d+)?)\s*(ml|l|ltr|liter|g|kg|stk|stykk|pc|pcs|pk|pkk|pack|pakke|ea)\b[\s.-]*',
+    r'^(\d+(?:[.,]\d+)?)\s*(ml|ltr|liter|l|kg|stykk|stk|gram|g|pcs|pc|pakke|pack|pkk|pk|ea)\b[\s.-]*',
     caseSensitive: false,
   );
 
@@ -37,7 +37,7 @@ class Normalizer {
   );
 
   static final RegExp _trailingQuantity = RegExp(
-    r'\s*(\d+(?:[.,]\d+)?)\s*(ml|l|ltr|liter|g|kg|stk|stykk|pc|pcs|pk|pkk|pack|pakke|ea)\s*$',
+    r'\s+(\d+(?:[.,]\d+)?)\s*(ml|ltr|liter|l|kg|stykk|stk|gram|g|pcs|pc|pakke|pack|pkk|pk|ea)\s*$',
     caseSensitive: false,
   );
 
@@ -54,17 +54,25 @@ class Normalizer {
   /// - `'MELK 1 L'` -> `('melk', 1, liter)`
   /// - `'2 STK TINE MELK'` -> `('tine melk', 2, piece)`
   /// - `'Ice Cream!!  '` -> `('ice cream', 1, piece)`
-  NormalizedName normalize(String raw, {double fallbackQuantity = 1}) {
+  NormalizedName normalize(
+    String raw, {
+    double fallbackQuantity = 1,
+    LineItemUnit fallbackUnit = LineItemUnit.piece,
+  }) {
     var text = raw.trim().toLowerCase();
 
     var quantity = fallbackQuantity;
-    var unit = LineItemUnit.piece;
+    var unit = fallbackUnit;
 
     var m = _quantityPrefix.firstMatch(text);
     if (m != null) {
       quantity = double.parse(m.group(1)!.replaceAll(',', '.'));
-      unit = _unitTokens[m.group(2)!.toLowerCase()] ?? LineItemUnit.piece;
-      text = text.substring(m.group(0)!.length);
+      unit = _unitTokens[m.group(2)!.toLowerCase()] ?? unit;
+      // Keep the original text when the prefix consumes everything, so a
+      // quantity-only input like "500g" still yields a usable name.
+      if (m.group(0)!.length < text.length) {
+        text = text.substring(m.group(0)!.length);
+      }
     } else {
       m = _bareQuantityPrefix.firstMatch(text);
       if (m != null) {
@@ -73,9 +81,10 @@ class Normalizer {
       }
     }
 
-    // Also consume a trailing "<amount> <unit>" like "melk 1 l".
+    // Also consume a trailing "<amount> <unit>" like "melk 1 l". Requires
+    // preceding name text so a quantity-only input is not emptied out.
     final tailMatch = _trailingQuantity.firstMatch(text);
-    if (tailMatch != null) {
+    if (tailMatch != null && tailMatch.start > 0) {
       quantity = double.parse(tailMatch.group(1)!.replaceAll(',', '.'));
       unit = _unitTokens[tailMatch.group(2)!.toLowerCase()] ?? unit;
       text = text.substring(0, tailMatch.start);
@@ -93,13 +102,11 @@ class Normalizer {
 
 /// Result of [Normalizer.normalize].
 class NormalizedName {
-  const NormalizedName({
-    required this.name,
-    required this.quantity,
-    required this.unit,
-  });
+  const NormalizedName({required this.name, required this.quantity, this.unit});
 
   final String name;
   final double quantity;
-  final LineItemUnit unit;
+
+  /// Extracted unit, null when the input carried no unit information.
+  final LineItemUnit? unit;
 }

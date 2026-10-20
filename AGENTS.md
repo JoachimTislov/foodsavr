@@ -1,5 +1,7 @@
 # Agent Instructions
 
+Before changing code or documentation, read [docs/source-of-truth/INDEX.md](docs/source-of-truth/INDEX.md) and follow its sync process.
+
 ## User preferences
 
 - Be minimal. Write nothing beyond what the user strictly needs to know.
@@ -17,6 +19,7 @@
 ## Event log
 
 | Date (UTC) | Event |
+| 2026-10-20 | CI green on PR #225 (42bb70b) after 3 fix rounds: dart format with CI-matched Dart 3.12 semantics, deleteAccount added to router test fakes + @override, sealed cloud_firestore types dropped from unit mocks, Gradle non-null/String? casts. CI green on PR #221 (8fa3404): exitCode declared before cached-green branch. All checks pass on both PRs. |
 |---|---|
 | 2026-10-17 | PR #220 for #218: added `deploy-pages` job to build-web.yml (GitHub Pages web test env, main-push only, `--base-href` for subpath), Makefile `build-web`/`serve-web` targets, getting-started/test-strategy docs; issue #218 opened; pushed. |
 | 2026-10-08 | PR #201 for #190 (epic #188): rewrote TODO.md to only genuinely open items linked to tracking issues (entrypoint header → epic #188); README Receipt Scanning checked off (#183/#184), unchecked features annotated with #195/#196/#198; full removed-item → merged-PR mapping in the PR body; pushed. |

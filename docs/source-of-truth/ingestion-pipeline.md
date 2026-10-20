@@ -19,4 +19,4 @@ All input sources route through `foodsavr_core`'s pipeline into LineItem (#191 â
 
 ## Known drift (finding for the loop)
 
-Receipt, Rema, and barcode paths each enrich products separately; unification through the pipeline is tracked in #192 and is contract work, not something a sync session "fixes".
+Receipt ingestion saves products from receipt fields, and the Rema client maps transaction rows to Product objects; barcode scanning returns scanned values for downstream handling. Unification through the pipeline is tracked in #192 and is contract work, not something a sync session "fixes".

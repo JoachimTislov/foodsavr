@@ -46,6 +46,16 @@ void main() {
       expect(r.name, 'melk');
     });
 
+    test('does not extract unit prefixes from words', () {
+      final r = n.normalize('2 Grandiosa');
+      expect(r.name, 'grandiosa');
+      expect(r.quantity, 2);
+      expect(r.unit, LineItemUnit.piece);
+    });
+    test('quantity-only input keeps a usable name', () {
+      final r = n.normalize('500g');
+      expect(r.name, '500g');
+    });
     test('keeps unicode letters like æøå', () {
       final r = n.normalize('RØMMERØRE');
       expect(r.name, 'rømmerøre');

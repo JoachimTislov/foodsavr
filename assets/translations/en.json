@@ -165,6 +165,7 @@
 		"scanBarcodeHint": "Align the barcode inside the frame",
 		"scanSingleBarcodeHint": "Multiple barcodes detected. Focus on one barcode.",
 		"scanUnavailable": "Barcode scanner unavailable: {error}",
+		"expiryScanUnavailable": "Expiry scanner unavailable: {error}",
 		"search_hint": "Search your pantry...",
 		"select": "Select Products",
 		"soonest_expiration": "Soonest Expiration",
