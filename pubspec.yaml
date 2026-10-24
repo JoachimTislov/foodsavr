@@ -44,7 +44,7 @@ dependencies:
   flutter_facebook_auth: ^7.1.5 # MIT
   go_router: ^18.0.2 # BSD-3-Clause
   injectable: ^3.0.0 # MIT
-  vector_graphics: ^1.2.3 # BSD-3-Clause
+  vector_graphics: ^1.2.4 # BSD-3-Clause
   shared_preferences: ^2.5.6 # BSD-3-Clause
   camera: ^0.12.1 # BSD-3-Clause
   google_mlkit_barcode_scanning: ^0.14.2 # MIT
