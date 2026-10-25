@@ -61,6 +61,19 @@ void main() {
       expect(r.needsConfirmation, isFalse);
     });
 
+    test('preserves source quantity and unit when name has none', () {
+      final r = pipeline.process(
+        LineItem(
+          id: 'iq',
+          rawName: 'kjøttdeig',
+          quantity: 3,
+          unit: LineItemUnit.kilogram,
+        ),
+        catalog,
+      );
+      expect(r.item.quantity, 3);
+      expect(r.item.unit, LineItemUnit.kilogram);
+    });
     test('barcode item is exact autoAdd', () {
       final r = pipeline.process(
         LineItem(

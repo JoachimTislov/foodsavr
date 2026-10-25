@@ -16,7 +16,7 @@ tools:
         receipt: { description: Image bytes, URL, or raw text lines }
         collectionId: { type: string }
     output:
-      $ref: schemas/line-item.schema.json
+      $ref: ../schemas/line-item.schema.json
       many: true
   - name: read_orders
     description: Read orders/transactions from a connected integration (Rema/Coop/Trumf) as LineItems
@@ -26,7 +26,7 @@ tools:
         provider: { type: string, enum: [rema, coop, trumf] }
         since: { type: string, format: date-time }
     output:
-      $ref: schemas/line-item.schema.json
+      $ref: ../schemas/line-item.schema.json
       many: true
   - name: generate_shopping_list
     description: Auto-generate a shopping list from inventory, consumption history, and meal plans
@@ -40,4 +40,4 @@ tools:
       properties:
         items:
           type: array
-          items: { $ref: schemas/line-item.schema.json }
+          items: { $ref: ../schemas/line-item.schema.json }

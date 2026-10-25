@@ -19,8 +19,10 @@ void main() {
   });
 
   test('parses two-digit years', () {
-    final date = ExpiryDateParser.findExpiryDate('BB 14-03-30');
-    expect(date, DateTime(2030, 3, 14));
+    final year = futureYear();
+    final yy = (year % 100).toString().padLeft(2, '0');
+    final date = ExpiryDateParser.findExpiryDate('BB 14-03-$yy');
+    expect(date, DateTime(year, 3, 14));
   });
 
   test('prefers lines with expiry hints', () {

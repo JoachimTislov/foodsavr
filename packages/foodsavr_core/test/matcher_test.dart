@@ -62,6 +62,13 @@ void main() {
       final r = m.match(item('x', normalized: 'hviteost'), cheese);
       expect(r.product!.id, 'c1');
     });
+    test('containment checks every occurrence', () {
+      final ost = [
+        const CatalogProduct(id: 'o1', name: 'Ost', keywords: ['ost']),
+      ];
+      final r = m.match(item('x', normalized: 'postei ost'), ost);
+      expect(r.product!.id, 'o1');
+    });
 
     test('empty normalized name never matches', () {
       final r = m.match(item('!!!', normalized: ''), catalog);

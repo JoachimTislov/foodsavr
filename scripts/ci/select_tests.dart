@@ -35,37 +35,64 @@ Future<String> git(List<String> args) async {
   return (res.stdout as String).trim();
 }
 
-/// Transitive import closure of [entry] within lib/ and packages/.
+/// Transitive dependency closure of [entry] within lib/ and packages/.
+///
+/// Deleted files stay in the closure, so tests that still import a deleted
+/// file remain selected.
 Set<String> transitiveDeps(String entry) {
   final seen = <String>{};
   final queue = <String>[entry];
   while (queue.isNotEmpty) {
     final file = queue.removeLast();
     if (!seen.add(file)) continue;
+    if (!File(file).existsSync()) continue;
     final dir = File(file).parent.path;
     final importRe = RegExp(
-      r'''(?:import|export|part)\s+'([^']+)''',
+      r"""(?:import|export|part)\s+['"]([^'"]+)['"]""",
       multiLine: true,
     );
     for (final match in importRe.allMatches(File(file).readAsStringSync())) {
-      final spec = match.group(1)!;
-      if (spec.startsWith('dart:')) continue;
-      String path;
-      if (spec.startsWith('package:')) {
-        final parts = spec.substring(7).split('/');
-        path = parts.length > 2 && parts.first == 'foodsavr_core'
-            ? 'packages/foodsavr_core/lib/${parts.skip(2).join('/')}'
-            : 'lib/${parts.skip(1).join('/')}';
-      } else {
-        path = Uri.file('$dir/$spec').normalizePath().toFilePath();
-        path = path.replaceAll(RegExp(r'/lib/lib/'), '/lib/');
-      }
-      if (File(path).existsSync() && !path.contains('/.dart_tool/')) {
-        queue.add(path);
+      for (final path in _resolveSpec(match.group(0)!.trim(), dir)) {
+        if (!path.contains('/.dart_tool/')) {
+          queue.add(path);
+        }
       }
     }
   }
   return seen;
+}
+
+/// Resolves one import/export/part spec (including every URI a conditional
+/// `export ... if (...) ...` can select) to repo paths.
+List<String> _resolveSpec(String spec, String dir) {
+  if (spec.startsWith('dart:')) return const [];
+  final specs = <String>[spec];
+  final results = <String>[];
+  final condRe = RegExp(
+    r"""['"]([^'"]+)['"]\s+if\s*\(.*?\)\s*['"]([^'"]+)['"]""",
+  );
+  while (specs.isNotEmpty) {
+    final s = specs.removeLast();
+    final cond = condRe.firstMatch(s);
+    if (cond != null) {
+      specs
+        ..add(cond.group(1)!)
+        ..add(cond.group(2)!);
+      continue;
+    }
+    String path;
+    if (s.startsWith('package:')) {
+      final parts = s.substring(7).split('/');
+      path = parts.first == 'foodsavr_core'
+          ? 'packages/foodsavr_core/lib/${parts.skip(2).join('/')}'
+          : 'lib/${parts.skip(1).join('/')}';
+    } else {
+      path = Uri.file('$dir/$s').normalizePath().toFilePath();
+      path = path.replaceAll(RegExp(r'/lib/lib/'), '/lib/');
+    }
+    results.add(path);
+  }
+  return results;
 }
 
 void main(List<String> args) async {
