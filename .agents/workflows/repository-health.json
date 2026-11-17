@@ -32,6 +32,6 @@
     }
   ],
   "limits": {"max_attempts": 2, "timeout_seconds": 900, "max_turns": 20},
-  "permissions": {"filesystem": "read-only", "network": "allowlisted", "git": "read-only", "github": "read-only"},
+  "permissions": {"filesystem": "read-only", "network": "none", "git": "read-only", "github": "none"},
   "outputs": {"artifacts": [".agents/state/runs/"], "result_schema": ".agents/workflows/result.schema.json"}
 }

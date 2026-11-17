@@ -383,12 +383,7 @@ def workflow_plan(args: argparse.Namespace) -> int:
     runner_specs = load_json(RUNNERS).get("providers", {})
     policy = load_json(POLICY)
     policy_values = {"filesystem": ["read-only", "workspace-write"], "network": ["none", "allowlisted", "full"], "git": ["read-only", "branch-write", "push"], "github": ["none", "read-only", "write"]}
-    permission_errors = []
-    for field, values in policy_values.items():
-        requested = workflow["permissions"].get(field, "none")
-        allowed = policy.get(field, values[0])
-        if values.index(requested) > values.index(allowed):
-            permission_errors.append(f"permissions.{field}={requested} exceeds policy {allowed}")
+    permission_errors = policy_errors(workflow, policy)
     if permission_errors:
         print(json.dumps({"valid": False, "errors": permission_errors, "policy": policy["id"]}, indent=2))
         return 1
@@ -397,7 +392,7 @@ def workflow_plan(args: argparse.Namespace) -> int:
     steps = []
     for step in workflow["steps"]:
         candidates = step.get("providers") or list(specs)
-        available = [provider for provider in candidates if availability.get(provider, False)]
+        available = [provider for provider in candidates if availability.get(provider, False) and provider_is_safe(provider, workflow, runner_specs)]
         steps.append({
             "id": step["id"],
             "role": step["role"],
@@ -447,10 +442,14 @@ def workflow_prompt(workflow: dict[str, Any], step: dict[str, Any], run_id: str,
 
 def provider_command(provider: str, spec: dict[str, Any], prompt: str) -> tuple[list[str], str | None]:
     command = [spec["command"], *spec.get("headless", [])]
+    if spec.get("prompt_mode") == "stdin":
+        if provider == "codex":
+            command.extend(["--cd", str(ROOT), "-"])
+        return command, prompt
+    if spec.get("prompt_mode") == "flag":
+        return [*command, spec.get("prompt_flag", "--prompt"), prompt], None
     if provider == "codex":
         return [*command, "--cd", str(ROOT), "-"], prompt
-    if provider == "vibe":
-        return [spec["command"], "--output", "json", "--prompt", prompt], None
     return [*command, prompt], None
 
 
@@ -469,13 +468,13 @@ def extract_session_id(output: str) -> str | None:
     return match.group(0) if match else None
 
 
-def append_session_record(provider: str, session_id: str, run_id: str, summary: str) -> None:
+def append_session_record(provider: str, session_id: str, run_id: str, summary: str, status: str = "completed", attempt: int | None = None) -> None:
     record = {
         "session_id": f"{provider}:{session_id}",
         "provider": provider,
         "harness": provider,
         "started_at": now(),
-        "status": "completed",
+        "status": status,
         "issues": [],
         "prs": [],
         "sources": [],
@@ -483,6 +482,8 @@ def append_session_record(provider: str, session_id: str, run_id: str, summary: 
         "summary": summary,
         "run_id": run_id,
     }
+    if attempt is not None:
+        record["attempt"] = attempt
     INDEX.parent.mkdir(parents=True, exist_ok=True)
     with INDEX.open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(record, sort_keys=True) + "\n")
@@ -495,9 +496,17 @@ def write_json(path: Path, value: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
-def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: str) -> str:
+def path_reference(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
+def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: str, artifact: str | None = None) -> str:
     ledger = ROOT / ".agents/ledger.md"
-    event = f"| {datetime.now(timezone.utc).date().isoformat()} | Run `{run_id}` for workflow `{workflow_id}` used `{provider}` and ended with `{status}`; result artifact is `.agents/state/runs/{run_id}/result.json`. |\n"
+    result_artifact = artifact or f".agents/state/runs/{run_id}/result.json"
+    event = f"| {datetime.now(timezone.utc).date().isoformat()} | Run `{run_id}` for workflow `{workflow_id}` used `{provider}` and ended with `{status}`; result artifact is `{result_artifact}`. |\n"
     content = ledger.read_text(encoding="utf-8")
     marker = "|---|---|\n"
     if marker not in content:
@@ -518,7 +527,25 @@ def available_providers(candidates: list[str], specs: dict[str, dict[str, Any]])
 
 def provider_is_safe(provider: str, workflow: dict[str, Any], specs: dict[str, dict[str, Any]]) -> bool:
     spec = specs[provider]
-    return workflow["permissions"].get("filesystem") != "read-only" or spec.get("enforces_read_only", False)
+    requested = workflow["permissions"]
+    enforced = spec.get("enforced_permissions", {})
+    return all(requested.get(field) in enforced.get(field, []) for field in ("filesystem", "network", "git", "github"))
+
+
+def policy_errors(workflow: dict[str, Any], policy: dict[str, Any]) -> list[str]:
+    values = {
+        "filesystem": ["read-only", "workspace-write"],
+        "network": ["none", "allowlisted", "full"],
+        "git": ["read-only", "branch-write", "push"],
+        "github": ["none", "read-only", "write"],
+    }
+    errors = []
+    for field, ordered in values.items():
+        requested = workflow["permissions"].get(field, "none")
+        allowed = policy.get(field, "none")
+        if ordered.index(requested) > ordered.index(allowed):
+            errors.append(f"permissions.{field}={requested} exceeds policy {allowed}")
+    return errors
 
 
 def run_acceptance(step: dict[str, Any]) -> list[dict[str, Any]]:
@@ -556,6 +583,7 @@ def workflow_run(args: argparse.Namespace) -> int:
     run_id = f"{workflow['id']}-{uuid.uuid4().hex[:12]}"
     database = Path(args.database).expanduser()
     run_dir = database.parent / "runs" / run_id
+    policy = load_json(POLICY)
     result: dict[str, Any] = {
         "workflow_id": workflow["id"], "run_id": run_id, "status": "planned",
         "started_at": now(), "steps": [], "session_ids": [], "artifacts": [], "ledger_refs": [],
@@ -565,6 +593,14 @@ def workflow_run(args: argparse.Namespace) -> int:
         write_json(run_dir / "result.json", result)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
+    permission_errors = policy_errors(workflow, policy)
+    if permission_errors:
+        result["status"] = "unavailable"
+        result["reason"] = "workflow permissions exceed policy"
+        result["policy_errors"] = permission_errors
+        write_json(run_dir / "result.json", result)
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 1
     result["status"] = "running"
     write_json(run_dir / "result.json", result)
     resolved_context = resolve_workflow_context(workflow, database)
@@ -614,7 +650,7 @@ def workflow_run(args: argparse.Namespace) -> int:
                 acceptance_passed = len(acceptance_results) >= len(step["acceptance"]) and all(
                     item.get("status") == "passed" for item in acceptance_results
                 )
-                session_required = load_json(POLICY).get("require_session_id", True)
+                session_required = policy.get("require_session_id", True)
                 session_valid = session_id is not None or not session_required
                 attempt_status = "succeeded" if completed.returncode == 0 and acceptance_passed and session_valid else (
                     "failed" if completed.returncode != 0 or not session_valid else "awaiting_acceptance"
@@ -622,14 +658,17 @@ def workflow_run(args: argparse.Namespace) -> int:
                 attempts.append({
                     "attempt": attempt, "status": attempt_status, "acceptance_results": acceptance_results,
                     "session_id": f"{selected}:{session_id}" if session_id else None,
-                    "artifact": str(artifact.relative_to(ROOT)),
+                    "artifact": path_reference(artifact),
                     "reason": None if session_valid else "provider did not expose a required session ID",
                 })
-                result["artifacts"].append(str(artifact.relative_to(ROOT)))
+                result["artifacts"].append(path_reference(artifact))
                 if session_id:
                     namespaced = f"{selected}:{session_id}"
                     result["session_ids"].append(namespaced)
-                    append_session_record(selected, session_id, run_id, f"Workflow {workflow['id']} step {step_id}")
+                    append_session_record(
+                        selected, session_id, run_id, f"Workflow {workflow['id']} step {step_id}",
+                        status=attempt_status, attempt=attempt,
+                    )
                 if attempt_status == "succeeded":
                     step_succeeded = True
                     break
@@ -640,10 +679,11 @@ def workflow_run(args: argparse.Namespace) -> int:
                 if step.get("on_failure", "stop") != "retry":
                     break
         if not step_succeeded:
-            had_failure = had_failure or any(attempt["status"] == "failed" for attempt in attempts)
-            if any(attempt["status"] == "awaiting_acceptance" for attempt in attempts):
+            final_status = "awaiting_acceptance" if attempts and attempts[-1]["status"] == "awaiting_acceptance" else "failed"
+            had_failure = had_failure or final_status == "failed"
+            if final_status == "awaiting_acceptance":
                 result["status"] = "awaiting_acceptance"
-            result["steps"].append({"id": step_id, "status": "awaiting_acceptance" if any(attempt["status"] == "awaiting_acceptance" for attempt in attempts) else "failed", "provider": selected, "attempts": attempts, "acceptance_results": attempts[-1].get("acceptance_results", []) if attempts else []})
+            result["steps"].append({"id": step_id, "status": final_status, "provider": selected, "attempts": attempts, "acceptance_results": attempts[-1].get("acceptance_results", []) if attempts else []})
             if step.get("on_failure", "stop") != "continue":
                 break
         else:
@@ -655,8 +695,12 @@ def workflow_run(args: argparse.Namespace) -> int:
         result["status"] = "awaiting_acceptance"
     else:
         result["status"] = "succeeded"
+    result["providers"] = sorted({step.get("provider") for step in result["steps"] if step.get("provider")})
     result["completed_at"] = now()
-    result["ledger_refs"].append(append_ledger_event(run_id, workflow["id"], provider, result["status"]))
+    result["ledger_refs"].append(append_ledger_event(
+        run_id, workflow["id"], ",".join(result["providers"]) or "none", result["status"],
+        path_reference(run_dir / "result.json"),
+    ))
     write_json(run_dir / "result.json", result)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["status"] == "succeeded" else 1
