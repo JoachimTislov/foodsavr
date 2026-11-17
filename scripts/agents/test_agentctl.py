@@ -180,6 +180,25 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(records[0]["status"], "succeeded")
             self.assertEqual([item["attempt"] for item in records[0]["attempts"]], [1, 2])
 
+    def test_heal_recovers_abandoned_running_artifact(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory, patch.object(module, "append_ledger_event", return_value="ledger#recovered"):
+            run_dir = Path(directory) / "run-1"
+            events = run_dir / "events.jsonl"
+            events.parent.mkdir(parents=True)
+            events.write_text("")
+            result = {
+                "workflow_id": "recovery-test", "run_id": "run-1", "status": "running",
+                "started_at": "2026-01-01T00:00:00+00:00", "steps": [], "session_ids": [],
+                "artifacts": ["events.jsonl"], "events": "events.jsonl", "usage": {}, "ledger_refs": [],
+            }
+            (run_dir / "result.json").write_text(json.dumps(result))
+            self.assertEqual(module.recover_interrupted_runs(Path(directory)), 1)
+            recovered = json.loads((run_dir / "result.json").read_text())
+            self.assertEqual(recovered["status"], "failed")
+            self.assertEqual(recovered["reason"], "interrupted-before-completion")
+            self.assertIn('"type": "run.recovered"', events.read_text())
+
     def test_execute_retries_and_records_attempt_outcomes(self) -> None:
         module = load_agentctl_module()
         workflow = {
