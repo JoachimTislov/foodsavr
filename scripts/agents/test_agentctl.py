@@ -233,6 +233,54 @@ class AgentctlTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.workflow_cancel(argparse.Namespace(run_id="../escape", database=str(Path(directory) / "knowledge.sqlite3")))
 
+    def test_isolated_workflow_propagates_execution_root(self) -> None:
+        module = load_agentctl_module()
+        workflow = {
+            "schema_version": 1, "id": "isolated-test", "objective": "test isolated execution", "context": {},
+            "worktree": {"mode": "isolated"},
+            "steps": [{"id": "run", "role": "writer", "prompt": "write safely", "providers": ["fake"], "acceptance": ["command passes"], "acceptance_commands": ["true"]}],
+            "limits": {"max_attempts": 1, "timeout_seconds": 5},
+            "permissions": {"filesystem": "workspace-write", "network": "none", "git": "read-only", "github": "none"},
+        }
+        fake_specs = {"fake": {
+            "command": "fake", "headless": [], "prompt_mode": "argument",
+            "enforced_permissions": {"filesystem": ["workspace-write"], "network": ["none"], "git": ["read-only"], "github": ["none"]},
+            "capability_verification": {"mode": "version-and-flags", "verified_version_prefix": "fake 1.", "required_flags": []},
+        }}
+        policy = {"schema_version": 1, "id": "write-policy", "filesystem": "workspace-write", "network": "none", "git": "read-only", "github": "none", "require_session_id": True}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workflow_path = root / "workflow.json"
+            policy_path = root / "policy.json"
+            workflow_path.write_text(json.dumps(workflow))
+            policy_path.write_text(json.dumps(policy))
+            database = root / "knowledge.sqlite3"
+            seen_cwds = []
+
+            def fake_run(command, **kwargs):
+                seen_cwds.append((command[0], kwargs.get("cwd")))
+                if command[0] == "fake":
+                    return subprocess.CompletedProcess(command, 0, stdout=json.dumps({"session_id": "isolated-session"}), stderr="")
+                return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+            output = io.StringIO()
+            with patch.object(module, "provider_specs", return_value=fake_specs), \
+                 patch.object(module.shutil, "which", return_value="/usr/bin/fake"), \
+                 patch.object(module, "version_for", return_value="fake 1.0"), \
+                 patch.object(module.subprocess, "run", side_effect=fake_run), \
+                 patch.object(module, "POLICY", policy_path), \
+                 patch.object(module, "INDEX", root / "sessions.jsonl"), \
+                 patch.object(module, "append_ledger_event", return_value="ledger#isolated"):
+                with contextlib.redirect_stdout(output):
+                    exit_code = module.workflow_run(argparse.Namespace(path=str(workflow_path), provider="auto", execute=True, database=str(database)))
+            self.assertEqual(exit_code, 0)
+            result = json.loads(output.getvalue())
+            self.assertTrue(result["worktree"].endswith("/worktree"))
+            worktree_cwds = [cwd for command, cwd in seen_cwds if command in {"fake", "true"}]
+            self.assertEqual(len(worktree_cwds), 2)
+            self.assertEqual(worktree_cwds[0], worktree_cwds[1])
+            self.assertTrue(str(worktree_cwds[0]).endswith("/worktree"))
+
     def test_execute_retries_and_records_attempt_outcomes(self) -> None:
         module = load_agentctl_module()
         workflow = {
