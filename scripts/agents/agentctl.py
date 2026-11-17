@@ -275,6 +275,57 @@ def context(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_projection(connection: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
+    """Return the safe, provider-independent view of a persisted workflow run."""
+    run = dict(row)
+    run_id = run["run_id"]
+    run["artifacts"] = [
+        dict(artifact) for artifact in connection.execute(
+            "SELECT path, kind, sha256 FROM workflow_run_artifacts WHERE run_id = ? ORDER BY path",
+            (run_id,),
+        ).fetchall()
+    ]
+    run["events"] = [
+        dict(event) for event in connection.execute(
+            "SELECT event_index, timestamp, event_type FROM workflow_run_events "
+            "WHERE run_id = ? ORDER BY event_index LIMIT 100",
+            (run_id,),
+        ).fetchall()
+    ]
+    return run
+
+
+def runs(args: argparse.Namespace) -> int:
+    connection = connect(Path(args.database).expanduser())
+    ensure_catalog(connection)
+    if args.runs_command == "show":
+        row = connection.execute(
+            "SELECT run_id, workflow_id, status, started_at, completed_at, provider "
+            "FROM workflow_runs WHERE run_id = ?",
+            (args.run_id,),
+        ).fetchone()
+        if row is None:
+            connection.close()
+            print(json.dumps({"error": f"workflow run not found: {args.run_id}"}, indent=2))
+            return 1
+        result = run_projection(connection, row)
+        connection.close()
+        print(json.dumps(result, indent=2))
+        return 0
+
+    term = f"%{args.term}%" if args.term else "%"
+    rows = connection.execute(
+        "SELECT run_id, workflow_id, status, started_at, completed_at, provider "
+        "FROM workflow_runs WHERE run_id LIKE ? OR workflow_id LIKE ? OR status LIKE ? "
+        "OR provider LIKE ? ORDER BY started_at DESC LIMIT ?",
+        (term, term, term, term, args.limit),
+    ).fetchall()
+    result = [run_projection(connection, row) for row in rows]
+    connection.close()
+    print(json.dumps(result, indent=2))
+    return 0
+
+
 def resolve_workflow_context(workflow: dict[str, Any], database: Path, limit: int = 8) -> str:
     """Resolve bounded, repository-backed context before handing work to a harness."""
     connection = connect(database)
@@ -1460,6 +1511,13 @@ def build_parser() -> argparse.ArgumentParser:
     context_parser = commands.add_parser("context")
     context_parser.add_argument("term")
     context_parser.add_argument("--limit", type=int, default=10)
+    runs_parser = commands.add_parser("runs", help="query bounded workflow-run projections")
+    run_commands = runs_parser.add_subparsers(dest="runs_command", required=True)
+    run_list = run_commands.add_parser("list")
+    run_list.add_argument("term", nargs="?")
+    run_list.add_argument("--limit", type=int, default=20)
+    run_show = run_commands.add_parser("show")
+    run_show.add_argument("run_id")
     commands.add_parser("doctor")
     commands.add_parser("maintain")
     commands.add_parser("heal")
@@ -1513,6 +1571,8 @@ def main(argv: list[str] | None = None) -> int:
         return query(args)
     if args.command == "context":
         return context(args)
+    if args.command == "runs":
+        return runs(args)
     if args.command == "doctor":
         return doctor(args)
     if args.command == "maintain":

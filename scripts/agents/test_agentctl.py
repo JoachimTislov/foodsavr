@@ -71,6 +71,14 @@ class AgentctlTest(unittest.TestCase):
             context = json.loads(self.run_cli("context", "audit", "--limit", "2", database=database).stdout)
             self.assertEqual(context["runs"][0]["run_id"], "run-1")
             self.assertNotIn("raw_json", context["runs"][0])
+            listed = json.loads(self.run_cli("runs", "list", "audit", database=database).stdout)
+            self.assertEqual(listed[0]["run_id"], "run-1")
+            self.assertEqual(listed[0]["events"][0]["event_type"], "run.started")
+            self.assertNotIn("raw_json", listed[0])
+            shown = json.loads(self.run_cli("runs", "show", "run-1", database=database).stdout)
+            self.assertEqual(shown["workflow_id"], "audit")
+            missing = self.run_cli("runs", "show", "missing", database=database, check=False)
+            self.assertEqual(missing.returncode, 1)
 
     def test_workflow_plan_is_dry_run(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

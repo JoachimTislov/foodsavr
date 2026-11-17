@@ -21,7 +21,14 @@ scripts/agents/agentctl query "FoodSavr TODO"
 scripts/agents/agentctl context "current app status and open work"
 scripts/agents/agentctl sessions list
 scripts/agents/agentctl query "repository-health run-"
+scripts/agents/agentctl runs list repository-health
+scripts/agents/agentctl runs show <run-id>
 ```
+
+`runs list` and `runs show` expose bounded run metadata, artifact hashes, and
+event types. They never return the raw provider result or transcript, so a
+harness can inspect execution state without injecting sensitive payloads into
+the next prompt.
 
 The database lives at `.agents/state/knowledge.sqlite3` and is ignored. CI or
 a provider adapter can rebuild it from the checkout, so stale database files
