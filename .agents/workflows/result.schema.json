@@ -2,16 +2,31 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent workflow result",
   "type": "object",
-  "required": ["workflow_id", "run_id", "status", "steps"],
+  "required": ["workflow_id", "run_id", "status", "started_at", "steps", "session_ids", "artifacts", "ledger_refs"],
   "properties": {
     "workflow_id": {"type": "string"},
     "run_id": {"type": "string"},
     "status": {"enum": ["planned", "running", "succeeded", "failed", "cancelled"]},
     "started_at": {"type": "string"},
     "completed_at": {"type": "string"},
-    "steps": {"type": "array", "items": {"type": "object"}},
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "status", "acceptance_results"],
+        "properties": {
+          "id": {"type": "string"},
+          "status": {"enum": ["planned", "running", "succeeded", "failed", "cancelled"]},
+          "acceptance_results": {"type": "array", "items": {"type": "object"}},
+          "session_id": {"type": ["string", "null"]},
+          "artifact": {"type": ["string", "null"]}
+        },
+        "additionalProperties": true
+      }
+    },
     "session_ids": {"type": "array", "items": {"type": "string"}},
-    "artifacts": {"type": "array", "items": {"type": "string"}}
+    "artifacts": {"type": "array", "items": {"type": "string"}},
+    "ledger_refs": {"type": "array", "items": {"type": "string"}}
   },
   "additionalProperties": true
 }
