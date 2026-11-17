@@ -1,0 +1,9 @@
+description = "Implements UI-driven development workflow using mockups and prototypes."
+prompt = """
+1. Define the user interaction flow for the feature.
+2. Create a prototype or mockup using existing widgets or placeholders.
+3. Verify the layout and feel by running the app.
+4. Capture the initial UI state (using 'take_screenshot' if available).
+5. Iterate on the UI based on visual feedback.
+6. Replace placeholders with real data and services.
+"""
