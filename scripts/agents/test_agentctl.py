@@ -55,6 +55,39 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn('"valid": false', result.stdout)
 
+    def test_invalid_permissions_and_provider_fail_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            invalid = Path(directory) / "invalid.json"
+            invalid.write_text(json.dumps({
+                "schema_version": 1,
+                "id": "Bad ID",
+                "objective": "test",
+                "steps": [{
+                    "id": "one",
+                    "role": "test",
+                    "prompt": "test",
+                    "providers": ["unknown"],
+                    "acceptance": ["test"]
+                }],
+                "limits": {"max_attempts": True, "timeout_seconds": -1},
+                "permissions": {"filesystem": "god-mode", "network": "full", "git": "push"}
+            }))
+            result = subprocess.run(
+                [str(CLI), "workflow", "validate", str(invalid)],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("unknown provider", result.stdout)
+
+    def test_policy_compile_is_explicit_about_enforcement(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_cli("policy", "compile", "--provider", "vibe", database=Path(directory) / "db")
+            projection = json.loads(result.stdout)
+            self.assertFalse(projection["enforced"])
+            self.assertTrue(projection["require_draft_pr"])
+
 
 if __name__ == "__main__":
     unittest.main()
