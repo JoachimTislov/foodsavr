@@ -1,0 +1,1 @@
+../../../.agents/skills/creation/SKILL.md

@@ -1,0 +1,7 @@
+description = "Recursively analyze and fix issues in the codebase until all errors are resolved."
+prompt = """
+1. Run make check
+2. If errors, read them and apply fixes.
+3. Commit changes, if any, with 'commit' skill
+4. Stop if the same errors persist after applying fixes, otherwise repeat from step 1.
+"""
