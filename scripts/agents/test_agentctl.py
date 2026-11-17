@@ -223,6 +223,7 @@ class AgentctlTest(unittest.TestCase):
             events = Path(result["events"])
             self.assertTrue(events.exists())
             self.assertIn('"type": "run.completed"', events.read_text())
+            self.assertIn('"type": "step.completed"', events.read_text())
             artifact = next(path for path in result["artifacts"] if path.endswith(".json") and path != result["events"])
             self.assertNotIn("raw_output", json.loads(Path(artifact).read_text()))
             self.assertEqual([attempt["status"] for attempt in result["steps"][0]["attempts"]], ["failed", "succeeded"])
