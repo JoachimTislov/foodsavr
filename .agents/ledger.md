@@ -19,6 +19,7 @@ and full-text index.
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-11-17 | Clean GitHub runner validation exposed that `router plan` treated absent provider CLIs as a command failure; planning now returns a valid unavailable decision while execution remains fail-closed, fixed in `1e55d4b`. Local 11-test suite passes; remote CI rerun pending. |
 | 2026-11-17 | Added `.agents/runners/router.json` and `agentctl router plan` in `250b0e2`: policy-aware per-step routing with deterministic CI-safe fallback and an opt-in OpenAI-compatible Jev endpoint contract (`JEV_ROUTER_BASE_URL`, `JEV_ROUTER_API_KEY`, `JEV_ROUTER_MODEL`). Source reviewed: https://github.com/krisitown/jev-router/blob/main/docs/SPEC.md. |
 | 2026-11-17 | Secondary re-check approved current PR head `4dcb908`: no blocking findings remain after lifecycle invariant fixes; CI is green and PR #236 has no unresolved review threads. Review: `t3-thread://v2/b3e4bf2f-00f2-46bd-a87f-b691aa859cb9/thread:delegated-task:command%3Amcp%3Af3523668-3c8e-4680-a71d-163ac24644d6%3Adelegate-task%3A71936c44-5124-4909-840c-748dc42dea3f`. |
 | 2026-11-17 | Independent review of `ce4e69f` found retry-state, policy-enforcement, provider-command, routing, session-status, and execution-test gaps; fixed them in `773e137`, including per-step safe routing, bounded retry outcomes, required session IDs, accurate provider ledger references, and fake-provider integration coverage. PR #236 has no unresolved review threads. |
