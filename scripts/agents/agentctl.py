@@ -713,6 +713,48 @@ def write_json(path: Path, value: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
+def result_contract_errors(value: dict[str, Any]) -> list[str]:
+    """Validate the runtime result invariants covered by result.schema.json."""
+    errors: list[str] = []
+    for field in ("workflow_id", "run_id", "status", "started_at", "steps", "session_ids", "artifacts", "events", "usage", "ledger_refs"):
+        if field not in value:
+            errors.append(f"missing {field}")
+    statuses = {"planned", "running", "succeeded", "failed", "cancelled", "unavailable", "awaiting_acceptance"}
+    if value.get("status") not in statuses:
+        errors.append(f"invalid status: {value.get('status')}")
+    if not isinstance(value.get("steps"), list):
+        errors.append("steps must be an array")
+    else:
+        for index, step in enumerate(value["steps"]):
+            if not isinstance(step, dict):
+                errors.append(f"steps[{index}] must be an object")
+                continue
+            if step.get("status") not in statuses:
+                errors.append(f"steps[{index}] has invalid status")
+            if not isinstance(step.get("acceptance_results"), list):
+                errors.append(f"steps[{index}].acceptance_results must be an array")
+    usage = value.get("usage")
+    if not isinstance(usage, dict):
+        errors.append("usage must be an object")
+    else:
+        for field in ("input_tokens", "output_tokens", "total_tokens", "cost_usd"):
+            if field in usage and (not isinstance(usage[field], (int, float)) or isinstance(usage[field], bool) or not math.isfinite(usage[field]) or usage[field] < 0):
+                errors.append(f"usage.{field} must be finite and non-negative")
+    for field in ("session_ids", "artifacts", "ledger_refs"):
+        if not isinstance(value.get(field), list):
+            errors.append(f"{field} must be an array")
+    if not isinstance(value.get("events"), str):
+        errors.append("events must be a path string")
+    return errors
+
+
+def write_result(path: Path, value: dict[str, Any]) -> None:
+    errors = result_contract_errors(value)
+    if errors:
+        raise ValueError("result contract violation: " + "; ".join(errors))
+    write_json(path, value)
+
+
 def path_reference(path: Path) -> str:
     try:
         return str(path.relative_to(ROOT))
@@ -918,7 +960,7 @@ def workflow_run(args: argparse.Namespace) -> int:
         ]
         result["completed_at"] = now()
         append_event(events_path, {"type": "run.completed", "status": "planned"})
-        write_json(run_dir / "result.json", result)
+        write_result(run_dir / "result.json", result)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     permission_errors = policy_errors(workflow, policy)
@@ -929,11 +971,11 @@ def workflow_run(args: argparse.Namespace) -> int:
         result["status"] = "unavailable"
         result["reason"] = "workflow permissions exceed policy"
         result["policy_errors"] = permission_errors
-        write_json(run_dir / "result.json", result)
+        write_result(run_dir / "result.json", result)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 1
     result["status"] = "running"
-    write_json(run_dir / "result.json", result)
+    write_result(run_dir / "result.json", result)
     try:
         resolved_context = resolve_workflow_context(workflow, database)
     except (OSError, ValueError, sqlite3.Error) as error:
@@ -945,7 +987,7 @@ def workflow_run(args: argparse.Namespace) -> int:
         result["ledger_refs"].append(append_ledger_event(
             run_id, workflow["id"], "none", result["status"], path_reference(run_dir / "result.json"),
         ))
-        write_json(run_dir / "result.json", result)
+        write_result(run_dir / "result.json", result)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 1
     had_failure = False
@@ -1053,7 +1095,7 @@ def workflow_run(args: argparse.Namespace) -> int:
         else:
             result["steps"].append({"id": step_id, "status": "succeeded", "provider": selected, "route_reason": route_reason, "attempts": attempts, "acceptance_results": attempts[-1]["acceptance_results"]})
             append_event(events_path, {"type": "step.completed", "step_id": step_id, "status": "succeeded", "provider": selected})
-        write_json(run_dir / "result.json", result)
+        write_result(run_dir / "result.json", result)
     if had_failure:
         result["status"] = "failed"
     elif result["status"] == "awaiting_acceptance":
@@ -1067,7 +1109,7 @@ def workflow_run(args: argparse.Namespace) -> int:
         run_id, workflow["id"], ",".join(result["providers"]) or "none", result["status"],
         path_reference(run_dir / "result.json"),
     ))
-    write_json(run_dir / "result.json", result)
+    write_result(run_dir / "result.json", result)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["status"] == "succeeded" else 1
 
