@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""Focused tests for the dependency-free agent control plane."""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[2]
+CLI = ROOT / "scripts/agents/agentctl"
+WORKFLOW = ROOT / ".agents/workflows/repository-health.json"
+
+
+class AgentctlTest(unittest.TestCase):
+    def run_cli(self, *arguments: str, database: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [str(CLI), "--database", str(database), *arguments],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    def test_rebuild_and_query_include_todo(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "knowledge.sqlite3"
+            result = self.run_cli("knowledge", "rebuild", database=database)
+            self.assertGreater(json.loads(result.stdout)["documents"], 0)
+            result = self.run_cli("query", "FoodSavr TODO", database=database)
+            rows = json.loads(result.stdout)
+            self.assertTrue(any(row["path"] == "TODO.md" for row in rows))
+
+    def test_workflow_plan_is_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_cli("workflow", "plan", str(WORKFLOW), database=Path(directory) / "db")
+            plan = json.loads(result.stdout)
+            self.assertEqual(plan["status"], "planned")
+            self.assertIn("no provider process was started", plan["execution"])
+            self.assertEqual(len(plan["steps"]), 2)
+
+    def test_invalid_workflow_fails_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            invalid = Path(directory) / "invalid.json"
+            invalid.write_text("{}")
+            result = subprocess.run(
+                [str(CLI), "workflow", "validate", str(invalid)],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn('"valid": false', result.stdout)
+
+
+if __name__ == "__main__":
+    unittest.main()

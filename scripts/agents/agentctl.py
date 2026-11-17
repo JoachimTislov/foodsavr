@@ -7,8 +7,10 @@ import argparse
 import hashlib
 import json
 import re
+import shutil
 import sqlite3
 import sys
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -17,6 +19,9 @@ ROOT = Path(__file__).resolve().parents[2]
 INDEX = ROOT / ".agents/sessions/index.jsonl"
 SCHEMA = ROOT / ".agents/knowledge/schema.sql"
 DATABASE = ROOT / ".agents/state/knowledge.sqlite3"
+RUNS = ROOT / ".agents/state/runs"
+RUNNERS = ROOT / ".agents/runners/providers.json"
+POLICY = ROOT / ".agents/policies/default.json"
 TEXT_SUFFIXES = {".md", ".markdown", ".yaml", ".yml", ".json", ".toml"}
 EXCLUDED_PARTS = {".git", ".dart_tool", "build", "research", "state"}
 URL_RE = re.compile(r"https?://[^\s)\]>]+")
@@ -96,7 +101,7 @@ def references(content: str) -> list[tuple[str, str]]:
     return sorted(found)
 
 
-def rebuild(args: argparse.Namespace) -> int:
+def rebuild(args: argparse.Namespace, emit: bool = True) -> int:
     database = Path(args.database).expanduser()
     connection = connect(database)
     paths = document_paths()
@@ -132,7 +137,8 @@ def rebuild(args: argparse.Namespace) -> int:
                     [(session_id, field[:-1], str(value)) for value in record.get(field, [])],
                 )
         connection.execute("INSERT INTO document_search(document_search) VALUES ('rebuild')")
-    print(json.dumps({"database": str(database), "documents": len(paths), "sessions": len(session_records)}))
+    if emit:
+        print(json.dumps({"database": str(database), "documents": len(paths), "sessions": len(session_records)}))
     return 0
 
 
@@ -195,6 +201,164 @@ def session_register(args: argparse.Namespace) -> int:
     return 0
 
 
+PROVIDERS = {
+    "codex": "codex",
+    "claude": "claude",
+    "opencode": "opencode",
+    "gemini": "gemini",
+    "vibe": "vibe",
+    "copilot": "copilot",
+}
+
+
+def load_json(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"cannot read JSON {path}: {error}") from error
+    if not isinstance(value, dict):
+        raise ValueError(f"{path}: root must be an object")
+    return value
+
+
+def validate_workflow_file(path: Path) -> list[str]:
+    workflow = load_json(path)
+    errors = []
+    for field in ("schema_version", "id", "objective", "steps", "limits", "permissions"):
+        if field not in workflow:
+            errors.append(f"{path}: missing {field}")
+    if workflow.get("schema_version") != 1:
+        errors.append(f"{path}: schema_version must be 1")
+    if not isinstance(workflow.get("steps"), list) or not workflow.get("steps"):
+        errors.append(f"{path}: steps must be a non-empty array")
+    else:
+        for index, step in enumerate(workflow["steps"]):
+            if not isinstance(step, dict):
+                errors.append(f"{path}: step {index} must be an object")
+                continue
+            for field in ("id", "role", "prompt", "acceptance"):
+                if field not in step:
+                    errors.append(f"{path}: step {index} missing {field}")
+            if not isinstance(step.get("acceptance"), list) or not step.get("acceptance"):
+                errors.append(f"{path}: step {index} acceptance must be non-empty")
+    for field in ("max_attempts", "timeout_seconds"):
+        if not isinstance(workflow.get("limits", {}).get(field), int):
+            errors.append(f"{path}: limits.{field} must be an integer")
+    for field in ("filesystem", "network", "git"):
+        if field not in workflow.get("permissions", {}):
+            errors.append(f"{path}: permissions.{field} is required")
+    return errors
+
+
+def doctor(args: argparse.Namespace) -> int:
+    runner_data = load_json(RUNNERS)
+    runner_specs = runner_data.get("providers", {})
+    result = {
+        provider: {
+            "command": command,
+            "path": shutil.which(command),
+            "available": shutil.which(command) is not None,
+            "headless": runner_specs.get(provider, {}).get("headless", []),
+        }
+        for provider, command in PROVIDERS.items()
+    }
+    print(json.dumps({"runner": str(ROOT), "providers": result}, indent=2, sort_keys=True))
+    return 0
+
+
+def workflow_validate(args: argparse.Namespace) -> int:
+    errors = validate_workflow_file(Path(args.path).expanduser())
+    if errors:
+        print(json.dumps({"valid": False, "errors": errors}, indent=2))
+        return 1
+    print(json.dumps({"valid": True, "path": args.path}))
+    return 0
+
+
+def workflow_plan(args: argparse.Namespace) -> int:
+    path = Path(args.path).expanduser()
+    errors = validate_workflow_file(path)
+    if errors:
+        print(json.dumps({"valid": False, "errors": errors}, indent=2))
+        return 1
+    workflow = load_json(path)
+    runner_specs = load_json(RUNNERS).get("providers", {})
+    availability = {provider: shutil.which(command) is not None for provider, command in PROVIDERS.items()}
+    steps = []
+    for step in workflow["steps"]:
+        candidates = step.get("providers") or list(PROVIDERS)
+        available = [provider for provider in candidates if availability.get(provider, False)]
+        steps.append({
+            "id": step["id"],
+            "role": step["role"],
+            "candidates": candidates,
+            "available": available,
+            "selected": available[0] if available else None,
+            "acceptance": step["acceptance"],
+            "status": "ready" if available else "unavailable",
+            "runner": runner_specs.get(available[0], {}) if available else None,
+        })
+    plan = {
+        "workflow_id": workflow["id"],
+        "run_id": f"{workflow['id']}-{uuid.uuid4().hex[:12]}",
+        "status": "planned",
+        "objective": workflow["objective"],
+        "context": workflow.get("context", {}),
+        "limits": workflow["limits"],
+        "permissions": workflow["permissions"],
+        "steps": steps,
+        "available_providers": [provider for provider, available in availability.items() if available],
+        "execution": "dry-run; no provider process was started",
+    }
+    print(json.dumps(plan, indent=2, sort_keys=True))
+    return 0
+
+
+def policy_compile(args: argparse.Namespace) -> int:
+    policy = load_json(Path(args.path).expanduser())
+    required = ("schema_version", "id", "filesystem", "network", "git", "github")
+    errors = [f"missing {field}" for field in required if field not in policy]
+    if errors:
+        print(json.dumps({"valid": False, "errors": errors}, indent=2))
+        return 1
+    projection = {
+        "provider": args.provider,
+        "policy_id": policy["id"],
+        "deny_by_default": True,
+        "filesystem": policy["filesystem"],
+        "network": policy["network"],
+        "git": policy["git"],
+        "github": policy["github"],
+        "allow_hosts": policy.get("allow_hosts", []),
+        "require_session_id": policy.get("require_session_id", True),
+        "require_ledger_event": policy.get("require_ledger_event", True),
+        "require_acceptance": policy.get("require_acceptance", True),
+        "native_mapping": "adapter-owned; fail closed when unsupported",
+    }
+    print(json.dumps(projection, indent=2, sort_keys=True))
+    return 0
+
+
+def maintain(args: argparse.Namespace) -> int:
+    workflow_paths = sorted((ROOT / ".agents/workflows").glob("*.json"))
+    errors = []
+    for path in workflow_paths:
+        if path.name.endswith("schema.json") or path.name == "result.schema.json":
+            continue
+        errors.extend(validate_workflow_file(path))
+    rebuild(argparse.Namespace(database=str(DATABASE)), emit=False)
+    result = {
+        "status": "healthy" if not errors else "failed",
+        "knowledge": str(DATABASE),
+        "workflows": [str(path.relative_to(ROOT)) for path in workflow_paths if "schema" not in path.name],
+        "errors": errors,
+    }
+    RUNS.mkdir(parents=True, exist_ok=True)
+    (RUNS / "last-maintenance.json").write_text(json.dumps(result, indent=2) + "\n")
+    print(json.dumps(result, indent=2))
+    return 0 if not errors else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--database", default=str(DATABASE))
@@ -208,6 +372,20 @@ def build_parser() -> argparse.ArgumentParser:
     context_parser = commands.add_parser("context")
     context_parser.add_argument("term")
     context_parser.add_argument("--limit", type=int, default=10)
+    commands.add_parser("doctor")
+    commands.add_parser("maintain")
+    commands.add_parser("heal")
+    workflow = commands.add_parser("workflow")
+    workflow_commands = workflow.add_subparsers(dest="workflow_command", required=True)
+    validate = workflow_commands.add_parser("validate")
+    validate.add_argument("path")
+    plan = workflow_commands.add_parser("plan")
+    plan.add_argument("path")
+    policy = commands.add_parser("policy")
+    policy_commands = policy.add_subparsers(dest="policy_command", required=True)
+    compile_policy = policy_commands.add_parser("compile")
+    compile_policy.add_argument("--provider", required=True)
+    compile_policy.add_argument("--path", default=str(POLICY))
     sessions = commands.add_parser("sessions")
     sessions.add_argument("--index", default=str(INDEX))
     session_commands = sessions.add_subparsers(dest="session_command", required=True)
@@ -236,6 +414,16 @@ def main(argv: list[str] | None = None) -> int:
         return query(args)
     if args.command == "context":
         return context(args)
+    if args.command == "doctor":
+        return doctor(args)
+    if args.command in ("maintain", "heal"):
+        return maintain(args)
+    if args.command == "workflow" and args.workflow_command == "validate":
+        return workflow_validate(args)
+    if args.command == "workflow" and args.workflow_command == "plan":
+        return workflow_plan(args)
+    if args.command == "policy" and args.policy_command == "compile":
+        return policy_compile(args)
     if args.command == "sessions" and args.session_command == "list":
         return session_list(args)
     if args.command == "sessions" and args.session_command == "register":

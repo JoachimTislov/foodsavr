@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "repository-health",
+  "objective": "Inspect repository status, source-of-truth parity, open TODOs, and agent configuration gaps.",
+  "context": {
+    "queries": [
+      "FoodSavr current app status open TODOs",
+      "source of truth sync status",
+      "agent setup provider compatibility"
+    ],
+    "files": ["AGENTS.md", "TODO.md", "specs/source-of-truth/status.md", ".agents/ledger.md"],
+    "skills": ["analysis", "research"]
+  },
+  "steps": [
+    {
+      "id": "context",
+      "role": "repository-auditor",
+      "prompt": "Use the generated knowledge context and inspect the listed source files. Report current status, unresolved TODOs, and contradictions.",
+      "providers": ["codex", "claude", "opencode", "gemini", "vibe", "copilot"],
+      "acceptance": ["Every finding cites a repository path or session/source reference.", "No code is changed in this step."],
+      "on_failure": "stop"
+    },
+    {
+      "id": "verify",
+      "role": "verification-agent",
+      "prompt": "Verify each reported finding against the repository and propose the smallest owner-visible next action.",
+      "providers": ["codex", "claude", "opencode", "gemini", "vibe", "copilot"],
+      "acceptance": ["Each action has a clear acceptance command or owner decision.", "The result references the audit session ID."],
+      "on_failure": "retry"
+    }
+  ],
+  "limits": {"max_attempts": 2, "timeout_seconds": 900, "max_turns": 20},
+  "permissions": {"filesystem": "read-only", "network": "allowlisted", "git": "read-only", "github": "read-only"},
+  "outputs": {"artifacts": [".agents/state/runs/"], "result_schema": ".agents/workflows/result.schema.json"}
+}

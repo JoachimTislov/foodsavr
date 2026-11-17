@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent workflow",
+  "type": "object",
+  "required": ["schema_version", "id", "objective", "steps", "limits", "permissions"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+    "objective": {"type": "string", "minLength": 1},
+    "context": {
+      "type": "object",
+      "properties": {
+        "queries": {"type": "array", "items": {"type": "string"}},
+        "files": {"type": "array", "items": {"type": "string"}},
+        "skills": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "role", "prompt", "acceptance"],
+        "properties": {
+          "id": {"type": "string"},
+          "role": {"type": "string"},
+          "prompt": {"type": "string", "minLength": 1},
+          "providers": {"type": "array", "items": {"type": "string"}},
+          "skills": {"type": "array", "items": {"type": "string"}},
+          "acceptance": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+          "on_failure": {"enum": ["stop", "retry", "continue"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "limits": {
+      "type": "object",
+      "required": ["max_attempts", "timeout_seconds"],
+      "properties": {
+        "max_attempts": {"type": "integer", "minimum": 1},
+        "timeout_seconds": {"type": "integer", "minimum": 1},
+        "max_turns": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "permissions": {
+      "type": "object",
+      "required": ["filesystem", "network", "git"],
+      "properties": {
+        "filesystem": {"enum": ["read-only", "workspace-write"]},
+        "network": {"enum": ["none", "allowlisted", "full"]},
+        "git": {"enum": ["read-only", "branch-write", "push"]},
+        "github": {"enum": ["none", "read-only", "write"]}
+      },
+      "additionalProperties": false
+    },
+    "outputs": {
+      "type": "object",
+      "properties": {
+        "artifacts": {"type": "array", "items": {"type": "string"}},
+        "result_schema": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

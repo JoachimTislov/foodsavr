@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent workflow result",
+  "type": "object",
+  "required": ["workflow_id", "run_id", "status", "steps"],
+  "properties": {
+    "workflow_id": {"type": "string"},
+    "run_id": {"type": "string"},
+    "status": {"enum": ["planned", "running", "succeeded", "failed", "cancelled"]},
+    "started_at": {"type": "string"},
+    "completed_at": {"type": "string"},
+    "steps": {"type": "array", "items": {"type": "object"}},
+    "session_ids": {"type": "array", "items": {"type": "string"}},
+    "artifacts": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}
