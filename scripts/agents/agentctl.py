@@ -266,7 +266,7 @@ def context(args: argparse.Namespace) -> int:
         if any(term in f"{row['session_id']} {row['summary']}".casefold() for term in terms)
     ][:args.limit]
     runs = connection.execute(
-        "SELECT run_id, workflow_id, status, raw_json FROM workflow_runs "
+        "SELECT run_id, workflow_id, status FROM workflow_runs "
         "WHERE run_id LIKE ? OR workflow_id LIKE ? OR raw_json LIKE ? ORDER BY started_at DESC LIMIT ?",
         (f"%{args.term}%", f"%{args.term}%", f"%{args.term}%", args.limit),
     ).fetchall()
