@@ -118,6 +118,8 @@ class AgentctlTest(unittest.TestCase):
             result = self.run_cli("workflow", "run", str(WORKFLOW), database=database)
             run = json.loads(result.stdout)
             self.assertEqual(run["status"], "planned")
+            self.assertEqual(len(run["steps"]), 2)
+            self.assertIn('"type": "run.completed"', Path(run["events"]).read_text())
             self.assertTrue((database.parent / "runs" / run["run_id"] / "result.json").exists())
 
     def test_maintain_reports_the_requested_database(self) -> None:

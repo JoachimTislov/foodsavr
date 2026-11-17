@@ -873,6 +873,17 @@ def workflow_run(args: argparse.Namespace) -> int:
         "provider": provider or "auto",
     }
     if not args.execute:
+        result["steps"] = [
+            {
+                "id": step["id"],
+                "status": "planned",
+                "acceptance_results": [{"criterion": criterion, "status": "pending"} for criterion in step["acceptance"]],
+                "providers": step.get("providers") or list(specs),
+            }
+            for step in workflow["steps"]
+        ]
+        result["completed_at"] = now()
+        append_event(events_path, {"type": "run.completed", "status": "planned"})
         write_json(run_dir / "result.json", result)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
