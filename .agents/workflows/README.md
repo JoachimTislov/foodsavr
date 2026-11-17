@@ -8,7 +8,8 @@ Read-only workflows use the checked-out repository by default. Any workflow
 that requests workspace writes, Git branch writes, Git pushes, or GitHub writes
 must declare `"worktree": {"mode": "isolated"}`. The runner creates a detached
 worktree under the run artifact and executes the provider and acceptance checks
-there, leaving the source checkout unchanged.
+there, leaving the source checkout unchanged. Terminal runs export a
+permission-restricted `changes.patch` against the recorded base revision.
 
 Validate and plan without starting a model:
 
