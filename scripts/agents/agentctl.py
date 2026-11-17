@@ -135,8 +135,15 @@ def rebuild(args: argparse.Namespace, emit: bool = True) -> int:
     connection = connect(database)
     paths = document_paths()
     session_records = records()
+    run_records: list[tuple[dict[str, Any], Path]] = []
+    runs_root = database.parent / "runs"
+    for result_path in sorted(runs_root.glob("*/result.json")):
+        try:
+            run_records.append((load_json(result_path), result_path.parent))
+        except ValueError:
+            continue
     with connection:
-        for table in ("document_search", "document_references", "documents", "session_references", "sessions"):
+        for table in ("document_search", "document_references", "documents", "session_references", "sessions", "workflow_run_events", "workflow_run_artifacts", "workflow_runs"):
             connection.execute(f"DELETE FROM {table}")
         for path in paths:
             content = path.read_text(errors="replace")
@@ -168,10 +175,46 @@ def rebuild(args: argparse.Namespace, emit: bool = True) -> int:
                     "INSERT OR IGNORE INTO session_references(session_id, ref_type, ref_value) VALUES (?, ?, ?)",
                     [(session_id, field[:-1], str(value)) for value in record.get(field, [])],
                 )
+        for result, run_dir in run_records:
+            run_id = result.get("run_id")
+            if not isinstance(run_id, str) or not run_id:
+                continue
+            connection.execute(
+                "INSERT INTO workflow_runs(run_id, workflow_id, status, started_at, completed_at, provider, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (run_id, str(result.get("workflow_id", "unknown")), str(result.get("status", "unknown")),
+                 str(result.get("started_at", "")), result.get("completed_at"),
+                 str(result.get("provider") or ",".join(result.get("providers", []))), json.dumps(result, sort_keys=True)),
+            )
+            artifact_values = set(result.get("artifacts", []))
+            if result.get("patch"):
+                artifact_values.add(result["patch"])
+            for artifact in artifact_values:
+                artifact_path = Path(str(artifact))
+                if not artifact_path.is_absolute():
+                    artifact_path = ROOT / artifact_path
+                digest = hashlib.sha256(artifact_path.read_bytes()).hexdigest() if artifact_path.is_file() else None
+                kind = "patch" if artifact_path.name.endswith(".patch") else artifact_path.suffix.lstrip(".") or "artifact"
+                connection.execute(
+                    "INSERT OR IGNORE INTO workflow_run_artifacts(run_id, path, kind, sha256) VALUES (?, ?, ?, ?)",
+                    (run_id, str(artifact), kind, digest),
+                )
+            events_path = run_dir / Path(str(result.get("events", "events.jsonl"))).name
+            if events_path.is_file():
+                for event_index, line in enumerate(events_path.read_text(encoding="utf-8", errors="replace").splitlines()):
+                    try:
+                        event = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if not isinstance(event, dict):
+                        continue
+                    connection.execute(
+                        "INSERT INTO workflow_run_events(run_id, event_index, timestamp, event_type, raw_json) VALUES (?, ?, ?, ?, ?)",
+                        (run_id, event_index, event.get("timestamp"), str(event.get("type", "unknown")), json.dumps(event, sort_keys=True)),
+                    )
         connection.execute("INSERT INTO document_search(document_search) VALUES ('rebuild')")
     connection.close()
     if emit:
-        print(json.dumps({"database": str(database), "documents": len(paths), "sessions": len(session_records)}))
+        print(json.dumps({"database": str(database), "documents": len(paths), "sessions": len(session_records), "runs": len(run_records)}))
     return 0
 
 
@@ -222,8 +265,13 @@ def context(args: argparse.Namespace) -> int:
         row for row in session_rows
         if any(term in f"{row['session_id']} {row['summary']}".casefold() for term in terms)
     ][:args.limit]
+    runs = connection.execute(
+        "SELECT run_id, workflow_id, status, raw_json FROM workflow_runs "
+        "WHERE run_id LIKE ? OR workflow_id LIKE ? OR raw_json LIKE ? ORDER BY started_at DESC LIMIT ?",
+        (f"%{args.term}%", f"%{args.term}%", f"%{args.term}%", args.limit),
+    ).fetchall()
     connection.close()
-    print(json.dumps({"term": args.term, "documents": [dict(row) for row in docs], "sessions": [dict(row) for row in sessions]}, indent=2))
+    print(json.dumps({"term": args.term, "documents": [dict(row) for row in docs], "sessions": [dict(row) for row in sessions], "runs": [dict(row) for row in runs]}, indent=2))
     return 0
 
 
@@ -266,6 +314,15 @@ def resolve_workflow_context(workflow: dict[str, Any], database: Path, limit: in
                 sections.append("SESSIONS " + term + "\n" + "\n".join(
                     f"{row['session_id']} ({row['provider']}, {row['status']}): {row['summary']}"
                     for row in matches
+                ))
+            run_rows = connection.execute(
+                "SELECT run_id, workflow_id, status FROM workflow_runs "
+                "WHERE run_id LIKE ? OR workflow_id LIKE ? OR raw_json LIKE ? ORDER BY started_at DESC LIMIT ?",
+                (f"%{term}%", f"%{term}%", f"%{term}%", limit),
+            ).fetchall()
+            if run_rows:
+                sections.append("RUNS " + term + "\n" + "\n".join(
+                    f"{row['run_id']} ({row['workflow_id']}, {row['status']})" for row in run_rows
                 ))
         return "\n\n".join(sections)
     finally:
