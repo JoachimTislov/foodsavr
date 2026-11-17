@@ -1,13 +1,19 @@
 {
-  "schema_version": 1,
-  "managed_prefixes": ["type/", "area/", "status/", "risk/", "automation/"],
+  "schema_version": 2,
+  "managed_prefixes": ["type/", "area/", "status/", "risk/"],
+  "legacy_label_map": {
+    "bug": "type/bug", "feature": "type/feature", "enhancement": "type/feature",
+    "task": "type/task", "chore": "type/task", "documentation": "type/documentation",
+    "android": "area/android", "ui": "area/ui", "web": "area/web", "ci": "area/ci",
+    "testing": null, "alpha": null, "future": null, "architecture": null, "auth": null, "performance": null,
+    "automation/agent-managed": null
+  },
   "labels": [
     {"name": "type/bug", "color": "d73a4a", "description": "A reproducible defect"},
     {"name": "type/feature", "color": "a2eeef", "description": "A user-facing capability"},
     {"name": "type/task", "color": "006b75", "description": "A bounded engineering task"},
     {"name": "type/documentation", "color": "0075ca", "description": "Documentation or agent-context work"},
     {"name": "type/dependency", "color": "0366d6", "description": "Dependency or toolchain maintenance"},
-    {"name": "type/maintenance", "color": "5ce7f7", "description": "Internal maintenance or refactoring"},
     {"name": "area/app", "color": "450d51", "description": "Application behavior"},
     {"name": "area/ui", "color": "fbca04", "description": "User interface"},
     {"name": "area/android", "color": "006b75", "description": "Android platform"},
@@ -15,31 +21,21 @@
     {"name": "area/firestore", "color": "42ddf6", "description": "Firestore or security rules"},
     {"name": "area/ci", "color": "360dd1", "description": "CI, automation, or GitHub configuration"},
     {"name": "area/agents", "color": "8d80e9", "description": "Agent orchestration and provider setup"},
-    {"name": "area/testing", "color": "0f67da", "description": "Tests and verification"},
-    {"name": "status/open", "color": "ededed", "description": "Open issue"},
-    {"name": "status/closed", "color": "cfd3d7", "description": "Closed issue"},
-    {"name": "status/draft", "color": "ededed", "description": "Draft pull request"},
-    {"name": "status/ready", "color": "0e8a16", "description": "Ready pull request"},
-    {"name": "status/review", "color": "fbca04", "description": "Awaiting or receiving review"},
-    {"name": "status/changes-requested", "color": "d93f0b", "description": "Review changes requested"},
     {"name": "status/ci-pending", "color": "fbca04", "description": "Required checks are pending"},
-    {"name": "status/ci-green", "color": "0e8a16", "description": "Required checks passed"},
     {"name": "status/ci-failing", "color": "d73a4a", "description": "A check failed"},
-    {"name": "risk/security", "color": "b60205", "description": "Security-sensitive change"},
-    {"name": "risk/permissions", "color": "b60205", "description": "Permissions or trust-boundary change"},
-    {"name": "automation/agent-managed", "color": "8d80e9", "description": "Labels synchronized by repository automation"}
+    {"name": "risk/security", "color": "b60205", "description": "Security-sensitive change"}
   ],
+  "area_priority": ["area/agents", "area/ci", "area/firestore", "area/android", "area/web", "area/ui", "area/app"],
   "title_body_rules": [
-    {"label": "type/bug", "patterns": ["\\bbug\\b", "\\bfix(es|ed)?\\b", "\\bregression\\b"]},
-    {"label": "type/feature", "patterns": ["\\bfeature\\b", "\\badd(s|ed)?\\b", "\\bsupport\\b"]},
-    {"label": "type/documentation", "patterns": ["\\bdocs?\\b", "\\bdocumentation\\b", "\\breadme\\b"]},
-    {"label": "type/dependency", "patterns": ["\\bdependenc(y|ies)\\b", "\\bupgrade\\b", "\\b renovate\\b"]},
-    {"label": "type/task", "patterns": ["\\btask\\b", "\\btodo\\b", "\\bimplement\\b"]}
+    {"label": "type/bug", "patterns": ["^\\s*(fix|bug)(\\(|:|\\s)", "\\bregression\\b"]},
+    {"label": "type/feature", "patterns": ["^\\s*(feat|feature)(\\(|:|\\s)"]},
+    {"label": "type/documentation", "patterns": ["^\\s*(docs?|documentation)(\\(|:|\\s)"]},
+    {"label": "type/dependency", "patterns": ["^\\s*(build|deps?|dependency)(\\(|:|\\s)", "\\bdependabot\\b", "\\bbump\\b"]},
+    {"label": "type/task", "patterns": ["^\\s*(chore|task|refactor|ci)(\\(|:|\\s)"]}
   ],
   "path_rules": [
     {"label": "area/agents", "patterns": [".agents/", "AGENTS.md", "CLAUDE.md", "GEMINI.md", "scripts/agents/"]},
     {"label": "area/ci", "patterns": [".github/", "Makefile", "scripts/ci/"]},
-    {"label": "area/testing", "patterns": ["test/", "integration_test/", "scripts/testing/"]},
     {"label": "area/firestore", "patterns": ["firestore.rules", "firestore-rules/", "firebase.json"]},
     {"label": "area/android", "patterns": ["android/", "build-android"]},
     {"label": "area/web", "patterns": ["web/", "build-web"]},
@@ -47,7 +43,6 @@
     {"label": "area/app", "patterns": ["lib/"]}
   ],
   "risk_rules": [
-    {"label": "risk/security", "patterns": ["firestore.rules", "security", "secret", "credential", ".github/workflows/"]},
-    {"label": "risk/permissions", "patterns": [".agents/policies/", ".agents/runners/", ".github/workflows/", "firestore.rules"]}
+    {"label": "risk/security", "patterns": ["firestore.rules", "firestore-rules/", ".github/workflows/", ".agents/policies/", ".agents/runners/"]}
   ]
 }

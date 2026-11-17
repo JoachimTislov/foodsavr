@@ -5,9 +5,11 @@ classification rules. The `github-labels.yml` workflow checks out the trusted
 default branch and reacts to issue, pull-request, and selected workflow-run
 events.
 
-The synchronizer manages only namespaced labels (`type/`, `area/`, `status/`,
-`risk/`, and `automation/`). It removes stale labels in those namespaces but
-preserves all other labels, including human triage labels. It is safe to preview
+The synchronizer manages only purpose-driven namespaced labels (`type/`,
+`area/`, `status/ci-*`, and `risk/`). GitHub remains the source of truth for
+open/closed, draft/ready, and review state, so those states are deliberately
+not duplicated as labels. It removes stale managed and explicitly retired
+legacy labels but preserves other human triage labels. It is safe to preview
 the result without mutation:
 
 ```sh
