@@ -173,6 +173,19 @@ class AgentctlTest(unittest.TestCase):
         with patch.dict(os.environ, {"AGENT_RUNNERS_FILE": "/tmp/runner-providers.json"}):
             self.assertEqual(module.configured_path("AGENT_RUNNERS_FILE", Path("default.json")), Path("/tmp/runner-providers.json"))
 
+    def test_current_declarative_manifests_are_healthy(self) -> None:
+        module = load_agentctl_module()
+        self.assertEqual(module.validate_declarative_manifests(), [])
+
+    def test_manifest_health_rejects_invalid_policy(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            policy = Path(directory) / "policy.json"
+            policy.write_text(json.dumps({"schema_version": 1, "id": "broken", "filesystem": "unrestricted"}))
+            with patch.object(module, "POLICY", policy):
+                errors = module.validate_declarative_manifests()
+        self.assertTrue(any("invalid filesystem" in error for error in errors))
+
     def test_workflow_run_defaults_to_persisted_dry_run(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             database = Path(directory) / "db"
