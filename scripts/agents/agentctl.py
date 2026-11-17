@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import atexit
 import argparse
 import hashlib
 import json
@@ -784,6 +785,46 @@ def write_result(path: Path, value: dict[str, Any]) -> None:
     write_json(path, value)
 
 
+def recover_interrupted_runs(runs: Path) -> int:
+    """Terminalize abandoned runs while preserving runs owned by live processes."""
+    recovered = 0
+    for result_path in sorted(runs.glob("*/result.json")):
+        try:
+            result = load_json(result_path)
+        except ValueError:
+            continue
+        if result.get("status") != "running":
+            continue
+        active_path = result_path.parent / "active.json"
+        active_pid: int | None = None
+        if active_path.exists():
+            try:
+                active_pid = int(load_json(active_path).get("pid"))
+            except (OSError, TypeError, ValueError):
+                active_pid = None
+        if active_pid is not None:
+            try:
+                os.kill(active_pid, 0)
+                continue
+            except OSError:
+                pass
+        result["status"] = "failed"
+        result["reason"] = "interrupted-before-completion"
+        result["completed_at"] = now()
+        events = result_path.parent / Path(str(result.get("events", "events.jsonl"))).name
+        append_event(events, {"type": "run.recovered", "status": "failed", "reason": result["reason"]})
+        result["ledger_refs"].append(append_ledger_event(
+            result["run_id"], result["workflow_id"], "none", result["status"], path_reference(result_path),
+        ))
+        write_result(result_path, result)
+        try:
+            active_path.unlink()
+        except FileNotFoundError:
+            pass
+        recovered += 1
+    return recovered
+
+
 def path_reference(path: Path) -> str:
     try:
         return str(path.relative_to(ROOT))
@@ -968,6 +1009,16 @@ def workflow_run(args: argparse.Namespace) -> int:
     run_id = f"{workflow['id']}-{uuid.uuid4().hex[:12]}"
     database = Path(args.database).expanduser()
     run_dir = database.parent / "runs" / run_id
+    active_path = run_dir / "active.json"
+    write_json(active_path, {"pid": os.getpid(), "started_at": now()})
+
+    def clear_active_marker() -> None:
+        try:
+            active_path.unlink()
+        except FileNotFoundError:
+            pass
+
+    atexit.register(clear_active_marker)
     policy = load_json(POLICY)
     events_path = run_dir / "events.jsonl"
     append_event(events_path, {"type": "run.started", "workflow_id": workflow["id"], "run_id": run_id})
@@ -1214,10 +1265,11 @@ def heal(args: argparse.Namespace) -> int:
         if path.name not in {"schema.json", "result.schema.json"}:
             errors.extend(validate_workflow_file(path))
     database = Path(args.database).expanduser()
+    recovered = recover_interrupted_runs(database.parent / "runs")
     rebuild(argparse.Namespace(database=str(database)), emit=False)
     report = {
         "status": "healthy" if not errors else "failed",
-        "actions": ["rebuild knowledge catalog", f"deduplicate session index ({deduplicated} records)"],
+        "actions": ["rebuild knowledge catalog", f"deduplicate session index ({deduplicated} records)", f"recover interrupted runs ({recovered} records)"],
         "knowledge": str(database),
         "workflows": [str(path.relative_to(ROOT)) for path in workflow_paths if "schema" not in path.name],
         "errors": errors,
