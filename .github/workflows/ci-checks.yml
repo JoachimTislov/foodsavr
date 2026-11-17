@@ -3,7 +3,7 @@ name: Format, Analyze, Check Localizations and Run Tests
 on:
   push:
     branches: [main]
-    paths: &code_paths
+    paths:
       - "**.dart"
       - "lib/**"
       - "test/**"
@@ -17,12 +17,19 @@ on:
       - "test_driver/**"
   pull_request:
     branches: [main]
-    paths: *code_paths
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   gate:
     name: Decide whether to run CI
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
     runs-on: ubuntu-latest
     outputs:
       run: ${{ steps.decide.outputs.run }}
@@ -30,25 +37,37 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          fetch-depth: 2
+          fetch-depth: 1
+
+      - name: Changed code paths (pull requests)
+        id: paths
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            code:
+              - "**.dart"
+              - "lib/**"
+              - "test/**"
+              - "assets/translations/**"
+              - "pubspec.yaml"
+              - "pubspec.lock"
+              - "analysis_options.yaml"
+              - "android/**"
+              - "web/**"
+              - "integration_test/**"
+              - "test_driver/**"
 
       - name: Decide
         id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "${{ github.event_name }}" != "push" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-            exit 0
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ steps.paths.outputs.code }}" != "true" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
-
-          subject=$(git log -1 --pretty=%s)
-          parents=$(git show -s --format='%P' HEAD | wc -w)
-          if [ "$parents" -gt 1 ] && echo "$subject" | grep -qE '^Merge pull request #[0-9]+'; then
-            echo "HEAD is a GitHub PR merge; CI already ran on the pull request" >&2
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "run=true" >> "$GITHUB_OUTPUT"
+          scripts/ci/already_tested.sh ci-checks.yml
+          if grep -q 'skip=true' "$GITHUB_OUTPUT"; then echo "run=false" >> "$GITHUB_OUTPUT"; else echo "run=true" >> "$GITHUB_OUTPUT"; fi
 
   check:
     name: Check & Test
