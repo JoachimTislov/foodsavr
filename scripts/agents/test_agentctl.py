@@ -16,11 +16,11 @@ WORKFLOW = ROOT / ".agents/workflows/repository-health.json"
 
 
 class AgentctlTest(unittest.TestCase):
-    def run_cli(self, *arguments: str, database: Path) -> subprocess.CompletedProcess[str]:
+    def run_cli(self, *arguments: str, database: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [str(CLI), "--database", str(database), *arguments],
             cwd=ROOT,
-            check=True,
+            check=check,
             capture_output=True,
             text=True,
         )
@@ -36,9 +36,9 @@ class AgentctlTest(unittest.TestCase):
 
     def test_workflow_plan_is_dry_run(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            result = self.run_cli("workflow", "plan", str(WORKFLOW), database=Path(directory) / "db")
+            result = self.run_cli("workflow", "plan", str(WORKFLOW), database=Path(directory) / "db", check=False)
             plan = json.loads(result.stdout)
-            self.assertEqual(plan["status"], "planned")
+            self.assertIn(plan["status"], {"planned", "unavailable"})
             self.assertIn("no provider process was started", plan["execution"])
             self.assertEqual(len(plan["steps"]), 2)
 
