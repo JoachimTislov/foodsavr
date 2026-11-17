@@ -48,6 +48,27 @@ class AgentctlTest(unittest.TestCase):
             rows = json.loads(result.stdout)
             self.assertTrue(any(row["path"] == "TODO.md" for row in rows))
 
+    def test_knowledge_rebuild_indexes_workflow_runs_and_events(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "knowledge.sqlite3"
+            run_dir = Path(directory) / "runs" / "run-1"
+            run_dir.mkdir(parents=True)
+            result = {
+                "workflow_id": "audit", "run_id": "run-1", "status": "succeeded",
+                "started_at": "2026-01-01T00:00:00+00:00", "completed_at": "2026-01-01T00:01:00+00:00",
+                "steps": [], "session_ids": [], "artifacts": [], "events": "events.jsonl", "usage": {}, "ledger_refs": [],
+            }
+            (run_dir / "result.json").write_text(json.dumps(result))
+            (run_dir / "events.jsonl").write_text(json.dumps({"timestamp": "2026-01-01T00:00:01+00:00", "type": "run.started"}) + "\n")
+            self.run_cli("knowledge", "rebuild", database=database)
+            connection = module.connect(database)
+            run = connection.execute("SELECT run_id, workflow_id, status FROM workflow_runs").fetchone()
+            event = connection.execute("SELECT event_type FROM workflow_run_events").fetchone()
+            connection.close()
+            self.assertEqual(tuple(run), ("run-1", "audit", "succeeded"))
+            self.assertEqual(event["event_type"], "run.started")
+
     def test_workflow_plan_is_dry_run(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             result = self.run_cli("workflow", "plan", str(WORKFLOW), database=Path(directory) / "db", check=False)

@@ -6,8 +6,9 @@ that layer. It is not committed and never becomes the authority for domain
 decisions.
 
 The projection combines repository documents, extracted issue/PR/commit/URL
-references, provider session metadata, and FTS5 full-text search. Rebuild it
-after a checkout or source change:
+references, provider session metadata, workflow run status, event types, patch
+artifact hashes, and FTS5 full-text search. Rebuild it after a checkout or
+source change:
 
 ```sh
 scripts/agents/agentctl knowledge rebuild
@@ -19,6 +20,7 @@ Query it from any harness:
 scripts/agents/agentctl query "FoodSavr TODO"
 scripts/agents/agentctl context "current app status and open work"
 scripts/agents/agentctl sessions list
+scripts/agents/agentctl query "repository-health run-"
 ```
 
 The database lives at `.agents/state/knowledge.sqlite3` and is ignored. CI or
@@ -30,8 +32,9 @@ are never merged as authority.
 JSONL remains the append-friendly event format for session records. SQLite is
 the better query layer because it provides relational links, transactions,
 indexes, provider-specific JSON storage, and FTS5 ranking without a service.
-A graph database is unnecessary at this scale: `references` and
-`session_references` provide graph-like traversal through normal SQL joins.
+A graph database is unnecessary at this scale: `references`,
+`session_references`, and the workflow-run artifact/event tables provide
+graph-like traversal through normal SQL joins.
 
 This design is intentionally a projection rather than a migration that deletes
 `doc/`. Removing Markdown would break provider-native context loading and make

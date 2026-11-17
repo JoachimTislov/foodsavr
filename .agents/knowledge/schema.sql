@@ -40,6 +40,36 @@ CREATE TABLE IF NOT EXISTS session_references (
 CREATE INDEX IF NOT EXISTS session_references_lookup
   ON session_references(ref_type, ref_value);
 
+CREATE TABLE IF NOT EXISTS workflow_runs (
+  run_id TEXT PRIMARY KEY,
+  workflow_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  completed_at TEXT,
+  provider TEXT,
+  raw_json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS workflow_run_artifacts (
+  run_id TEXT NOT NULL REFERENCES workflow_runs(run_id) ON DELETE CASCADE,
+  path TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  sha256 TEXT,
+  PRIMARY KEY(run_id, path)
+);
+
+CREATE TABLE IF NOT EXISTS workflow_run_events (
+  run_id TEXT NOT NULL REFERENCES workflow_runs(run_id) ON DELETE CASCADE,
+  event_index INTEGER NOT NULL,
+  timestamp TEXT,
+  event_type TEXT NOT NULL,
+  raw_json TEXT NOT NULL,
+  PRIMARY KEY(run_id, event_index)
+);
+
+CREATE INDEX IF NOT EXISTS workflow_runs_status ON workflow_runs(status);
+CREATE INDEX IF NOT EXISTS workflow_run_events_type ON workflow_run_events(event_type);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS document_search USING fts5(
   title,
   content,
