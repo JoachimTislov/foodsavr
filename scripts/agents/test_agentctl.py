@@ -94,6 +94,17 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("unknown provider", result.stdout)
 
+    def test_workflow_context_cannot_escape_repository(self) -> None:
+        module = load_agentctl_module()
+        workflow = json.loads(WORKFLOW.read_text())
+        workflow["context"]["files"] = ["../outside.txt"]
+        errors = module.validate_workflow_file(WORKFLOW)
+        self.assertFalse(any("escapes workspace" in error for error in errors))
+        temporary = Path(tempfile.mkdtemp()) / "workflow.json"
+        temporary.write_text(json.dumps(workflow))
+        errors = module.validate_workflow_file(temporary)
+        self.assertTrue(any("escapes workspace" in error for error in errors))
+
     def test_policy_compile_is_explicit_about_enforcement(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             result = self.run_cli("policy", "compile", "--provider", "vibe", database=Path(directory) / "db")
@@ -202,6 +213,7 @@ class AgentctlTest(unittest.TestCase):
             artifact = next(path for path in result["artifacts"] if path.endswith(".json") and path != result["events"])
             self.assertNotIn("raw_output", json.loads(Path(artifact).read_text()))
             self.assertEqual([attempt["status"] for attempt in result["steps"][0]["attempts"]], ["failed", "succeeded"])
+            self.assertEqual(result["steps"][0]["route_reason"], "deterministic-fallback")
             records = [json.loads(line) for line in index.read_text().splitlines()]
             self.assertEqual([record["status"] for record in records], ["failed", "succeeded"])
 
