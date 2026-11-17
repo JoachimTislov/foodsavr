@@ -96,6 +96,14 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(run["status"], "planned")
             self.assertTrue((database.parent / "runs" / run["run_id"] / "result.json").exists())
 
+    def test_maintain_reports_the_requested_database(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "knowledge.sqlite3"
+            result = self.run_cli("maintain", database=database)
+            report = json.loads(result.stdout)
+            self.assertEqual(report["status"], "healthy")
+            self.assertEqual(report["knowledge"], str(database))
+
 
 if __name__ == "__main__":
     unittest.main()
