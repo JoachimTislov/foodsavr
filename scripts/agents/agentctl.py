@@ -488,10 +488,10 @@ def workflow_run(args: argparse.Namespace) -> int:
     workflow = load_json(path)
     specs = provider_specs()
     provider = args.provider
-    if provider == "auto":
+    if provider == "auto" and args.execute:
         candidates = [name for name, spec in specs.items() if shutil.which(spec.get("command", ""))]
         provider = candidates[0] if candidates else None
-    if provider not in specs or shutil.which(specs.get(provider, {}).get("command", "")) is None:
+    if args.execute and (provider not in specs or shutil.which(specs.get(provider, {}).get("command", "")) is None):
         print(json.dumps({"status": "unavailable", "provider": provider}, indent=2))
         return 1
     run_id = f"{workflow['id']}-{uuid.uuid4().hex[:12]}"
