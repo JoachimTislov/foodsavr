@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "providers": {
-    "codex": {"command": "codex", "headless": ["exec", "--json", "--sandbox", "read-only"], "prompt_mode": "stdin", "enforces_read_only": true, "version": ["--version"], "session_id_source": "JSONL thread.started.thread_id"},
-    "claude": {"command": "claude", "headless": ["-p", "--output-format", "json", "--permission-mode", "plan", "--permission-prompts", "none"], "prompt_mode": "argument", "enforces_read_only": true, "version": ["--version"], "session_id_source": "JSON session_id"},
-    "opencode": {"command": "opencode", "headless": ["run", "--format", "json"], "prompt_mode": "argument", "enforces_read_only": false, "version": ["--version"], "session_id_source": "JSON event sessionID"},
-    "gemini": {"command": "gemini", "headless": ["-p"], "prompt_mode": "argument", "enforces_read_only": false, "version": ["--version"], "session_id_source": "JSON event session_id"},
-    "vibe": {"command": "vibe", "headless": ["--prompt", "--output", "json"], "prompt_mode": "argument", "enforces_read_only": false, "version": ["--version"], "session_id_source": "export.json session_id"},
-    "copilot": {"command": "copilot", "headless": ["--prompt", "--silent"], "prompt_mode": "argument", "enforces_read_only": false, "version": ["--version"], "session_id_source": "session output or --session-id"}
+    "codex": {"command": "codex", "headless": ["exec", "--json", "--sandbox", "read-only"], "prompt_mode": "stdin", "enforces_read_only": true, "enforced_permissions": {"filesystem": ["read-only"], "network": ["none"], "git": ["read-only"], "github": ["none"]}, "version": ["--version"], "session_id_source": "JSONL thread.started.thread_id"},
+    "claude": {"command": "claude", "headless": ["-p", "--output-format", "json", "--permission-mode", "plan", "--permission-prompts", "none"], "prompt_mode": "argument", "enforces_read_only": true, "enforced_permissions": {"filesystem": ["read-only"], "network": ["none"], "git": ["read-only"], "github": ["none"]}, "version": ["--version"], "session_id_source": "JSON session_id"},
+    "opencode": {"command": "opencode", "headless": ["run", "--format", "json"], "prompt_mode": "argument", "enforces_read_only": false, "enforced_permissions": {}, "version": ["--version"], "session_id_source": "JSON event sessionID"},
+    "gemini": {"command": "gemini", "headless": ["-p"], "prompt_mode": "argument", "enforces_read_only": false, "enforced_permissions": {}, "version": ["--version"], "session_id_source": "JSON event session_id"},
+    "vibe": {"command": "vibe", "headless": ["--output", "json"], "prompt_mode": "flag", "prompt_flag": "--prompt", "enforces_read_only": false, "enforced_permissions": {}, "version": ["--version"], "session_id_source": "export.json session_id"},
+    "copilot": {"command": "copilot", "headless": ["--silent"], "prompt_mode": "flag", "prompt_flag": "--prompt", "enforces_read_only": false, "enforced_permissions": {}, "version": ["--version"], "session_id_source": "session output or --session-id"}
   }
 }
