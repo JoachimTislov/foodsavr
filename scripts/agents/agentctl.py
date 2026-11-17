@@ -224,7 +224,7 @@ def search_phrase(term: str) -> str:
     return " OR ".join(f'"{part.replace(chr(34), chr(34) * 2)}"' for part in terms)
 
 
-def ensure_catalog(connection: sqlite3.Connection) -> None:
+def ensure_catalog(connection: sqlite3.Connection, database: Path) -> None:
     rows = connection.execute("SELECT path, sha256 FROM documents").fetchall()
     if not rows:
         raise ValueError("knowledge catalog is empty; run `scripts/agents/agentctl knowledge rebuild`")
@@ -235,11 +235,38 @@ def ensure_catalog(connection: sqlite3.Connection) -> None:
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         if digest != row["sha256"]:
             raise ValueError(f"knowledge catalog is stale; rebuild after changing {row['path']}")
+    indexed_runs = {
+        row["run_id"]: row["raw_json"]
+        for row in connection.execute("SELECT run_id, raw_json FROM workflow_runs").fetchall()
+    }
+    current_runs: dict[str, str] = {}
+    for result_path in sorted((database.parent / "runs").glob("*/result.json")):
+        try:
+            result = load_json(result_path)
+        except ValueError:
+            continue
+        run_id = result.get("run_id")
+        if isinstance(run_id, str) and run_id:
+            current_runs[run_id] = json.dumps(result, sort_keys=True)
+    if indexed_runs != current_runs:
+        raise ValueError("knowledge catalog is stale; rebuild after changing workflow runs")
+
+
+def fresh_catalog(database: Path) -> sqlite3.Connection:
+    """Open the disposable projection, rebuilding it when source state changed."""
+    connection = connect(database)
+    try:
+        ensure_catalog(connection, database)
+    except ValueError:
+        connection.close()
+        rebuild(argparse.Namespace(database=str(database)), emit=False)
+        connection = connect(database)
+        ensure_catalog(connection, database)
+    return connection
 
 
 def query(args: argparse.Namespace) -> int:
-    connection = connect(Path(args.database).expanduser())
-    ensure_catalog(connection)
+    connection = fresh_catalog(Path(args.database).expanduser())
     rows = connection.execute(
         "SELECT title, path, snippet(document_search, 1, '[', ']', '…', 24) AS snippet, bm25(document_search) AS rank "
         "FROM document_search WHERE document_search MATCH ? ORDER BY rank LIMIT ?",
@@ -251,8 +278,7 @@ def query(args: argparse.Namespace) -> int:
 
 
 def context(args: argparse.Namespace) -> int:
-    connection = connect(Path(args.database).expanduser())
-    ensure_catalog(connection)
+    connection = fresh_catalog(Path(args.database).expanduser())
     docs = connection.execute(
         "SELECT title, path, snippet(document_search, 1, '[', ']', '…', 20) AS snippet "
         "FROM document_search WHERE document_search MATCH ? ORDER BY bm25(document_search) LIMIT ?",
@@ -297,8 +323,7 @@ def run_projection(connection: sqlite3.Connection, row: sqlite3.Row) -> dict[str
 
 
 def runs(args: argparse.Namespace) -> int:
-    connection = connect(Path(args.database).expanduser())
-    ensure_catalog(connection)
+    connection = fresh_catalog(Path(args.database).expanduser())
     if args.runs_command == "show":
         row = connection.execute(
             "SELECT run_id, workflow_id, status, started_at, completed_at, provider "
@@ -329,14 +354,7 @@ def runs(args: argparse.Namespace) -> int:
 
 def resolve_workflow_context(workflow: dict[str, Any], database: Path, limit: int = 8) -> str:
     """Resolve bounded, repository-backed context before handing work to a harness."""
-    connection = connect(database)
-    try:
-        ensure_catalog(connection)
-    except ValueError:
-        connection.close()
-        rebuild(argparse.Namespace(database=str(database)), emit=False)
-        connection = connect(database)
-        ensure_catalog(connection)
+    connection = fresh_catalog(database)
     try:
         context_data = workflow.get("context", {})
         sections: list[str] = []
