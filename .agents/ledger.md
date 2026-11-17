@@ -12,6 +12,11 @@ issue references, pull requests, external sources, commit SHAs, and outcome in
 both records. Session IDs are correlation identifiers; transcripts and
 credentials remain outside the repository.
 
+Use `scripts/agents/agentctl knowledge rebuild` to materialize the ledger,
+specifications, and documentation into the ignored SQLite query projection.
+JSONL remains the append-only ledger format; SQLite is the derived relational
+and full-text index.
+
 | Date (UTC) | Event |
 |---|---|
 | 2026-11-17 | Session `t3:b03551b1-e271-4352-bf03-1195fbc3d1ec`: added the provider-neutral session index/query contract for PR #235 in commit `8e1214b`; sources and session metadata are recorded in `.agents/sessions/index.jsonl`. |

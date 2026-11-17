@@ -19,7 +19,9 @@ google-services.json
 firebase_options.dart
 .gemini/policies
 .pr_comments_cache.json
-research/raw
+research/*
+!research/README.md
+.agents/state/
 
 # generated code
 injection.config.dart

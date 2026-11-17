@@ -7,7 +7,7 @@ an optional local `transcript` path; that path must remain uncommitted.
 Register a session when work starts or when a provider returns an ID:
 
 ```sh
-python3 scripts/agents/session_query.py register \
+scripts/agents/agentctl sessions register \
   --session-id 'vibe:session-id' \
   --provider mistral \
   --harness vibe \
@@ -20,16 +20,15 @@ python3 scripts/agents/session_query.py register \
 Query sessions and repository context from any shell, agent, or CI runner:
 
 ```sh
-python3 scripts/agents/session_query.py list
-python3 scripts/agents/session_query.py show 'vibe:session-id'
-python3 scripts/agents/session_query.py search 'FoodSavr TODO'
-python3 scripts/agents/session_query.py validate
+scripts/agents/agentctl sessions list
+scripts/agents/agentctl query 'FoodSavr TODO'
+scripts/agents/agentctl context 'current app status and open work'
 ```
 
 The JSON output is intended for harness adapters and orchestration scripts.
-The `search` command searches registered metadata, `.agents/ledger.md`,
-`TODO.md`, `README.md`, and any registered local transcripts. It does not call
-provider APIs or expose credentials.
+`agentctl query` searches the SQLite knowledge projection. It does not call
+provider APIs or expose credentials. Rebuild it with
+`scripts/agents/agentctl knowledge rebuild` after checkout or source changes.
 
 ## Record contract
 
