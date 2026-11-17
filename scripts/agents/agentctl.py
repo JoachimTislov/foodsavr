@@ -345,7 +345,7 @@ def load_json(path: Path) -> dict[str, Any]:
 def validate_workflow_file(path: Path) -> list[str]:
     workflow = load_json(path)
     errors = []
-    allowed = {"schema_version", "id", "objective", "context", "steps", "limits", "permissions", "outputs"}
+    allowed = {"schema_version", "id", "objective", "context", "steps", "limits", "permissions", "outputs", "worktree"}
     errors.extend(f"{path}: unknown field {field}" for field in workflow if field not in allowed)
     for field in ("schema_version", "id", "objective", "steps", "limits", "permissions"):
         if field not in workflow:
@@ -412,6 +412,18 @@ def validate_workflow_file(path: Path) -> list[str]:
     for field, values in permission_values.items():
         if field in workflow.get("permissions", {}) and workflow["permissions"][field] not in values:
             errors.append(f"{path}: invalid permissions.{field}")
+    worktree = workflow.get("worktree", {"mode": "repository"})
+    if not isinstance(worktree, dict) or worktree.get("mode", "repository") not in {"repository", "isolated"}:
+        errors.append(f"{path}: worktree.mode must be repository or isolated")
+    if isinstance(worktree, dict):
+        errors.extend(f"{path}: unknown worktree field {field}" for field in set(worktree) - {"mode"})
+    write_requested = any([
+        workflow.get("permissions", {}).get("filesystem") == "workspace-write",
+        workflow.get("permissions", {}).get("git") in {"branch-write", "push"},
+        workflow.get("permissions", {}).get("github") == "write",
+    ])
+    if write_requested and isinstance(worktree, dict) and worktree.get("mode") != "isolated":
+        errors.append(f"{path}: write-capable workflows require worktree.mode=isolated")
     return errors
 
 
@@ -597,16 +609,16 @@ def workflow_prompt(workflow: dict[str, Any], step: dict[str, Any], run_id: str,
     ])
 
 
-def provider_command(provider: str, spec: dict[str, Any], prompt: str) -> tuple[list[str], str | None]:
+def provider_command(provider: str, spec: dict[str, Any], prompt: str, workdir: Path = ROOT) -> tuple[list[str], str | None]:
     command = [spec["command"], *spec.get("headless", [])]
     if spec.get("prompt_mode") == "stdin":
         if provider == "codex":
-            command.extend(["--cd", str(ROOT), "-"])
+            command.extend(["--cd", str(workdir), "-"])
         return command, prompt
     if spec.get("prompt_mode") == "flag":
         return [*command, spec.get("prompt_flag", "--prompt"), prompt], None
     if provider == "codex":
-        return [*command, "--cd", str(ROOT), "-"], prompt
+        return [*command, "--cd", str(workdir), "-"], prompt
     return [*command, prompt], None
 
 
@@ -974,13 +986,13 @@ def external_route(workflow: dict[str, Any], step: dict[str, Any], safe: list[st
         return None, "external-router-failed-using-fallback"
 
 
-def run_acceptance(step: dict[str, Any]) -> list[dict[str, Any]]:
+def run_acceptance(step: dict[str, Any], cwd: Path = ROOT) -> list[dict[str, Any]]:
     results = []
     for acceptance_command in step.get("acceptance_commands", []):
         try:
             verification = subprocess.run(
                 shlex.split(acceptance_command), capture_output=True, text=True,
-                cwd=ROOT, timeout=30, check=False,
+                cwd=cwd, timeout=30, check=False,
             )
             results.append({
                 "command": acceptance_command,
@@ -1071,6 +1083,33 @@ def workflow_run(args: argparse.Namespace) -> int:
         write_result(run_dir / "result.json", result)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 1
+    execution_root = ROOT
+    if workflow.get("worktree", {}).get("mode") == "isolated":
+        execution_root = run_dir / "worktree"
+        try:
+            worktree = subprocess.run(
+                ["git", "worktree", "add", "--detach", str(execution_root), "HEAD"],
+                cwd=ROOT, capture_output=True, text=True, timeout=30, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            worktree = None
+            worktree_error = str(error)
+        else:
+            worktree_error = (worktree.stderr or worktree.stdout).strip()
+        if worktree is None or worktree.returncode != 0:
+            result["status"] = "failed"
+            result["reason"] = "worktree-creation-failed"
+            result["error"] = worktree_error
+            result["completed_at"] = now()
+            append_event(events_path, {"type": "run.completed", "status": result["status"], "reason": result["reason"]})
+            result["ledger_refs"].append(append_ledger_event(
+                run_id, workflow["id"], "none", result["status"], path_reference(run_dir / "result.json"),
+            ))
+            write_result(run_dir / "result.json", result)
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return 1
+        result["worktree"] = path_reference(execution_root)
+        write_result(run_dir / "result.json", result)
     had_failure = False
     for step in workflow["steps"]:
         step_id = step["id"]
@@ -1111,10 +1150,10 @@ def workflow_run(args: argparse.Namespace) -> int:
         step_succeeded = False
         for attempt in range(1, workflow["limits"]["max_attempts"] + 1):
             try:
-                command, stdin = provider_command(selected, spec, prompt)
+                command, stdin = provider_command(selected, spec, prompt, execution_root)
                 completed = subprocess.run(
                     command, input=stdin, capture_output=True, text=True,
-                    cwd=ROOT, timeout=workflow["limits"]["timeout_seconds"], check=False,
+                    cwd=execution_root, timeout=workflow["limits"]["timeout_seconds"], check=False,
                 )
                 output = (completed.stdout or "") + (completed.stderr or "")
                 artifact = (run_dir / f"{step_id}.attempt-{attempt}.json").resolve()
@@ -1131,7 +1170,7 @@ def workflow_run(args: argparse.Namespace) -> int:
                 for event in normalized_events(selected, output):
                     append_event(events_path, {"type": "provider.event", "step_id": step_id, "attempt": attempt, **event})
                 append_event(events_path, {"type": "attempt.completed", "step_id": step_id, "attempt": attempt, "usage": usage})
-                acceptance_results = run_acceptance(step)
+                acceptance_results = run_acceptance(step, execution_root)
                 acceptance_passed = len(acceptance_results) >= len(step["acceptance"]) and all(
                     item.get("status") == "passed" for item in acceptance_results
                 )

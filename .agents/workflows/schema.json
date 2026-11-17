@@ -63,6 +63,13 @@
         "result_schema": {"type": "string"}
       },
       "additionalProperties": false
+    },
+    "worktree": {
+      "type": "object",
+      "properties": {
+        "mode": {"enum": ["repository", "isolated"]}
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false
