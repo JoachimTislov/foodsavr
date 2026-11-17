@@ -88,6 +88,14 @@ class AgentctlTest(unittest.TestCase):
             self.assertFalse(projection["enforced"])
             self.assertTrue(projection["require_draft_pr"])
 
+    def test_workflow_run_defaults_to_persisted_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "db"
+            result = self.run_cli("workflow", "run", str(WORKFLOW), database=database)
+            run = json.loads(result.stdout)
+            self.assertEqual(run["status"], "planned")
+            self.assertTrue((database.parent / "runs" / run["run_id"] / "result.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

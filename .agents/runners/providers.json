@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "providers": {
-    "codex": {"command": "codex", "headless": ["exec"], "session_id": "provider output"},
-    "claude": {"command": "claude", "headless": ["-p", "--output-format", "json"], "session_id": "provider output"},
-    "opencode": {"command": "opencode", "headless": ["run"], "session_id": "provider output"},
-    "gemini": {"command": "gemini", "headless": ["-p"], "session_id": "provider output"},
-    "vibe": {"command": "vibe", "headless": ["-p"], "session_id": "provider output"},
-    "copilot": {"command": "copilot", "headless": ["-p"], "session_id": "provider output"}
+    "codex": {"command": "codex", "headless": ["exec", "--json", "--sandbox", "read-only"], "prompt_mode": "stdin", "enforces_read_only": true, "version": ["--version"], "session_id_source": "JSONL thread.started.thread_id"},
+    "claude": {"command": "claude", "headless": ["-p", "--output-format", "json", "--permission-mode", "plan", "--permission-prompts", "none"], "prompt_mode": "argument", "enforces_read_only": true, "version": ["--version"], "session_id_source": "JSON session_id"},
+    "opencode": {"command": "opencode", "headless": ["run", "--format", "json"], "prompt_mode": "argument", "enforces_read_only": false, "version": ["--version"], "session_id_source": "JSON event sessionID"},
+    "gemini": {"command": "gemini", "headless": ["-p"], "prompt_mode": "argument", "enforces_read_only": false, "version": ["--version"], "session_id_source": "JSON event session_id"},
+    "vibe": {"command": "vibe", "headless": ["--prompt", "--output", "json"], "prompt_mode": "argument", "enforces_read_only": false, "version": ["--version"], "session_id_source": "export.json session_id"},
+    "copilot": {"command": "copilot", "headless": ["--prompt", "--silent"], "prompt_mode": "argument", "enforces_read_only": false, "version": ["--version"], "session_id_source": "session output or --session-id"}
   }
 }

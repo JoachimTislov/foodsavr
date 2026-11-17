@@ -9,6 +9,7 @@ import json
 import re
 import shutil
 import sqlite3
+import subprocess
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -308,11 +309,30 @@ def doctor(args: argparse.Namespace) -> int:
             "path": shutil.which(spec.get("command", "")),
             "available": shutil.which(spec.get("command", "")) is not None,
             "headless": runner_specs.get(provider, {}).get("headless", []),
+            "version": version_for(spec),
         }
         for provider, spec in runner_specs.items()
     }
     print(json.dumps({"runner": str(ROOT), "providers": result}, indent=2, sort_keys=True))
     return 0
+
+
+def version_for(spec: dict[str, Any]) -> str | None:
+    command = spec.get("command")
+    if not command:
+        return None
+    try:
+        result = subprocess.run(
+            [command, *spec.get("version", ["--version"])],
+            capture_output=True,
+            text=True,
+            timeout=8,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    output = (result.stdout or result.stderr).strip().splitlines()
+    return output[0] if result.returncode == 0 and output else None
 
 
 def workflow_validate(args: argparse.Namespace) -> int:
@@ -376,6 +396,166 @@ def workflow_plan(args: argparse.Namespace) -> int:
     }
     print(json.dumps(plan, indent=2, sort_keys=True))
     return 0 if not unavailable_steps else 1
+
+
+def workflow_prompt(workflow: dict[str, Any], step: dict[str, Any], run_id: str) -> str:
+    context = workflow.get("context", {})
+    return "\n".join([
+        f"Workflow: {workflow['id']}",
+        f"Run ID: {run_id}",
+        f"Objective: {workflow['objective']}",
+        f"Knowledge queries: {json.dumps(context.get('queries', []))}",
+        f"Context files: {json.dumps(context.get('files', []))}",
+        f"Role: {step['role']}",
+        f"Task: {step['prompt']}",
+        "Acceptance criteria:",
+        *[f"- {criterion}" for criterion in step["acceptance"]],
+        "Record the provider session ID and cite repository/source references in the result.",
+    ])
+
+
+def provider_command(provider: str, spec: dict[str, Any], prompt: str) -> tuple[list[str], str | None]:
+    command = [spec["command"], *spec.get("headless", [])]
+    if provider == "codex":
+        return [*command, "--cd", str(ROOT), "-"], prompt
+    if provider == "vibe":
+        return [spec["command"], "--output", "json", "--prompt", prompt], None
+    return [*command, prompt], None
+
+
+def extract_session_id(output: str) -> str | None:
+    for line in output.splitlines():
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            for key in ("session_id", "sessionId", "sessionID", "thread_id", "threadId"):
+                candidate = value.get(key)
+                if isinstance(candidate, str) and candidate:
+                    return candidate
+    match = re.search(r"\b[0-9a-f]{8}-[0-9a-f-]{27,}\b", output, re.I)
+    return match.group(0) if match else None
+
+
+def append_session_record(provider: str, session_id: str, run_id: str, summary: str) -> None:
+    record = {
+        "session_id": f"{provider}:{session_id}",
+        "provider": provider,
+        "harness": provider,
+        "started_at": now(),
+        "status": "completed",
+        "issues": [],
+        "prs": [],
+        "sources": [],
+        "commits": [],
+        "summary": summary,
+        "run_id": run_id,
+    }
+    INDEX.parent.mkdir(parents=True, exist_ok=True)
+    with INDEX.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(record, sort_keys=True) + "\n")
+
+
+def write_json(path: Path, value: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.replace(path)
+
+
+def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: str) -> str:
+    ledger = ROOT / ".agents/ledger.md"
+    event = f"| {datetime.now(timezone.utc).date().isoformat()} | Run `{run_id}` for workflow `{workflow_id}` used `{provider}` and ended with `{status}`; result artifact is `.agents/state/runs/{run_id}/result.json`. |\n"
+    content = ledger.read_text(encoding="utf-8")
+    marker = "|---|---|\n"
+    if marker not in content:
+        raise ValueError("ledger table header not found")
+    updated = content.replace(marker, marker + event, 1)
+    temporary = ledger.with_suffix(".md.tmp")
+    temporary.write_text(updated, encoding="utf-8")
+    temporary.replace(ledger)
+    return f".agents/ledger.md#{run_id}"
+
+
+def workflow_run(args: argparse.Namespace) -> int:
+    path = Path(args.path).expanduser()
+    errors = validate_workflow_file(path)
+    if errors:
+        print(json.dumps({"valid": False, "errors": errors}, indent=2))
+        return 1
+    workflow = load_json(path)
+    specs = provider_specs()
+    provider = args.provider
+    if provider == "auto":
+        candidates = [name for name, spec in specs.items() if shutil.which(spec.get("command", ""))]
+        provider = candidates[0] if candidates else None
+    if provider not in specs or shutil.which(specs.get(provider, {}).get("command", "")) is None:
+        print(json.dumps({"status": "unavailable", "provider": provider}, indent=2))
+        return 1
+    run_id = f"{workflow['id']}-{uuid.uuid4().hex[:12]}"
+    database = Path(args.database).expanduser()
+    run_dir = database.parent / "runs" / run_id
+    result: dict[str, Any] = {
+        "workflow_id": workflow["id"], "run_id": run_id, "status": "planned",
+        "started_at": now(), "steps": [], "session_ids": [], "artifacts": [], "ledger_refs": [],
+        "provider": provider,
+    }
+    if not args.execute:
+        write_json(run_dir / "result.json", result)
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+    result["status"] = "running"
+    write_json(run_dir / "result.json", result)
+    spec = specs[provider]
+    if workflow["permissions"].get("filesystem") == "read-only" and not spec.get("enforces_read_only", False):
+        result["status"] = "unavailable"
+        result["reason"] = f"provider adapter {provider} has not verified read-only enforcement"
+        write_json(run_dir / "result.json", result)
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 1
+    for step in workflow["steps"]:
+        prompt = workflow_prompt(workflow, step, run_id)
+        command, stdin = provider_command(provider, spec, prompt)
+        step_id = step["id"]
+        try:
+            completed = subprocess.run(
+                command, input=stdin, capture_output=True, text=True,
+                cwd=ROOT, timeout=workflow["limits"]["timeout_seconds"], check=False,
+            )
+            output = (completed.stdout or "") + (completed.stderr or "")
+            artifact = run_dir / f"{step_id}.output"
+            artifact.parent.mkdir(parents=True, exist_ok=True)
+            artifact.write_text(output, encoding="utf-8")
+            session_id = extract_session_id(output)
+            step_result = {
+                "id": step_id,
+                "status": "succeeded" if completed.returncode == 0 else "failed",
+                "acceptance_results": [{"criterion": criterion, "status": "pending"} for criterion in step["acceptance"]],
+                "session_id": session_id,
+                "artifact": str(artifact.relative_to(ROOT)),
+            }
+            result["steps"].append(step_result)
+            result["artifacts"].append(str(artifact.relative_to(ROOT)))
+            if session_id:
+                namespaced = f"{provider}:{session_id}"
+                result["session_ids"].append(namespaced)
+                append_session_record(provider, session_id, run_id, f"Workflow {workflow['id']} step {step_id}")
+            if completed.returncode != 0:
+                result["status"] = "failed"
+                break
+        except (OSError, subprocess.TimeoutExpired) as error:
+            result["steps"].append({"id": step_id, "status": "failed", "acceptance_results": [{"status": "error", "detail": str(error)}]})
+            result["status"] = "failed"
+            break
+        write_json(run_dir / "result.json", result)
+    if result["status"] == "running":
+        result["status"] = "awaiting_acceptance"
+    result["completed_at"] = now()
+    result["ledger_refs"].append(append_ledger_event(run_id, workflow["id"], provider, result["status"]))
+    write_json(run_dir / "result.json", result)
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if result["status"] == "succeeded" else 1
 
 
 def policy_compile(args: argparse.Namespace) -> int:
@@ -455,6 +635,10 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("path")
     plan = workflow_commands.add_parser("plan")
     plan.add_argument("path")
+    run = workflow_commands.add_parser("run")
+    run.add_argument("path")
+    run.add_argument("--provider", default="auto")
+    run.add_argument("--execute", action="store_true")
     policy = commands.add_parser("policy")
     policy_commands = policy.add_subparsers(dest="policy_command", required=True)
     compile_policy = policy_commands.add_parser("compile")
@@ -496,6 +680,8 @@ def main(argv: list[str] | None = None) -> int:
         return workflow_validate(args)
     if args.command == "workflow" and args.workflow_command == "plan":
         return workflow_plan(args)
+    if args.command == "workflow" and args.workflow_command == "run":
+        return workflow_run(args)
     if args.command == "policy" and args.policy_command == "compile":
         return policy_compile(args)
     if args.command == "sessions" and args.session_command == "list":

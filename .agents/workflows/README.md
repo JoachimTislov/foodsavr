@@ -9,6 +9,7 @@ Validate and plan without starting a model:
 ```sh
 scripts/agents/agentctl workflow validate .agents/workflows/repository-health.json
 scripts/agents/agentctl workflow plan .agents/workflows/repository-health.json
+scripts/agents/agentctl workflow run .agents/workflows/repository-health.json
 scripts/agents/agentctl doctor
 scripts/agents/agentctl heal
 ```
@@ -20,6 +21,11 @@ ledger references before a run can be considered complete.
 Provider-specific headless metadata lives in
 `.agents/runners/providers.json`; the adapter lifecycle is documented in
 `.agents/runners/README.md`.
+
+`workflow run` is dry-run by default and persists a run artifact. Passing
+`--execute --provider <name>` is an explicit model invocation. Execution
+captures raw output and session IDs, but remains `awaiting_acceptance` until
+the declared acceptance criteria are verified.
 
 `heal` repairs only derived local state and validation artifacts: it rebuilds
 the SQLite catalog and writes `.agents/state/runs/last-maintenance.json`. It
