@@ -41,6 +41,7 @@ jobs:
           python3 -m unittest scripts/agents/test_agentctl.py
           scripts/agents/agentctl maintain
           scripts/agents/agentctl workflow validate .agents/workflows/repository-health.json
+          scripts/agents/agentctl router plan .agents/workflows/repository-health.json
           scripts/agents/agentctl doctor
           for provider in codex claude opencode gemini vibe copilot; do
             scripts/agents/agentctl policy compile --provider "$provider" >/dev/null
@@ -48,6 +49,7 @@ jobs:
           python3 -m json.tool .agents/policies/default.json >/dev/null
           python3 -m json.tool .agents/policies/schema.json >/dev/null
           python3 -m json.tool .agents/runners/providers.json >/dev/null
+          python3 -m json.tool .agents/runners/router.json >/dev/null
           python3 -m json.tool .agents/workflows/schema.json >/dev/null
           python3 -m json.tool .agents/workflows/result.schema.json >/dev/null
       - name: Check generated state is ignored

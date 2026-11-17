@@ -201,6 +201,14 @@ class AgentctlTest(unittest.TestCase):
         self.assertEqual(vibe_command.count("--prompt"), 1)
         self.assertEqual(copilot_command.count("--prompt"), 1)
 
+    def test_router_plan_has_a_local_policy_safe_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_cli("router", "plan", str(WORKFLOW), database=Path(directory) / "db", check=False)
+            plan = json.loads(result.stdout)
+            self.assertEqual(plan["fallback"]["strategy"], "first-available-policy-safe")
+            self.assertFalse(plan["decision_provider"]["enabled"])
+            self.assertEqual(len(plan["decisions"]), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

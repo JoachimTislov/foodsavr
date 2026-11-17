@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "provider-router",
+  "decision_provider": {
+    "enabled": false,
+    "protocol": "openai-compatible",
+    "base_url_env": "JEV_ROUTER_BASE_URL",
+    "api_key_env": "JEV_ROUTER_API_KEY",
+    "model_env": "JEV_ROUTER_MODEL",
+    "timeout_ms": 500
+  },
+  "fallback": {
+    "strategy": "first-available-policy-safe",
+    "requires_explicit_provider": false
+  },
+  "decision_fields": ["workflow_id", "step_id", "capabilities", "available_providers", "policy"]
+}
