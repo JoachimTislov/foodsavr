@@ -23,6 +23,7 @@ SCHEMA = ROOT / ".agents/knowledge/schema.sql"
 DATABASE = ROOT / ".agents/state/knowledge.sqlite3"
 RUNNERS = ROOT / ".agents/runners/providers.json"
 POLICY = ROOT / ".agents/policies/default.json"
+ROUTER = ROOT / ".agents/runners/router.json"
 TEXT_SUFFIXES = {".md", ".markdown", ".yaml", ".yml", ".json", ".toml"}
 EXCLUDED_PARTS = {".git", ".dart_tool", "build", "state"}
 URL_RE = re.compile(r"https?://[^\s)\]>]+")
@@ -422,6 +423,44 @@ def workflow_plan(args: argparse.Namespace) -> int:
     return 0 if not unavailable_steps else 1
 
 
+def router_plan(args: argparse.Namespace) -> int:
+    path = Path(args.path).expanduser()
+    errors = validate_workflow_file(path)
+    if errors:
+        print(json.dumps({"valid": False, "errors": errors}, indent=2))
+        return 1
+    workflow = load_json(path)
+    specs = provider_specs()
+    policy = load_json(POLICY)
+    router = load_json(ROUTER)
+    permission_errors = policy_errors(workflow, policy)
+    decisions = []
+    for step in workflow["steps"]:
+        candidates = step.get("providers") or list(specs)
+        available = [provider for provider in candidates if provider in specs and shutil.which(specs[provider].get("command", ""))]
+        safe = [provider for provider in available if provider_is_safe(provider, workflow, specs)]
+        decisions.append({
+            "step_id": step["id"],
+            "capabilities": {"filesystem": workflow["permissions"]["filesystem"], "network": workflow["permissions"]["network"], "git": workflow["permissions"]["git"], "github": workflow["permissions"].get("github", "none")},
+            "candidates": candidates,
+            "available_providers": available,
+            "policy_safe_providers": safe,
+            "selected": safe[0] if safe else None,
+            "reason": "deterministic-fallback" if safe else "no-available-policy-safe-provider",
+        })
+    result = {
+        "router": router["id"],
+        "decision_provider": router["decision_provider"],
+        "fallback": router["fallback"],
+        "workflow_id": workflow["id"],
+        "policy": policy["id"],
+        "policy_errors": permission_errors,
+        "decisions": decisions,
+    }
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if not permission_errors and all(decision["selected"] for decision in decisions) else 1
+
+
 def workflow_prompt(workflow: dict[str, Any], step: dict[str, Any], run_id: str, resolved_context: str) -> str:
     context = workflow.get("context", {})
     return "\n".join([
@@ -787,6 +826,10 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("path")
     run.add_argument("--provider", default="auto")
     run.add_argument("--execute", action="store_true")
+    router = commands.add_parser("router")
+    router_commands = router.add_subparsers(dest="router_command", required=True)
+    router_plan_parser = router_commands.add_parser("plan")
+    router_plan_parser.add_argument("path")
     policy = commands.add_parser("policy")
     policy_commands = policy.add_subparsers(dest="policy_command", required=True)
     compile_policy = policy_commands.add_parser("compile")
@@ -830,6 +873,8 @@ def main(argv: list[str] | None = None) -> int:
         return workflow_plan(args)
     if args.command == "workflow" and args.workflow_command == "run":
         return workflow_run(args)
+    if args.command == "router" and args.router_command == "plan":
+        return router_plan(args)
     if args.command == "policy" and args.policy_command == "compile":
         return policy_compile(args)
     if args.command == "sessions" and args.session_command == "list":

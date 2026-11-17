@@ -12,6 +12,7 @@ scripts/agents/agentctl workflow plan .agents/workflows/repository-health.json
 scripts/agents/agentctl workflow run .agents/workflows/repository-health.json
 scripts/agents/agentctl doctor
 scripts/agents/agentctl heal
+scripts/agents/agentctl router plan .agents/workflows/repository-health.json
 ```
 
 The plan includes the providers available on the current runner. An adapter
@@ -21,6 +22,13 @@ ledger references before a run can be considered complete.
 Provider-specific headless metadata lives in
 `.agents/runners/providers.json`; the adapter lifecycle is documented in
 `.agents/runners/README.md`.
+
+`.agents/runners/router.json` defines the router boundary. The local
+policy-safe deterministic selector is always available. An optional
+OpenAI-compatible decision provider (for example a Jev deployment) is
+disabled by default and can only be enabled by a runner that supplies its
+endpoint and credential environment variables; the local selector remains the
+fallback.
 
 `workflow run` is dry-run by default and persists a run artifact. Passing
 `--execute --provider <name>` is an explicit model invocation. Execution
