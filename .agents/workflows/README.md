@@ -25,7 +25,13 @@ Provider-specific headless metadata lives in
 `workflow run` is dry-run by default and persists a run artifact. Passing
 `--execute --provider <name>` is an explicit model invocation. Execution
 captures raw output and session IDs, but remains `awaiting_acceptance` until
-the declared acceptance criteria are verified.
+the declared acceptance criteria are verified. With `--provider auto`, each
+step selects the first available provider from its own `providers` list that
+satisfies the compiled policy. `limits.max_attempts` and `on_failure: retry`
+bound recovery; `on_failure: continue` records the failure and proceeds while
+the overall run remains failed. A successful execution requires a provider
+session ID when the policy requires one, passing acceptance commands, and a
+ledger reference in the persisted result.
 
 `heal` repairs only derived local state and validation artifacts: it rebuilds
 the SQLite catalog and writes `.agents/state/runs/last-maintenance.json`. It
