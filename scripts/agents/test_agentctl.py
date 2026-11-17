@@ -7,6 +7,7 @@ import json
 import argparse
 import contextlib
 import importlib.util
+import os
 import io
 import subprocess
 import tempfile
@@ -112,6 +113,11 @@ class AgentctlTest(unittest.TestCase):
             self.assertFalse(projection["enforced"])
             self.assertTrue(projection["require_draft_pr"])
             self.assertIn("requested-permissions-not-enforced", projection["capability"]["failure_reasons"])
+
+    def test_runner_configuration_can_be_overridden_by_trusted_environment(self) -> None:
+        module = load_agentctl_module()
+        with patch.dict(os.environ, {"AGENT_RUNNERS_FILE": "/tmp/runner-providers.json"}):
+            self.assertEqual(module.configured_path("AGENT_RUNNERS_FILE", Path("default.json")), Path("/tmp/runner-providers.json"))
 
     def test_workflow_run_defaults_to_persisted_dry_run(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
