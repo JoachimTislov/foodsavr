@@ -14,7 +14,7 @@ credentials remain outside the repository.
 
 | Date (UTC) | Event |
 |---|---|
-| 2026-11-17 | Session `t3:b03551b1-e271-4352-bf03-1195fbc3d1ec`: added the provider-neutral session index/query contract for PR #235 in commit `032cf51`; sources and session metadata are recorded in `.agents/sessions/index.jsonl`. |
+| 2026-11-17 | Session `t3:b03551b1-e271-4352-bf03-1195fbc3d1ec`: added the provider-neutral session index/query contract for PR #235 in commit `8e1214b`; sources and session metadata are recorded in `.agents/sessions/index.jsonl`. |
 | 2026-11-17 | Installed 25 non-conflicting skills from `mattpocock/skills` into `.agents/skills/` using sparse checkout; preserved FoodSavr's existing `research` skill and refreshed Gemini/Claude skill projections. |
 | 2026-11-17 | Refined provider compatibility directories: `.gemini/` now owns Gemini-only commands, configuration, and policies while `.gemini/agents`, `.gemini/skills`, `.claude/agents`, and `.claude/skills` link individual files into `.agents/`; removed commands from `.claude/`. |
 | 2026-11-17 | Migrated this history from `AGENTS.md` into `.agents/ledger.md` so active agent instructions do not load the full repository history. |
