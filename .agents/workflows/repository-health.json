@@ -18,6 +18,7 @@
       "prompt": "Use the generated knowledge context and inspect the listed source files. Report current status, unresolved TODOs, and contradictions.",
       "providers": ["codex", "claude", "opencode", "gemini", "vibe", "copilot"],
       "acceptance": ["Every finding cites a repository path or session/source reference.", "No code is changed in this step."],
+      "acceptance_commands": ["scripts/agents/agentctl knowledge rebuild", "git diff --quiet -- .agents/workflows .agents/policies .agents/runners"],
       "on_failure": "stop"
     },
     {
@@ -26,6 +27,7 @@
       "prompt": "Verify each reported finding against the repository and propose the smallest owner-visible next action.",
       "providers": ["codex", "claude", "opencode", "gemini", "vibe", "copilot"],
       "acceptance": ["Each action has a clear acceptance command or owner decision.", "The result references the audit session ID."],
+      "acceptance_commands": ["scripts/agents/agentctl workflow validate .agents/workflows/repository-health.json", "scripts/agents/agentctl policy compile --provider codex"],
       "on_failure": "retry"
     }
   ],

@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import re
+import shlex
 import shutil
 import sqlite3
 import subprocess
@@ -272,7 +273,7 @@ def validate_workflow_file(path: Path) -> list[str]:
             if step_id in step_ids:
                 errors.append(f"{path}: duplicate step id: {step_id}")
             step_ids.add(step_id)
-            unknown_step_fields = set(step) - {"id", "role", "prompt", "providers", "skills", "acceptance", "on_failure"}
+            unknown_step_fields = set(step) - {"id", "role", "prompt", "providers", "skills", "acceptance", "acceptance_commands", "on_failure"}
             errors.extend(f"{path}: step {index}: unknown field {field}" for field in unknown_step_fields)
             if not isinstance(step.get("acceptance"), list) or not step.get("acceptance"):
                 errors.append(f"{path}: step {index} acceptance must be non-empty")
@@ -528,10 +529,29 @@ def workflow_run(args: argparse.Namespace) -> int:
             artifact.parent.mkdir(parents=True, exist_ok=True)
             artifact.write_text(output, encoding="utf-8")
             session_id = extract_session_id(output)
+            acceptance_results = []
+            for acceptance_command in step.get("acceptance_commands", []):
+                try:
+                    verification = subprocess.run(
+                        shlex.split(acceptance_command), capture_output=True, text=True,
+                        cwd=ROOT, timeout=30, check=False,
+                    )
+                    acceptance_results.append({
+                        "command": acceptance_command,
+                        "status": "passed" if verification.returncode == 0 else "failed",
+                        "output": (verification.stdout or verification.stderr)[-2000:],
+                    })
+                except (OSError, subprocess.TimeoutExpired) as error:
+                    acceptance_results.append({"command": acceptance_command, "status": "error", "output": str(error)})
+            if not step.get("acceptance_commands"):
+                acceptance_results = [{"criterion": criterion, "status": "pending"} for criterion in step["acceptance"]]
+            acceptance_passed = len(acceptance_results) >= len(step["acceptance"]) and all(
+                item.get("status") == "passed" for item in acceptance_results
+            )
             step_result = {
                 "id": step_id,
-                "status": "succeeded" if completed.returncode == 0 else "failed",
-                "acceptance_results": [{"criterion": criterion, "status": "pending"} for criterion in step["acceptance"]],
+                "status": "succeeded" if completed.returncode == 0 and acceptance_passed else ("failed" if completed.returncode != 0 else "awaiting_acceptance"),
+                "acceptance_results": acceptance_results,
                 "session_id": session_id,
                 "artifact": str(artifact.relative_to(ROOT)),
             }
@@ -541,8 +561,10 @@ def workflow_run(args: argparse.Namespace) -> int:
                 namespaced = f"{provider}:{session_id}"
                 result["session_ids"].append(namespaced)
                 append_session_record(provider, session_id, run_id, f"Workflow {workflow['id']} step {step_id}")
-            if completed.returncode != 0:
+            if completed.returncode != 0 or not acceptance_passed:
                 result["status"] = "failed"
+                if completed.returncode == 0 and not acceptance_passed:
+                    result["status"] = "awaiting_acceptance"
                 break
         except (OSError, subprocess.TimeoutExpired) as error:
             result["steps"].append({"id": step_id, "status": "failed", "acceptance_results": [{"status": "error", "detail": str(error)}]})
