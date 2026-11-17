@@ -19,6 +19,14 @@ for every requested filesystem, network, Git, and GitHub permission. Providers
 without that enforcement remain visible to routing diagnostics but fail closed
 at execution time.
 
+CI runners can supply trusted, environment-specific manifests without changing
+the repository source layer. Set `AGENT_RUNNERS_FILE`, `AGENT_POLICY_FILE`, and
+`AGENT_ROUTER_FILE` to override the provider, policy, and router manifests.
+Set `AGENT_SESSION_INDEX`, `AGENT_KNOWLEDGE_SCHEMA`, and `AGENT_KNOWLEDGE_DB`
+to override the session and disposable knowledge locations. These overrides
+are runner configuration, not workflow input, and must never be populated from
+an untrusted pull request.
+
 Required adapter lifecycle:
 
 1. `probe` — command, version, authentication, and headless capability.

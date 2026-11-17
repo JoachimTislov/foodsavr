@@ -22,12 +22,20 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
-INDEX = ROOT / ".agents/sessions/index.jsonl"
-SCHEMA = ROOT / ".agents/knowledge/schema.sql"
-DATABASE = ROOT / ".agents/state/knowledge.sqlite3"
-RUNNERS = ROOT / ".agents/runners/providers.json"
-POLICY = ROOT / ".agents/policies/default.json"
-ROUTER = ROOT / ".agents/runners/router.json"
+
+
+def configured_path(environment: str, default: Path) -> Path:
+    """Read trusted runner configuration without changing repository authority."""
+    value = os.environ.get(environment)
+    return Path(value).expanduser() if value else default
+
+
+INDEX = configured_path("AGENT_SESSION_INDEX", ROOT / ".agents/sessions/index.jsonl")
+SCHEMA = configured_path("AGENT_KNOWLEDGE_SCHEMA", ROOT / ".agents/knowledge/schema.sql")
+DATABASE = configured_path("AGENT_KNOWLEDGE_DB", ROOT / ".agents/state/knowledge.sqlite3")
+RUNNERS = configured_path("AGENT_RUNNERS_FILE", ROOT / ".agents/runners/providers.json")
+POLICY = configured_path("AGENT_POLICY_FILE", ROOT / ".agents/policies/default.json")
+ROUTER = configured_path("AGENT_ROUTER_FILE", ROOT / ".agents/runners/router.json")
 TEXT_SUFFIXES = {".md", ".markdown", ".yaml", ".yml", ".json", ".toml"}
 EXCLUDED_PARTS = {".git", ".dart_tool", "build", "state"}
 URL_RE = re.compile(r"https?://[^\s)\]>]+")
