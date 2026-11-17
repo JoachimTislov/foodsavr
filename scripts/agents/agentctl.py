@@ -167,6 +167,7 @@ def rebuild(args: argparse.Namespace, emit: bool = True) -> int:
                     [(session_id, field[:-1], str(value)) for value in record.get(field, [])],
                 )
         connection.execute("INSERT INTO document_search(document_search) VALUES ('rebuild')")
+    connection.close()
     if emit:
         print(json.dumps({"database": str(database), "documents": len(paths), "sessions": len(session_records)}))
     return 0
@@ -198,6 +199,7 @@ def query(args: argparse.Namespace) -> int:
         "FROM document_search WHERE document_search MATCH ? ORDER BY rank LIMIT ?",
         (search_phrase(args.term), args.limit),
     ).fetchall()
+    connection.close()
     print(json.dumps([dict(row) for row in rows], indent=2))
     return 0
 
@@ -218,6 +220,7 @@ def context(args: argparse.Namespace) -> int:
         row for row in session_rows
         if any(term in f"{row['session_id']} {row['summary']}".casefold() for term in terms)
     ][:args.limit]
+    connection.close()
     print(json.dumps({"term": args.term, "documents": [dict(row) for row in docs], "sessions": [dict(row) for row in sessions]}, indent=2))
     return 0
 
@@ -931,7 +934,20 @@ def workflow_run(args: argparse.Namespace) -> int:
         return 1
     result["status"] = "running"
     write_json(run_dir / "result.json", result)
-    resolved_context = resolve_workflow_context(workflow, database)
+    try:
+        resolved_context = resolve_workflow_context(workflow, database)
+    except (OSError, ValueError, sqlite3.Error) as error:
+        result["status"] = "failed"
+        result["reason"] = "context-resolution-failed"
+        result["error"] = str(error)
+        result["completed_at"] = now()
+        append_event(events_path, {"type": "run.completed", "status": result["status"], "reason": result["reason"]})
+        result["ledger_refs"].append(append_ledger_event(
+            run_id, workflow["id"], "none", result["status"], path_reference(run_dir / "result.json"),
+        ))
+        write_json(run_dir / "result.json", result)
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 1
     had_failure = False
     for step in workflow["steps"]:
         step_id = step["id"]
@@ -1021,7 +1037,7 @@ def workflow_run(args: argparse.Namespace) -> int:
                     break
                 if step.get("on_failure", "stop") != "retry":
                     break
-            except (OSError, subprocess.TimeoutExpired) as error:
+            except (OSError, ValueError, sqlite3.Error, subprocess.TimeoutExpired) as error:
                 attempts.append({"attempt": attempt, "status": "failed", "acceptance_results": [], "error": str(error)})
                 if step.get("on_failure", "stop") != "retry":
                     break

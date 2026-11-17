@@ -257,6 +257,27 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(exit_code, 1)
             self.assertEqual(json.loads(output.getvalue())["status"], "unavailable")
 
+    def test_context_failure_terminalizes_started_run(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            workflow_path = Path(directory) / "workflow.json"
+            workflow = json.loads(WORKFLOW.read_text())
+            workflow["id"] = "context-failure"
+            workflow_path.write_text(json.dumps(workflow))
+            output = io.StringIO()
+            with patch.object(module, "resolve_workflow_context", side_effect=ValueError("stale context")), \
+                 patch.object(module, "append_ledger_event", return_value="ledger#context-failure"):
+                with contextlib.redirect_stdout(output):
+                    exit_code = module.workflow_run(argparse.Namespace(
+                        path=str(workflow_path), provider="auto", execute=True,
+                        database=str(Path(directory) / "knowledge.sqlite3"),
+                    ))
+            self.assertEqual(exit_code, 1)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result["status"], "failed")
+            self.assertEqual(result["reason"], "context-resolution-failed")
+            self.assertIn('"type": "run.completed"', Path(result["events"]).read_text())
+
     def test_provider_flags_are_not_duplicated(self) -> None:
         module = load_agentctl_module()
         manifest = json.loads((ROOT / ".agents/runners/providers.json").read_text())["providers"]
