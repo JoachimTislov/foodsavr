@@ -6,7 +6,7 @@
   "properties": {
     "workflow_id": {"type": "string"},
     "run_id": {"type": "string"},
-    "status": {"enum": ["planned", "running", "succeeded", "failed", "cancelled"]},
+    "status": {"enum": ["planned", "running", "succeeded", "failed", "cancelled", "awaiting_acceptance"]},
     "started_at": {"type": "string"},
     "completed_at": {"type": "string"},
     "steps": {
@@ -16,7 +16,7 @@
         "required": ["id", "status", "acceptance_results"],
         "properties": {
           "id": {"type": "string"},
-          "status": {"enum": ["planned", "running", "succeeded", "failed", "cancelled"]},
+          "status": {"enum": ["planned", "running", "succeeded", "failed", "cancelled", "awaiting_acceptance"]},
           "acceptance_results": {"type": "array", "items": {"type": "object"}},
           "session_id": {"type": ["string", "null"]},
           "artifact": {"type": ["string", "null"]}

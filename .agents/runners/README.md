@@ -1,6 +1,8 @@
 # Provider runners
 
-Provider runners are adapters, not sources of truth. Each adapter must accept
+Provider runners are adapters, not sources of truth. The command and session
+ID metadata in `providers.json` was checked against the installed CLI help on
+November 17, 2026; adapters must re-probe versions before execution. Each adapter must accept
 the normalized workflow plan, expose a provider session ID, emit structured
 events, preserve the raw provider result outside Git, and return a normalized
 result that satisfies `.agents/workflows/result.schema.json`.
