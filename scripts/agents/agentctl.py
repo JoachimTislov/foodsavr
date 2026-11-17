@@ -100,6 +100,18 @@ def document_title(path: Path, content: str) -> str:
     return path.stem.replace("-", " ").replace("_", " ").title()
 
 
+def repository_path(relative: str, *, require_file: bool = False) -> Path:
+    """Resolve a workflow path without allowing it to escape the repository."""
+    candidate = (ROOT / relative).resolve()
+    try:
+        candidate.relative_to(ROOT.resolve())
+    except ValueError as error:
+        raise ValueError(f"repository path escapes workspace: {relative}") from error
+    if require_file and not candidate.is_file():
+        raise ValueError(f"repository file does not exist: {relative}")
+    return candidate
+
+
 def references(content: str) -> list[tuple[str, str]]:
     found: set[tuple[str, str]] = set()
     found.update(("github_reference", value) for value in ISSUE_RE.findall(content))
@@ -215,7 +227,7 @@ def resolve_workflow_context(workflow: dict[str, Any], database: Path, limit: in
     context_data = workflow.get("context", {})
     sections: list[str] = []
     for relative in context_data.get("files", []):
-        path = ROOT / relative
+        path = repository_path(relative, require_file=True)
         content = path.read_text(encoding="utf-8", errors="replace")
         sections.append(f"FILE {relative}\n{content[:12000]}")
     for term in context_data.get("queries", []):
@@ -291,8 +303,10 @@ def validate_workflow_file(path: Path) -> list[str]:
             if field not in {"queries", "files", "skills"}:
                 errors.append(f"{path}: unknown context field {field}")
         for file_path in context.get("files", []):
-            if not (ROOT / file_path).exists():
-                errors.append(f"{path}: context file does not exist: {file_path}")
+            try:
+                repository_path(file_path, require_file=True)
+            except ValueError as error:
+                errors.append(f"{path}: {error}")
     if not isinstance(workflow.get("steps"), list) or not workflow.get("steps"):
         errors.append(f"{path}: steps must be a non-empty array")
     else:
@@ -443,8 +457,8 @@ def router_plan(args: argparse.Namespace) -> int:
         return 1
     workflow = load_json(path)
     specs = provider_specs()
-    policy = load_json(POLICY)
     router = load_json(ROUTER)
+    policy = load_json(POLICY)
     permission_errors = policy_errors(workflow, policy)
     decisions = []
     for step in workflow["steps"]:
@@ -797,6 +811,7 @@ def workflow_run(args: argparse.Namespace) -> int:
         return 1
     workflow = load_json(path)
     specs = provider_specs()
+    router = load_json(ROUTER)
     provider = args.provider if args.provider != "auto" else None
     if args.execute and provider is not None and provider not in specs:
         print(json.dumps({"status": "unavailable", "provider": provider}, indent=2))
@@ -834,9 +849,9 @@ def workflow_run(args: argparse.Namespace) -> int:
     had_failure = False
     for step in workflow["steps"]:
         step_id = step["id"]
-        append_event(events_path, {"type": "step.started", "step_id": step_id})
         candidates = step.get("providers") or list(specs)
         selected = provider if provider in candidates else None
+        route_reason = "explicit-provider" if selected else ""
         if selected is None and provider is not None:
             result["steps"].append({"id": step_id, "status": "failed", "acceptance_results": [], "reason": f"requested provider {provider} is not allowed for this step"})
             had_failure = True
@@ -845,15 +860,19 @@ def workflow_run(args: argparse.Namespace) -> int:
             continue
         if selected is None:
             selected_candidates = available_providers(candidates, specs)
-            selected = next((name for name in selected_candidates if provider_is_safe(name, workflow, specs)), None)
+            policy_safe = [name for name in selected_candidates if provider_is_safe(name, workflow, specs)]
+            selected, route_reason = external_route(workflow, step, policy_safe, router)
+            if selected is None and policy_safe:
+                selected, route_reason = policy_safe[0], "deterministic-fallback"
+        append_event(events_path, {"type": "step.started", "step_id": step_id, "route_reason": route_reason})
         if selected is None:
-            result["steps"].append({"id": step_id, "status": "unavailable", "acceptance_results": [], "reason": "no available provider satisfies the workflow policy"})
+            result["steps"].append({"id": step_id, "status": "unavailable", "acceptance_results": [], "reason": "no available provider satisfies the workflow policy", "route_reason": route_reason or "no-available-policy-safe-provider"})
             had_failure = True
             if step.get("on_failure", "stop") != "continue":
                 break
             continue
         if not provider_is_safe(selected, workflow, specs):
-            result["steps"].append({"id": step_id, "status": "unavailable", "acceptance_results": [], "provider": selected, "reason": f"provider adapter {selected} has not verified read-only enforcement"})
+            result["steps"].append({"id": step_id, "status": "unavailable", "acceptance_results": [], "provider": selected, "reason": f"provider adapter {selected} has not verified read-only enforcement", "route_reason": route_reason})
             had_failure = True
             if step.get("on_failure", "stop") != "continue":
                 break
@@ -922,11 +941,11 @@ def workflow_run(args: argparse.Namespace) -> int:
             had_failure = had_failure or final_status == "failed"
             if final_status == "awaiting_acceptance":
                 result["status"] = "awaiting_acceptance"
-            result["steps"].append({"id": step_id, "status": final_status, "provider": selected, "attempts": attempts, "acceptance_results": attempts[-1].get("acceptance_results", []) if attempts else []})
+            result["steps"].append({"id": step_id, "status": final_status, "provider": selected, "route_reason": route_reason, "attempts": attempts, "acceptance_results": attempts[-1].get("acceptance_results", []) if attempts else []})
             if step.get("on_failure", "stop") != "continue":
                 break
         else:
-            result["steps"].append({"id": step_id, "status": "succeeded", "provider": selected, "attempts": attempts, "acceptance_results": attempts[-1]["acceptance_results"]})
+            result["steps"].append({"id": step_id, "status": "succeeded", "provider": selected, "route_reason": route_reason, "attempts": attempts, "acceptance_results": attempts[-1]["acceptance_results"]})
         write_json(run_dir / "result.json", result)
     if had_failure:
         result["status"] = "failed"

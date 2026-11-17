@@ -32,14 +32,22 @@ fallback.
 
 `workflow run` is dry-run by default and persists a run artifact. Passing
 `--execute --provider <name>` is an explicit model invocation. Execution
-captures raw output and session IDs, but remains `awaiting_acceptance` until
-the declared acceptance criteria are verified. With `--provider auto`, each
-step selects the first available provider from its own `providers` list that
-satisfies the compiled policy. `limits.max_attempts` and `on_failure: retry`
-bound recovery; `on_failure: continue` records the failure and proceeds while
-the overall run remains failed. A successful execution requires a provider
-session ID when the policy requires one, passing acceptance commands, and a
-ledger reference in the persisted result.
+captures normalized output and session IDs, but remains `awaiting_acceptance`
+until the declared acceptance criteria are verified. With `--provider auto`,
+each step first offers policy-safe candidates to the configured decision router
+and then uses the deterministic first-available fallback. The selected provider
+and routing reason are persisted in the step result and event stream.
+`limits.max_attempts` and `on_failure: retry` bound recovery;
+`on_failure: continue` records the failure and proceeds while the overall run
+remains failed. A successful execution requires a provider session ID when the
+policy requires one, passing acceptance commands, and a ledger reference in the
+persisted result. A step that has no policy-safe provider is recorded as
+`unavailable`, which is a valid terminal result and does not masquerade as a
+provider failure.
+
+Workflow context files must resolve to regular files inside the repository.
+This prevents a declarative workflow or an untrusted context reference from
+reading outside the workspace.
 
 `heal` repairs only derived local state and validation artifacts: it rebuilds
 the SQLite catalog and writes `.agents/state/runs/last-maintenance.json`. It
