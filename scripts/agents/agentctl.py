@@ -392,6 +392,8 @@ def validate_workflow_file(path: Path) -> list[str]:
                     errors.append(f"{path}: unknown provider: {provider}")
             if step.get("on_failure", "stop") not in {"stop", "retry", "continue"}:
                 errors.append(f"{path}: step {index}: invalid on_failure")
+            for command in step.get("acceptance_commands", []):
+                errors.extend(f"{path}: step {index}: {error}" for error in acceptance_command_errors(command, workflow.get("permissions", {})))
     limits = workflow.get("limits", {})
     for field in ("max_attempts", "timeout_seconds"):
         value = limits.get(field)
@@ -408,6 +410,33 @@ def validate_workflow_file(path: Path) -> list[str]:
     for field, values in permission_values.items():
         if field in workflow.get("permissions", {}) and workflow["permissions"][field] not in values:
             errors.append(f"{path}: invalid permissions.{field}")
+    return errors
+
+
+def acceptance_command_errors(command: str, permissions: dict[str, str]) -> list[str]:
+    """Reject verification commands that could bypass the workflow policy."""
+    try:
+        tokens = shlex.split(command)
+    except ValueError as error:
+        return [f"invalid acceptance command: {error}"]
+    if not tokens:
+        return ["acceptance command must not be empty"]
+    if any(token in {";", "&&", "||", "|", ">", ">>", "<", "`"} for token in tokens):
+        return ["acceptance command cannot contain shell composition or redirection"]
+    executable = Path(tokens[0]).name
+    errors: list[str] = []
+    if executable in {"sudo", "rm", "mv", "cp", "install", "chmod", "chown", "ln", "mkdir", "touch", "dd", "tee"}:
+        errors.append(f"acceptance command uses a mutating executable: {executable}")
+    if executable in {"python", "python3", "node", "ruby", "perl", "bash", "sh", "zsh"} and any(flag in tokens for flag in ("-c", "--command", "-e", "--eval")):
+        errors.append("acceptance command cannot execute inline code")
+    if executable == "git" and len(tokens) > 1 and tokens[1] in {"add", "commit", "clean", "checkout", "merge", "rebase", "reset", "restore", "push", "tag"}:
+        errors.append(f"acceptance command uses a mutating git operation: {tokens[1]}")
+    if executable == "gh" and permissions.get("github", "none") == "none":
+        errors.append("acceptance command requires GitHub permission")
+    if executable in {"curl", "wget", "nc", "netcat", "ssh", "scp", "ftp"} and permissions.get("network", "none") == "none":
+        errors.append("acceptance command requires network permission")
+    if permissions.get("git", "read-only") == "read-only" and executable == "git" and len(tokens) > 1 and tokens[1] in {"add", "commit", "clean", "checkout", "merge", "rebase", "reset", "restore", "push", "tag"}:
+        errors.append("acceptance command exceeds read-only Git permission")
     return errors
 
 
@@ -914,7 +943,7 @@ def run_acceptance(step: dict[str, Any]) -> list[dict[str, Any]]:
             results.append({
                 "command": acceptance_command,
                 "status": "passed" if verification.returncode == 0 else "failed",
-                "output": (verification.stdout or verification.stderr)[-2000:],
+                "output": redacted_output((verification.stdout or verification.stderr)[-2000:]),
             })
         except (OSError, subprocess.TimeoutExpired) as error:
             results.append({"command": acceptance_command, "status": "error", "output": str(error)})
