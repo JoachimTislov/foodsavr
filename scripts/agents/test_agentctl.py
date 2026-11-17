@@ -68,6 +68,9 @@ class AgentctlTest(unittest.TestCase):
             connection.close()
             self.assertEqual(tuple(run), ("run-1", "audit", "succeeded"))
             self.assertEqual(event["event_type"], "run.started")
+            context = json.loads(self.run_cli("context", "audit", "--limit", "2", database=database).stdout)
+            self.assertEqual(context["runs"][0]["run_id"], "run-1")
+            self.assertNotIn("raw_json", context["runs"][0])
 
     def test_workflow_plan_is_dry_run(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
