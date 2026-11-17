@@ -38,6 +38,7 @@ DATABASE = configured_path("AGENT_KNOWLEDGE_DB", ROOT / ".agents/state/knowledge
 RUNNERS = configured_path("AGENT_RUNNERS_FILE", ROOT / ".agents/runners/providers.json")
 POLICY = configured_path("AGENT_POLICY_FILE", ROOT / ".agents/policies/default.json")
 ROUTER = configured_path("AGENT_ROUTER_FILE", ROOT / ".agents/runners/router.json")
+LABELS = configured_path("AGENT_LABELS_FILE", ROOT / ".agents/github/labels.json")
 TEXT_SUFFIXES = {".md", ".markdown", ".yaml", ".yml", ".json", ".toml"}
 EXCLUDED_PARTS = {".git", ".dart_tool", "build", "state"}
 URL_RE = re.compile(r"https?://[^\s)\]>]+")
@@ -448,6 +449,80 @@ def load_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{path}: root must be an object")
     return value
+
+
+def validate_declarative_manifests() -> list[str]:
+    """Validate the provider-neutral manifests before derived state is rebuilt."""
+    errors: list[str] = []
+    permission_values = {
+        "filesystem": {"read-only", "workspace-write"},
+        "network": {"none", "allowlisted", "full"},
+        "git": {"read-only", "branch-write", "push"},
+        "github": {"none", "read-only", "write"},
+    }
+    try:
+        policy = load_json(POLICY)
+        for field in ("schema_version", "id", *permission_values):
+            if field not in policy:
+                errors.append(f"{POLICY}: missing {field}")
+        if policy.get("schema_version") != 1:
+            errors.append(f"{POLICY}: schema_version must be 1")
+        for field, allowed in permission_values.items():
+            if field in policy and policy[field] not in allowed:
+                errors.append(f"{POLICY}: invalid {field}: {policy[field]}")
+        for field in ("require_draft_pr", "require_session_id", "require_ledger_event", "require_acceptance"):
+            if field in policy and not isinstance(policy[field], bool):
+                errors.append(f"{POLICY}: {field} must be boolean")
+    except ValueError as error:
+        errors.append(str(error))
+
+    try:
+        runners = load_json(RUNNERS)
+        providers = runners.get("providers")
+        if not isinstance(providers, dict) or not providers:
+            errors.append(f"{RUNNERS}: providers must be a non-empty object")
+        else:
+            for provider, spec in providers.items():
+                if not isinstance(spec, dict):
+                    errors.append(f"{RUNNERS}: provider {provider} must be an object")
+                    continue
+                for field in ("command", "headless", "prompt_mode"):
+                    if field not in spec:
+                        errors.append(f"{RUNNERS}: provider {provider} missing {field}")
+                if not isinstance(spec.get("headless"), list) or not all(isinstance(value, str) for value in spec.get("headless", [])):
+                    errors.append(f"{RUNNERS}: provider {provider}.headless must be an array of strings")
+    except ValueError as error:
+        errors.append(str(error))
+
+    try:
+        router = load_json(ROUTER)
+        for field in ("schema_version", "id", "decision_provider", "fallback"):
+            if field not in router:
+                errors.append(f"{ROUTER}: missing {field}")
+        if router.get("schema_version") != 1:
+            errors.append(f"{ROUTER}: schema_version must be 1")
+        if not isinstance(router.get("decision_provider"), dict) or not isinstance(router.get("fallback"), dict):
+            errors.append(f"{ROUTER}: decision_provider and fallback must be objects")
+    except ValueError as error:
+        errors.append(str(error))
+
+    try:
+        labels = load_json(LABELS)
+        managed = labels.get("managed_prefixes")
+        definitions = labels.get("labels")
+        if not isinstance(managed, list) or not all(isinstance(value, str) for value in managed):
+            errors.append(f"{LABELS}: managed_prefixes must be an array of strings")
+        if not isinstance(definitions, list) or not definitions:
+            errors.append(f"{LABELS}: labels must be a non-empty array")
+        else:
+            names = [entry.get("name") for entry in definitions if isinstance(entry, dict)]
+            if len(names) != len(set(names)):
+                errors.append(f"{LABELS}: labels must have unique names")
+            if any(not isinstance(name, str) or not any(name.startswith(prefix) for prefix in managed or []) for name in names):
+                errors.append(f"{LABELS}: every managed label must use a managed prefix")
+    except ValueError as error:
+        errors.append(str(error))
+    return errors
 
 
 def validate_workflow_file(path: Path) -> list[str]:
@@ -1451,7 +1526,7 @@ def policy_compile(args: argparse.Namespace) -> int:
 
 def maintain(args: argparse.Namespace) -> int:
     workflow_paths = sorted((ROOT / ".agents/workflows").glob("*.json"))
-    errors = []
+    errors = validate_declarative_manifests()
     for path in workflow_paths:
         if path.name in {"schema.json", "result.schema.json"}:
             continue
@@ -1477,7 +1552,7 @@ def heal(args: argparse.Namespace) -> int:
     """Repair disposable derived state without invoking providers or editing source."""
     deduplicated = heal_session_index()
     workflow_paths = sorted((ROOT / ".agents/workflows").glob("*.json"))
-    errors: list[str] = []
+    errors: list[str] = validate_declarative_manifests()
     for path in workflow_paths:
         if path.name not in {"schema.json", "result.schema.json"}:
             errors.extend(validate_workflow_file(path))
