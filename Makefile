@@ -190,7 +190,10 @@ worktree:
 
 # --- Automation & Gemini Targets ---
 
-.PHONY: task locale-seed remote-seed feature research resolve-comments unit-tests integration-tests analyze-architecture rules-test
+.PHONY: task locale-seed remote-seed feature research resolve-comments unit-tests integration-tests analyze-architecture rules-test agent-sessions
+
+agent-sessions:
+	@python3 scripts/agents/session_query.py $(ARGS)
 
 task:
 	@if [ -z "$(msg)" ]; then \

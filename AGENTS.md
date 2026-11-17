@@ -7,6 +7,7 @@ Before changing code or documentation, read [specs/source-of-truth/INDEX.md](spe
 - Be minimal. Write nothing beyond what the user strictly needs to know.
 - Always log events (what was changed, committed, pushed, replied) when doing repo work.
 - Historical repository events are recorded in [.agents/ledger.md](.agents/ledger.md); read it only when historical context is needed.
+- Provider session IDs and searchable session metadata are recorded in [.agents/sessions/index.jsonl](.agents/sessions/index.jsonl); query them with `python3 scripts/agents/session_query.py` before starting from an ambiguous prior session.
 
 ## Source of truth & sync rules
 
