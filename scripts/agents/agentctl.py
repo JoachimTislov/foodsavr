@@ -403,15 +403,15 @@ def validate_workflow_file(path: Path) -> list[str]:
 def doctor(args: argparse.Namespace) -> int:
     runner_data = load_json(RUNNERS)
     runner_specs = runner_data.get("providers", {})
+    baseline = load_json(POLICY)
+    baseline_permissions = {field: baseline.get(field, "none") for field in ("filesystem", "network", "git", "github")}
     result = {
         provider: {
-            "command": spec.get("command"),
+            **capability_report(provider, spec, baseline_permissions),
             "path": shutil.which(spec.get("command", "")),
-            "available": shutil.which(spec.get("command", "")) is not None,
             "headless": runner_specs.get(provider, {}).get("headless", []),
             "usage_fields": spec.get("usage_fields", []),
             "capability_verification": spec.get("capability_verification", {}),
-            "version": version_for(spec),
         }
         for provider, spec in runner_specs.items()
     }
@@ -757,19 +757,42 @@ def available_providers(candidates: list[str], specs: dict[str, dict[str, Any]])
 
 def provider_is_safe(provider: str, workflow: dict[str, Any], specs: dict[str, dict[str, Any]]) -> bool:
     spec = specs[provider]
-    requested = workflow["permissions"]
+    return capability_report(provider, spec, workflow["permissions"])["policy_safe"]
+
+
+def capability_report(provider: str, spec: dict[str, Any], requested: dict[str, str]) -> dict[str, Any]:
     enforced = spec.get("enforced_permissions", {})
     verification = spec.get("capability_verification", {})
     required_flags = verification.get("required_flags", [])
     command_line = [*spec.get("headless", [])]
+    if spec.get("prompt_mode") == "flag":
+        command_line.append(spec.get("prompt_flag", "--prompt"))
     verified_version = version_for(spec)
     version_ok = bool(verification.get("verified_version_prefix")) and bool(
         verified_version and verified_version.startswith(verification["verified_version_prefix"])
     )
     flags_ok = all(flag in command_line for flag in required_flags)
-    return verification.get("mode") == "version-and-flags" and version_ok and flags_ok and all(
+    permission_ok = all(
         requested.get(field) in enforced.get(field, []) for field in ("filesystem", "network", "git", "github")
     )
+    return {
+        "provider": provider,
+        "command": spec.get("command"),
+        "available": shutil.which(spec.get("command", "")) is not None,
+        "version": verified_version,
+        "version_verified": version_ok,
+        "required_flags_present": flags_ok,
+        "permissions_enforced": permission_ok,
+        "policy_safe": verification.get("mode") == "version-and-flags" and version_ok and flags_ok and permission_ok,
+        "failure_reasons": [
+            reason for reason, valid in (
+                ("command-unavailable", shutil.which(spec.get("command", "")) is not None),
+                ("version-unverified", version_ok),
+                ("required-flags-missing", flags_ok),
+                ("requested-permissions-not-enforced", permission_ok),
+            ) if not valid
+        ],
+    }
 
 
 def policy_errors(workflow: dict[str, Any], policy: dict[str, Any]) -> list[str]:
@@ -1036,6 +1059,12 @@ def policy_compile(args: argparse.Namespace) -> int:
     if errors:
         print(json.dumps({"valid": False, "errors": errors}, indent=2))
         return 1
+    spec = provider_specs().get(args.provider)
+    if spec is None:
+        print(json.dumps({"valid": False, "errors": [f"unknown provider: {args.provider}"]}, indent=2))
+        return 1
+    permissions = {field: policy[field] for field in ("filesystem", "network", "git", "github")}
+    capability = capability_report(args.provider, spec, permissions)
     projection = {
         "provider": args.provider,
         "policy_id": policy["id"],
@@ -1049,7 +1078,8 @@ def policy_compile(args: argparse.Namespace) -> int:
         "require_ledger_event": policy.get("require_ledger_event", True),
         "require_acceptance": policy.get("require_acceptance", True),
         "require_draft_pr": policy.get("require_draft_pr", True),
-        "enforced": False,
+        "enforced": capability["policy_safe"],
+        "capability": capability,
         "native_mapping": "adapter-owned; fail closed when unsupported",
     }
     print(json.dumps(projection, indent=2, sort_keys=True))

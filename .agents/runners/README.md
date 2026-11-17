@@ -7,10 +7,17 @@ the normalized workflow plan, expose a provider session ID, emit structured
 events, preserve the raw provider result outside Git, and return a normalized
 result that satisfies `.agents/workflows/result.schema.json`.
 
-The command hints in `providers.json` are capability metadata only. They are
-not executed by `agentctl plan` or `agentctl heal`. A future runner may use
-them after resolving provider-specific permissions, authentication, and output
-format from the installed CLI version.
+The command hints in `providers.json` are capability metadata. `agentctl doctor`
+re-probes the installed command and version, checks the declared headless flags,
+and reports whether the provider is policy-safe for the default read-only
+policy. `agentctl policy compile --provider <name>` emits the same decision for
+CI adapters. Planning and healing never start a provider process.
+
+An available provider is not automatically policy-safe. A provider must have a
+verified version and headless command contract, plus declared native enforcement
+for every requested filesystem, network, Git, and GitHub permission. Providers
+without that enforcement remain visible to routing diagnostics but fail closed
+at execution time.
 
 Required adapter lifecycle:
 

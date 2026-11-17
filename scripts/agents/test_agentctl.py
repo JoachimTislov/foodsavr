@@ -111,6 +111,7 @@ class AgentctlTest(unittest.TestCase):
             projection = json.loads(result.stdout)
             self.assertFalse(projection["enforced"])
             self.assertTrue(projection["require_draft_pr"])
+            self.assertIn("requested-permissions-not-enforced", projection["capability"]["failure_reasons"])
 
     def test_workflow_run_defaults_to_persisted_dry_run(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
