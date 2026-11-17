@@ -9,35 +9,29 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync, appendFileSync } from "fs";
+import { createHash } from "crypto";
 import { join, basename } from "path";
 
 // --- Configuration & Constants ---
-const MAX_LINES = 500;
+const MAX_CHARS = 12000;
+const MAX_BYTES = 5 * 1024 * 1024;
+const FETCH_TIMEOUT_MS = 20000;
 
 const SUSPICIOUS_PATTERNS = [
   /ignore all previous/i,
   /new instructions/i,
   /disregard/i,
-  /act as/i,
   /you are now/i,
   /system prompt/i,
   /hidden instruction/i,
   /stop following/i,
   /forget your/i,
   /don't pay attention to/i,
-  /override/i,
   /reset your/i,
   /abandon your/i,
 ];
 
 const HIDDEN_TEXT_PATTERNS = [
-  /display:\s*none/i,
-  /visibility:\s*hidden/i,
-  /opacity:\s*0/i,
-  /font-size:\s*0/i,
-  /color:\s*transparent/i,
-  /position:\s*absolute;\s*left:\s*-\d{3,}/i, // Extreme off-screen positioning
-  /clip:\s*rect\(0\s*0\s*0\s*0\)/i,
   /[\u200B-\u200D\uFEFF]/, // Zero-width characters (ZWSP, ZWNJ, ZWJ, BOM)
 ];
 
@@ -57,16 +51,14 @@ const GENERIC_NAMES = [
 
 function scanForSuspiciousContent(content) {
   const findings = [];
+  const normalized = content
+    .normalize("NFKC")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, " ");
 
   SUSPICIOUS_PATTERNS.forEach((pattern) => {
-    if (pattern.test(content)) {
+    if (pattern.test(normalized)) {
       findings.push(`Instruction Override Attempt: ${pattern.toString()}`);
-    }
-  });
-
-  HIDDEN_TEXT_PATTERNS.forEach((pattern) => {
-    if (pattern.test(content)) {
-      findings.push(`Hidden/Styled Text Detected: ${pattern.toString()}`);
     }
   });
 
@@ -74,51 +66,15 @@ function scanForSuspiciousContent(content) {
 }
 
 function splitIntoChunks(content) {
-  const lines = content.split("\n");
   const chunks = [];
-  let currentChunkLines = [];
-
-  for (const line of lines) {
-    if (currentChunkLines.length >= MAX_LINES) {
-      chunks.push(currentChunkLines.join("\n"));
-      currentChunkLines = [line];
-    } else {
-      currentChunkLines.push(line);
-    }
+  for (let offset = 0; offset < content.length; offset += MAX_CHARS) {
+    chunks.push(content.slice(offset, offset + MAX_CHARS));
   }
-
-  if (currentChunkLines.length > 0) {
-    chunks.push(currentChunkLines.join("\n"));
-  }
-
   return chunks;
 }
 
 function sanitize(content) {
-  let sanitized = content;
-  SUSPICIOUS_PATTERNS.forEach((pattern) => {
-    sanitized = sanitized.replace(pattern, "[REDACTED_POTENTIAL_INJECTION]");
-  });
-  return sanitized.trim();
-}
-
-function filterRedundancy(content) {
-  const lines = content.split("\n");
-  const uniqueLines = [];
-  const seen = new Set();
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.length === 0) {
-      uniqueLines.push(line);
-      continue;
-    }
-    if (!seen.has(trimmed)) {
-      uniqueLines.push(line);
-      seen.add(trimmed);
-    }
-  }
-  return uniqueLines.join("\n");
+  return content.trim();
 }
 
 function updateOverview(
@@ -129,7 +85,7 @@ function updateOverview(
   isFirstPart,
 ) {
   const overviewPath = join(outputDir, "overview.md");
-  const entry = `\n### ${basename(fileName, ".md")}\n- **Source:** [${fileName}](${fileName})\n- **Summary:** ${summary.substring(0, 200)}...\n`;
+  const entry = `\n### ${basename(fileName, ".md")}\n- **Artifact:** [${fileName}](${fileName})\n- **Summary:** ${summary.substring(0, 200)}...\n`;
 
   if (isFirstPart || !existsSync(overviewPath)) {
     const header = `# Research Overview: ${researchName}\n\nThis file provides a rational structure and links to processed research data. Redundant information has been filtered out.\n`;
@@ -145,7 +101,7 @@ const Handlers = {
       const parsed = JSON.parse(content);
       return JSON.stringify(parsed, null, 2);
     } catch (e) {
-      return "Error: Invalid JSON format.";
+      throw new Error("Invalid JSON format");
     }
   },
   csv: (content) => {
@@ -168,18 +124,13 @@ const Handlers = {
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
       .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "");
 
-    const hiddenElements = content.match(
-      /<[^>]+style\s*=\s*["'][^"']*(display:\s*none|visibility:\s*hidden|font-size:\s*0)[^"']*["'][^>]*>.*?<\/[^>]+>/gi,
-    );
-    if (hiddenElements) {
-      process.stdout.write(
-        `CRITICAL: Found ${hiddenElements.length} elements with explicit hidden styles.\n`,
-      );
-    }
-
     cleaned = cleaned
+      .replace(/<h[1-6][^>]*>/gi, "\n\n")
+      .replace(/<\/h[1-6]>/gi, "\n\n")
+      .replace(/<br\s*\/?>(?=\S)/gi, "\n")
       .replace(/<[^>]*>?/gm, " ")
-      .replace(/\s+/g, " ")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
       .trim();
     return cleaned;
   },
@@ -206,26 +157,29 @@ if (GENERIC_NAMES.includes(topicName.toLowerCase())) {
   process.exit(1);
 }
 
-const rawDir = join(process.cwd(), "research", "raw");
-const outputDir = join(process.cwd(), "research", topicName);
-
-if (!existsSync(rawDir)) {
-  mkdirSync(rawDir, { recursive: true });
+const parsedUrl = new URL(url);
+if (parsedUrl.protocol !== "https:") {
+  console.error("Error: only HTTPS URLs are allowed");
+  process.exit(1);
 }
+
+const sourceKey = createHash("sha256").update(url).digest("hex").slice(0, 12);
+const outputDir = join(process.cwd(), "research", topicName, sourceKey);
+
 if (!existsSync(outputDir)) {
   mkdirSync(outputDir, { recursive: true });
 }
 
-const rawFilePath = join(rawDir, `${topicName}.txt`);
+const rawFilePath = join(outputDir, "raw.txt");
 
 async function fetchAndProcess() {
   try {
     console.log(`Fetching data from: ${url}`);
 
     const response = await fetch(url, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent": "FoodSavr-agent-research/1.0 (+https://github.com/JoachimTislov/foodsavr)",
       },
     });
 
@@ -233,14 +187,37 @@ async function fetchAndProcess() {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
+    const declaredLength = Number(response.headers.get("content-length") || 0);
+    if (declaredLength > MAX_BYTES) {
+      throw new Error(`response exceeds ${MAX_BYTES} byte limit`);
+    }
     const text = await response.text();
+    if (Buffer.byteLength(text, "utf8") > MAX_BYTES) {
+      throw new Error(`response exceeds ${MAX_BYTES} byte limit`);
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    const metadata = {
+      url,
+      fetched_at: new Date().toISOString(),
+      status: response.status,
+      content_type: contentType,
+      sha256: createHash("sha256").update(text).digest("hex"),
+    };
+
+    const findings = scanForSuspiciousContent(text);
+    if (findings.length > 0) {
+      const quarantinePath = join(outputDir, "QUARANTINED.json");
+      writeFileSync(quarantinePath, JSON.stringify({ metadata, findings }, null, 2));
+      throw new Error(`suspicious content quarantined at ${quarantinePath}`);
+    }
 
     console.log(`Writing raw data to: ${rawFilePath}`);
     writeFileSync(rawFilePath, text);
+    writeFileSync(join(outputDir, "provenance.json"), JSON.stringify(metadata, null, 2));
 
     // Detect format
     let format = "html";
-    const contentType = response.headers.get("content-type") || "";
     if (url.endsWith(".json") || contentType.includes("json")) {
       format = "json";
     } else if (url.endsWith(".csv") || contentType.includes("csv")) {
@@ -251,18 +228,8 @@ async function fetchAndProcess() {
 
     console.log(`Processing and sanitizing data (Format: ${format})...`);
 
-    const findings = scanForSuspiciousContent(text);
-    if (findings.length > 0) {
-      process.stdout.write("\nWARNING: SUSPICIOUS CONTENT DETECTED\n");
-      findings.forEach((finding) => process.stdout.write(`- ${finding}\n`));
-      process.stdout.write("\nPlease verify the safety of this data.\n");
-      process.stdout.write(
-        "----------------------------------------------------------------------\n",
-      );
-    }
-
     const handler = Handlers[format] || Handlers.plain;
-    const filtered = filterRedundancy(handler(text));
+    const filtered = handler(text);
     const chunks = splitIntoChunks(filtered);
 
     chunks.forEach((chunk, index) => {
