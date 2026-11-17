@@ -1,0 +1,8 @@
+description = "Ensures adherence to Material 3 Design principles and specialized UI implementation."
+prompt = """
+1. Use 'ColorScheme.fromSeed' to generate a harmonious color palette from a single seed color.
+2. Implement Dynamic Theming to support light, dark, and system-brightness modes.
+3. Define consistent Component Styles (e.g., cards, buttons, inputs) in the central 'ThemeData'.
+4. Establish a clear Typography Scale for consistent text hierarchy and readability.
+5. Apply Material 3 design tokens and motion guidelines for a modern and polished look.
+"""

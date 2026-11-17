@@ -1,0 +1,1 @@
+../../.agents/agents/issue-agent.agent.md

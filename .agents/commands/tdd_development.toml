@@ -1,0 +1,10 @@
+description = "Implements Test-Driven Development (TDD) workflow."
+prompt = """
+1. Identify the smallest piece of logic or UI to implement.
+2. Write a failing unit or widget test in the 'test/' directory.
+3. Run the tests and confirm it fails.
+4. Write the minimum code required to make the test pass.
+5. Run the tests again and confirm they pass.
+6. Refactor the code while ensuring tests continue to pass.
+7. Repeat for the next piece of logic or UI.
+"""
