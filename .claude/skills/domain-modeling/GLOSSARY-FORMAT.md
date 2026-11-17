@@ -1,0 +1,1 @@
+../../../.agents/skills/domain-modeling/GLOSSARY-FORMAT.md

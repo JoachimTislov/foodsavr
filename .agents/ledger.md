@@ -8,6 +8,7 @@ what was committed, pushed, or replied to, and any unresolved blocker.
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-11-17 | Installed 25 non-conflicting skills from `mattpocock/skills` into `.agents/skills/` using sparse checkout; preserved FoodSavr's existing `research` skill and refreshed Gemini/Claude skill projections. |
 | 2026-11-17 | Refined provider compatibility directories: `.gemini/` now owns Gemini-only commands, configuration, and policies while `.gemini/agents`, `.gemini/skills`, `.claude/agents`, and `.claude/skills` link individual files into `.agents/`; removed commands from `.claude/`. |
 | 2026-11-17 | Migrated this history from `AGENTS.md` into `.agents/ledger.md` so active agent instructions do not load the full repository history. |
 | 2026-11-17 | Consolidated shared agents, commands, and skills under `.agents`; retained Gemini-only `config.yaml` and ignored `policies/` under `.gemini`; added provider compatibility links and corrected source-of-truth paths after the existing `docs` → `specs` rename. |
