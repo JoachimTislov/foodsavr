@@ -2,7 +2,7 @@
 # Authoritative registry of FoodSavr's service and integration surface.
 # Sync sessions compare entries against lib/services/ and
 # lib/features/third_party_integration/ (code anchors per entry).
-# Shape rules per docs/source-of-truth/decisions/0004-truth-in-shapes.md
+# Shape rules per specs/source-of-truth/decisions/0004-truth-in-shapes.md
 
 version: 1
 app:
