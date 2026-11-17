@@ -509,6 +509,38 @@ def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: st
     return f".agents/ledger.md#{run_id}"
 
 
+def available_providers(candidates: list[str], specs: dict[str, dict[str, Any]]) -> list[str]:
+    return [
+        provider for provider in candidates
+        if provider in specs and shutil.which(specs[provider].get("command", "")) is not None
+    ]
+
+
+def provider_is_safe(provider: str, workflow: dict[str, Any], specs: dict[str, dict[str, Any]]) -> bool:
+    spec = specs[provider]
+    return workflow["permissions"].get("filesystem") != "read-only" or spec.get("enforces_read_only", False)
+
+
+def run_acceptance(step: dict[str, Any]) -> list[dict[str, Any]]:
+    results = []
+    for acceptance_command in step.get("acceptance_commands", []):
+        try:
+            verification = subprocess.run(
+                shlex.split(acceptance_command), capture_output=True, text=True,
+                cwd=ROOT, timeout=30, check=False,
+            )
+            results.append({
+                "command": acceptance_command,
+                "status": "passed" if verification.returncode == 0 else "failed",
+                "output": (verification.stdout or verification.stderr)[-2000:],
+            })
+        except (OSError, subprocess.TimeoutExpired) as error:
+            results.append({"command": acceptance_command, "status": "error", "output": str(error)})
+    if not step.get("acceptance_commands"):
+        results = [{"criterion": criterion, "status": "pending"} for criterion in step["acceptance"]]
+    return results
+
+
 def workflow_run(args: argparse.Namespace) -> int:
     path = Path(args.path).expanduser()
     errors = validate_workflow_file(path)
@@ -517,11 +549,8 @@ def workflow_run(args: argparse.Namespace) -> int:
         return 1
     workflow = load_json(path)
     specs = provider_specs()
-    provider = args.provider
-    if provider == "auto" and args.execute:
-        candidates = [name for name, spec in specs.items() if shutil.which(spec.get("command", ""))]
-        provider = candidates[0] if candidates else None
-    if args.execute and (provider not in specs or shutil.which(specs.get(provider, {}).get("command", "")) is None):
+    provider = args.provider if args.provider != "auto" else None
+    if args.execute and provider is not None and provider not in specs:
         print(json.dumps({"status": "unavailable", "provider": provider}, indent=2))
         return 1
     run_id = f"{workflow['id']}-{uuid.uuid4().hex[:12]}"
@@ -530,7 +559,7 @@ def workflow_run(args: argparse.Namespace) -> int:
     result: dict[str, Any] = {
         "workflow_id": workflow["id"], "run_id": run_id, "status": "planned",
         "started_at": now(), "steps": [], "session_ids": [], "artifacts": [], "ledger_refs": [],
-        "provider": provider,
+        "provider": provider or "auto",
     }
     if not args.execute:
         write_json(run_dir / "result.json", result)
@@ -538,72 +567,94 @@ def workflow_run(args: argparse.Namespace) -> int:
         return 0
     result["status"] = "running"
     write_json(run_dir / "result.json", result)
-    spec = specs[provider]
-    if workflow["permissions"].get("filesystem") == "read-only" and not spec.get("enforces_read_only", False):
-        result["status"] = "unavailable"
-        result["reason"] = f"provider adapter {provider} has not verified read-only enforcement"
-        write_json(run_dir / "result.json", result)
-        print(json.dumps(result, indent=2, sort_keys=True))
-        return 1
     resolved_context = resolve_workflow_context(workflow, database)
+    had_failure = False
     for step in workflow["steps"]:
-        prompt = workflow_prompt(workflow, step, run_id, resolved_context)
-        command, stdin = provider_command(provider, spec, prompt)
         step_id = step["id"]
-        try:
-            completed = subprocess.run(
-                command, input=stdin, capture_output=True, text=True,
-                cwd=ROOT, timeout=workflow["limits"]["timeout_seconds"], check=False,
-            )
-            output = (completed.stdout or "") + (completed.stderr or "")
-            artifact = run_dir / f"{step_id}.output"
-            artifact.parent.mkdir(parents=True, exist_ok=True)
-            artifact.write_text(output, encoding="utf-8")
-            session_id = extract_session_id(output)
-            acceptance_results = []
-            for acceptance_command in step.get("acceptance_commands", []):
-                try:
-                    verification = subprocess.run(
-                        shlex.split(acceptance_command), capture_output=True, text=True,
-                        cwd=ROOT, timeout=30, check=False,
-                    )
-                    acceptance_results.append({
-                        "command": acceptance_command,
-                        "status": "passed" if verification.returncode == 0 else "failed",
-                        "output": (verification.stdout or verification.stderr)[-2000:],
-                    })
-                except (OSError, subprocess.TimeoutExpired) as error:
-                    acceptance_results.append({"command": acceptance_command, "status": "error", "output": str(error)})
-            if not step.get("acceptance_commands"):
-                acceptance_results = [{"criterion": criterion, "status": "pending"} for criterion in step["acceptance"]]
-            acceptance_passed = len(acceptance_results) >= len(step["acceptance"]) and all(
-                item.get("status") == "passed" for item in acceptance_results
-            )
-            step_result = {
-                "id": step_id,
-                "status": "succeeded" if completed.returncode == 0 and acceptance_passed else ("failed" if completed.returncode != 0 else "awaiting_acceptance"),
-                "acceptance_results": acceptance_results,
-                "session_id": session_id,
-                "artifact": str(artifact.relative_to(ROOT)),
-            }
-            result["steps"].append(step_result)
-            result["artifacts"].append(str(artifact.relative_to(ROOT)))
-            if session_id:
-                namespaced = f"{provider}:{session_id}"
-                result["session_ids"].append(namespaced)
-                append_session_record(provider, session_id, run_id, f"Workflow {workflow['id']} step {step_id}")
-            if completed.returncode != 0 or not acceptance_passed:
-                result["status"] = "failed"
-                if completed.returncode == 0 and not acceptance_passed:
-                    result["status"] = "awaiting_acceptance"
+        candidates = step.get("providers") or list(specs)
+        selected = provider if provider in candidates else None
+        if selected is None and provider is not None:
+            result["steps"].append({"id": step_id, "status": "failed", "acceptance_results": [], "reason": f"requested provider {provider} is not allowed for this step"})
+            had_failure = True
+            if step.get("on_failure", "stop") != "continue":
                 break
-        except (OSError, subprocess.TimeoutExpired) as error:
-            result["steps"].append({"id": step_id, "status": "failed", "acceptance_results": [{"status": "error", "detail": str(error)}]})
-            result["status"] = "failed"
-            break
+            continue
+        if selected is None:
+            selected_candidates = available_providers(candidates, specs)
+            selected = next((name for name in selected_candidates if provider_is_safe(name, workflow, specs)), None)
+        if selected is None:
+            result["steps"].append({"id": step_id, "status": "unavailable", "acceptance_results": [], "reason": "no available provider satisfies the workflow policy"})
+            had_failure = True
+            if step.get("on_failure", "stop") != "continue":
+                break
+            continue
+        if not provider_is_safe(selected, workflow, specs):
+            result["steps"].append({"id": step_id, "status": "unavailable", "acceptance_results": [], "provider": selected, "reason": f"provider adapter {selected} has not verified read-only enforcement"})
+            had_failure = True
+            if step.get("on_failure", "stop") != "continue":
+                break
+            continue
+        prompt = workflow_prompt(workflow, step, run_id, resolved_context)
+        spec = specs[selected]
+        attempts = []
+        step_succeeded = False
+        for attempt in range(1, workflow["limits"]["max_attempts"] + 1):
+            try:
+                command, stdin = provider_command(selected, spec, prompt)
+                completed = subprocess.run(
+                    command, input=stdin, capture_output=True, text=True,
+                    cwd=ROOT, timeout=workflow["limits"]["timeout_seconds"], check=False,
+                )
+                output = (completed.stdout or "") + (completed.stderr or "")
+                artifact = run_dir / f"{step_id}.attempt-{attempt}.output"
+                artifact.parent.mkdir(parents=True, exist_ok=True)
+                artifact.write_text(output, encoding="utf-8")
+                session_id = extract_session_id(output)
+                acceptance_results = run_acceptance(step)
+                acceptance_passed = len(acceptance_results) >= len(step["acceptance"]) and all(
+                    item.get("status") == "passed" for item in acceptance_results
+                )
+                session_required = load_json(POLICY).get("require_session_id", True)
+                session_valid = session_id is not None or not session_required
+                attempt_status = "succeeded" if completed.returncode == 0 and acceptance_passed and session_valid else (
+                    "failed" if completed.returncode != 0 or not session_valid else "awaiting_acceptance"
+                )
+                attempts.append({
+                    "attempt": attempt, "status": attempt_status, "acceptance_results": acceptance_results,
+                    "session_id": f"{selected}:{session_id}" if session_id else None,
+                    "artifact": str(artifact.relative_to(ROOT)),
+                    "reason": None if session_valid else "provider did not expose a required session ID",
+                })
+                result["artifacts"].append(str(artifact.relative_to(ROOT)))
+                if session_id:
+                    namespaced = f"{selected}:{session_id}"
+                    result["session_ids"].append(namespaced)
+                    append_session_record(selected, session_id, run_id, f"Workflow {workflow['id']} step {step_id}")
+                if attempt_status == "succeeded":
+                    step_succeeded = True
+                    break
+                if step.get("on_failure", "stop") != "retry":
+                    break
+            except (OSError, subprocess.TimeoutExpired) as error:
+                attempts.append({"attempt": attempt, "status": "failed", "acceptance_results": [], "error": str(error)})
+                if step.get("on_failure", "stop") != "retry":
+                    break
+        if not step_succeeded:
+            had_failure = had_failure or any(attempt["status"] == "failed" for attempt in attempts)
+            if any(attempt["status"] == "awaiting_acceptance" for attempt in attempts):
+                result["status"] = "awaiting_acceptance"
+            result["steps"].append({"id": step_id, "status": "awaiting_acceptance" if any(attempt["status"] == "awaiting_acceptance" for attempt in attempts) else "failed", "provider": selected, "attempts": attempts, "acceptance_results": attempts[-1].get("acceptance_results", []) if attempts else []})
+            if step.get("on_failure", "stop") != "continue":
+                break
+        else:
+            result["steps"].append({"id": step_id, "status": "succeeded", "provider": selected, "attempts": attempts, "acceptance_results": attempts[-1]["acceptance_results"]})
         write_json(run_dir / "result.json", result)
-    if result["status"] == "running":
+    if had_failure:
+        result["status"] = "failed"
+    elif result["status"] == "awaiting_acceptance":
         result["status"] = "awaiting_acceptance"
+    else:
+        result["status"] = "succeeded"
     result["completed_at"] = now()
     result["ledger_refs"].append(append_ledger_event(run_id, workflow["id"], provider, result["status"]))
     write_json(run_dir / "result.json", result)
