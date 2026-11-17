@@ -95,6 +95,15 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("unknown provider", result.stdout)
 
+    def test_acceptance_commands_cannot_bypass_policy(self) -> None:
+        module = load_agentctl_module()
+        permissions = {"network": "none", "git": "read-only", "github": "none"}
+        errors = module.acceptance_command_errors("git push origin main", permissions)
+        self.assertTrue(errors)
+        self.assertTrue(any("mutating git" in error for error in errors))
+        self.assertTrue(module.acceptance_command_errors("curl https://example.com", permissions))
+        self.assertTrue(module.acceptance_command_errors("python3 -c 'open(\"x\", \"w\")'", permissions))
+
     def test_workflow_context_cannot_escape_repository(self) -> None:
         module = load_agentctl_module()
         workflow = json.loads(WORKFLOW.read_text())

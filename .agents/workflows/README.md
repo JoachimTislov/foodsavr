@@ -49,6 +49,12 @@ Workflow context files must resolve to regular files inside the repository.
 This prevents a declarative workflow or an untrusted context reference from
 reading outside the workspace.
 
+Acceptance commands are executed without a shell. Validation rejects shell
+composition, redirection, destructive filesystem commands, mutating Git
+operations, inline code execution, and network or GitHub commands that exceed
+the workflow permissions. Captured acceptance output is redacted before it is
+stored in a result artifact.
+
 `heal` repairs only derived local state and validation artifacts: it
 deduplicates legacy session snapshots, rebuilds the SQLite catalog, validates
 workflows, and writes `.agents/state/runs/last-heal.json`. It does not edit
