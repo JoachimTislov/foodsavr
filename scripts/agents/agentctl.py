@@ -838,6 +838,20 @@ def recover_interrupted_runs(runs: Path) -> int:
     return recovered
 
 
+def export_worktree_changes(worktree: Path, base_revision: str, run_dir: Path) -> str:
+    """Persist a permission-restricted portable patch for an isolated run."""
+    diff = subprocess.run(
+        ["git", "-C", str(worktree), "diff", "--binary", base_revision, "--"],
+        cwd=ROOT, capture_output=True, text=True, timeout=30, check=False,
+    )
+    if diff.returncode != 0:
+        raise ValueError((diff.stderr or diff.stdout).strip() or "git diff failed")
+    patch = run_dir / "changes.patch"
+    patch.write_text(diff.stdout, encoding="utf-8")
+    patch.chmod(0o600)
+    return path_reference(patch)
+
+
 def path_reference(path: Path) -> str:
     try:
         return str(path.relative_to(ROOT))
@@ -999,7 +1013,7 @@ def run_acceptance(step: dict[str, Any], cwd: Path = ROOT) -> list[dict[str, Any
                 "status": "passed" if verification.returncode == 0 else "failed",
                 "output": redacted_output((verification.stdout or verification.stderr)[-2000:]),
             })
-        except (OSError, subprocess.TimeoutExpired) as error:
+        except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             results.append({"command": acceptance_command, "status": "error", "output": str(error)})
     if not step.get("acceptance_commands"):
         results = [{"criterion": criterion, "status": "pending"} for criterion in step["acceptance"]]
@@ -1084,14 +1098,21 @@ def workflow_run(args: argparse.Namespace) -> int:
         print(json.dumps(result, indent=2, sort_keys=True))
         return 1
     execution_root = ROOT
+    base_revision: str | None = None
     if workflow.get("worktree", {}).get("mode") == "isolated":
         execution_root = run_dir / "worktree"
         try:
+            revision = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, timeout=10, check=False,
+            )
+            if revision.returncode != 0 or not revision.stdout.strip():
+                raise ValueError((revision.stderr or revision.stdout).strip() or "cannot resolve worktree base revision")
+            base_revision = revision.stdout.strip()
             worktree = subprocess.run(
-                ["git", "worktree", "add", "--detach", str(execution_root), "HEAD"],
+                ["git", "worktree", "add", "--detach", str(execution_root), base_revision],
                 cwd=ROOT, capture_output=True, text=True, timeout=30, check=False,
             )
-        except (OSError, subprocess.TimeoutExpired) as error:
+        except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             worktree = None
             worktree_error = str(error)
         else:
@@ -1109,6 +1130,7 @@ def workflow_run(args: argparse.Namespace) -> int:
             print(json.dumps(result, indent=2, sort_keys=True))
             return 1
         result["worktree"] = path_reference(execution_root)
+        result["base_revision"] = base_revision
         write_result(run_dir / "result.json", result)
     had_failure = False
     for step in workflow["steps"]:
@@ -1223,6 +1245,13 @@ def workflow_run(args: argparse.Namespace) -> int:
     else:
         result["status"] = "succeeded"
     result["providers"] = sorted({step.get("provider") for step in result["steps"] if step.get("provider")})
+    if base_revision and execution_root != ROOT:
+        try:
+            patch_reference = export_worktree_changes(execution_root, base_revision, run_dir)
+            result["patch"] = patch_reference
+            result["artifacts"].append(patch_reference)
+        except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+            result["patch_error"] = str(error)
     result["completed_at"] = now()
     append_event(events_path, {"type": "run.completed", "status": result["status"], "usage": result["usage"]})
     result["ledger_refs"].append(append_ledger_event(

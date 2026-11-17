@@ -259,6 +259,8 @@ class AgentctlTest(unittest.TestCase):
 
             def fake_run(command, **kwargs):
                 seen_cwds.append((command[0], kwargs.get("cwd")))
+                if command[:3] == ["git", "rev-parse", "HEAD"]:
+                    return subprocess.CompletedProcess(command, 0, stdout="base-sha\n", stderr="")
                 if command[0] == "fake":
                     return subprocess.CompletedProcess(command, 0, stdout=json.dumps({"session_id": "isolated-session"}), stderr="")
                 return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
@@ -276,6 +278,9 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             result = json.loads(output.getvalue())
             self.assertTrue(result["worktree"].endswith("/worktree"))
+            patch_path = Path(result["patch"])
+            self.assertTrue(patch_path.exists())
+            self.assertEqual(patch_path.stat().st_mode & 0o777, 0o600)
             worktree_cwds = [cwd for command, cwd in seen_cwds if command in {"fake", "true"}]
             self.assertEqual(len(worktree_cwds), 2)
             self.assertEqual(worktree_cwds[0], worktree_cwds[1])
