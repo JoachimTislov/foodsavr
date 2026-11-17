@@ -80,6 +80,13 @@ class AgentctlTest(unittest.TestCase):
             missing = self.run_cli("runs", "show", "missing", database=database, check=False)
             self.assertEqual(missing.returncode, 1)
 
+            late_run_dir = database.parent / "runs" / "run-2"
+            late_run_dir.mkdir(parents=True)
+            late_result = {**result, "run_id": "run-2", "completed_at": "2026-01-01T00:02:00+00:00"}
+            (late_run_dir / "result.json").write_text(json.dumps(late_result))
+            refreshed = json.loads(self.run_cli("runs", "show", "run-2", database=database).stdout)
+            self.assertEqual(refreshed["run_id"], "run-2")
+
     def test_workflow_plan_is_dry_run(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             result = self.run_cli("workflow", "plan", str(WORKFLOW), database=Path(directory) / "db", check=False)
