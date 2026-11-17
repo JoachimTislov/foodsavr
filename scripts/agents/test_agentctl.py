@@ -155,7 +155,7 @@ class AgentctlTest(unittest.TestCase):
                     provider_attempt += 1
                     return subprocess.CompletedProcess(
                         command, 1 if provider_attempt == 1 else 0,
-                        stdout=json.dumps({"session_id": f"session-{provider_attempt}"}), stderr="",
+                        stdout=json.dumps({"session_id": f"session-{provider_attempt}", "usage": {"input_tokens": provider_attempt * 2, "output_tokens": provider_attempt * 3}}), stderr="",
                     )
                 return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
@@ -174,6 +174,10 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             result = json.loads(output.getvalue())
             self.assertEqual(result["status"], "succeeded")
+            self.assertEqual(result["usage"]["total_tokens"], 15)
+            events = Path(result["events"])
+            self.assertTrue(events.exists())
+            self.assertIn('"type": "run.completed"', events.read_text())
             self.assertEqual([attempt["status"] for attempt in result["steps"][0]["attempts"]], ["failed", "succeeded"])
             records = [json.loads(line) for line in index.read_text().splitlines()]
             self.assertEqual([record["status"] for record in records], ["failed", "succeeded"])

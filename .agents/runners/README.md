@@ -16,9 +16,17 @@ Required adapter lifecycle:
 
 1. `probe` — command, version, authentication, and headless capability.
 2. `start` — workflow ID, run ID, prompt/context, policy, and worktree.
-3. `events` — normalized session ID, tool events, files, and provider output.
+3. `events` — normalized session ID, tool events, files, provider output, and
+   usage counters. `agentctl` persists these as ignored `events.jsonl` run
+   artifacts and never copies raw provider payloads into the ledger.
 4. `result` — acceptance checks, artifacts, references, and final status.
 5. `cancel` — bounded cancellation and cleanup.
+
+Usage is best-effort and provider-neutral: recognized token/cost fields are
+aggregated into the result's `usage` object and session record. Missing usage
+does not fail a run; missing required session IDs still does. Provider-specific
+fields are declared in `providers.json` so adapters can add mappings without
+changing workflow files.
 
 Policy compilation passes the normalized policy to the adapter. An adapter
 must translate only capabilities it can enforce and fail closed for the rest;

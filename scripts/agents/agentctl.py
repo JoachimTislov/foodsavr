@@ -342,6 +342,8 @@ def doctor(args: argparse.Namespace) -> int:
             "path": shutil.which(spec.get("command", "")),
             "available": shutil.which(spec.get("command", "")) is not None,
             "headless": runner_specs.get(provider, {}).get("headless", []),
+            "usage_fields": spec.get("usage_fields", []),
+            "capability_verification": spec.get("capability_verification", {}),
             "version": version_for(spec),
         }
         for provider, spec in runner_specs.items()
@@ -514,7 +516,67 @@ def extract_session_id(output: str) -> str | None:
     return match.group(0) if match else None
 
 
-def append_session_record(provider: str, session_id: str, run_id: str, summary: str, status: str = "completed", attempt: int | None = None) -> None:
+def extract_usage(output: str) -> dict[str, int | float]:
+    """Normalize common provider usage fields without retaining provider payloads."""
+    totals: dict[str, int | float] = {}
+    aliases = {
+        "input_tokens": ("input_tokens", "prompt_tokens"),
+        "output_tokens": ("output_tokens", "completion_tokens"),
+        "total_tokens": ("total_tokens",),
+        "cost_usd": ("cost_usd", "cost"),
+    }
+    for line in output.splitlines():
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(value, dict):
+            continue
+        usage = value.get("usage") if isinstance(value.get("usage"), dict) else value
+        if not isinstance(usage, dict):
+            continue
+        for normalized, keys in aliases.items():
+            for key in keys:
+                candidate = usage.get(key)
+                if isinstance(candidate, (int, float)) and not isinstance(candidate, bool):
+                    totals[normalized] = totals.get(normalized, 0) + candidate
+                    break
+    if "total_tokens" not in totals and {"input_tokens", "output_tokens"}.issubset(totals):
+        totals["total_tokens"] = totals["input_tokens"] + totals["output_tokens"]
+    return totals
+
+
+def normalized_events(provider: str, output: str) -> list[dict[str, Any]]:
+    events = []
+    for line in output.splitlines():
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(value, dict):
+            continue
+        event: dict[str, Any] = {
+            "provider": provider,
+            "type": value.get("type") or value.get("event") or "provider.output",
+        }
+        session_id = extract_session_id(line)
+        if session_id:
+            event["session_id"] = f"{provider}:{session_id}"
+        usage = extract_usage(line)
+        if usage:
+            event["usage"] = usage
+        events.append(event)
+    return events
+
+
+def append_event(path: Path, event: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps({"timestamp": now(), **event}, sort_keys=True) + "\n")
+        stream.flush()
+
+
+def append_session_record(provider: str, session_id: str, run_id: str, summary: str, status: str = "completed", attempt: int | None = None, usage: dict[str, int | float] | None = None) -> None:
     record = {
         "session_id": f"{provider}:{session_id}",
         "provider": provider,
@@ -530,6 +592,8 @@ def append_session_record(provider: str, session_id: str, run_id: str, summary: 
     }
     if attempt is not None:
         record["attempt"] = attempt
+    if usage:
+        record["usage"] = usage
     INDEX.parent.mkdir(parents=True, exist_ok=True)
     with INDEX.open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(record, sort_keys=True) + "\n")
@@ -679,9 +743,12 @@ def workflow_run(args: argparse.Namespace) -> int:
     database = Path(args.database).expanduser()
     run_dir = database.parent / "runs" / run_id
     policy = load_json(POLICY)
+    events_path = run_dir / "events.jsonl"
+    append_event(events_path, {"type": "run.started", "workflow_id": workflow["id"], "run_id": run_id})
     result: dict[str, Any] = {
         "workflow_id": workflow["id"], "run_id": run_id, "status": "planned",
-        "started_at": now(), "steps": [], "session_ids": [], "artifacts": [], "ledger_refs": [],
+        "started_at": now(), "steps": [], "session_ids": [], "artifacts": [path_reference(events_path)], "ledger_refs": [],
+        "events": path_reference(events_path), "usage": {},
         "provider": provider or "auto",
     }
     if not args.execute:
@@ -702,6 +769,7 @@ def workflow_run(args: argparse.Namespace) -> int:
     had_failure = False
     for step in workflow["steps"]:
         step_id = step["id"]
+        append_event(events_path, {"type": "step.started", "step_id": step_id})
         candidates = step.get("providers") or list(specs)
         selected = provider if provider in candidates else None
         if selected is None and provider is not None:
@@ -741,10 +809,17 @@ def workflow_run(args: argparse.Namespace) -> int:
                 artifact.parent.mkdir(parents=True, exist_ok=True)
                 artifact.write_text(output, encoding="utf-8")
                 session_id = extract_session_id(output)
+                usage = extract_usage(output)
+                for field, value in usage.items():
+                    result["usage"][field] = result["usage"].get(field, 0) + value
+                for event in normalized_events(selected, output):
+                    append_event(events_path, {"type": "provider.event", "step_id": step_id, "attempt": attempt, **event})
+                append_event(events_path, {"type": "attempt.completed", "step_id": step_id, "attempt": attempt, "usage": usage})
                 acceptance_results = run_acceptance(step)
                 acceptance_passed = len(acceptance_results) >= len(step["acceptance"]) and all(
                     item.get("status") == "passed" for item in acceptance_results
                 )
+                append_event(events_path, {"type": "acceptance.completed", "step_id": step_id, "attempt": attempt, "passed": acceptance_passed})
                 session_required = policy.get("require_session_id", True)
                 session_valid = session_id is not None or not session_required
                 attempt_status = "succeeded" if completed.returncode == 0 and acceptance_passed and session_valid else (
@@ -762,7 +837,7 @@ def workflow_run(args: argparse.Namespace) -> int:
                     result["session_ids"].append(namespaced)
                     append_session_record(
                         selected, session_id, run_id, f"Workflow {workflow['id']} step {step_id}",
-                        status=attempt_status, attempt=attempt,
+                        status=attempt_status, attempt=attempt, usage=usage,
                     )
                 if attempt_status == "succeeded":
                     step_succeeded = True
@@ -792,6 +867,7 @@ def workflow_run(args: argparse.Namespace) -> int:
         result["status"] = "succeeded"
     result["providers"] = sorted({step.get("provider") for step in result["steps"] if step.get("provider")})
     result["completed_at"] = now()
+    append_event(events_path, {"type": "run.completed", "status": result["status"], "usage": result["usage"]})
     result["ledger_refs"].append(append_ledger_event(
         run_id, workflow["id"], ",".join(result["providers"]) or "none", result["status"],
         path_reference(run_dir / "result.json"),
