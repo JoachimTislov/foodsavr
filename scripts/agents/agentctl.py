@@ -458,7 +458,9 @@ def router_plan(args: argparse.Namespace) -> int:
         "decisions": decisions,
     }
     print(json.dumps(result, indent=2, sort_keys=True))
-    return 0 if not permission_errors and all(decision["selected"] for decision in decisions) else 1
+    # Planning is valid on a clean runner with no provider binaries; execution
+    # remains fail-closed when no policy-safe provider is available.
+    return 0 if not permission_errors else 1
 
 
 def workflow_prompt(workflow: dict[str, Any], step: dict[str, Any], run_id: str, resolved_context: str) -> str:
