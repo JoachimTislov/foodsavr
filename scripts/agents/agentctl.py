@@ -19,11 +19,10 @@ ROOT = Path(__file__).resolve().parents[2]
 INDEX = ROOT / ".agents/sessions/index.jsonl"
 SCHEMA = ROOT / ".agents/knowledge/schema.sql"
 DATABASE = ROOT / ".agents/state/knowledge.sqlite3"
-RUNS = ROOT / ".agents/state/runs"
 RUNNERS = ROOT / ".agents/runners/providers.json"
 POLICY = ROOT / ".agents/policies/default.json"
 TEXT_SUFFIXES = {".md", ".markdown", ".yaml", ".yml", ".json", ".toml"}
-EXCLUDED_PARTS = {".git", ".dart_tool", "build", "research", "state"}
+EXCLUDED_PARTS = {".git", ".dart_tool", "build", "state"}
 URL_RE = re.compile(r"https?://[^\s)\]>]+")
 ISSUE_RE = re.compile(r"(?<![\w])#\d+")
 SHA_RE = re.compile(r"(?<![0-9a-f])[0-9a-f]{7,40}(?![0-9a-f])", re.I)
@@ -37,7 +36,7 @@ def records(index: Path = INDEX) -> list[dict[str, Any]]:
     if not index.exists():
         return []
     result = []
-    for number, line in enumerate(index.read_text().splitlines(), 1):
+    for number, line in enumerate(index.read_text(encoding="utf-8").splitlines(), 1):
         if not line.strip():
             continue
         try:
@@ -55,7 +54,7 @@ def connect(path: Path) -> sqlite3.Connection:
     connection = sqlite3.connect(path)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
-    connection.executescript(SCHEMA.read_text())
+    connection.executescript(SCHEMA.read_text(encoding="utf-8"))
     return connection
 
 
@@ -69,7 +68,8 @@ def document_paths() -> list[Path]:
             for path in root.rglob("*"):
                 if path.is_symlink() or not path.is_file() or path.suffix not in TEXT_SUFFIXES:
                     continue
-                if EXCLUDED_PARTS.intersection(path.parts):
+                relative_parts = path.relative_to(ROOT).parts
+                if EXCLUDED_PARTS.intersection(relative_parts) or relative_parts[:1] == ("research",):
                     continue
                 result.add(path)
     return sorted(result)
@@ -147,8 +147,22 @@ def search_phrase(term: str) -> str:
     return " OR ".join(f'"{part.replace(chr(34), chr(34) * 2)}"' for part in terms)
 
 
+def ensure_catalog(connection: sqlite3.Connection) -> None:
+    rows = connection.execute("SELECT path, sha256 FROM documents").fetchall()
+    if not rows:
+        raise ValueError("knowledge catalog is empty; run `scripts/agents/agentctl knowledge rebuild`")
+    for row in rows:
+        path = ROOT / row["path"]
+        if not path.exists():
+            raise ValueError(f"knowledge catalog is stale; missing source {row['path']}")
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if digest != row["sha256"]:
+            raise ValueError(f"knowledge catalog is stale; rebuild after changing {row['path']}")
+
+
 def query(args: argparse.Namespace) -> int:
     connection = connect(Path(args.database).expanduser())
+    ensure_catalog(connection)
     rows = connection.execute(
         "SELECT title, path, snippet(document_search, 1, '[', ']', '…', 24) AS snippet, bm25(document_search) AS rank "
         "FROM document_search WHERE document_search MATCH ? ORDER BY rank LIMIT ?",
@@ -160,16 +174,20 @@ def query(args: argparse.Namespace) -> int:
 
 def context(args: argparse.Namespace) -> int:
     connection = connect(Path(args.database).expanduser())
+    ensure_catalog(connection)
     docs = connection.execute(
         "SELECT title, path, snippet(document_search, 1, '[', ']', '…', 20) AS snippet "
         "FROM document_search WHERE document_search MATCH ? ORDER BY bm25(document_search) LIMIT ?",
         (search_phrase(args.term), args.limit),
     ).fetchall()
-    sessions = connection.execute(
-        "SELECT session_id, provider, harness, status, summary FROM sessions "
-        "WHERE session_id LIKE ? OR summary LIKE ? ORDER BY started_at DESC LIMIT ?",
-        (f"%{args.term}%", f"%{args.term}%", args.limit),
+    session_rows = connection.execute(
+        "SELECT session_id, provider, harness, status, summary FROM sessions ORDER BY started_at DESC"
     ).fetchall()
+    terms = [term.casefold() for term in args.term.split() if term]
+    sessions = [
+        row for row in session_rows
+        if any(term in f"{row['session_id']} {row['summary']}".casefold() for term in terms)
+    ][:args.limit]
     print(json.dumps({"term": args.term, "documents": [dict(row) for row in docs], "sessions": [dict(row) for row in sessions]}, indent=2))
     return 0
 
@@ -201,14 +219,8 @@ def session_register(args: argparse.Namespace) -> int:
     return 0
 
 
-PROVIDERS = {
-    "codex": "codex",
-    "claude": "claude",
-    "opencode": "opencode",
-    "gemini": "gemini",
-    "vibe": "vibe",
-    "copilot": "copilot",
-}
+def provider_specs() -> dict[str, dict[str, Any]]:
+    return load_json(RUNNERS).get("providers", {})
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -224,14 +236,30 @@ def load_json(path: Path) -> dict[str, Any]:
 def validate_workflow_file(path: Path) -> list[str]:
     workflow = load_json(path)
     errors = []
+    allowed = {"schema_version", "id", "objective", "context", "steps", "limits", "permissions", "outputs"}
+    errors.extend(f"{path}: unknown field {field}" for field in workflow if field not in allowed)
     for field in ("schema_version", "id", "objective", "steps", "limits", "permissions"):
         if field not in workflow:
             errors.append(f"{path}: missing {field}")
     if workflow.get("schema_version") != 1:
         errors.append(f"{path}: schema_version must be 1")
+    if not isinstance(workflow.get("id"), str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", str(workflow.get("id"))):
+        errors.append(f"{path}: id must match ^[a-z0-9][a-z0-9-]*$")
+    context = workflow.get("context", {})
+    if not isinstance(context, dict):
+        errors.append(f"{path}: context must be an object")
+    else:
+        for field in context:
+            if field not in {"queries", "files", "skills"}:
+                errors.append(f"{path}: unknown context field {field}")
+        for file_path in context.get("files", []):
+            if not (ROOT / file_path).exists():
+                errors.append(f"{path}: context file does not exist: {file_path}")
     if not isinstance(workflow.get("steps"), list) or not workflow.get("steps"):
         errors.append(f"{path}: steps must be a non-empty array")
     else:
+        step_ids = set()
+        specs = provider_specs()
         for index, step in enumerate(workflow["steps"]):
             if not isinstance(step, dict):
                 errors.append(f"{path}: step {index} must be an object")
@@ -239,14 +267,35 @@ def validate_workflow_file(path: Path) -> list[str]:
             for field in ("id", "role", "prompt", "acceptance"):
                 if field not in step:
                     errors.append(f"{path}: step {index} missing {field}")
+            step_id = step.get("id")
+            if step_id in step_ids:
+                errors.append(f"{path}: duplicate step id: {step_id}")
+            step_ids.add(step_id)
+            unknown_step_fields = set(step) - {"id", "role", "prompt", "providers", "skills", "acceptance", "on_failure"}
+            errors.extend(f"{path}: step {index}: unknown field {field}" for field in unknown_step_fields)
             if not isinstance(step.get("acceptance"), list) or not step.get("acceptance"):
                 errors.append(f"{path}: step {index} acceptance must be non-empty")
+            for provider in step.get("providers", []):
+                if provider not in specs:
+                    errors.append(f"{path}: unknown provider: {provider}")
+            if step.get("on_failure", "stop") not in {"stop", "retry", "continue"}:
+                errors.append(f"{path}: step {index}: invalid on_failure")
+    limits = workflow.get("limits", {})
     for field in ("max_attempts", "timeout_seconds"):
-        if not isinstance(workflow.get("limits", {}).get(field), int):
+        value = limits.get(field)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 1:
             errors.append(f"{path}: limits.{field} must be an integer")
+    if "max_turns" in limits and (not isinstance(limits["max_turns"], int) or isinstance(limits["max_turns"], bool) or limits["max_turns"] < 1):
+        errors.append(f"{path}: limits.max_turns must be a positive integer")
+    if set(limits) - {"max_attempts", "timeout_seconds", "max_turns"}:
+        errors.extend(f"{path}: unknown limits field {field}" for field in set(limits) - {"max_attempts", "timeout_seconds", "max_turns"})
+    permission_values = {"filesystem": {"read-only", "workspace-write"}, "network": {"none", "allowlisted", "full"}, "git": {"read-only", "branch-write", "push"}, "github": {"none", "read-only", "write"}}
     for field in ("filesystem", "network", "git"):
         if field not in workflow.get("permissions", {}):
             errors.append(f"{path}: permissions.{field} is required")
+    for field, values in permission_values.items():
+        if field in workflow.get("permissions", {}) and workflow["permissions"][field] not in values:
+            errors.append(f"{path}: invalid permissions.{field}")
     return errors
 
 
@@ -255,12 +304,12 @@ def doctor(args: argparse.Namespace) -> int:
     runner_specs = runner_data.get("providers", {})
     result = {
         provider: {
-            "command": command,
-            "path": shutil.which(command),
-            "available": shutil.which(command) is not None,
+            "command": spec.get("command"),
+            "path": shutil.which(spec.get("command", "")),
+            "available": shutil.which(spec.get("command", "")) is not None,
             "headless": runner_specs.get(provider, {}).get("headless", []),
         }
-        for provider, command in PROVIDERS.items()
+        for provider, spec in runner_specs.items()
     }
     print(json.dumps({"runner": str(ROOT), "providers": result}, indent=2, sort_keys=True))
     return 0
@@ -283,10 +332,22 @@ def workflow_plan(args: argparse.Namespace) -> int:
         return 1
     workflow = load_json(path)
     runner_specs = load_json(RUNNERS).get("providers", {})
-    availability = {provider: shutil.which(command) is not None for provider, command in PROVIDERS.items()}
+    policy = load_json(POLICY)
+    policy_values = {"filesystem": ["read-only", "workspace-write"], "network": ["none", "allowlisted", "full"], "git": ["read-only", "branch-write", "push"], "github": ["none", "read-only", "write"]}
+    permission_errors = []
+    for field, values in policy_values.items():
+        requested = workflow["permissions"].get(field, "none")
+        allowed = policy.get(field, values[0])
+        if values.index(requested) > values.index(allowed):
+            permission_errors.append(f"permissions.{field}={requested} exceeds policy {allowed}")
+    if permission_errors:
+        print(json.dumps({"valid": False, "errors": permission_errors, "policy": policy["id"]}, indent=2))
+        return 1
+    specs = provider_specs()
+    availability = {provider: shutil.which(spec.get("command", "")) is not None for provider, spec in specs.items()}
     steps = []
     for step in workflow["steps"]:
-        candidates = step.get("providers") or list(PROVIDERS)
+        candidates = step.get("providers") or list(specs)
         available = [provider for provider in candidates if availability.get(provider, False)]
         steps.append({
             "id": step["id"],
@@ -298,26 +359,33 @@ def workflow_plan(args: argparse.Namespace) -> int:
             "status": "ready" if available else "unavailable",
             "runner": runner_specs.get(available[0], {}) if available else None,
         })
+    unavailable_steps = [step["id"] for step in steps if step["status"] == "unavailable"]
     plan = {
         "workflow_id": workflow["id"],
         "run_id": f"{workflow['id']}-{uuid.uuid4().hex[:12]}",
-        "status": "planned",
+        "status": "planned" if not unavailable_steps else "unavailable",
         "objective": workflow["objective"],
         "context": workflow.get("context", {}),
         "limits": workflow["limits"],
         "permissions": workflow["permissions"],
+        "policy": policy["id"],
         "steps": steps,
         "available_providers": [provider for provider, available in availability.items() if available],
+        "unavailable_steps": unavailable_steps,
         "execution": "dry-run; no provider process was started",
     }
     print(json.dumps(plan, indent=2, sort_keys=True))
-    return 0
+    return 0 if not unavailable_steps else 1
 
 
 def policy_compile(args: argparse.Namespace) -> int:
     policy = load_json(Path(args.path).expanduser())
     required = ("schema_version", "id", "filesystem", "network", "git", "github")
     errors = [f"missing {field}" for field in required if field not in policy]
+    values = {"filesystem": {"read-only", "workspace-write"}, "network": {"none", "allowlisted", "full"}, "git": {"read-only", "branch-write", "push"}, "github": {"none", "read-only", "write"}}
+    for field, allowed in values.items():
+        if field in policy and policy[field] not in allowed:
+            errors.append(f"invalid {field}: {policy[field]}")
     if errors:
         print(json.dumps({"valid": False, "errors": errors}, indent=2))
         return 1
@@ -333,6 +401,8 @@ def policy_compile(args: argparse.Namespace) -> int:
         "require_session_id": policy.get("require_session_id", True),
         "require_ledger_event": policy.get("require_ledger_event", True),
         "require_acceptance": policy.get("require_acceptance", True),
+        "require_draft_pr": policy.get("require_draft_pr", True),
+        "enforced": False,
         "native_mapping": "adapter-owned; fail closed when unsupported",
     }
     print(json.dumps(projection, indent=2, sort_keys=True))
@@ -343,18 +413,22 @@ def maintain(args: argparse.Namespace) -> int:
     workflow_paths = sorted((ROOT / ".agents/workflows").glob("*.json"))
     errors = []
     for path in workflow_paths:
-        if path.name.endswith("schema.json") or path.name == "result.schema.json":
+        if path.name in {"schema.json", "result.schema.json"}:
             continue
         errors.extend(validate_workflow_file(path))
-    rebuild(argparse.Namespace(database=str(DATABASE)), emit=False)
+    database = Path(args.database).expanduser()
+    rebuild(argparse.Namespace(database=str(database)), emit=False)
     result = {
         "status": "healthy" if not errors else "failed",
         "knowledge": str(DATABASE),
         "workflows": [str(path.relative_to(ROOT)) for path in workflow_paths if "schema" not in path.name],
         "errors": errors,
     }
-    RUNS.mkdir(parents=True, exist_ok=True)
-    (RUNS / "last-maintenance.json").write_text(json.dumps(result, indent=2) + "\n")
+    runs = database.parent / "runs"
+    runs.mkdir(parents=True, exist_ok=True)
+    temporary = runs / ".last-maintenance.json.tmp"
+    temporary.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(runs / "last-maintenance.json")
     print(json.dumps(result, indent=2))
     return 0 if not errors else 1
 
