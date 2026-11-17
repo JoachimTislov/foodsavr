@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent workflow result",
   "type": "object",
-  "required": ["workflow_id", "run_id", "status", "started_at", "steps", "session_ids", "artifacts", "ledger_refs"],
+  "required": ["workflow_id", "run_id", "status", "started_at", "steps", "session_ids", "artifacts", "events", "usage", "ledger_refs"],
   "properties": {
     "workflow_id": {"type": "string"},
     "run_id": {"type": "string"},
@@ -26,6 +26,17 @@
     },
     "session_ids": {"type": "array", "items": {"type": "string"}},
     "artifacts": {"type": "array", "items": {"type": "string"}},
+    "events": {"type": "string"},
+    "usage": {
+      "type": "object",
+      "properties": {
+        "input_tokens": {"type": "number", "minimum": 0},
+        "output_tokens": {"type": "number", "minimum": 0},
+        "total_tokens": {"type": "number", "minimum": 0},
+        "cost_usd": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
     "ledger_refs": {"type": "array", "items": {"type": "string"}}
   },
   "additionalProperties": true
