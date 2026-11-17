@@ -4,6 +4,12 @@ Workflow JSON files describe objectives, context, provider candidates, limits,
 permissions, acceptance criteria, and outputs. They are provider-neutral input
 to an adapter; they do not contain provider-specific command syntax.
 
+Read-only workflows use the checked-out repository by default. Any workflow
+that requests workspace writes, Git branch writes, Git pushes, or GitHub writes
+must declare `"worktree": {"mode": "isolated"}`. The runner creates a detached
+worktree under the run artifact and executes the provider and acceptance checks
+there, leaving the source checkout unchanged.
+
 Validate and plan without starting a model:
 
 ```sh

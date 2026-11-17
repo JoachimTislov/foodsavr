@@ -95,6 +95,19 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("unknown provider", result.stdout)
 
+    def test_write_capable_workflow_requires_isolated_worktree(self) -> None:
+        module = load_agentctl_module()
+        workflow = json.loads(WORKFLOW.read_text())
+        workflow["permissions"]["filesystem"] = "workspace-write"
+        path = Path(tempfile.mkdtemp()) / "write-workflow.json"
+        path.write_text(json.dumps(workflow))
+        errors = module.validate_workflow_file(path)
+        self.assertTrue(any("require worktree.mode=isolated" in error for error in errors))
+        workflow["worktree"] = {"mode": "isolated"}
+        path.write_text(json.dumps(workflow))
+        errors = module.validate_workflow_file(path)
+        self.assertFalse(any("require worktree.mode=isolated" in error for error in errors))
+
     def test_acceptance_commands_cannot_bypass_policy(self) -> None:
         module = load_agentctl_module()
         permissions = {"network": "none", "git": "read-only", "github": "none"}
