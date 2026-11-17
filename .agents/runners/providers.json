@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "providers": {
+    "codex": {"command": "codex", "headless": ["exec"], "session_id": "provider output"},
+    "claude": {"command": "claude", "headless": ["-p", "--output-format", "json"], "session_id": "provider output"},
+    "opencode": {"command": "opencode", "headless": ["run"], "session_id": "provider output"},
+    "gemini": {"command": "gemini", "headless": ["-p"], "session_id": "provider output"},
+    "vibe": {"command": "vibe", "headless": ["-p"], "session_id": "provider output"},
+    "copilot": {"command": "copilot", "headless": ["-p"], "session_id": "provider output"}
+  }
+}

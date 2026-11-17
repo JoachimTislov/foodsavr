@@ -1,0 +1,40 @@
+name: Agent system validation
+
+on:
+  pull_request:
+    paths:
+      - '.agents/**'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'GEMINI.md'
+      - 'scripts/agents/**'
+      - '.github/workflows/agent-system.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.agents/**'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'GEMINI.md'
+      - 'scripts/agents/**'
+      - '.github/workflows/agent-system.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate agent CLI
+        run: |
+          python3 -m py_compile scripts/agents/agentctl.py scripts/agents/session_query.py
+          python3 -m unittest scripts/agents/test_agentctl.py
+          scripts/agents/agentctl maintain
+          scripts/agents/agentctl workflow validate .agents/workflows/repository-health.json
+          scripts/agents/agentctl workflow plan .agents/workflows/repository-health.json
+      - name: Check generated state is ignored
+        run: test ! -e .agents/state/knowledge.sqlite3 || git check-ignore -q .agents/state/knowledge.sqlite3

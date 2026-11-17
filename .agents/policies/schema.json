@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent policy",
+  "type": "object",
+  "required": ["schema_version", "id", "filesystem", "network", "git", "github"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {"type": "string"},
+    "description": {"type": "string"},
+    "filesystem": {"enum": ["read-only", "workspace-write"]},
+    "network": {"enum": ["none", "allowlisted", "full"]},
+    "git": {"enum": ["read-only", "branch-write", "push"]},
+    "github": {"enum": ["none", "read-only", "write"]},
+    "allow_hosts": {"type": "array", "items": {"type": "string"}},
+    "require_draft_pr": {"type": "boolean"},
+    "require_session_id": {"type": "boolean"},
+    "require_ledger_event": {"type": "boolean"},
+    "require_acceptance": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}
