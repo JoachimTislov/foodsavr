@@ -1,0 +1,1 @@
+../../../../.agents/skills/diagnosing-bugs/scripts/hitl-loop.template.sh
