@@ -38,7 +38,7 @@ Want to tinker with the code? Check out the **[Getting Started guide](./doc/gett
 
 ## How to Contribute
 
-Contributors must start with the [source-of-truth index](docs/source-of-truth/INDEX.md) before using the documentation below.
+Contributors must start with the [source-of-truth index](specs/source-of-truth/INDEX.md) before using the documentation below.
 
 Got an idea or want to fix something? Awesome! We have a few guidelines for contributing that are pretty different from most projects, especially regarding AI-assisted code.
 
@@ -58,4 +58,4 @@ For a complete overview of all project documentation, start with the [Documentat
 
 ## Documentation
 
-The canonical spec lives in [`docs/source-of-truth/`](docs/source-of-truth/INDEX.md).
+The canonical spec lives in [`specs/source-of-truth/`](specs/source-of-truth/INDEX.md).
