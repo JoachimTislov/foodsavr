@@ -1,7 +1,7 @@
 ---
 name: "🐛 Bug Report"
 about: "Something's not working as expected."
-labels: "bug"
+labels: "type/bug"
 ---
 
 ### Describe the Bug

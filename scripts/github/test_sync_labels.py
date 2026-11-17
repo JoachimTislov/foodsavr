@@ -29,17 +29,19 @@ class LabelRulesTest(unittest.TestCase):
             [],
             self.config,
         )
-        self.assertTrue({"type/bug", "area/ci", "area/app", "risk/security", "status/ready", "status/ci-green", "automation/agent-managed"} <= labels)
+        self.assertTrue({"type/bug", "area/ci", "risk/security"} <= labels)
+        self.assertNotIn("area/app", labels)
+        self.assertFalse(any(label.startswith("status/") for label in labels))
 
     def test_issue_defaults_to_task_and_preserves_human_labels_in_sync_diff(self):
         labels = self.module.classify(
             {"number": 2, "title": "Investigate startup", "body": "", "state": "open", "is_pull_request": False},
             [], [], [], self.config,
         )
-        current = {"help wanted", "type/bug", "automation/agent-managed"}
+        current = {"help wanted", "bug"}
         self.assertIn("type/task", labels)
         self.assertEqual(self.module.is_managed("help wanted", self.config["managed_prefixes"]), False)
-        self.assertIn("type/bug", current - labels)
+        self.assertIn("bug", current - labels)
 
 
 if __name__ == "__main__":
