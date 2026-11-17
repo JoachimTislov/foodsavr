@@ -139,6 +139,7 @@ class AgentctlTest(unittest.TestCase):
         fake_specs = {"fake": {
             "command": "fake", "headless": [], "prompt_mode": "argument",
             "enforced_permissions": {"filesystem": ["read-only"], "network": ["none"], "git": ["read-only"], "github": ["none"]},
+            "capability_verification": {"mode": "version-and-flags", "verified_version_prefix": "fake 1.", "required_flags": []},
         }}
         with tempfile.TemporaryDirectory() as directory:
             directory_path = Path(directory)
@@ -161,6 +162,7 @@ class AgentctlTest(unittest.TestCase):
             output = io.StringIO()
             with patch.object(module, "provider_specs", return_value=fake_specs), \
                  patch.object(module.shutil, "which", return_value="/usr/bin/fake"), \
+                 patch.object(module, "version_for", return_value="fake 1.0"), \
                  patch.object(module.subprocess, "run", side_effect=fake_run), \
                  patch.object(module, "INDEX", index), \
                  patch.object(module, "append_ledger_event", return_value="ledger#retry-test"):
@@ -208,6 +210,32 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(plan["fallback"]["strategy"], "first-available-policy-safe")
             self.assertFalse(plan["decision_provider"]["enabled"])
             self.assertEqual(len(plan["decisions"]), 2)
+
+    def test_configured_router_is_bounded_and_validates_selection(self) -> None:
+        module = load_agentctl_module()
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def read(self, _limit):
+                return json.dumps({"provider": "fake"}).encode()
+
+        router = {"decision_provider": {
+            "enabled": True, "base_url_env": "TEST_ROUTER_URL", "api_key_env": "TEST_ROUTER_KEY",
+            "model_env": "TEST_ROUTER_MODEL", "timeout_ms": 500,
+        }}
+        workflow = {"id": "router-test", "permissions": {"filesystem": "read-only", "network": "none", "git": "read-only", "github": "none"}}
+        step = {"id": "one"}
+        with patch.dict(module.os.environ, {"TEST_ROUTER_URL": "https://router.example", "TEST_ROUTER_KEY": "secret", "TEST_ROUTER_MODEL": "auto"}), \
+             patch.object(module.urllib.request, "urlopen", return_value=Response()) as urlopen:
+            selected, reason = module.external_route(workflow, step, ["fake"], router)
+        self.assertEqual(selected, "fake")
+        self.assertEqual(reason, "external-decision-provider")
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 0.5)
 
 
 if __name__ == "__main__":
