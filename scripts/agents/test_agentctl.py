@@ -149,6 +149,19 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(records[0]["status"], "succeeded")
             self.assertEqual(len(records[0]["attempts"]), 2)
 
+    def test_heal_deduplicates_legacy_session_index(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            index = Path(directory) / "sessions.jsonl"
+            duplicate = {"session_id": "codex:same", "provider": "codex", "status": "failed", "attempts": [{"attempt": 1}]}
+            current = {"session_id": "codex:same", "provider": "codex", "status": "succeeded", "attempts": [{"attempt": 2}]}
+            index.write_text("\n".join(json.dumps(item) for item in (duplicate, current)) + "\n")
+            self.assertEqual(module.heal_session_index(index), 1)
+            records = [json.loads(line) for line in index.read_text().splitlines()]
+            self.assertEqual(len(records), 1)
+            self.assertEqual(records[0]["status"], "succeeded")
+            self.assertEqual([item["attempt"] for item in records[0]["attempts"]], [1, 2])
+
     def test_execute_retries_and_records_attempt_outcomes(self) -> None:
         module = load_agentctl_module()
         workflow = {

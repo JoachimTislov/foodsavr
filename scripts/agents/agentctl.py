@@ -253,8 +253,6 @@ def session_list(args: argparse.Namespace) -> int:
 def session_register(args: argparse.Namespace) -> int:
     index = Path(args.index).expanduser()
     current = records(index)
-    if any(row.get("session_id") == args.session_id for row in current):
-        raise ValueError(f"session already registered: {args.session_id}")
     record: dict[str, Any] = {
         "session_id": args.session_id, "provider": args.provider, "harness": args.harness,
         "started_at": args.started_at or now(), "status": args.status, "issues": args.issue,
@@ -262,11 +260,42 @@ def session_register(args: argparse.Namespace) -> int:
     }
     if args.transcript:
         record["transcript"] = args.transcript
-    index.parent.mkdir(parents=True, exist_ok=True)
-    with index.open("a", encoding="utf-8") as stream:
-        stream.write(json.dumps(record, sort_keys=True) + "\n")
+    current = upsert_session_records(current, record)
+    write_session_records(index, current)
     print(json.dumps(record, indent=2, sort_keys=True))
     return 0
+
+
+def write_session_records(index: Path, values: list[dict[str, Any]]) -> None:
+    index.parent.mkdir(parents=True, exist_ok=True)
+    temporary = index.with_suffix(index.suffix + ".tmp")
+    temporary.write_text("".join(json.dumps(item, sort_keys=True) + "\n" for item in values), encoding="utf-8")
+    temporary.replace(index)
+
+
+def upsert_session_records(existing: list[dict[str, Any]], incoming: dict[str, Any]) -> list[dict[str, Any]]:
+    """Keep one record per session while retaining attempt history."""
+    result = list(existing)
+    key = incoming.get("session_id")
+    match = next((item for item in result if item.get("session_id") == key), None)
+    if match is None:
+        result.append(incoming)
+        return result
+    attempts = [*match.get("attempts", []), *incoming.get("attempts", [])]
+    match.update(incoming)
+    if attempts:
+        match["attempts"] = attempts
+    return result
+
+
+def heal_session_index(index: Path = INDEX) -> int:
+    current = records(index)
+    healed: list[dict[str, Any]] = []
+    for record in current:
+        healed = upsert_session_records(healed, record)
+    if healed != current:
+        write_session_records(index, healed)
+    return len(current) - len(healed)
 
 
 def provider_specs() -> dict[str, dict[str, Any]]:
@@ -646,9 +675,7 @@ def append_session_record(provider: str, session_id: str, run_id: str, summary: 
             record["usage"] = usage
         record["attempts"] = [attempt_record]
         existing.append(record)
-    temporary = INDEX.with_suffix(INDEX.suffix + ".tmp")
-    temporary.write_text("".join(json.dumps(item, sort_keys=True) + "\n" for item in existing), encoding="utf-8")
-    temporary.replace(INDEX)
+    write_session_records(INDEX, existing)
 
 
 def write_json(path: Path, value: dict[str, Any]) -> None:
@@ -1020,6 +1047,30 @@ def maintain(args: argparse.Namespace) -> int:
     return 0 if not errors else 1
 
 
+def heal(args: argparse.Namespace) -> int:
+    """Repair disposable derived state without invoking providers or editing source."""
+    deduplicated = heal_session_index()
+    workflow_paths = sorted((ROOT / ".agents/workflows").glob("*.json"))
+    errors: list[str] = []
+    for path in workflow_paths:
+        if path.name not in {"schema.json", "result.schema.json"}:
+            errors.extend(validate_workflow_file(path))
+    database = Path(args.database).expanduser()
+    rebuild(argparse.Namespace(database=str(database)), emit=False)
+    report = {
+        "status": "healthy" if not errors else "failed",
+        "actions": ["rebuild knowledge catalog", f"deduplicate session index ({deduplicated} records)"],
+        "knowledge": str(database),
+        "workflows": [str(path.relative_to(ROOT)) for path in workflow_paths if "schema" not in path.name],
+        "errors": errors,
+    }
+    runs = database.parent / "runs"
+    runs.mkdir(parents=True, exist_ok=True)
+    write_json(runs / "last-heal.json", report)
+    print(json.dumps(report, indent=2))
+    return 0 if not errors else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--database", default=str(DATABASE))
@@ -1086,8 +1137,10 @@ def main(argv: list[str] | None = None) -> int:
         return context(args)
     if args.command == "doctor":
         return doctor(args)
-    if args.command in ("maintain", "heal"):
+    if args.command == "maintain":
         return maintain(args)
+    if args.command == "heal":
+        return heal(args)
     if args.command == "workflow" and args.workflow_command == "validate":
         return workflow_validate(args)
     if args.command == "workflow" and args.workflow_command == "plan":

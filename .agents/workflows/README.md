@@ -49,8 +49,8 @@ Workflow context files must resolve to regular files inside the repository.
 This prevents a declarative workflow or an untrusted context reference from
 reading outside the workspace.
 
-`heal` repairs only derived local state and validation artifacts: it rebuilds
-the SQLite catalog and writes `.agents/state/runs/last-maintenance.json`. It
-does not edit source files, invoke a provider, or push a branch. Provider
-execution remains an explicit adapter decision governed by the workflow
-permissions.
+`heal` repairs only derived local state and validation artifacts: it
+deduplicates legacy session snapshots, rebuilds the SQLite catalog, validates
+workflows, and writes `.agents/state/runs/last-heal.json`. It does not edit
+source files, invoke a provider, or push a branch. Provider execution remains
+an explicit adapter decision governed by workflow permissions.
