@@ -7,20 +7,33 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   changes:
     name: Detect changed areas
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
     runs-on: ubuntu-latest
     outputs:
-      flutter: ${{ steps.filter.outputs.flutter }}
-      web: ${{ steps.filter.outputs.web }}
-      android: ${{ steps.filter.outputs.android }}
-      integration: ${{ steps.filter.outputs.integration }}
-      e2e: ${{ steps.filter.outputs.e2e }}
+      flutter: ${{ steps.tested.outputs.skip != 'true' && steps.filter.outputs.flutter || 'false' }}
+      web: ${{ steps.tested.outputs.skip != 'true' && steps.filter.outputs.web || 'false' }}
+      android: ${{ steps.tested.outputs.skip != 'true' && steps.filter.outputs.android || 'false' }}
+      integration: ${{ steps.tested.outputs.skip != 'true' && steps.filter.outputs.integration || 'false' }}
+      e2e: ${{ steps.tested.outputs.skip != 'true' && steps.filter.outputs.e2e || 'false' }}
       rules: ${{ steps.filter.outputs.rules }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+      - name: Skip if merged tree already validated on the PR
+        id: tested
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/already_tested.sh validation.yml
       - name: Path filters
         uses: dorny/paths-filter@v3
         id: filter
