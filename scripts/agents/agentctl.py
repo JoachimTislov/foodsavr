@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shlex
 import shutil
@@ -13,6 +14,8 @@ import sqlite3
 import subprocess
 import sys
 import uuid
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -439,14 +442,16 @@ def router_plan(args: argparse.Namespace) -> int:
         candidates = step.get("providers") or list(specs)
         available = [provider for provider in candidates if provider in specs and shutil.which(specs[provider].get("command", ""))]
         safe = [provider for provider in available if provider_is_safe(provider, workflow, specs)]
+        routed, reason = external_route(workflow, step, safe, router)
+        selected = routed or (safe[0] if safe else None)
         decisions.append({
             "step_id": step["id"],
             "capabilities": {"filesystem": workflow["permissions"]["filesystem"], "network": workflow["permissions"]["network"], "git": workflow["permissions"]["git"], "github": workflow["permissions"].get("github", "none")},
             "candidates": candidates,
             "available_providers": available,
             "policy_safe_providers": safe,
-            "selected": safe[0] if safe else None,
-            "reason": "deterministic-fallback" if safe else "no-available-policy-safe-provider",
+            "selected": selected,
+            "reason": reason if selected else "no-available-policy-safe-provider",
         })
     result = {
         "router": router["id"],
@@ -570,7 +575,17 @@ def provider_is_safe(provider: str, workflow: dict[str, Any], specs: dict[str, d
     spec = specs[provider]
     requested = workflow["permissions"]
     enforced = spec.get("enforced_permissions", {})
-    return all(requested.get(field) in enforced.get(field, []) for field in ("filesystem", "network", "git", "github"))
+    verification = spec.get("capability_verification", {})
+    required_flags = verification.get("required_flags", [])
+    command_line = [*spec.get("headless", [])]
+    verified_version = version_for(spec)
+    version_ok = bool(verification.get("verified_version_prefix")) and bool(
+        verified_version and verified_version.startswith(verification["verified_version_prefix"])
+    )
+    flags_ok = all(flag in command_line for flag in required_flags)
+    return verification.get("mode") == "version-and-flags" and version_ok and flags_ok and all(
+        requested.get(field) in enforced.get(field, []) for field in ("filesystem", "network", "git", "github")
+    )
 
 
 def policy_errors(workflow: dict[str, Any], policy: dict[str, Any]) -> list[str]:
@@ -587,6 +602,45 @@ def policy_errors(workflow: dict[str, Any], policy: dict[str, Any]) -> list[str]
         if ordered.index(requested) > ordered.index(allowed):
             errors.append(f"permissions.{field}={requested} exceeds policy {allowed}")
     return errors
+
+
+def external_route(workflow: dict[str, Any], step: dict[str, Any], safe: list[str], router: dict[str, Any]) -> tuple[str | None, str]:
+    decision = router.get("decision_provider", {})
+    if not decision.get("enabled"):
+        return None, "deterministic-fallback"
+    base_url = os.environ.get(decision.get("base_url_env", "JEV_ROUTER_BASE_URL"), "")
+    api_key = os.environ.get(decision.get("api_key_env", "JEV_ROUTER_API_KEY"), "")
+    model = os.environ.get(decision.get("model_env", "JEV_ROUTER_MODEL"), "auto")
+    if not base_url or not api_key or not base_url.startswith("https://"):
+        return None, "external-router-not-configured-or-not-https"
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": json.dumps({
+            "workflow_id": workflow["id"], "step_id": step["id"],
+            "capabilities": workflow["permissions"], "available_providers": safe,
+            "instruction": "Return only JSON: {\\\"provider\\\": <one available provider>}.",
+        })}],
+    }
+    request = urllib.request.Request(
+        base_url.rstrip("/") + "/chat/completions",
+        data=json.dumps(payload).encode(),
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    timeout = min(max(int(decision.get("timeout_ms", 500)) / 1000, 0.1), 10.0)
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            body = json.loads(response.read(128 * 1024))
+        content = body.get("provider")
+        if content is None:
+            content = body.get("choices", [{}])[0].get("message", {}).get("content", "")
+            content = content.strip().removeprefix("```").removeprefix("json").removesuffix("```").strip()
+            content = json.loads(content).get("provider")
+        if content in safe:
+            return content, "external-decision-provider"
+        return None, "external-router-returned-invalid-provider"
+    except (OSError, ValueError, KeyError, IndexError, urllib.error.URLError):
+        return None, "external-router-failed-using-fallback"
 
 
 def run_acceptance(step: dict[str, Any]) -> list[dict[str, Any]]:
