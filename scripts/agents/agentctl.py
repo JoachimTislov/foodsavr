@@ -10,6 +10,7 @@ import json
 import math
 import os
 import re
+import signal
 import shlex
 import shutil
 import sqlite3
@@ -1194,6 +1195,46 @@ def workflow_run(args: argparse.Namespace) -> int:
     return 0 if result["status"] == "succeeded" else 1
 
 
+def workflow_cancel(args: argparse.Namespace) -> int:
+    """Cancel a persisted run and signal its owning runner when still active."""
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", args.run_id):
+        raise ValueError("run ID must contain only lowercase letters, digits, and hyphens")
+    database = Path(args.database).expanduser()
+    run_dir = database.parent / "runs" / args.run_id
+    result_path = run_dir / "result.json"
+    if not result_path.is_file():
+        raise ValueError(f"run does not exist: {args.run_id}")
+    result = load_json(result_path)
+    if result.get("status") not in {"planned", "running"}:
+        print(json.dumps({"run_id": args.run_id, "status": result.get("status"), "changed": False}, indent=2, sort_keys=True))
+        return 0
+    result["status"] = "cancelled"
+    result["reason"] = "cancelled-by-controller"
+    result["completed_at"] = now()
+    events = run_dir / Path(str(result.get("events", "events.jsonl"))).name
+    append_event(events, {"type": "run.cancelled", "status": "cancelled", "reason": result["reason"]})
+    result["ledger_refs"].append(append_ledger_event(
+        result["run_id"], result["workflow_id"], "none", result["status"], path_reference(result_path),
+    ))
+    write_result(result_path, result)
+    active_path = run_dir / "active.json"
+    try:
+        active_pid = int(load_json(active_path).get("pid"))
+    except (OSError, TypeError, ValueError):
+        active_pid = None
+    try:
+        active_path.unlink()
+    except FileNotFoundError:
+        pass
+    if active_pid and active_pid != os.getpid():
+        try:
+            os.kill(active_pid, signal.SIGTERM)
+        except OSError:
+            pass
+    print(json.dumps({"run_id": args.run_id, "status": "cancelled", "changed": True}, indent=2, sort_keys=True))
+    return 0
+
+
 def policy_compile(args: argparse.Namespace) -> int:
     policy = load_json(Path(args.path).expanduser())
     required = ("schema_version", "id", "filesystem", "network", "git", "github")
@@ -1308,6 +1349,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--provider", default="auto")
     run.add_argument("--execute", action="store_true")
     run.add_argument("--capture-raw", action="store_true", help="persist redacted raw provider output; disabled by default policy")
+    cancel = workflow_commands.add_parser("cancel")
+    cancel.add_argument("run_id")
     router = commands.add_parser("router")
     router_commands = router.add_subparsers(dest="router_command", required=True)
     router_plan_parser = router_commands.add_parser("plan")
@@ -1357,6 +1400,8 @@ def main(argv: list[str] | None = None) -> int:
         return workflow_plan(args)
     if args.command == "workflow" and args.workflow_command == "run":
         return workflow_run(args)
+    if args.command == "workflow" and args.workflow_command == "cancel":
+        return workflow_cancel(args)
     if args.command == "router" and args.router_command == "plan":
         return router_plan(args)
     if args.command == "policy" and args.policy_command == "compile":

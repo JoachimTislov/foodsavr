@@ -10,6 +10,7 @@ Validate and plan without starting a model:
 scripts/agents/agentctl workflow validate .agents/workflows/repository-health.json
 scripts/agents/agentctl workflow plan .agents/workflows/repository-health.json
 scripts/agents/agentctl workflow run .agents/workflows/repository-health.json
+scripts/agents/agentctl workflow cancel <run-id>
 scripts/agents/agentctl doctor
 scripts/agents/agentctl heal
 scripts/agents/agentctl router plan .agents/workflows/repository-health.json
@@ -62,3 +63,8 @@ workflows, and writes `.agents/state/runs/last-heal.json`. It leaves live runs
 untouched. It does not edit source files, invoke a provider, or push a branch.
 Provider execution remains an explicit adapter decision governed by workflow
 permissions.
+
+Use `workflow cancel <run-id>` to transition a planned or running artifact to
+`cancelled`. The controller records a cancellation event and ledger reference,
+removes the active marker, and signals the owning runner when its process is
+still present. Terminal runs are left unchanged.

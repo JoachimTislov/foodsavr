@@ -199,6 +199,27 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(recovered["reason"], "interrupted-before-completion")
             self.assertIn('"type": "run.recovered"', events.read_text())
 
+    def test_workflow_cancel_terminalizes_run_and_rejects_path_traversal(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory, patch.object(module, "append_ledger_event", return_value="ledger#cancelled"):
+            run_dir = Path(directory) / "runs" / "cancel-test"
+            events = run_dir / "events.jsonl"
+            events.parent.mkdir(parents=True)
+            events.write_text("")
+            result = {
+                "workflow_id": "cancel-workflow", "run_id": "cancel-test", "status": "running",
+                "started_at": "2026-01-01T00:00:00+00:00", "steps": [], "session_ids": [],
+                "artifacts": ["events.jsonl"], "events": "events.jsonl", "usage": {}, "ledger_refs": [],
+            }
+            (run_dir / "result.json").write_text(json.dumps(result))
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(module.workflow_cancel(argparse.Namespace(run_id="cancel-test", database=str(Path(directory) / "knowledge.sqlite3"))), 0)
+            self.assertEqual(json.loads((run_dir / "result.json").read_text())["status"], "cancelled")
+            self.assertIn('"type": "run.cancelled"', events.read_text())
+            with self.assertRaises(ValueError):
+                module.workflow_cancel(argparse.Namespace(run_id="../escape", database=str(Path(directory) / "knowledge.sqlite3")))
+
     def test_execute_retries_and_records_attempt_outcomes(self) -> None:
         module = load_agentctl_module()
         workflow = {
