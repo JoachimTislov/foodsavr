@@ -8,6 +8,9 @@ on:
       - 'CLAUDE.md'
       - 'GEMINI.md'
       - 'scripts/agents/**'
+      - 'scripts/github/**'
+      - '.agents/github/**'
+      - '.github/workflows/github-labels.yml'
       - 'specs/**'
       - 'docs/**'
       - 'doc/**'
@@ -20,6 +23,9 @@ on:
       - 'CLAUDE.md'
       - 'GEMINI.md'
       - 'scripts/agents/**'
+      - 'scripts/github/**'
+      - '.agents/github/**'
+      - '.github/workflows/github-labels.yml'
       - 'specs/**'
       - 'docs/**'
       - 'doc/**'
@@ -39,6 +45,7 @@ jobs:
         run: |
           python3 -m py_compile scripts/agents/agentctl.py scripts/agents/session_query.py
           python3 -m unittest scripts/agents/test_agentctl.py
+          python3 -m unittest scripts/github/test_sync_labels.py
           scripts/agents/agentctl maintain
           scripts/agents/agentctl workflow validate .agents/workflows/repository-health.json
           scripts/agents/agentctl router plan .agents/workflows/repository-health.json
@@ -47,6 +54,7 @@ jobs:
             scripts/agents/agentctl policy compile --provider "$provider" >/dev/null
           done
           python3 -m json.tool .agents/policies/default.json >/dev/null
+          python3 -m json.tool .agents/github/labels.json >/dev/null
           python3 -m json.tool .agents/policies/schema.json >/dev/null
           python3 -m json.tool .agents/runners/providers.json >/dev/null
           python3 -m json.tool .agents/runners/router.json >/dev/null

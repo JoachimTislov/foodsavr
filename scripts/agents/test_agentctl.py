@@ -117,6 +117,27 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(report["status"], "healthy")
             self.assertEqual(report["knowledge"], str(database))
 
+    def test_usage_uses_latest_snapshot_and_rejects_invalid_numbers(self) -> None:
+        module = load_agentctl_module()
+        output = "\n".join([
+            json.dumps({"usage": {"input_tokens": 2, "output_tokens": 3, "total_tokens": 5}}),
+            json.dumps({"usage": {"input_tokens": 4, "output_tokens": 6, "total_tokens": 10}}),
+            json.dumps({"usage": {"input_tokens": -1, "output_tokens": float("nan")}}),
+        ])
+        self.assertEqual(module.extract_usage(output), {"input_tokens": 4, "output_tokens": 6, "total_tokens": 10})
+
+    def test_session_registration_upserts_duplicate_provider_sessions(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            index = Path(directory) / "sessions.jsonl"
+            with patch.object(module, "INDEX", index):
+                module.append_session_record("fake", "same", "run-1", "first", status="failed", attempt=1)
+                module.append_session_record("fake", "same", "run-1", "second", status="succeeded", attempt=2)
+            records = [json.loads(line) for line in index.read_text().splitlines()]
+            self.assertEqual(len(records), 1)
+            self.assertEqual(records[0]["status"], "succeeded")
+            self.assertEqual(len(records[0]["attempts"]), 2)
+
     def test_execute_retries_and_records_attempt_outcomes(self) -> None:
         module = load_agentctl_module()
         workflow = {
@@ -178,6 +199,8 @@ class AgentctlTest(unittest.TestCase):
             events = Path(result["events"])
             self.assertTrue(events.exists())
             self.assertIn('"type": "run.completed"', events.read_text())
+            artifact = next(path for path in result["artifacts"] if path.endswith(".json") and path != result["events"])
+            self.assertNotIn("raw_output", json.loads(Path(artifact).read_text()))
             self.assertEqual([attempt["status"] for attempt in result["steps"][0]["attempts"]], ["failed", "succeeded"])
             records = [json.loads(line) for line in index.read_text().splitlines()]
             self.assertEqual([record["status"] for record in records], ["failed", "succeeded"])

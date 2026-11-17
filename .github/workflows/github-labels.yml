@@ -1,0 +1,37 @@
+name: Synchronize GitHub labels
+
+on:
+  issues:
+    types: [opened, edited, reopened, closed]
+  pull_request_target:
+    types: [opened, edited, synchronize, ready_for_review, converted_to_draft, closed]
+  workflow_run:
+    workflows: ["Agent system validation", "Validation", "Dependency Review"]
+    types: [completed]
+
+permissions:
+  contents: read
+  checks: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout trusted label rules
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Synchronize labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            python3 scripts/github/sync_labels.py --repo "${{ github.repository }}" --sha "${{ github.event.workflow_run.head_sha }}" --apply
+          elif [ "${{ github.event_name }}" = "issues" ]; then
+            python3 scripts/github/sync_labels.py --repo "${{ github.repository }}" --number "${{ github.event.issue.number }}" --apply
+          else
+            python3 scripts/github/sync_labels.py --repo "${{ github.repository }}" --number "${{ github.event.pull_request.number }}" --apply
+          fi
