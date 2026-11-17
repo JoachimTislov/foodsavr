@@ -224,22 +224,39 @@ def resolve_workflow_context(workflow: dict[str, Any], database: Path, limit: in
         rebuild(argparse.Namespace(database=str(database)), emit=False)
         connection = connect(database)
         ensure_catalog(connection)
-    context_data = workflow.get("context", {})
-    sections: list[str] = []
-    for relative in context_data.get("files", []):
-        path = repository_path(relative, require_file=True)
-        content = path.read_text(encoding="utf-8", errors="replace")
-        sections.append(f"FILE {relative}\n{content[:12000]}")
-    for term in context_data.get("queries", []):
-        rows = connection.execute(
-            "SELECT path, snippet(document_search, 1, '[', ']', '…', 20) AS snippet "
-            "FROM document_search WHERE document_search MATCH ? ORDER BY bm25(document_search) LIMIT ?",
-            (search_phrase(term), limit),
-        ).fetchall()
-        sections.append("QUERY " + term + "\n" + "\n".join(
-            f"{row['path']}: {row['snippet']}" for row in rows
-        ))
-    return "\n\n".join(sections)
+    try:
+        context_data = workflow.get("context", {})
+        sections: list[str] = []
+        for relative in context_data.get("files", []):
+            path = repository_path(relative, require_file=True)
+            content = path.read_text(encoding="utf-8", errors="replace")
+            sections.append(f"FILE {relative}\n{content[:12000]}")
+        for term in context_data.get("queries", []):
+            rows = connection.execute(
+                "SELECT path, snippet(document_search, 1, '[', ']', '…', 20) AS snippet "
+                "FROM document_search WHERE document_search MATCH ? ORDER BY bm25(document_search) LIMIT ?",
+                (search_phrase(term), limit),
+            ).fetchall()
+            sections.append("QUERY " + term + "\n" + "\n".join(
+                f"{row['path']}: {row['snippet']}" for row in rows
+            ))
+            terms = [part.casefold() for part in term.split() if part]
+            session_rows = connection.execute(
+                "SELECT session_id, provider, status, summary FROM sessions ORDER BY started_at DESC LIMIT ?",
+                (limit * 4,),
+            ).fetchall()
+            matches = [
+                row for row in session_rows
+                if any(part in f"{row['session_id']} {row['summary']}".casefold() for part in terms)
+            ][:limit]
+            if matches:
+                sections.append("SESSIONS " + term + "\n" + "\n".join(
+                    f"{row['session_id']} ({row['provider']}, {row['status']}): {row['summary']}"
+                    for row in matches
+                ))
+        return "\n\n".join(sections)
+    finally:
+        connection.close()
 
 
 def session_list(args: argparse.Namespace) -> int:
@@ -879,8 +896,10 @@ def workflow_run(args: argparse.Namespace) -> int:
         candidates = step.get("providers") or list(specs)
         selected = provider if provider in candidates else None
         route_reason = "explicit-provider" if selected else ""
+        append_event(events_path, {"type": "step.started", "step_id": step_id, "route_reason": route_reason})
         if selected is None and provider is not None:
             result["steps"].append({"id": step_id, "status": "failed", "acceptance_results": [], "reason": f"requested provider {provider} is not allowed for this step"})
+            append_event(events_path, {"type": "step.completed", "step_id": step_id, "status": "failed"})
             had_failure = True
             if step.get("on_failure", "stop") != "continue":
                 break
@@ -891,15 +910,16 @@ def workflow_run(args: argparse.Namespace) -> int:
             selected, route_reason = external_route(workflow, step, policy_safe, router)
             if selected is None and policy_safe:
                 selected, route_reason = policy_safe[0], "deterministic-fallback"
-        append_event(events_path, {"type": "step.started", "step_id": step_id, "route_reason": route_reason})
         if selected is None:
             result["steps"].append({"id": step_id, "status": "unavailable", "acceptance_results": [], "reason": "no available provider satisfies the workflow policy", "route_reason": route_reason or "no-available-policy-safe-provider"})
+            append_event(events_path, {"type": "step.completed", "step_id": step_id, "status": "unavailable"})
             had_failure = True
             if step.get("on_failure", "stop") != "continue":
                 break
             continue
         if not provider_is_safe(selected, workflow, specs):
             result["steps"].append({"id": step_id, "status": "unavailable", "acceptance_results": [], "provider": selected, "reason": f"provider adapter {selected} has not verified read-only enforcement", "route_reason": route_reason})
+            append_event(events_path, {"type": "step.completed", "step_id": step_id, "status": "unavailable", "provider": selected})
             had_failure = True
             if step.get("on_failure", "stop") != "continue":
                 break
@@ -969,10 +989,12 @@ def workflow_run(args: argparse.Namespace) -> int:
             if final_status == "awaiting_acceptance":
                 result["status"] = "awaiting_acceptance"
             result["steps"].append({"id": step_id, "status": final_status, "provider": selected, "route_reason": route_reason, "attempts": attempts, "acceptance_results": attempts[-1].get("acceptance_results", []) if attempts else []})
+            append_event(events_path, {"type": "step.completed", "step_id": step_id, "status": final_status, "provider": selected})
             if step.get("on_failure", "stop") != "continue":
                 break
         else:
             result["steps"].append({"id": step_id, "status": "succeeded", "provider": selected, "route_reason": route_reason, "attempts": attempts, "acceptance_results": attempts[-1]["acceptance_results"]})
+            append_event(events_path, {"type": "step.completed", "step_id": step_id, "status": "succeeded", "provider": selected})
         write_json(run_dir / "result.json", result)
     if had_failure:
         result["status"] = "failed"
