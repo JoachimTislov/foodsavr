@@ -23,7 +23,7 @@
         "type": "object",
         "required": ["id", "role", "prompt", "acceptance"],
         "properties": {
-          "id": {"type": "string"},
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$"},
           "role": {"type": "string"},
           "prompt": {"type": "string", "minLength": 1},
           "providers": {"type": "array", "items": {"type": "string"}},

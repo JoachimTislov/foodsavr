@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import shlex
@@ -132,7 +133,10 @@ def rebuild(args: argparse.Namespace, emit: bool = True) -> int:
             if not session_id:
                 continue
             connection.execute(
-                "INSERT INTO sessions(session_id, provider, harness, started_at, status, summary, transcript, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO sessions(session_id, provider, harness, started_at, status, summary, transcript, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(session_id) DO UPDATE SET provider=excluded.provider, harness=excluded.harness, "
+                "started_at=excluded.started_at, status=excluded.status, summary=excluded.summary, "
+                "transcript=excluded.transcript, raw_json=excluded.raw_json",
                 (session_id, record.get("provider", "unknown"), record.get("harness", "unknown"),
                  record.get("started_at", ""), record.get("status", "unknown"),
                  record.get("summary", ""), record.get("transcript"), json.dumps(record, sort_keys=True)),
@@ -302,9 +306,12 @@ def validate_workflow_file(path: Path) -> list[str]:
                 if field not in step:
                     errors.append(f"{path}: step {index} missing {field}")
             step_id = step.get("id")
-            if step_id in step_ids:
+            if not isinstance(step_id, str) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", step_id):
+                errors.append(f"{path}: step {index}: id must match ^[a-z0-9][a-z0-9_-]*$")
+            if isinstance(step_id, str) and step_id in step_ids:
                 errors.append(f"{path}: duplicate step id: {step_id}")
-            step_ids.add(step_id)
+            if isinstance(step_id, str):
+                step_ids.add(step_id)
             unknown_step_fields = set(step) - {"id", "role", "prompt", "providers", "skills", "acceptance", "acceptance_commands", "on_failure"}
             errors.extend(f"{path}: step {index}: unknown field {field}" for field in unknown_step_fields)
             if not isinstance(step.get("acceptance"), list) or not step.get("acceptance"):
@@ -518,7 +525,8 @@ def extract_session_id(output: str) -> str | None:
 
 def extract_usage(output: str) -> dict[str, int | float]:
     """Normalize common provider usage fields without retaining provider payloads."""
-    totals: dict[str, int | float] = {}
+    snapshots: dict[str, dict[str, int | float]] = {}
+    latest: dict[str, int | float] | None = None
     aliases = {
         "input_tokens": ("input_tokens", "prompt_tokens"),
         "output_tokens": ("output_tokens", "completion_tokens"),
@@ -535,13 +543,26 @@ def extract_usage(output: str) -> dict[str, int | float]:
         usage = value.get("usage") if isinstance(value.get("usage"), dict) else value
         if not isinstance(usage, dict):
             continue
+        snapshot: dict[str, int | float] = {}
         for normalized, keys in aliases.items():
             for key in keys:
                 candidate = usage.get(key)
-                if isinstance(candidate, (int, float)) and not isinstance(candidate, bool):
-                    totals[normalized] = totals.get(normalized, 0) + candidate
+                if isinstance(candidate, (int, float)) and not isinstance(candidate, bool) and math.isfinite(candidate) and candidate >= 0:
+                    snapshot[normalized] = candidate
                     break
-    if "total_tokens" not in totals and {"input_tokens", "output_tokens"}.issubset(totals):
+        if not snapshot:
+            continue
+        identity = value.get("request_id") or value.get("event_id") or value.get("id")
+        if isinstance(identity, str) and identity:
+            snapshots[identity] = snapshot
+        else:
+            latest = snapshot
+    selected = list(snapshots.values()) + ([latest] if latest else [])
+    totals: dict[str, int | float] = {}
+    for snapshot in selected:
+        for field, value in snapshot.items():
+            totals[field] = totals.get(field, 0) + value
+    if "input_tokens" in totals and "output_tokens" in totals:
         totals["total_tokens"] = totals["input_tokens"] + totals["output_tokens"]
     return totals
 
@@ -590,13 +611,30 @@ def append_session_record(provider: str, session_id: str, run_id: str, summary: 
         "summary": summary,
         "run_id": run_id,
     }
-    if attempt is not None:
-        record["attempt"] = attempt
-    if usage:
-        record["usage"] = usage
     INDEX.parent.mkdir(parents=True, exist_ok=True)
-    with INDEX.open("a", encoding="utf-8") as stream:
-        stream.write(json.dumps(record, sort_keys=True) + "\n")
+    existing = records(INDEX)
+    key = record["session_id"]
+    match = next((item for item in existing if item.get("session_id") == key), None)
+    attempt_record = {"run_id": run_id, "status": status}
+    if attempt is not None:
+        attempt_record["attempt"] = attempt
+    if usage:
+        attempt_record["usage"] = usage
+    if match is not None:
+        match.update({"status": status, "summary": summary, "run_id": run_id, "updated_at": now()})
+        match.setdefault("attempts", []).append(attempt_record)
+        if usage:
+            match["usage"] = usage
+    else:
+        if attempt is not None:
+            record["attempt"] = attempt
+        if usage:
+            record["usage"] = usage
+        record["attempts"] = [attempt_record]
+        existing.append(record)
+    temporary = INDEX.with_suffix(INDEX.suffix + ".tmp")
+    temporary.write_text("".join(json.dumps(item, sort_keys=True) + "\n" for item in existing), encoding="utf-8")
+    temporary.replace(INDEX)
 
 
 def write_json(path: Path, value: dict[str, Any]) -> None:
@@ -611,6 +649,30 @@ def path_reference(path: Path) -> str:
         return str(path.relative_to(ROOT))
     except ValueError:
         return str(path)
+
+
+def redacted_output(output: str) -> str:
+    result = re.sub(r"(?i)(bearer|token|api[_-]?key|secret)([=: ]+)[^\s,}]+", r"\1\2[REDACTED]", output)
+    for value in os.environ.values():
+        if value and len(value) >= 12:
+            result = result.replace(value, "[REDACTED]")
+    return result
+
+
+def write_provider_artifact(path: Path, provider: str, output: str, exit_code: int, capture_raw: bool) -> None:
+    session_id = extract_session_id(output)
+    normalized = {
+        "provider": provider,
+        "exit_code": exit_code,
+        "session_id": f"{provider}:{session_id}" if session_id else None,
+        "usage": extract_usage(output),
+        "events": normalized_events(provider, output),
+        "stderr_or_unstructured_output_present": bool(output and not normalized_events(provider, output)),
+    }
+    if capture_raw:
+        normalized["raw_output"] = redacted_output(output)
+    write_json(path, normalized)
+    path.chmod(0o600)
 
 
 def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: str, artifact: str | None = None) -> str:
@@ -756,6 +818,9 @@ def workflow_run(args: argparse.Namespace) -> int:
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     permission_errors = policy_errors(workflow, policy)
+    capture_raw = bool(getattr(args, "capture_raw", False))
+    if capture_raw and not policy.get("allow_raw_artifacts", False):
+        permission_errors.append("raw provider artifacts are disabled by policy")
     if permission_errors:
         result["status"] = "unavailable"
         result["reason"] = "workflow permissions exceed policy"
@@ -805,9 +870,13 @@ def workflow_run(args: argparse.Namespace) -> int:
                     cwd=ROOT, timeout=workflow["limits"]["timeout_seconds"], check=False,
                 )
                 output = (completed.stdout or "") + (completed.stderr or "")
-                artifact = run_dir / f"{step_id}.attempt-{attempt}.output"
+                artifact = (run_dir / f"{step_id}.attempt-{attempt}.json").resolve()
+                try:
+                    artifact.relative_to(run_dir.resolve())
+                except ValueError as error:
+                    raise ValueError("provider artifact escaped the run directory") from error
                 artifact.parent.mkdir(parents=True, exist_ok=True)
-                artifact.write_text(output, encoding="utf-8")
+                write_provider_artifact(artifact, selected, output, completed.returncode, capture_raw)
                 session_id = extract_session_id(output)
                 usage = extract_usage(output)
                 for field, value in usage.items():
@@ -958,6 +1027,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("path")
     run.add_argument("--provider", default="auto")
     run.add_argument("--execute", action="store_true")
+    run.add_argument("--capture-raw", action="store_true", help="persist redacted raw provider output; disabled by default policy")
     router = commands.add_parser("router")
     router_commands = router.add_subparsers(dest="router_command", required=True)
     router_plan_parser = router_commands.add_parser("plan")

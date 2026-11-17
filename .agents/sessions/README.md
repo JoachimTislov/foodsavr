@@ -26,7 +26,9 @@ scripts/agents/agentctl context 'current app status and open work'
 ```
 
 The JSON output is intended for harness adapters and orchestration scripts.
-`agentctl query` searches the SQLite knowledge projection. It does not call
+The JSONL index is a compact session snapshot: repeated provider session IDs
+are upserted with an `attempts` history so the relational projection retains a
+single primary-key row. `agentctl query` searches the SQLite knowledge projection. It does not call
 provider APIs or expose credentials. Rebuild it with
 `scripts/agents/agentctl knowledge rebuild` after checkout or source changes.
 

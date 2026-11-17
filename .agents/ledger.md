@@ -14,8 +14,9 @@ credentials remain outside the repository.
 
 Use `scripts/agents/agentctl knowledge rebuild` to materialize the ledger,
 specifications, and documentation into the ignored SQLite query projection.
-JSONL remains the append-only ledger format; SQLite is the derived relational
-and full-text index.
+The Markdown ledger remains the append-only historical record; the session
+JSONL is a compact upserted snapshot with attempt history, and SQLite is the
+derived relational and full-text index.
 
 | Date (UTC) | Event |
 |---|---|

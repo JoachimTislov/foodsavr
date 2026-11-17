@@ -18,7 +18,9 @@ Required adapter lifecycle:
 2. `start` — workflow ID, run ID, prompt/context, policy, and worktree.
 3. `events` — normalized session ID, tool events, files, provider output, and
    usage counters. `agentctl` persists these as ignored `events.jsonl` run
-   artifacts and never copies raw provider payloads into the ledger.
+   artifacts and never copies raw provider payloads into the ledger. Provider
+   artifacts are normalized by default; raw capture requires explicit
+   `--capture-raw` plus a policy allowance, and is redacted and mode-restricted.
 4. `result` — acceptance checks, artifacts, references, and final status.
 5. `cancel` — bounded cancellation and cleanup.
 
