@@ -1392,7 +1392,10 @@ def policy_errors(workflow: dict[str, Any], policy: dict[str, Any]) -> list[str]
     return errors
 
 
-def external_route(workflow: dict[str, Any], step: dict[str, Any], safe: list[str], router: dict[str, Any]) -> tuple[str | None, str]:
+def external_route(
+    workflow: dict[str, Any], step: dict[str, Any], safe: list[str], router: dict[str, Any],
+    policy: dict[str, Any] | None = None,
+) -> tuple[str | None, str]:
     decision = router.get("decision_provider", {})
     if not decision.get("enabled"):
         return None, "deterministic-fallback"
@@ -1401,6 +1404,17 @@ def external_route(workflow: dict[str, Any], step: dict[str, Any], safe: list[st
     model = os.environ.get(decision.get("model_env", "JEV_ROUTER_MODEL"), "auto")
     if not base_url or not api_key or not base_url.startswith("https://"):
         return None, "external-router-not-configured-or-not-https"
+    network = workflow.get("permissions", {}).get("network", "none")
+    if network == "none":
+        return None, "external-router-disabled-by-network-policy"
+    if network == "allowlisted":
+        host = urllib.parse.urlparse(base_url).hostname
+        allowed_hosts = {
+            value.casefold().lstrip(".") for value in (policy or {}).get("allow_hosts", [])
+            if isinstance(value, str) and value.strip()
+        }
+        if not host or (host.casefold() not in allowed_hosts and not any(host.casefold().endswith(f".{allowed}") for allowed in allowed_hosts)):
+            return None, "external-router-host-outside-allowlist"
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": json.dumps({
@@ -1608,7 +1622,7 @@ def workflow_run(args: argparse.Namespace) -> int:
         if selected is None:
             selected_candidates = available_providers(candidates, specs)
             policy_safe = [name for name in selected_candidates if provider_is_safe(name, workflow, specs)]
-            selected, route_reason = external_route(workflow, step, policy_safe, router)
+            selected, route_reason = external_route(workflow, step, policy_safe, router, policy)
             if selected is None and policy_safe:
                 selected, route_reason = policy_safe[0], "deterministic-fallback"
         if selected is None:

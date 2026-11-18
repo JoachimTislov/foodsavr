@@ -635,14 +635,20 @@ class AgentctlTest(unittest.TestCase):
             "enabled": True, "base_url_env": "TEST_ROUTER_URL", "api_key_env": "TEST_ROUTER_KEY",
             "model_env": "TEST_ROUTER_MODEL", "timeout_ms": 500,
         }}
-        workflow = {"id": "router-test", "permissions": {"filesystem": "read-only", "network": "none", "git": "read-only", "github": "none"}}
+        workflow = {"id": "router-test", "permissions": {"filesystem": "read-only", "network": "allowlisted", "git": "read-only", "github": "none"}}
         step = {"id": "one"}
         with patch.dict(module.os.environ, {"TEST_ROUTER_URL": "https://router.example", "TEST_ROUTER_KEY": "secret", "TEST_ROUTER_MODEL": "auto"}), \
              patch.object(module.urllib.request, "urlopen", return_value=Response()) as urlopen:
+            selected, reason = module.external_route(workflow, step, ["fake"], router, {"allow_hosts": ["router.example"]})
+            self.assertEqual(selected, "fake")
+            self.assertEqual(reason, "external-decision-provider")
+            self.assertEqual(urlopen.call_args.kwargs["timeout"], 0.5)
+            workflow["permissions"]["network"] = "none"
+            urlopen.reset_mock()
             selected, reason = module.external_route(workflow, step, ["fake"], router)
-        self.assertEqual(selected, "fake")
-        self.assertEqual(reason, "external-decision-provider")
-        self.assertEqual(urlopen.call_args.kwargs["timeout"], 0.5)
+            self.assertIsNone(selected)
+            self.assertEqual(reason, "external-router-disabled-by-network-policy")
+            urlopen.assert_not_called()
 
 
 if __name__ == "__main__":

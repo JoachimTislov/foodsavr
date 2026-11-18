@@ -20,6 +20,7 @@ derived relational and full-text index.
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-11-18 | Closed the external-router policy bypass: Jev/OpenAI-compatible routing now obeys workflow `network` permissions and the policy host allowlist, and never contacts the router under `network: none`. Added denial and allowlist regression coverage. |
 | 2026-11-18 | Hardened provider manifest validation: invalid prompt modes, missing flag prompts, malformed permission maps, and incomplete capability verification now fail closed during healing and maintenance. Added regression coverage. |
 | 2026-11-18 | Tightened terminal result contracts so `completed_at` must be a non-empty value in both runtime validation and `result.schema.json`; added regression coverage. |
 | 2026-11-18 | Made context search reference-aware: issue, pull request, source, and commit identifiers now match sessions in both direct CLI context and workflow-resolved context, not only session summaries or IDs. Regression tests pass. |
