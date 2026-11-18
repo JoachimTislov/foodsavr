@@ -250,6 +250,42 @@ def ensure_catalog(connection: sqlite3.Connection, database: Path) -> None:
             current_runs[run_id] = json.dumps(result, sort_keys=True)
     if indexed_runs != current_runs:
         raise ValueError("knowledge catalog is stale; rebuild after changing workflow runs")
+    for run_id in current_runs:
+        run_dir = database.parent / "runs" / run_id
+        result = json.loads(current_runs[run_id])
+        event_path = run_dir / Path(str(result.get("events", "events.jsonl"))).name
+        indexed_event_count = connection.execute(
+            "SELECT COUNT(*) FROM workflow_run_events WHERE run_id = ?", (run_id,)
+        ).fetchone()[0]
+        current_event_count = 0
+        if event_path.is_file():
+            for line in event_path.read_text(encoding="utf-8", errors="replace").splitlines():
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(event, dict):
+                    current_event_count += 1
+        if indexed_event_count != current_event_count:
+            raise ValueError("knowledge catalog is stale; rebuild after changing workflow events")
+        expected_artifacts = set(result.get("artifacts", []))
+        if result.get("patch"):
+            expected_artifacts.add(result["patch"])
+        indexed_artifacts = {
+            row["path"]: row["sha256"]
+            for row in connection.execute(
+                "SELECT path, sha256 FROM workflow_run_artifacts WHERE run_id = ?", (run_id,)
+            ).fetchall()
+        }
+        current_artifacts: dict[str, str | None] = {}
+        for artifact in expected_artifacts:
+            artifact_path = Path(str(artifact))
+            if not artifact_path.is_absolute():
+                artifact_path = ROOT / artifact_path
+            digest = hashlib.sha256(artifact_path.read_bytes()).hexdigest() if artifact_path.is_file() else None
+            current_artifacts[str(artifact)] = digest
+        if indexed_artifacts != current_artifacts:
+            raise ValueError("knowledge catalog is stale; rebuild after changing workflow artifacts")
     indexed_sessions = {
         row["session_id"]: row["raw_json"]
         for row in connection.execute("SELECT session_id, raw_json FROM sessions").fetchall()
