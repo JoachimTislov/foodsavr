@@ -1374,6 +1374,13 @@ def run_acceptance(step: dict[str, Any], cwd: Path = ROOT) -> list[dict[str, Any
     return results
 
 
+def acceptance_satisfied(results: list[dict[str, Any]], required: bool = True) -> bool:
+    """Apply the policy gate to normalized acceptance results."""
+    if not required:
+        return True
+    return bool(results) and all(item.get("status") == "passed" for item in results)
+
+
 def workflow_run(args: argparse.Namespace) -> int:
     path = Path(args.path).expanduser()
     errors = validate_workflow_file(path)
@@ -1554,8 +1561,8 @@ def workflow_run(args: argparse.Namespace) -> int:
                     append_event(events_path, {"type": "provider.event", "step_id": step_id, "attempt": attempt, **event})
                 append_event(events_path, {"type": "attempt.completed", "step_id": step_id, "attempt": attempt, "usage": usage})
                 acceptance_results = run_acceptance(step, execution_root)
-                acceptance_passed = len(acceptance_results) >= len(step["acceptance"]) and all(
-                    item.get("status") == "passed" for item in acceptance_results
+                acceptance_passed = acceptance_satisfied(
+                    acceptance_results, required=policy.get("require_acceptance", True)
                 )
                 append_event(events_path, {"type": "acceptance.completed", "step_id": step_id, "attempt": attempt, "passed": acceptance_passed})
                 session_required = policy.get("require_session_id", True)

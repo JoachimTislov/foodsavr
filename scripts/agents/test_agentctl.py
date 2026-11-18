@@ -172,6 +172,12 @@ class AgentctlTest(unittest.TestCase):
         self.assertTrue(module.acceptance_command_errors("curl https://example.com", permissions))
         self.assertTrue(module.acceptance_command_errors("python3 -c 'open(\"x\", \"w\")'", permissions))
 
+    def test_acceptance_policy_can_be_explicitly_disabled(self) -> None:
+        module = load_agentctl_module()
+        pending = [{"criterion": "provider reports completion", "status": "pending"}]
+        self.assertTrue(module.acceptance_satisfied(pending, required=False))
+        self.assertFalse(module.acceptance_satisfied(pending, required=True))
+
     def test_workflow_context_cannot_escape_repository(self) -> None:
         module = load_agentctl_module()
         workflow = json.loads(WORKFLOW.read_text())
