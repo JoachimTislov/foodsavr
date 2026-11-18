@@ -331,6 +331,17 @@ def query(args: argparse.Namespace) -> int:
     return 0
 
 
+def session_reference_map(connection: sqlite3.Connection, session_id: str) -> dict[str, list[str]]:
+    rows = connection.execute(
+        "SELECT ref_type, ref_value FROM session_references WHERE session_id = ? ORDER BY ref_type, ref_value",
+        (session_id,),
+    ).fetchall()
+    result: dict[str, list[str]] = {}
+    for row in rows:
+        result.setdefault(row["ref_type"], []).append(row["ref_value"])
+    return result
+
+
 def context(args: argparse.Namespace) -> int:
     connection = fresh_catalog(Path(args.database).expanduser())
     docs = connection.execute(
@@ -343,7 +354,8 @@ def context(args: argparse.Namespace) -> int:
     ).fetchall()
     terms = [term.casefold() for term in args.term.split() if term]
     sessions = [
-        row for row in session_rows
+        {**dict(row), "references": session_reference_map(connection, row["session_id"])}
+        for row in session_rows
         if any(term in f"{row['session_id']} {row['summary']}".casefold() for term in terms)
     ][:args.limit]
     runs = connection.execute(
@@ -436,7 +448,8 @@ def resolve_workflow_context(workflow: dict[str, Any], database: Path, limit: in
             ][:limit]
             if matches:
                 sections.append("SESSIONS " + term + "\n" + "\n".join(
-                    f"{row['session_id']} ({row['provider']}, {row['status']}): {row['summary']}"
+                    f"{row['session_id']} ({row['provider']}, {row['status']}): {row['summary']} "
+                    f"references={json.dumps(session_reference_map(connection, row['session_id']), sort_keys=True)}"
                     for row in matches
                 ))
             run_rows = connection.execute(

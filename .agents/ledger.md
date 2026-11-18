@@ -20,6 +20,7 @@ derived relational and full-text index.
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-11-18 | Completed context traceability: `agentctl context` and workflow context now expose indexed session references for issues, pull requests, sources, and commits while keeping transcripts out of bounded context. Added regression coverage; 35 tests and self-healing validation pass. |
 | 2026-11-18 | Made the declarative `require_acceptance` policy effective at execution time: pending acceptance remains blocking by default, while an explicitly disabled policy can permit provider completion. Added regression coverage; 34 tests and self-healing validation pass. |
 | 2026-11-18 | Corrected retry accounting in `agentctl`: persisted run usage now uses only the authoritative final attempt per step, while attempt-level usage remains traceable; repeated session IDs are deduplicated in the run result. Added regression coverage; 33 tests and self-healing validation pass. |
 | 2026-11-18 | PR #236 lifecycle audit: CodeRabbit skipped review because the PR exceeds 100 files; the files remain one coherent agent-control-plane change, so splitting would weaken the lifecycle contract. Tightened persisted result validation so every non-running result requires `completed_at`; added regression coverage and healed two legacy planned artifacts. |
