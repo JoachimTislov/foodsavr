@@ -135,7 +135,7 @@ def rebuild(args: argparse.Namespace, emit: bool = True) -> int:
     database = Path(args.database).expanduser()
     connection = connect(database)
     paths = document_paths()
-    session_records = records()
+    session_records = records(INDEX)
     run_records: list[tuple[dict[str, Any], Path]] = []
     runs_root = database.parent / "runs"
     for result_path in sorted(runs_root.glob("*/result.json")):
@@ -250,6 +250,17 @@ def ensure_catalog(connection: sqlite3.Connection, database: Path) -> None:
             current_runs[run_id] = json.dumps(result, sort_keys=True)
     if indexed_runs != current_runs:
         raise ValueError("knowledge catalog is stale; rebuild after changing workflow runs")
+    indexed_sessions = {
+        row["session_id"]: row["raw_json"]
+        for row in connection.execute("SELECT session_id, raw_json FROM sessions").fetchall()
+    }
+    current_sessions = {
+        record["session_id"]: json.dumps(record, sort_keys=True)
+        for record in records(INDEX)
+        if isinstance(record.get("session_id"), str) and record["session_id"]
+    }
+    if indexed_sessions != current_sessions:
+        raise ValueError("knowledge catalog is stale; rebuild after changing sessions")
 
 
 def fresh_catalog(database: Path) -> sqlite3.Connection:

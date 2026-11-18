@@ -87,6 +87,17 @@ class AgentctlTest(unittest.TestCase):
             refreshed = json.loads(self.run_cli("runs", "show", "run-2", database=database).stdout)
             self.assertEqual(refreshed["run_id"], "run-2")
 
+            session_index = database.parent / "sessions.jsonl"
+            session = {"session_id": "session-1", "provider": "fake", "harness": "test", "started_at": "2026-01-01T00:00:00+00:00", "status": "active", "summary": "first"}
+            session_index.write_text(json.dumps(session) + "\n")
+            with patch.object(module, "INDEX", session_index):
+                module.rebuild(argparse.Namespace(database=str(database)), emit=False)
+                session_index.write_text(json.dumps(session) + "\n" + json.dumps({**session, "session_id": "session-2", "summary": "second"}) + "\n")
+                connection = module.fresh_catalog(database)
+                session_count = connection.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+                connection.close()
+            self.assertEqual(session_count, 2)
+
     def test_workflow_plan_is_dry_run(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             result = self.run_cli("workflow", "plan", str(WORKFLOW), database=Path(directory) / "db", check=False)
