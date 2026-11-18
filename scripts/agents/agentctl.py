@@ -1340,7 +1340,7 @@ def ledger_value(value: object) -> str:
 
 
 def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: str, artifact: str | None = None, references: dict[str, list[str]] | None = None) -> str:
-    ledger = ROOT / ".agents/ledger.md"
+    ledger = configured_path("AGENT_LEDGER_FILE", ROOT / ".agents/ledger.md")
     result_artifact = ledger_value(artifact or f".agents/state/runs/{run_id}/result.json")
     reference_text = "; ".join(
         f"{ledger_value(field)}: {', '.join(ledger_value(value) for value in values)}"
@@ -1356,7 +1356,7 @@ def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: st
     temporary = ledger.with_suffix(".md.tmp")
     temporary.write_text(updated, encoding="utf-8")
     temporary.replace(ledger)
-    return f".agents/ledger.md#{run_id}"
+    return f"{path_reference(ledger)}#{run_id}"
 
 
 def available_providers(candidates: list[str], specs: dict[str, dict[str, Any]]) -> list[str]:

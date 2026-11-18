@@ -66,5 +66,14 @@ jobs:
           python3 -m json.tool .agents/runners/router.json >/dev/null
           python3 -m json.tool .agents/workflows/schema.json >/dev/null
           python3 -m json.tool .agents/workflows/result.schema.json >/dev/null
+      - name: Exercise declarative workflow lifecycle
+        env:
+          AGENT_LEDGER_FILE: ${{ runner.temp }}/agent-ledger.md
+          AGENT_SESSION_INDEX: ${{ runner.temp }}/sessions.jsonl
+          AGENT_KNOWLEDGE_DB: ${{ runner.temp }}/knowledge.sqlite3
+        run: |
+          cp .agents/ledger.md "$AGENT_LEDGER_FILE"
+          scripts/agents/agentctl workflow run .agents/workflows/repository-health.json
+          test -s "$AGENT_LEDGER_FILE"
       - name: Check generated state is ignored
         run: test -z "$(git status --porcelain)"
