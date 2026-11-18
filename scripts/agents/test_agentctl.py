@@ -107,6 +107,8 @@ class AgentctlTest(unittest.TestCase):
             self.assertIn(plan["status"], {"planned", "unavailable"})
             self.assertIn("no provider process was started", plan["execution"])
             self.assertEqual(len(plan["steps"]), 2)
+            self.assertTrue(all("capabilities" in step for step in plan["steps"]))
+            self.assertTrue(all("failure_reasons" in capability for step in plan["steps"] for capability in step["capabilities"].values()))
 
     def test_invalid_workflow_fails_validation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
