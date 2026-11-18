@@ -394,6 +394,16 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(recovered["reason"], "interrupted-before-completion")
             self.assertIn('"type": "run.recovered"', events.read_text())
 
+    def test_worktree_cleanup_is_bounded_to_run_directory(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory) / "run-1"
+            (run_dir / "worktree").mkdir(parents=True)
+            with patch.object(module.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
+                self.assertIsNone(module.cleanup_isolated_worktree(run_dir))
+            run.assert_called_once()
+            self.assertEqual(run.call_args.args[0][:4], ["git", "worktree", "remove", "--force"])
+
     def test_workflow_cancel_terminalizes_run_and_rejects_path_traversal(self) -> None:
         module = load_agentctl_module()
         with tempfile.TemporaryDirectory() as directory, patch.object(module, "append_ledger_event", return_value="ledger#cancelled"):
