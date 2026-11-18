@@ -584,6 +584,23 @@ def validate_declarative_manifests() -> list[str]:
                         errors.append(f"{RUNNERS}: provider {provider} missing {field}")
                 if not isinstance(spec.get("headless"), list) or not all(isinstance(value, str) for value in spec.get("headless", [])):
                     errors.append(f"{RUNNERS}: provider {provider}.headless must be an array of strings")
+                if spec.get("prompt_mode") not in {"stdin", "argument", "flag"}:
+                    errors.append(f"{RUNNERS}: provider {provider}.prompt_mode is invalid")
+                if spec.get("prompt_mode") == "flag" and not isinstance(spec.get("prompt_flag"), str):
+                    errors.append(f"{RUNNERS}: provider {provider}.prompt_flag is required for flag prompt mode")
+                enforced = spec.get("enforced_permissions", {})
+                if not isinstance(enforced, dict):
+                    errors.append(f"{RUNNERS}: provider {provider}.enforced_permissions must be an object")
+                else:
+                    for permission in permission_values:
+                        values = enforced.get(permission, [])
+                        if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+                            errors.append(f"{RUNNERS}: provider {provider}.enforced_permissions.{permission} must be an array of strings")
+                verification = spec.get("capability_verification", {})
+                if not isinstance(verification, dict) or verification.get("mode") != "version-and-flags":
+                    errors.append(f"{RUNNERS}: provider {provider}.capability_verification must use version-and-flags")
+                elif not isinstance(verification.get("verified_version_prefix"), str) or not isinstance(verification.get("required_flags"), list):
+                    errors.append(f"{RUNNERS}: provider {provider}.capability_verification is incomplete")
     except ValueError as error:
         errors.append(str(error))
 

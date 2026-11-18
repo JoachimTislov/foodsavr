@@ -218,6 +218,17 @@ class AgentctlTest(unittest.TestCase):
                 errors = module.validate_declarative_manifests()
         self.assertTrue(any("invalid filesystem" in error for error in errors))
 
+    def test_manifest_health_rejects_invalid_provider_prompt_mode(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            runners = json.loads((ROOT / ".agents/runners/providers.json").read_text())
+            runners["providers"]["fake"] = {"command": "fake", "headless": [], "prompt_mode": "unknown"}
+            path = Path(directory) / "providers.json"
+            path.write_text(json.dumps(runners))
+            with patch.object(module, "RUNNERS", path):
+                errors = module.validate_declarative_manifests()
+        self.assertTrue(any("provider fake.prompt_mode is invalid" in error for error in errors))
+
     def test_workflow_run_defaults_to_persisted_dry_run(self) -> None:
         module = load_agentctl_module()
         with tempfile.TemporaryDirectory() as directory:
