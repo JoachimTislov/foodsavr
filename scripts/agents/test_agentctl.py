@@ -234,6 +234,10 @@ class AgentctlTest(unittest.TestCase):
             json.dumps({"usage": {"input_tokens": -1, "output_tokens": float("nan")}}),
         ])
         self.assertEqual(module.extract_usage(output), {"input_tokens": 4, "output_tokens": 6, "total_tokens": 10})
+        self.assertEqual(
+            module.normalize_usage_totals({"input_tokens": 4, "output_tokens": 6}),
+            {"input_tokens": 4, "output_tokens": 6, "total_tokens": 10},
+        )
 
     def test_session_registration_upserts_duplicate_provider_sessions(self) -> None:
         module = load_agentctl_module()
