@@ -1021,6 +1021,8 @@ def append_session_record(provider: str, session_id: str, run_id: str, summary: 
         attempt_record["usage"] = usage
     if match is not None:
         match.update({"status": status, "summary": summary, "run_id": run_id, "updated_at": now()})
+        for field in ("issues", "prs", "sources", "commits"):
+            match[field] = sorted(set(match.get(field, [])) | set(references.get(field, [])))
         match.setdefault("attempts", []).append(attempt_record)
         if usage:
             match["usage"] = usage

@@ -274,11 +274,13 @@ class AgentctlTest(unittest.TestCase):
             index = Path(directory) / "sessions.jsonl"
             with patch.object(module, "INDEX", index):
                 module.append_session_record("fake", "same", "run-1", "first", status="failed", attempt=1)
-                module.append_session_record("fake", "same", "run-1", "second", status="succeeded", attempt=2)
+                module.append_session_record("fake", "same", "run-1", "second", status="succeeded", attempt=2, references={"issues": ["#213"], "prs": ["#236"]})
             records = [json.loads(line) for line in index.read_text().splitlines()]
             self.assertEqual(len(records), 1)
             self.assertEqual(records[0]["status"], "succeeded")
             self.assertEqual(len(records[0]["attempts"]), 2)
+            self.assertEqual(records[0]["issues"], ["#213"])
+            self.assertEqual(records[0]["prs"], ["#236"])
 
     def test_ledger_and_session_references_are_preserved(self) -> None:
         module = load_agentctl_module()
