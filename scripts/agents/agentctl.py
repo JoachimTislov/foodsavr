@@ -767,11 +767,22 @@ def workflow_plan(args: argparse.Namespace) -> int:
     steps = []
     for step in workflow["steps"]:
         candidates = step.get("providers") or list(specs)
-        available = [provider for provider in candidates if availability.get(provider, False) and provider_is_safe(provider, workflow, runner_specs)]
+        installed = [provider for provider in candidates if availability.get(provider, False)]
+        capabilities: dict[str, dict[str, Any]] = {}
+        for candidate in candidates:
+            if candidate not in runner_specs:
+                capabilities[candidate] = {"available": False, "policy_safe": False, "failure_reasons": ["unknown-provider"]}
+            elif not availability.get(candidate, False):
+                capabilities[candidate] = {"available": False, "policy_safe": False, "failure_reasons": ["command-unavailable"]}
+            else:
+                capabilities[candidate] = capability_report(candidate, runner_specs[candidate], workflow["permissions"])
+        available = [provider for provider in installed if capabilities[provider]["policy_safe"]]
         steps.append({
             "id": step["id"],
             "role": step["role"],
             "candidates": candidates,
+            "installed": installed,
+            "capabilities": capabilities,
             "available": available,
             "selected": available[0] if available else None,
             "acceptance": step["acceptance"],
