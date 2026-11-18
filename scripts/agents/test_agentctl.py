@@ -276,6 +276,9 @@ class AgentctlTest(unittest.TestCase):
         self.assertIn("completed_at is required for terminal results", module.result_contract_errors(result))
         result["completed_at"] = ""
         self.assertIn("completed_at is required for terminal results", module.result_contract_errors(result))
+        result["completed_at"] = "2026-01-01T00:01:00+00:00"
+        result["session_ids"] = ["codex:session-1", "codex:session-1"]
+        self.assertIn("session_ids must be unique", module.result_contract_errors(result))
 
     def test_heal_repairs_legacy_planned_result_defaults(self) -> None:
         module = load_agentctl_module()
