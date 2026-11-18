@@ -1460,6 +1460,11 @@ def workflow_run(args: argparse.Namespace) -> int:
         ]
         result["completed_at"] = now()
         append_event(events_path, {"type": "run.completed", "status": "planned"})
+        if policy.get("require_ledger_event", True):
+            result["ledger_refs"].append(append_ledger_event(
+                run_id, workflow["id"], provider or "none", result["status"],
+                path_reference(run_dir / "result.json"), workflow.get("references"),
+            ))
         write_result(run_dir / "result.json", result)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
