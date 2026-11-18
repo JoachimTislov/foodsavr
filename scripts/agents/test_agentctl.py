@@ -289,11 +289,13 @@ class AgentctlTest(unittest.TestCase):
             index = root / "sessions.jsonl"
             with patch.object(module, "ROOT", root), patch.object(module, "INDEX", index):
                 module.append_session_record("fake", "session-1", "run-1", "summary", references={"issues": ["#212"], "prs": ["#236"]})
-                module.append_ledger_event("run-1", "audit", "fake", "succeeded", references={"issues": ["#212"], "prs": ["#236"]})
+                module.append_ledger_event("run-1", "audit", "fake", "succeeded", references={"issues": ["#212"], "prs": ["#236|injected\nrow"]})
             session = json.loads(index.read_text())
             self.assertEqual(session["issues"], ["#212"])
             self.assertEqual(session["prs"], ["#236"])
-            self.assertIn("references: issues: #212; prs: #236", (root / ".agents/ledger.md").read_text())
+            ledger = (root / ".agents/ledger.md").read_text()
+            self.assertIn("references: issues: #212; prs: #236 injected row", ledger)
+            self.assertEqual(len(ledger.splitlines()), 2)
 
     def test_heal_deduplicates_legacy_session_index(self) -> None:
         module = load_agentctl_module()

@@ -1222,14 +1222,20 @@ def write_provider_artifact(path: Path, provider: str, output: str, exit_code: i
     path.chmod(0o600)
 
 
+def ledger_value(value: object) -> str:
+    """Keep untrusted workflow metadata inside one Markdown table cell."""
+    return re.sub(r"[\r\n|]", " ", str(value)).strip()[:500]
+
+
 def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: str, artifact: str | None = None, references: dict[str, list[str]] | None = None) -> str:
     ledger = ROOT / ".agents/ledger.md"
-    result_artifact = artifact or f".agents/state/runs/{run_id}/result.json"
+    result_artifact = ledger_value(artifact or f".agents/state/runs/{run_id}/result.json")
     reference_text = "; ".join(
-        f"{field}: {', '.join(values)}" for field, values in (references or {}).items() if values
+        f"{ledger_value(field)}: {', '.join(ledger_value(value) for value in values)}"
+        for field, values in (references or {}).items() if values
     )
     suffix = f"; references: {reference_text}" if reference_text else ""
-    event = f"| {datetime.now(timezone.utc).date().isoformat()} | Run `{run_id}` for workflow `{workflow_id}` used `{provider}` and ended with `{status}`; result artifact is `{result_artifact}`{suffix}. |\n"
+    event = f"| {datetime.now(timezone.utc).date().isoformat()} | Run `{ledger_value(run_id)}` for workflow `{ledger_value(workflow_id)}` used `{ledger_value(provider)}` and ended with `{ledger_value(status)}`; result artifact is `{result_artifact}`{suffix}. |\n"
     content = ledger.read_text(encoding="utf-8")
     marker = "|---|---|\n"
     if marker not in content:
