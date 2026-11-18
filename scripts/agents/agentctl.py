@@ -1869,7 +1869,10 @@ def maintain(args: argparse.Namespace) -> int:
         errors.extend(validate_workflow_file(path))
     database = Path(args.database).expanduser()
     errors.extend(validate_run_artifacts(database.parent / "runs"))
-    rebuild(argparse.Namespace(database=str(database)), emit=False)
+    try:
+        rebuild(argparse.Namespace(database=str(database)), emit=False)
+    except (OSError, ValueError, sqlite3.Error) as error:
+        errors.append(f"knowledge rebuild failed: {error}")
     result = {
         "status": "healthy" if not errors else "failed",
         "knowledge": str(database),
@@ -1897,7 +1900,10 @@ def heal(args: argparse.Namespace) -> int:
     repaired = repair_legacy_run_artifacts(database.parent / "runs")
     recovered = recover_interrupted_runs(database.parent / "runs")
     errors.extend(validate_run_artifacts(database.parent / "runs"))
-    rebuild(argparse.Namespace(database=str(database)), emit=False)
+    try:
+        rebuild(argparse.Namespace(database=str(database)), emit=False)
+    except (OSError, ValueError, sqlite3.Error) as error:
+        errors.append(f"knowledge rebuild failed: {error}")
     report = {
         "status": "healthy" if not errors else "failed",
         "actions": ["rebuild knowledge catalog", f"deduplicate session index ({deduplicated} records)", f"repair legacy planned artifacts ({repaired} records)", f"recover interrupted runs ({recovered} records)"],

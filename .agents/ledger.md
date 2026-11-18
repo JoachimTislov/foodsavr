@@ -20,6 +20,7 @@ derived relational and full-text index.
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-11-18 | Hardened `maintain` and `heal` to convert knowledge-catalog rebuild failures into persisted structured error reports instead of uncaught exceptions; added regression coverage. |
 | 2026-11-18 | Added bounded `sessions find` search over provider metadata and indexed references, returning traceability without raw transcripts; documented and tested issue/PR lookup. |
 | 2026-11-18 | Made workflow execution fail closed on policy, runner, router, and label manifest drift before creating a run artifact; added regression coverage. |
 | 2026-11-18 | Hardened persisted result integrity: duplicate provider session IDs are now rejected by the runtime contract, matching the deduplicated execution path. Added regression coverage. |
