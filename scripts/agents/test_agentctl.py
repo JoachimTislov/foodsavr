@@ -239,6 +239,15 @@ class AgentctlTest(unittest.TestCase):
         self.assertTrue(any("missing workflow_id" in error for error in errors))
         self.assertTrue(any("invalid status" in error for error in errors))
 
+    def test_terminal_result_requires_completion_timestamp(self) -> None:
+        module = load_agentctl_module()
+        result = {
+            "workflow_id": "audit", "run_id": "run-1", "status": "failed",
+            "started_at": "2026-01-01T00:00:00+00:00", "steps": [], "session_ids": [],
+            "artifacts": [], "events": "events.jsonl", "usage": {}, "ledger_refs": [],
+        }
+        self.assertIn("completed_at is required for terminal results", module.result_contract_errors(result))
+
     def test_heal_repairs_legacy_planned_result_defaults(self) -> None:
         module = load_agentctl_module()
         with tempfile.TemporaryDirectory() as directory:
@@ -254,6 +263,22 @@ class AgentctlTest(unittest.TestCase):
             repaired = json.loads(result_path.read_text())
             self.assertEqual(module.result_contract_errors(repaired), [])
             self.assertIn("run.completed", (run_dir / "events.jsonl").read_text())
+
+    def test_heal_repairs_completion_timestamp_on_planned_result(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory) / "runs" / "legacy"
+            run_dir.mkdir(parents=True)
+            result_path = run_dir / "result.json"
+            result_path.write_text(json.dumps({
+                "workflow_id": "legacy", "run_id": "legacy-1", "status": "planned",
+                "started_at": "2026-01-01T00:00:00+00:00", "steps": [], "session_ids": [],
+                "artifacts": [], "events": "events.jsonl", "usage": {}, "ledger_refs": [],
+            }))
+            self.assertEqual(module.repair_legacy_run_artifacts(Path(directory) / "runs"), 1)
+            repaired = json.loads(result_path.read_text())
+            self.assertEqual(module.result_contract_errors(repaired), [])
+            self.assertEqual(repaired["completed_at"], repaired["started_at"])
 
     def test_usage_uses_latest_snapshot_and_rejects_invalid_numbers(self) -> None:
         module = load_agentctl_module()

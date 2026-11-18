@@ -1052,6 +1052,8 @@ def result_contract_errors(value: dict[str, Any]) -> list[str]:
     statuses = {"planned", "running", "succeeded", "failed", "cancelled", "unavailable", "awaiting_acceptance"}
     if value.get("status") not in statuses:
         errors.append(f"invalid status: {value.get('status')}")
+    if value.get("status") != "running" and not isinstance(value.get("completed_at"), str):
+        errors.append("completed_at is required for terminal results")
     if not isinstance(value.get("steps"), list):
         errors.append("steps must be an array")
     else:
@@ -1113,11 +1115,12 @@ def repair_legacy_run_artifacts(runs: Path) -> int:
             result = load_json(result_path)
         except ValueError:
             continue
-        if (
-            result.get("status") != "planned"
-            or "events" in result and "usage" in result
-            or not all(isinstance(result.get(field), str) and result.get(field) for field in ("workflow_id", "run_id", "started_at"))
+        if result.get("status") != "planned" or not all(
+            isinstance(result.get(field), str) and result.get(field)
+            for field in ("workflow_id", "run_id", "started_at")
         ):
+            continue
+        if all(field in result for field in ("events", "usage", "steps", "session_ids", "artifacts", "ledger_refs", "completed_at")):
             continue
         run_dir = result_path.parent
         events_path = run_dir / "events.jsonl"

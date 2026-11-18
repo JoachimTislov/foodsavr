@@ -3,6 +3,12 @@
   "title": "Agent workflow result",
   "type": "object",
   "required": ["workflow_id", "run_id", "status", "started_at", "steps", "session_ids", "artifacts", "events", "usage", "ledger_refs"],
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"enum": ["planned", "succeeded", "failed", "cancelled", "unavailable", "awaiting_acceptance"]}}},
+      "then": {"required": ["completed_at"]}
+    }
+  ],
   "properties": {
     "workflow_id": {"type": "string"},
     "run_id": {"type": "string"},
