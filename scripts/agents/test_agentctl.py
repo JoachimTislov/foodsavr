@@ -263,6 +263,8 @@ class AgentctlTest(unittest.TestCase):
             "artifacts": [], "events": "events.jsonl", "usage": {}, "ledger_refs": [],
         }
         self.assertIn("completed_at is required for terminal results", module.result_contract_errors(result))
+        result["completed_at"] = ""
+        self.assertIn("completed_at is required for terminal results", module.result_contract_errors(result))
 
     def test_heal_repairs_legacy_planned_result_defaults(self) -> None:
         module = load_agentctl_module()

@@ -6,7 +6,7 @@
   "allOf": [
     {
       "if": {"properties": {"status": {"enum": ["planned", "succeeded", "failed", "cancelled", "unavailable", "awaiting_acceptance"]}}},
-      "then": {"required": ["completed_at"]}
+      "then": {"required": ["completed_at"], "properties": {"completed_at": {"minLength": 1}}}
     }
   ],
   "properties": {
@@ -14,7 +14,7 @@
     "run_id": {"type": "string"},
     "status": {"enum": ["planned", "running", "succeeded", "failed", "cancelled", "unavailable", "awaiting_acceptance"]},
     "started_at": {"type": "string"},
-    "completed_at": {"type": "string"},
+    "completed_at": {"type": "string", "minLength": 1},
     "steps": {
       "type": "array",
       "items": {

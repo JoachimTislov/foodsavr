@@ -20,6 +20,7 @@ derived relational and full-text index.
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-11-18 | Tightened terminal result contracts so `completed_at` must be a non-empty value in both runtime validation and `result.schema.json`; added regression coverage. |
 | 2026-11-18 | Made context search reference-aware: issue, pull request, source, and commit identifiers now match sessions in both direct CLI context and workflow-resolved context, not only session summaries or IDs. Regression tests pass. |
 | 2026-11-18 | Closed isolated-run cleanup leakage: completed runs now export their patch and remove the owned worktree; healing removes abandoned worktrees only after the active process is gone and records cleanup failures. Added bounded-path regression coverage. |
 | 2026-11-18 | Closed a dry-run lifecycle gap: persisted planned workflow runs now emit a ledger reference when `require_ledger_event` is enabled, matching the default policy and repository event-log requirement; added regression coverage. |
