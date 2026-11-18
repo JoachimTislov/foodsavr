@@ -1083,7 +1083,9 @@ def result_contract_errors(value: dict[str, Any]) -> list[str]:
     statuses = {"planned", "running", "succeeded", "failed", "cancelled", "unavailable", "awaiting_acceptance"}
     if value.get("status") not in statuses:
         errors.append(f"invalid status: {value.get('status')}")
-    if value.get("status") != "running" and not isinstance(value.get("completed_at"), str):
+    if value.get("status") != "running" and (
+        not isinstance(value.get("completed_at"), str) or not value.get("completed_at")
+    ):
         errors.append("completed_at is required for terminal results")
     if not isinstance(value.get("steps"), list):
         errors.append("steps must be an array")
