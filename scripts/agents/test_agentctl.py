@@ -242,6 +242,17 @@ class AgentctlTest(unittest.TestCase):
             result = json.loads(output.getvalue())
             self.assertEqual(result["reason"], "declarative manifest validation failed")
 
+    def test_heal_reports_catalog_rebuild_failure(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            output = io.StringIO()
+            with patch.object(module, "rebuild", side_effect=ValueError("catalog unavailable")), contextlib.redirect_stdout(output):
+                exit_code = module.heal(argparse.Namespace(database=str(Path(directory) / "knowledge.sqlite3")))
+            self.assertEqual(exit_code, 1)
+            report = json.loads(output.getvalue())
+            self.assertEqual(report["status"], "failed")
+            self.assertIn("knowledge rebuild failed: catalog unavailable", report["errors"])
+
     def test_workflow_run_defaults_to_persisted_dry_run(self) -> None:
         module = load_agentctl_module()
         with tempfile.TemporaryDirectory() as directory:
