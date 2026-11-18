@@ -61,6 +61,10 @@ persisted result. A step that has no policy-safe provider is recorded as
 `unavailable`, which is a valid terminal result and does not masquerade as a
 provider failure.
 
+Declared context skills, execution limits, and outputs are included in the
+normalized provider prompt so each harness receives the same orchestration
+contract.
+
 Workflow context files must resolve to regular files inside the repository.
 This prevents a declarative workflow or an untrusted context reference from
 reading outside the workspace.
