@@ -356,7 +356,7 @@ class AgentctlTest(unittest.TestCase):
                 module.rebuild(argparse.Namespace(database=str(database)), emit=False)
                 output = io.StringIO()
                 with patch.object(module, "DATABASE", database), contextlib.redirect_stdout(output):
-                    module.context(argparse.Namespace(database=str(database), term="FoodSavr status", limit=5))
+                    module.context(argparse.Namespace(database=str(database), term="#212", limit=5))
             context = json.loads(output.getvalue())
             self.assertEqual(context["sessions"][0]["references"]["issue"], ["#212"])
             self.assertEqual(context["sessions"][0]["references"]["pr"], ["#236"])
