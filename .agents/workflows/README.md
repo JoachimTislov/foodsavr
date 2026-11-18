@@ -64,9 +64,10 @@ the workflow permissions. Captured acceptance output is redacted before it is
 stored in a result artifact.
 
 `heal` repairs only derived local state and validation artifacts: it validates
-the policy, runner, router, label, and workflow manifests; deduplicates legacy
-session snapshots; recovers abandoned `running` artifacts when their active
-process is gone; rebuilds the SQLite catalog; and writes
+the policy, runner, router, label, and workflow manifests; normalizes legacy
+planned result artifacts; deduplicates legacy session snapshots; recovers
+abandoned `running` artifacts when their active process is gone; rebuilds the
+SQLite catalog; and writes
 `.agents/state/runs/last-heal.json`. It leaves live runs untouched. It does not
 edit source files, invoke a provider, or push a branch. Provider execution
 remains an explicit adapter decision governed by workflow permissions.
