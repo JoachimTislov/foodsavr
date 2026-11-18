@@ -354,11 +354,14 @@ def context(args: argparse.Namespace) -> int:
         "SELECT session_id, provider, harness, status, summary FROM sessions ORDER BY started_at DESC"
     ).fetchall()
     terms = [term.casefold() for term in args.term.split() if term]
-    sessions = [
-        {**dict(row), "references": session_reference_map(connection, row["session_id"])}
-        for row in session_rows
-        if any(term in f"{row['session_id']} {row['summary']}".casefold() for term in terms)
-    ][:args.limit]
+    sessions = []
+    for row in session_rows:
+        session_references = session_reference_map(connection, row["session_id"])
+        searchable = f"{row['session_id']} {row['summary']} {json.dumps(session_references)}".casefold()
+        if any(term in searchable for term in terms):
+            sessions.append({**dict(row), "references": session_references})
+        if len(sessions) >= args.limit:
+            break
     runs = connection.execute(
         "SELECT run_id, workflow_id, status FROM workflow_runs "
         "WHERE run_id LIKE ? OR workflow_id LIKE ? OR raw_json LIKE ? ORDER BY started_at DESC LIMIT ?",
@@ -443,10 +446,14 @@ def resolve_workflow_context(workflow: dict[str, Any], database: Path, limit: in
                 "SELECT session_id, provider, status, summary FROM sessions ORDER BY started_at DESC LIMIT ?",
                 (limit * 4,),
             ).fetchall()
-            matches = [
-                row for row in session_rows
-                if any(part in f"{row['session_id']} {row['summary']}".casefold() for part in terms)
-            ][:limit]
+            matches = []
+            for row in session_rows:
+                session_references = session_reference_map(connection, row["session_id"])
+                searchable = f"{row['session_id']} {row['summary']} {json.dumps(session_references)}".casefold()
+                if any(part in searchable for part in terms):
+                    matches.append(row)
+                if len(matches) >= limit:
+                    break
             if matches:
                 sections.append("SESSIONS " + term + "\n" + "\n".join(
                     f"{row['session_id']} ({row['provider']}, {row['status']}): {row['summary']} "
