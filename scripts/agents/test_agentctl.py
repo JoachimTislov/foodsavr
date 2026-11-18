@@ -84,8 +84,10 @@ class AgentctlTest(unittest.TestCase):
             late_run_dir.mkdir(parents=True)
             late_result = {**result, "run_id": "run-2", "completed_at": "2026-01-01T00:02:00+00:00"}
             (late_run_dir / "result.json").write_text(json.dumps(late_result))
+            (late_run_dir / "events.jsonl").write_text(json.dumps({"timestamp": "2026-01-01T00:02:01+00:00", "type": "run.completed"}) + "\n")
             refreshed = json.loads(self.run_cli("runs", "show", "run-2", database=database).stdout)
             self.assertEqual(refreshed["run_id"], "run-2")
+            self.assertEqual(refreshed["events"][0]["event_type"], "run.completed")
 
             session_index = database.parent / "sessions.jsonl"
             session = {"session_id": "session-1", "provider": "fake", "harness": "test", "started_at": "2026-01-01T00:00:00+00:00", "status": "active", "summary": "first"}
