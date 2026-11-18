@@ -7,6 +7,16 @@
     "schema_version": {"const": 1},
     "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
     "objective": {"type": "string", "minLength": 1},
+    "references": {
+      "type": "object",
+      "properties": {
+        "issues": {"type": "array", "items": {"type": "string"}},
+        "prs": {"type": "array", "items": {"type": "string"}},
+        "sources": {"type": "array", "items": {"type": "string"}},
+        "commits": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
     "context": {
       "type": "object",
       "properties": {

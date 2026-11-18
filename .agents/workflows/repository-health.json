@@ -2,6 +2,7 @@
   "schema_version": 1,
   "id": "repository-health",
   "objective": "Inspect repository status, source-of-truth parity, open TODOs, and agent configuration gaps.",
+  "references": {"issues": ["#212", "#213"], "prs": ["#236"]},
   "context": {
     "queries": [
       "FoodSavr current app status open TODOs",
