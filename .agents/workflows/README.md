@@ -27,6 +27,11 @@ The plan includes the providers available on the current runner. An adapter
 must record the provider session ID, result artifact, acceptance outcome, and
 ledger references before a run can be considered complete.
 
+Workflows may declare `references.issues`, `references.prs`,
+`references.sources`, and `references.commits`. The runner carries these
+references into the result, provider-session record, and ledger event so every
+orchestration outcome remains traceable without inferring links from prose.
+
 Provider-specific headless metadata lives in
 `.agents/runners/providers.json`; the adapter lifecycle is documented in
 `.agents/runners/README.md`.

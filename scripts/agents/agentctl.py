@@ -600,7 +600,7 @@ def validate_declarative_manifests() -> list[str]:
 def validate_workflow_file(path: Path) -> list[str]:
     workflow = load_json(path)
     errors = []
-    allowed = {"schema_version", "id", "objective", "context", "steps", "limits", "permissions", "outputs", "worktree"}
+    allowed = {"schema_version", "id", "objective", "references", "context", "steps", "limits", "permissions", "outputs", "worktree"}
     errors.extend(f"{path}: unknown field {field}" for field in workflow if field not in allowed)
     for field in ("schema_version", "id", "objective", "steps", "limits", "permissions"):
         if field not in workflow:
@@ -609,6 +609,15 @@ def validate_workflow_file(path: Path) -> list[str]:
         errors.append(f"{path}: schema_version must be 1")
     if not isinstance(workflow.get("id"), str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", str(workflow.get("id"))):
         errors.append(f"{path}: id must match ^[a-z0-9][a-z0-9-]*$")
+    references = workflow.get("references", {})
+    if not isinstance(references, dict):
+        errors.append(f"{path}: references must be an object")
+    else:
+        for field in references:
+            if field not in {"issues", "prs", "sources", "commits"}:
+                errors.append(f"{path}: unknown references field {field}")
+            elif not isinstance(references[field], list) or not all(isinstance(value, str) for value in references[field]):
+                errors.append(f"{path}: references.{field} must be an array of strings")
     context = workflow.get("context", {})
     if not isinstance(context, dict):
         errors.append(f"{path}: context must be an object")
@@ -802,6 +811,7 @@ def workflow_plan(args: argparse.Namespace) -> int:
         "run_id": f"{workflow['id']}-{uuid.uuid4().hex[:12]}",
         "status": "planned" if not unavailable_steps else "unavailable",
         "objective": workflow["objective"],
+        "references": workflow.get("references", {}),
         "context": workflow.get("context", {}),
         "limits": workflow["limits"],
         "permissions": workflow["permissions"],
@@ -985,17 +995,18 @@ def append_event(path: Path, event: dict[str, Any]) -> None:
         stream.flush()
 
 
-def append_session_record(provider: str, session_id: str, run_id: str, summary: str, status: str = "completed", attempt: int | None = None, usage: dict[str, int | float] | None = None) -> None:
+def append_session_record(provider: str, session_id: str, run_id: str, summary: str, status: str = "completed", attempt: int | None = None, usage: dict[str, int | float] | None = None, references: dict[str, list[str]] | None = None) -> None:
+    references = references or {}
     record = {
         "session_id": f"{provider}:{session_id}",
         "provider": provider,
         "harness": provider,
         "started_at": now(),
         "status": status,
-        "issues": [],
-        "prs": [],
-        "sources": [],
-        "commits": [],
+        "issues": list(references.get("issues", [])),
+        "prs": list(references.get("prs", [])),
+        "sources": list(references.get("sources", [])),
+        "commits": list(references.get("commits", [])),
         "summary": summary,
         "run_id": run_id,
     }
@@ -1060,6 +1071,13 @@ def result_contract_errors(value: dict[str, Any]) -> list[str]:
     for field in ("session_ids", "artifacts", "ledger_refs"):
         if not isinstance(value.get(field), list):
             errors.append(f"{field} must be an array")
+    references = value.get("references", {})
+    if not isinstance(references, dict):
+        errors.append("references must be an object")
+    else:
+        for field, values in references.items():
+            if field not in {"issues", "prs", "sources", "commits"} or not isinstance(values, list) or not all(isinstance(item, str) for item in values):
+                errors.append(f"references.{field} must be an array of strings")
     if not isinstance(value.get("events"), str):
         errors.append("events must be a path string")
     return errors
@@ -1148,7 +1166,7 @@ def recover_interrupted_runs(runs: Path) -> int:
         events = result_path.parent / Path(str(result.get("events", "events.jsonl"))).name
         append_event(events, {"type": "run.recovered", "status": "failed", "reason": result["reason"]})
         result["ledger_refs"].append(append_ledger_event(
-            result["run_id"], result["workflow_id"], "none", result["status"], path_reference(result_path),
+            result["run_id"], result["workflow_id"], "none", result["status"], path_reference(result_path), result.get("references"),
         ))
         write_result(result_path, result)
         try:
@@ -1204,10 +1222,14 @@ def write_provider_artifact(path: Path, provider: str, output: str, exit_code: i
     path.chmod(0o600)
 
 
-def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: str, artifact: str | None = None) -> str:
+def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: str, artifact: str | None = None, references: dict[str, list[str]] | None = None) -> str:
     ledger = ROOT / ".agents/ledger.md"
     result_artifact = artifact or f".agents/state/runs/{run_id}/result.json"
-    event = f"| {datetime.now(timezone.utc).date().isoformat()} | Run `{run_id}` for workflow `{workflow_id}` used `{provider}` and ended with `{status}`; result artifact is `{result_artifact}`. |\n"
+    reference_text = "; ".join(
+        f"{field}: {', '.join(values)}" for field, values in (references or {}).items() if values
+    )
+    suffix = f"; references: {reference_text}" if reference_text else ""
+    event = f"| {datetime.now(timezone.utc).date().isoformat()} | Run `{run_id}` for workflow `{workflow_id}` used `{provider}` and ended with `{status}`; result artifact is `{result_artifact}`{suffix}. |\n"
     content = ledger.read_text(encoding="utf-8")
     marker = "|---|---|\n"
     if marker not in content:
@@ -1375,6 +1397,7 @@ def workflow_run(args: argparse.Namespace) -> int:
         "started_at": now(), "steps": [], "session_ids": [], "artifacts": [path_reference(events_path)], "ledger_refs": [],
         "events": path_reference(events_path), "usage": {},
         "provider": provider or "auto",
+        "references": workflow.get("references", {}),
     }
     if not args.execute:
         result["steps"] = [
@@ -1404,6 +1427,7 @@ def workflow_run(args: argparse.Namespace) -> int:
         result["ledger_refs"].append(append_ledger_event(
             run_id, workflow["id"], provider or "none", result["status"],
             path_reference(run_dir / "result.json"),
+            workflow.get("references"),
         ))
         write_result(run_dir / "result.json", result)
         print(json.dumps(result, indent=2, sort_keys=True))
@@ -1419,7 +1443,7 @@ def workflow_run(args: argparse.Namespace) -> int:
         result["completed_at"] = now()
         append_event(events_path, {"type": "run.completed", "status": result["status"], "reason": result["reason"]})
         result["ledger_refs"].append(append_ledger_event(
-            run_id, workflow["id"], "none", result["status"], path_reference(run_dir / "result.json"),
+            run_id, workflow["id"], "none", result["status"], path_reference(run_dir / "result.json"), workflow.get("references"),
         ))
         write_result(run_dir / "result.json", result)
         print(json.dumps(result, indent=2, sort_keys=True))
@@ -1452,6 +1476,7 @@ def workflow_run(args: argparse.Namespace) -> int:
             append_event(events_path, {"type": "run.completed", "status": result["status"], "reason": result["reason"]})
             result["ledger_refs"].append(append_ledger_event(
                 run_id, workflow["id"], "none", result["status"], path_reference(run_dir / "result.json"),
+                workflow.get("references"),
             ))
             write_result(run_dir / "result.json", result)
             print(json.dumps(result, indent=2, sort_keys=True))
@@ -1541,7 +1566,7 @@ def workflow_run(args: argparse.Namespace) -> int:
                     result["session_ids"].append(namespaced)
                     append_session_record(
                         selected, session_id, run_id, f"Workflow {workflow['id']} step {step_id}",
-                        status=attempt_status, attempt=attempt, usage=usage,
+                        status=attempt_status, attempt=attempt, usage=usage, references=workflow.get("references"),
                     )
                 if attempt_status == "succeeded":
                     step_succeeded = True
@@ -1585,6 +1610,7 @@ def workflow_run(args: argparse.Namespace) -> int:
     result["ledger_refs"].append(append_ledger_event(
         run_id, workflow["id"], ",".join(result["providers"]) or "none", result["status"],
         path_reference(run_dir / "result.json"),
+        workflow.get("references"),
     ))
     write_result(run_dir / "result.json", result)
     print(json.dumps(result, indent=2, sort_keys=True))
@@ -1610,7 +1636,7 @@ def workflow_cancel(args: argparse.Namespace) -> int:
     events = run_dir / Path(str(result.get("events", "events.jsonl"))).name
     append_event(events, {"type": "run.cancelled", "status": "cancelled", "reason": result["reason"]})
     result["ledger_refs"].append(append_ledger_event(
-        result["run_id"], result["workflow_id"], "none", result["status"], path_reference(result_path),
+        result["run_id"], result["workflow_id"], "none", result["status"], path_reference(result_path), result.get("references"),
     ))
     write_result(result_path, result)
     active_path = run_dir / "active.json"

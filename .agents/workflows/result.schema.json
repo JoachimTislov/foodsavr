@@ -27,6 +27,16 @@
     "session_ids": {"type": "array", "items": {"type": "string"}},
     "artifacts": {"type": "array", "items": {"type": "string"}},
     "events": {"type": "string"},
+    "references": {
+      "type": "object",
+      "properties": {
+        "issues": {"type": "array", "items": {"type": "string"}},
+        "prs": {"type": "array", "items": {"type": "string"}},
+        "sources": {"type": "array", "items": {"type": "string"}},
+        "commits": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
     "usage": {
       "type": "object",
       "properties": {

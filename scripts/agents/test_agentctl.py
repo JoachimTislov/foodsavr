@@ -107,6 +107,7 @@ class AgentctlTest(unittest.TestCase):
             self.assertIn(plan["status"], {"planned", "unavailable"})
             self.assertIn("no provider process was started", plan["execution"])
             self.assertEqual(len(plan["steps"]), 2)
+            self.assertEqual(plan["references"]["issues"], ["#212", "#213"])
             self.assertTrue(all("capabilities" in step for step in plan["steps"]))
             self.assertTrue(all("failure_reasons" in capability for step in plan["steps"] for capability in step["capabilities"].values()))
 
@@ -278,6 +279,21 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(len(records), 1)
             self.assertEqual(records[0]["status"], "succeeded")
             self.assertEqual(len(records[0]["attempts"]), 2)
+
+    def test_ledger_and_session_references_are_preserved(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".agents").mkdir()
+            (root / ".agents/ledger.md").write_text("|---|---|\n")
+            index = root / "sessions.jsonl"
+            with patch.object(module, "ROOT", root), patch.object(module, "INDEX", index):
+                module.append_session_record("fake", "session-1", "run-1", "summary", references={"issues": ["#212"], "prs": ["#236"]})
+                module.append_ledger_event("run-1", "audit", "fake", "succeeded", references={"issues": ["#212"], "prs": ["#236"]})
+            session = json.loads(index.read_text())
+            self.assertEqual(session["issues"], ["#212"])
+            self.assertEqual(session["prs"], ["#236"])
+            self.assertIn("references: issues: #212; prs: #236", (root / ".agents/ledger.md").read_text())
 
     def test_heal_deduplicates_legacy_session_index(self) -> None:
         module = load_agentctl_module()
