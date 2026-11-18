@@ -1065,6 +1065,53 @@ def write_result(path: Path, value: dict[str, Any]) -> None:
     write_json(path, value)
 
 
+def validate_run_artifacts(runs: Path) -> list[str]:
+    """Validate every persisted result before it enters the knowledge projection."""
+    errors: list[str] = []
+    for result_path in sorted(runs.glob("*/result.json")):
+        try:
+            result = load_json(result_path)
+        except ValueError as error:
+            errors.append(f"{result_path}: {error}")
+            continue
+        errors.extend(f"{result_path}: {error}" for error in result_contract_errors(result))
+    return errors
+
+
+def repair_legacy_run_artifacts(runs: Path) -> int:
+    """Normalize pre-contract planned artifacts without touching source files."""
+    repaired = 0
+    for result_path in sorted(runs.glob("*/result.json")):
+        try:
+            result = load_json(result_path)
+        except ValueError:
+            continue
+        if (
+            result.get("status") != "planned"
+            or "events" in result and "usage" in result
+            or not all(isinstance(result.get(field), str) and result.get(field) for field in ("workflow_id", "run_id", "started_at"))
+        ):
+            continue
+        run_dir = result_path.parent
+        events_path = run_dir / "events.jsonl"
+        if not events_path.exists():
+            append_event(events_path, {"type": "run.started", "workflow_id": result.get("workflow_id"), "run_id": result.get("run_id")})
+            append_event(events_path, {"type": "run.completed", "status": "planned", "reason": "legacy-artifact-repaired"})
+        result.setdefault("events", path_reference(events_path))
+        result.setdefault("usage", {})
+        result.setdefault("steps", [])
+        result.setdefault("session_ids", [])
+        result.setdefault("artifacts", [])
+        result.setdefault("ledger_refs", [])
+        result.setdefault("completed_at", result.get("started_at") or now())
+        event_reference = path_reference(events_path)
+        if event_reference not in result["artifacts"]:
+            result["artifacts"].append(event_reference)
+        write_result(result_path, result)
+        repaired += 1
+    return repaired
+
+
 def recover_interrupted_runs(runs: Path) -> int:
     """Terminalize abandoned runs while preserving runs owned by live processes."""
     recovered = 0
@@ -1623,6 +1670,7 @@ def maintain(args: argparse.Namespace) -> int:
             continue
         errors.extend(validate_workflow_file(path))
     database = Path(args.database).expanduser()
+    errors.extend(validate_run_artifacts(database.parent / "runs"))
     rebuild(argparse.Namespace(database=str(database)), emit=False)
     result = {
         "status": "healthy" if not errors else "failed",
@@ -1648,11 +1696,13 @@ def heal(args: argparse.Namespace) -> int:
         if path.name not in {"schema.json", "result.schema.json"}:
             errors.extend(validate_workflow_file(path))
     database = Path(args.database).expanduser()
+    repaired = repair_legacy_run_artifacts(database.parent / "runs")
     recovered = recover_interrupted_runs(database.parent / "runs")
+    errors.extend(validate_run_artifacts(database.parent / "runs"))
     rebuild(argparse.Namespace(database=str(database)), emit=False)
     report = {
         "status": "healthy" if not errors else "failed",
-        "actions": ["rebuild knowledge catalog", f"deduplicate session index ({deduplicated} records)", f"recover interrupted runs ({recovered} records)"],
+        "actions": ["rebuild knowledge catalog", f"deduplicate session index ({deduplicated} records)", f"repair legacy planned artifacts ({repaired} records)", f"recover interrupted runs ({recovered} records)"],
         "knowledge": str(database),
         "workflows": [str(path.relative_to(ROOT)) for path in workflow_paths if "schema" not in path.name],
         "errors": errors,
