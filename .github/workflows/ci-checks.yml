@@ -138,6 +138,7 @@ jobs:
           FORCE_ALL: ${{ github.event_name == 'workflow_dispatch' }}
 
       - name: Upload coverage to Codecov
+        if: hashFiles('coverage/lcov.info') != ''
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
