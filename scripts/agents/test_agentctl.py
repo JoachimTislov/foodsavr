@@ -111,6 +111,18 @@ class AgentctlTest(unittest.TestCase):
             self.assertTrue(all("capabilities" in step for step in plan["steps"]))
             self.assertTrue(all("failure_reasons" in capability for step in plan["steps"] for capability in step["capabilities"].values()))
 
+    def test_workflow_prompt_carries_declared_orchestration_contract(self) -> None:
+        module = load_agentctl_module()
+        workflow = json.loads(WORKFLOW.read_text())
+        workflow["context"]["skills"] = ["analysis"]
+        workflow["limits"]["max_turns"] = 7
+        workflow["outputs"] = {"result_schema": ".agents/workflows/result.schema.json"}
+        step = {**workflow["steps"][0], "skills": ["research"]}
+        prompt = module.workflow_prompt(workflow, step, "run-1", "context")
+        self.assertIn('Skills: ["analysis", "research"]', prompt)
+        self.assertIn('"max_turns": 7', prompt)
+        self.assertIn("result.schema.json", prompt)
+
     def test_invalid_workflow_fails_validation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             invalid = Path(directory) / "invalid.json"
