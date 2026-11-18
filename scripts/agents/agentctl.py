@@ -940,6 +940,14 @@ def extract_usage(output: str) -> dict[str, int | float]:
     return totals
 
 
+def normalize_usage_totals(usage: dict[str, int | float]) -> dict[str, int | float]:
+    """Derive a consistent total when both component counters are available."""
+    normalized = dict(usage)
+    if "input_tokens" in normalized and "output_tokens" in normalized:
+        normalized["total_tokens"] = normalized["input_tokens"] + normalized["output_tokens"]
+    return normalized
+
+
 def normalized_events(provider: str, output: str) -> list[dict[str, Any]]:
     events = []
     for line in output.splitlines():
@@ -1509,6 +1517,7 @@ def workflow_run(args: argparse.Namespace) -> int:
         result["status"] = "awaiting_acceptance"
     else:
         result["status"] = "succeeded"
+    result["usage"] = normalize_usage_totals(result["usage"])
     result["providers"] = sorted({step.get("provider") for step in result["steps"] if step.get("provider")})
     if base_revision and execution_root != ROOT:
         try:
