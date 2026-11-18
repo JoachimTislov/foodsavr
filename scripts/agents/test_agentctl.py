@@ -487,7 +487,7 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             result = json.loads(output.getvalue())
             self.assertEqual(result["status"], "succeeded")
-            self.assertEqual(result["usage"]["total_tokens"], 15)
+            self.assertEqual(result["usage"]["total_tokens"], 10)
             events = Path(result["events"])
             self.assertTrue(events.exists())
             self.assertIn('"type": "run.completed"', events.read_text())

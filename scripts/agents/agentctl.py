@@ -1550,8 +1550,6 @@ def workflow_run(args: argparse.Namespace) -> int:
                 write_provider_artifact(artifact, selected, output, completed.returncode, capture_raw)
                 session_id = extract_session_id(output)
                 usage = extract_usage(output)
-                for field, value in usage.items():
-                    result["usage"][field] = result["usage"].get(field, 0) + value
                 for event in normalized_events(selected, output):
                     append_event(events_path, {"type": "provider.event", "step_id": step_id, "attempt": attempt, **event})
                 append_event(events_path, {"type": "attempt.completed", "step_id": step_id, "attempt": attempt, "usage": usage})
@@ -1569,12 +1567,14 @@ def workflow_run(args: argparse.Namespace) -> int:
                     "attempt": attempt, "status": attempt_status, "acceptance_results": acceptance_results,
                     "session_id": f"{selected}:{session_id}" if session_id else None,
                     "artifact": path_reference(artifact),
+                    "usage": usage,
                     "reason": None if session_valid else "provider did not expose a required session ID",
                 })
                 result["artifacts"].append(path_reference(artifact))
                 if session_id:
                     namespaced = f"{selected}:{session_id}"
-                    result["session_ids"].append(namespaced)
+                    if namespaced not in result["session_ids"]:
+                        result["session_ids"].append(namespaced)
                     append_session_record(
                         selected, session_id, run_id, f"Workflow {workflow['id']} step {step_id}",
                         status=attempt_status, attempt=attempt, usage=usage, references=workflow.get("references"),
@@ -1588,6 +1588,9 @@ def workflow_run(args: argparse.Namespace) -> int:
                 attempts.append({"attempt": attempt, "status": "failed", "acceptance_results": [], "error": str(error)})
                 if step.get("on_failure", "stop") != "retry":
                     break
+        if attempts:
+            for field, value in attempts[-1].get("usage", {}).items():
+                result["usage"][field] = result["usage"].get(field, 0) + value
         if not step_succeeded:
             final_status = "awaiting_acceptance" if attempts and attempts[-1]["status"] == "awaiting_acceptance" else "failed"
             had_failure = had_failure or final_status == "failed"
