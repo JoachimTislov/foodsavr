@@ -1125,6 +1125,11 @@ def result_contract_errors(value: dict[str, Any]) -> list[str]:
     for field in ("session_ids", "artifacts", "ledger_refs"):
         if not isinstance(value.get(field), list):
             errors.append(f"{field} must be an array")
+    if isinstance(value.get("session_ids"), list):
+        if not all(isinstance(item, str) for item in value["session_ids"]):
+            errors.append("session_ids must contain strings")
+        elif len(value["session_ids"]) != len(set(value["session_ids"])):
+            errors.append("session_ids must be unique")
     references = value.get("references", {})
     if not isinstance(references, dict):
         errors.append("references must be an object")
