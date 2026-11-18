@@ -233,6 +233,8 @@ class AgentctlTest(unittest.TestCase):
             run_dir.mkdir(parents=True)
             (run_dir / "result.json").write_text(json.dumps({"status": "not-a-result"}))
             errors = module.validate_run_artifacts(Path(directory) / "runs")
+            with self.assertRaises(ValueError):
+                module.fresh_catalog(Path(directory) / "knowledge.sqlite3")
         self.assertTrue(any("missing workflow_id" in error for error in errors))
         self.assertTrue(any("invalid status" in error for error in errors))
 

@@ -297,6 +297,9 @@ def ensure_catalog(connection: sqlite3.Connection, database: Path) -> None:
     }
     if indexed_sessions != current_sessions:
         raise ValueError("knowledge catalog is stale; rebuild after changing sessions")
+    artifact_errors = validate_run_artifacts(database.parent / "runs")
+    if artifact_errors:
+        raise ValueError("invalid workflow result artifacts: " + "; ".join(artifact_errors[:3]))
 
 
 def fresh_catalog(database: Path) -> sqlite3.Connection:
@@ -308,7 +311,11 @@ def fresh_catalog(database: Path) -> sqlite3.Connection:
         connection.close()
         rebuild(argparse.Namespace(database=str(database)), emit=False)
         connection = connect(database)
-        ensure_catalog(connection, database)
+        try:
+            ensure_catalog(connection, database)
+        except Exception:
+            connection.close()
+            raise
     return connection
 
 
