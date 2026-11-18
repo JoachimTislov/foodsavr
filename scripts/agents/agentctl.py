@@ -1326,6 +1326,12 @@ def workflow_run(args: argparse.Namespace) -> int:
         result["status"] = "unavailable"
         result["reason"] = "workflow permissions exceed policy"
         result["policy_errors"] = permission_errors
+        result["completed_at"] = now()
+        append_event(events_path, {"type": "run.completed", "status": result["status"], "reason": result["reason"]})
+        result["ledger_refs"].append(append_ledger_event(
+            run_id, workflow["id"], provider or "none", result["status"],
+            path_reference(run_dir / "result.json"),
+        ))
         write_result(run_dir / "result.json", result)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 1

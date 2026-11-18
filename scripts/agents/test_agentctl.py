@@ -429,13 +429,17 @@ class AgentctlTest(unittest.TestCase):
             workflow["permissions"]["network"] = "full"
             workflow_path.write_text(json.dumps(workflow))
             output = io.StringIO()
-            with contextlib.redirect_stdout(output):
+            with patch.object(module, "append_ledger_event", return_value="ledger#policy-test"), contextlib.redirect_stdout(output):
                 exit_code = module.workflow_run(argparse.Namespace(
                     path=str(workflow_path), provider="codex", execute=True,
                     database=str(Path(directory) / "knowledge.sqlite3"),
                 ))
             self.assertEqual(exit_code, 1)
-            self.assertEqual(json.loads(output.getvalue())["status"], "unavailable")
+            result = json.loads(output.getvalue())
+            self.assertEqual(result["status"], "unavailable")
+            self.assertIn("completed_at", result)
+            self.assertEqual(result["ledger_refs"], ["ledger#policy-test"])
+            self.assertIn('"type": "run.completed"', Path(result["events"]).read_text())
 
     def test_context_failure_terminalizes_started_run(self) -> None:
         module = load_agentctl_module()
