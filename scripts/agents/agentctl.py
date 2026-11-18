@@ -1490,6 +1490,14 @@ def workflow_run(args: argparse.Namespace) -> int:
     if errors:
         print(json.dumps({"valid": False, "errors": errors}, indent=2))
         return 1
+    manifest_errors = validate_declarative_manifests()
+    if manifest_errors:
+        print(json.dumps({
+            "status": "unavailable",
+            "reason": "declarative manifest validation failed",
+            "errors": manifest_errors,
+        }, indent=2))
+        return 1
     workflow = load_json(path)
     specs = provider_specs()
     router = load_json(ROUTER)
