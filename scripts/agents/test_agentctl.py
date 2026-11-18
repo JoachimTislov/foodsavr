@@ -171,6 +171,9 @@ class AgentctlTest(unittest.TestCase):
         self.assertTrue(any("mutating git" in error for error in errors))
         self.assertTrue(module.acceptance_command_errors("curl https://example.com", permissions))
         self.assertTrue(module.acceptance_command_errors("python3 -c 'open(\"x\", \"w\")'", permissions))
+        allowlisted = {"network": "allowlisted", "git": "read-only", "github": "none"}
+        self.assertFalse(module.acceptance_command_errors("curl https://github.com/status", allowlisted, ["github.com"]))
+        self.assertTrue(module.acceptance_command_errors("curl https://evil.example/status", allowlisted, ["github.com"]))
 
     def test_acceptance_policy_can_be_explicitly_disabled(self) -> None:
         module = load_agentctl_module()

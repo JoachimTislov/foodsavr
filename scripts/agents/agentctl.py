@@ -18,6 +18,7 @@ import subprocess
 import sys
 import uuid
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -704,7 +705,7 @@ def validate_workflow_file(path: Path) -> list[str]:
     return errors
 
 
-def acceptance_command_errors(command: str, permissions: dict[str, str]) -> list[str]:
+def acceptance_command_errors(command: str, permissions: dict[str, str], allow_hosts: list[str] | None = None) -> list[str]:
     """Reject verification commands that could bypass the workflow policy."""
     try:
         tokens = shlex.split(command)
@@ -726,6 +727,16 @@ def acceptance_command_errors(command: str, permissions: dict[str, str]) -> list
         errors.append("acceptance command requires GitHub permission")
     if executable in {"curl", "wget", "nc", "netcat", "ssh", "scp", "ftp"} and permissions.get("network", "none") == "none":
         errors.append("acceptance command requires network permission")
+    if executable in {"curl", "wget", "nc", "netcat", "ssh", "scp", "ftp"} and permissions.get("network") == "allowlisted":
+        hosts = {host.casefold().lstrip(".") for host in (allow_hosts or []) if isinstance(host, str) and host.strip()}
+        requested_hosts = {
+            parsed.hostname.casefold()
+            for token in tokens[1:]
+            for parsed in [urllib.parse.urlparse(token if "://" in token else f"https://{token}")]
+            if parsed.hostname
+        }
+        if not requested_hosts or any(host not in hosts and not any(host.endswith(f".{allowed}") for allowed in hosts) for host in requested_hosts):
+            errors.append("acceptance command host is outside the network allowlist")
     if permissions.get("git", "read-only") == "read-only" and executable == "git" and len(tokens) > 1 and tokens[1] in {"add", "commit", "clean", "checkout", "merge", "rebase", "reset", "restore", "push", "tag"}:
         errors.append("acceptance command exceeds read-only Git permission")
     return errors
@@ -1367,9 +1378,16 @@ def external_route(workflow: dict[str, Any], step: dict[str, Any], safe: list[st
         return None, "external-router-failed-using-fallback"
 
 
-def run_acceptance(step: dict[str, Any], cwd: Path = ROOT) -> list[dict[str, Any]]:
+def run_acceptance(
+    step: dict[str, Any], cwd: Path = ROOT, permissions: dict[str, str] | None = None,
+    allow_hosts: list[str] | None = None,
+) -> list[dict[str, Any]]:
     results = []
     for acceptance_command in step.get("acceptance_commands", []):
+        command_errors = acceptance_command_errors(acceptance_command, permissions or {}, allow_hosts)
+        if command_errors:
+            results.append({"command": acceptance_command, "status": "error", "output": "; ".join(command_errors)})
+            continue
         try:
             verification = subprocess.run(
                 shlex.split(acceptance_command), capture_output=True, text=True,
@@ -1573,7 +1591,9 @@ def workflow_run(args: argparse.Namespace) -> int:
                 for event in normalized_events(selected, output):
                     append_event(events_path, {"type": "provider.event", "step_id": step_id, "attempt": attempt, **event})
                 append_event(events_path, {"type": "attempt.completed", "step_id": step_id, "attempt": attempt, "usage": usage})
-                acceptance_results = run_acceptance(step, execution_root)
+                acceptance_results = run_acceptance(
+                    step, execution_root, workflow.get("permissions", {}), policy.get("allow_hosts", [])
+                )
                 acceptance_passed = acceptance_satisfied(
                     acceptance_results, required=policy.get("require_acceptance", True)
                 )

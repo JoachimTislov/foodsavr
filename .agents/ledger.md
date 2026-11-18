@@ -20,6 +20,7 @@ derived relational and full-text index.
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-11-18 | Enforced policy network allowlists for acceptance commands: `curl`, `wget`, SSH-style, and related commands now fail closed when requested hosts are outside `allow_hosts`; added subdomain-aware tests and runner documentation. |
 | 2026-11-18 | Completed context traceability: `agentctl context` and workflow context now expose indexed session references for issues, pull requests, sources, and commits while keeping transcripts out of bounded context. Added regression coverage; 35 tests and self-healing validation pass. |
 | 2026-11-18 | Made the declarative `require_acceptance` policy effective at execution time: pending acceptance remains blocking by default, while an explicitly disabled policy can permit provider completion. Added regression coverage; 34 tests and self-healing validation pass. |
 | 2026-11-18 | Corrected retry accounting in `agentctl`: persisted run usage now uses only the authoritative final attempt per step, while attempt-level usage remains traceable; repeated session IDs are deduplicated in the run result. Added regression coverage; 33 tests and self-healing validation pass. |

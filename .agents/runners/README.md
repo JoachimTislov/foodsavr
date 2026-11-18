@@ -48,6 +48,8 @@ changing workflow files.
 Policy compilation passes the normalized policy to the adapter. An adapter
 must translate only capabilities it can enforce and fail closed for the rest;
 it must never silently broaden filesystem, network, Git, or GitHub permissions.
+Acceptance commands also enforce `network: allowlisted` against the policy's
+`allow_hosts` entries, including subdomains, before they are executed.
 
 This boundary lets Codex, Claude, OpenCode, Gemini, Vibe, and Copilot vary in
 native CLI syntax without leaking that syntax into workflow definitions.
