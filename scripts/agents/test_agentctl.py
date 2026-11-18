@@ -229,6 +229,19 @@ class AgentctlTest(unittest.TestCase):
                 errors = module.validate_declarative_manifests()
         self.assertTrue(any("provider fake.prompt_mode is invalid" in error for error in errors))
 
+    def test_workflow_run_fails_closed_on_manifest_drift(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            output = io.StringIO()
+            with patch.object(module, "validate_declarative_manifests", return_value=["broken policy"]), contextlib.redirect_stdout(output):
+                exit_code = module.workflow_run(argparse.Namespace(
+                    path=str(WORKFLOW), provider="auto", execute=False,
+                    database=str(Path(directory) / "knowledge.sqlite3"),
+                ))
+            self.assertEqual(exit_code, 1)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result["reason"], "declarative manifest validation failed")
+
     def test_workflow_run_defaults_to_persisted_dry_run(self) -> None:
         module = load_agentctl_module()
         with tempfile.TemporaryDirectory() as directory:
