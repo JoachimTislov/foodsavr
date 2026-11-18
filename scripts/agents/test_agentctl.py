@@ -219,12 +219,19 @@ class AgentctlTest(unittest.TestCase):
         self.assertTrue(any("invalid filesystem" in error for error in errors))
 
     def test_workflow_run_defaults_to_persisted_dry_run(self) -> None:
+        module = load_agentctl_module()
         with tempfile.TemporaryDirectory() as directory:
             database = Path(directory) / "db"
-            result = self.run_cli("workflow", "run", str(WORKFLOW), database=database)
-            run = json.loads(result.stdout)
+            output = io.StringIO()
+            with patch.object(module, "append_ledger_event", return_value="ledger#dry-run"), contextlib.redirect_stdout(output):
+                exit_code = module.workflow_run(argparse.Namespace(
+                    path=str(WORKFLOW), provider="auto", execute=False, database=str(database),
+                ))
+            self.assertEqual(exit_code, 0)
+            run = json.loads(output.getvalue())
             self.assertEqual(run["status"], "planned")
             self.assertEqual(len(run["steps"]), 2)
+            self.assertEqual(run["ledger_refs"], ["ledger#dry-run"])
             self.assertIn('"type": "run.completed"', Path(run["events"]).read_text())
             self.assertTrue((database.parent / "runs" / run["run_id"] / "result.json").exists())
 
