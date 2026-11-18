@@ -20,6 +20,7 @@ Query it from any harness:
 scripts/agents/agentctl query "FoodSavr TODO"
 scripts/agents/agentctl context "current app status and open work"
 scripts/agents/agentctl sessions list
+scripts/agents/agentctl --database .agents/state/knowledge.sqlite3 sessions find "#236"
 scripts/agents/agentctl query "repository-health run-"
 scripts/agents/agentctl runs list repository-health
 scripts/agents/agentctl runs show <run-id>

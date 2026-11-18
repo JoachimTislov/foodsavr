@@ -390,6 +390,13 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(context["sessions"][0]["references"]["issue"], ["#212"])
             self.assertEqual(context["sessions"][0]["references"]["pr"], ["#236"])
             self.assertNotIn("transcript", context["sessions"][0])
+            output = io.StringIO()
+            with patch.object(module, "INDEX", index), contextlib.redirect_stdout(output):
+                module.session_find(argparse.Namespace(database=str(database), term="#236", limit=5, provider=None))
+            found = json.loads(output.getvalue())
+            self.assertEqual(found[0]["session_id"], "codex:session-1")
+            self.assertEqual(found[0]["references"]["pr"], ["#236"])
+            self.assertNotIn("transcript", found[0])
 
     def test_heal_deduplicates_legacy_session_index(self) -> None:
         module = load_agentctl_module()
