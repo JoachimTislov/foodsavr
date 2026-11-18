@@ -482,6 +482,27 @@ def session_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def session_find(args: argparse.Namespace) -> int:
+    connection = fresh_catalog(Path(args.database).expanduser())
+    term = f"%{args.term.casefold()}%"
+    rows = connection.execute(
+        "SELECT session_id, provider, harness, started_at, status, summary "
+        "FROM sessions WHERE lower(session_id) LIKE ? OR lower(provider) LIKE ? "
+        "OR lower(harness) LIKE ? OR lower(status) LIKE ? OR lower(summary) LIKE ? "
+        "OR EXISTS (SELECT 1 FROM session_references r WHERE r.session_id = sessions.session_id "
+        "AND lower(r.ref_value) LIKE ?) ORDER BY started_at DESC LIMIT ?",
+        (term, term, term, term, term, term, args.limit),
+    ).fetchall()
+    result = []
+    for row in rows:
+        if args.provider and row["provider"] != args.provider:
+            continue
+        result.append({**dict(row), "references": session_reference_map(connection, row["session_id"])})
+    connection.close()
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
 def session_register(args: argparse.Namespace) -> int:
     index = Path(args.index).expanduser()
     current = records(index)
@@ -1941,6 +1962,10 @@ def build_parser() -> argparse.ArgumentParser:
     session_commands = sessions.add_subparsers(dest="session_command", required=True)
     listing = session_commands.add_parser("list")
     listing.add_argument("--provider")
+    finding = session_commands.add_parser("find")
+    finding.add_argument("term")
+    finding.add_argument("--limit", type=int, default=20)
+    finding.add_argument("--provider")
     register = session_commands.add_parser("register")
     register.add_argument("--session-id", required=True)
     register.add_argument("--provider", required=True)
@@ -1986,6 +2011,8 @@ def main(argv: list[str] | None = None) -> int:
         return policy_compile(args)
     if args.command == "sessions" and args.session_command == "list":
         return session_list(args)
+    if args.command == "sessions" and args.session_command == "find":
+        return session_find(args)
     if args.command == "sessions" and args.session_command == "register":
         return session_register(args)
     raise ValueError("unsupported command")
