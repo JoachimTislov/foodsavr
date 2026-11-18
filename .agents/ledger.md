@@ -20,6 +20,7 @@ derived relational and full-text index.
 
 | Date (UTC) | Event |
 |---|---|
+| 2026-11-18 | Added runner-local ledger overrides for CI dry-run lifecycle validation and corrected returned ledger references to identify the actual configured ledger artifact. |
 | 2026-11-18 | Propagated declarative workflow skills, execution limits, and output contracts into normalized provider prompts so all harnesses receive the same orchestration requirements; added regression coverage. |
 | 2026-11-18 | Hardened `maintain` and `heal` to convert knowledge-catalog rebuild failures into persisted structured error reports instead of uncaught exceptions; added regression coverage. |
 | 2026-11-18 | Added bounded `sessions find` search over provider metadata and indexed references, returning traceability without raw transcripts; documented and tested issue/PR lookup. |

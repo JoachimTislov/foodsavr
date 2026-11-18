@@ -84,6 +84,11 @@ SQLite catalog; and writes
 edit source files, invoke a provider, or push a branch. Provider execution
 remains an explicit adapter decision governed by workflow permissions.
 
+Agent-system CI also runs the repository-health workflow in provider-free dry
+run mode with a runner-local ledger and SQLite projection. This exercises run
+artifact, event, reference, and ledger persistence without invoking a harness
+or modifying tracked repository state.
+
 Use `workflow cancel <run-id>` to transition a planned or running artifact to
 `cancelled`. The controller records a cancellation event and ledger reference,
 removes the active marker, and signals the owning runner when its process is
