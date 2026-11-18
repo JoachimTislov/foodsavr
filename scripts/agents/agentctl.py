@@ -1194,6 +1194,11 @@ def recover_interrupted_runs(runs: Path) -> int:
         result["completed_at"] = now()
         events = result_path.parent / Path(str(result.get("events", "events.jsonl"))).name
         append_event(events, {"type": "run.recovered", "status": "failed", "reason": result["reason"]})
+        cleanup_error = cleanup_isolated_worktree(result_path.parent)
+        if cleanup_error:
+            result["worktree_cleanup_error"] = cleanup_error
+        else:
+            append_event(events, {"type": "worktree.cleaned"})
         result["ledger_refs"].append(append_ledger_event(
             result["run_id"], result["workflow_id"], "none", result["status"], path_reference(result_path), result.get("references"),
         ))
@@ -1204,6 +1209,28 @@ def recover_interrupted_runs(runs: Path) -> int:
             pass
         recovered += 1
     return recovered
+
+
+def cleanup_isolated_worktree(run_dir: Path) -> str | None:
+    """Remove only the isolated worktree owned by a completed run."""
+    run_root = run_dir.resolve()
+    worktree = (run_root / "worktree").resolve()
+    try:
+        worktree.relative_to(run_root)
+    except ValueError:
+        return "isolated worktree escaped the run directory"
+    if not worktree.exists():
+        return None
+    try:
+        removed = subprocess.run(
+            ["git", "worktree", "remove", "--force", str(worktree)],
+            cwd=ROOT, capture_output=True, text=True, timeout=30, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return str(error)
+    if removed.returncode != 0:
+        return (removed.stderr or removed.stdout).strip() or "git worktree remove failed"
+    return None
 
 
 def export_worktree_changes(worktree: Path, base_revision: str, run_dir: Path) -> str:
@@ -1664,6 +1691,11 @@ def workflow_run(args: argparse.Namespace) -> int:
             result["artifacts"].append(patch_reference)
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             result["patch_error"] = str(error)
+        cleanup_error = cleanup_isolated_worktree(run_dir)
+        if cleanup_error:
+            result["worktree_cleanup_error"] = cleanup_error
+        else:
+            append_event(events_path, {"type": "worktree.cleaned"})
     result["completed_at"] = now()
     append_event(events_path, {"type": "run.completed", "status": result["status"], "usage": result["usage"]})
     result["ledger_refs"].append(append_ledger_event(
