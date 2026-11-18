@@ -30,6 +30,11 @@ event types. They never return the raw provider result or transcript, so a
 harness can inspect execution state without injecting sensitive payloads into
 the next prompt.
 
+`context` includes each matching session's provider, status, summary, and
+indexed issue, pull request, source, and commit references. It does not expose
+the session transcript, so a harness can recover traceability without loading
+the full history.
+
 The database lives at `.agents/state/knowledge.sqlite3` and is ignored. CI or
 a provider adapter can rebuild it from the checkout, so stale database files
 are never merged as authority.

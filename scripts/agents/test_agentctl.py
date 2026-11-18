@@ -330,6 +330,28 @@ class AgentctlTest(unittest.TestCase):
             self.assertIn("references: issues: #212; prs: #236 injected row", ledger)
             self.assertEqual(len(ledger.splitlines()), 2)
 
+    def test_context_exposes_session_references_without_transcript(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            index = root / "sessions.jsonl"
+            index.write_text(json.dumps({
+                "session_id": "codex:session-1", "provider": "codex", "harness": "codex",
+                "started_at": "2026-01-01T00:00:00+00:00", "status": "succeeded",
+                "summary": "FoodSavr status", "issues": ["#212"], "prs": ["#236"],
+                "sources": ["https://example.com/source"], "commits": ["abc1234"],
+            }) + "\n")
+            database = root / "knowledge.sqlite3"
+            with patch.object(module, "ROOT", ROOT), patch.object(module, "INDEX", index):
+                module.rebuild(argparse.Namespace(database=str(database)), emit=False)
+                output = io.StringIO()
+                with patch.object(module, "DATABASE", database), contextlib.redirect_stdout(output):
+                    module.context(argparse.Namespace(database=str(database), term="FoodSavr status", limit=5))
+            context = json.loads(output.getvalue())
+            self.assertEqual(context["sessions"][0]["references"]["issue"], ["#212"])
+            self.assertEqual(context["sessions"][0]["references"]["pr"], ["#236"])
+            self.assertNotIn("transcript", context["sessions"][0])
+
     def test_heal_deduplicates_legacy_session_index(self) -> None:
         module = load_agentctl_module()
         with tempfile.TemporaryDirectory() as directory:
