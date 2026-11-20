@@ -10,6 +10,7 @@ on:
       - "pubspec.yaml"
       - "pubspec.lock"
       - ".github/workflows/build-web.yml"
+      - "scripts/ci/**"
   pull_request:
     branches: [main]
     paths:
@@ -19,6 +20,7 @@ on:
       - "pubspec.yaml"
       - "pubspec.lock"
       - ".github/workflows/build-web.yml"
+      - "scripts/ci/**"
   workflow_dispatch:
 
 concurrency:

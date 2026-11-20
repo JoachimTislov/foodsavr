@@ -13,6 +13,7 @@ on:
       - ".github/workflows/android-delivery.yml"
       - ".github/workflows/release-gated.yml"
       - "scripts/release/**"
+      - "scripts/ci/**"
       - "packages/**"
   pull_request:
     branches: [main]
@@ -26,6 +27,7 @@ on:
       - ".github/workflows/android-delivery.yml"
       - ".github/workflows/release-gated.yml"
       - "scripts/release/**"
+      - "scripts/ci/**"
       - "packages/**"
   workflow_dispatch:
 

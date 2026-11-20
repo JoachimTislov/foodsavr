@@ -56,7 +56,7 @@ jobs:
               - '.github/workflows/release-gated.yml'
               - '.github/workflows/build-android.yml'
               - 'scripts/release/**'
-              - 'scripts/ci/android_smoke.sh'
+              - 'scripts/ci/**'
               - 'packages/**'
               - 'pubspec.yaml'
               - 'pubspec.lock'
