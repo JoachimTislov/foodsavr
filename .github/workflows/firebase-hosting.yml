@@ -1,0 +1,130 @@
+name: Firebase Hosting
+
+# Builds the production-flavor web app and deploys it to Firebase Hosting
+# (my-foodsavr-store). Pushes to main go live; same-repo PRs get a 7-day
+# preview channel. Secrets:
+#   FIREBASE_SERVICE_ACCOUNT_MY_FOODSAVR_STORE  required to deploy (else skipped)
+#   FIREBASE_WEB_OPTIONS_B64                    required to deploy (else skipped)
+#   RECAPTCHA_V3_SITE_KEY                       optional; App Check web key
+#   WEB_ENV_B64                                 optional; assets/.env (served publicly)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "lib/**"
+      - "web/**"
+      - "assets/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - "packages/**"
+      - ".github/workflows/firebase-hosting.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "lib/**"
+      - "web/**"
+      - "assets/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - "packages/**"
+      - ".github/workflows/firebase-hosting.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build and deploy to Firebase Hosting
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    env:
+      HAS_DEPLOY_SECRETS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MY_FOODSAVR_STORE != '' && secrets.FIREBASE_WEB_OPTIONS_B64 != '' }}
+    steps:
+      - name: Skip without deploy secrets
+        if: ${{ env.HAS_DEPLOY_SECRETS != 'true' }}
+        run: |
+          echo "::warning::FIREBASE_SERVICE_ACCOUNT_MY_FOODSAVR_STORE or FIREBASE_WEB_OPTIONS_B64 is missing; skipping Firebase Hosting deploy."
+          echo '⚠️ Firebase Hosting deploy skipped: deploy secrets are not configured.' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Checkout code
+        if: ${{ env.HAS_DEPLOY_SECRETS == 'true' }}
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Flutter
+        if: ${{ env.HAS_DEPLOY_SECRETS == 'true' }}
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.6
+          channel: stable
+          cache: true
+
+      - name: Restore web configuration
+        if: ${{ env.HAS_DEPLOY_SECRETS == 'true' }}
+        env:
+          FIREBASE_WEB_OPTIONS_B64: ${{ secrets.FIREBASE_WEB_OPTIONS_B64 }}
+          WEB_ENV_B64: ${{ secrets.WEB_ENV_B64 }}
+        run: |
+          printf '%s' "$FIREBASE_WEB_OPTIONS_B64" | base64 --decode > lib/firebase_options.dart
+          if [ -n "$WEB_ENV_B64" ]; then
+            printf '%s' "$WEB_ENV_B64" | base64 --decode > assets/.env
+          else
+            echo "::warning::WEB_ENV_B64 is missing; deploying with an empty assets/.env."
+            : > assets/.env
+          fi
+          cat > firebase.json <<'EOF'
+          {
+            "hosting": {
+              "site": "my-foodsavr-store",
+              "public": "build/web",
+              "ignore": ["firebase.json", "**/node_modules/**"],
+              "rewrites": [{ "source": "**", "destination": "/index.html" }]
+            }
+          }
+          EOF
+
+      - name: Build web
+        if: ${{ env.HAS_DEPLOY_SECRETS == 'true' }}
+        env:
+          RECAPTCHA_V3_SITE_KEY: ${{ secrets.RECAPTCHA_V3_SITE_KEY }}
+        run: |
+          flutter pub get
+          dart run build_runner build --delete-conflicting-outputs
+          flutter create . --platforms web
+          defines=(--dart-define=FLAVOR=production)
+          if [ -n "$RECAPTCHA_V3_SITE_KEY" ]; then
+            defines+=("--dart-define=RECAPTCHA_V3_SITE_KEY=$RECAPTCHA_V3_SITE_KEY")
+          else
+            echo "::warning::RECAPTCHA_V3_SITE_KEY is missing; App Check uses a placeholder key."
+          fi
+          flutter build web --release "${defines[@]}"
+
+      - name: Deploy preview channel
+        if: ${{ env.HAS_DEPLOY_SECRETS == 'true' && github.event_name == 'pull_request' }}
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MY_FOODSAVR_STORE }}
+          projectId: my-foodsavr-store
+          expires: 7d
+
+      - name: Deploy live
+        if: ${{ env.HAS_DEPLOY_SECRETS == 'true' && github.event_name != 'pull_request' }}
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MY_FOODSAVR_STORE }}
+          projectId: my-foodsavr-store
+          channelId: live
