@@ -32,14 +32,6 @@ installation. If the Firebase secret is absent, the helper records a warning
 and produces a compile-only placeholder; the APK then cannot exercise Firebase
 features until the secret is supplied.
 
-To prepare the OAuth secret locally, run
-`bash scripts/release/prepare_drive_credentials.sh /path/to/google-drive-oauth.json`.
-The helper invokes `gcloud auth application-default login` with Drive write
-scopes (`cloud-platform` and Drive), validates the refresh token, writes the
-compact JSON with mode `0600`,
-and prints only the output path. Copy that file's contents into the
-`GOOGLE_DRIVE_OAUTH_JSON` GitHub secret, then delete the local file when done.
-
 The existing remote Firebase project is the test environment; a production
 backend will be added later. Supply that existing project's files for
 `com.foodsavr.app`. The Android flavor is named `production` because it uses
