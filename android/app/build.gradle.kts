@@ -55,6 +55,16 @@ android {
             resValue("string", "EMULATOR_HOST", "10.0.2.2")
         }
 
+        // Facebook Login (flutter_facebook_auth) reads these from string resources.
+        fun envValue(name: String): String =
+            System.getenv(name)?.takeIf { it.isNotBlank() }
+                ?: envProperties.getProperty(name)?.takeIf { it.isNotBlank() }
+                ?: ""
+        val facebookAppId = envValue("FACEBOOK_APP_ID")
+        resValue("string", "facebook_app_id", facebookAppId)
+        resValue("string", "fb_login_protocol_scheme", "fb$facebookAppId")
+        resValue("string", "facebook_client_token", envValue("FACEBOOK_CLIENT_TOKEN"))
+
         if (!manifestPlaceholders.containsKey("appAuthRedirectScheme")) {
             manifestPlaceholders["appAuthRedirectScheme"] = "foodsavr"
         }
