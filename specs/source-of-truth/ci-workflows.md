@@ -15,8 +15,19 @@ Absorbed from `.github/workflows/` @ 103a70f:
 (web builds cannot pass `--flavor`; `Config.environment` falls back to `FLAVOR`)
 and deploys to Firebase Hosting site `my-foodsavr-store`
 (web app `1:514586238925:web:e562b8b85d97417f83ae84`). Pushes to `main` and
-manual runs deploy live; same-repo PRs get a 7-day preview channel. Missing
-`FIREBASE_SERVICE_ACCOUNT` or `FIREBASE_WEB_OPTIONS_B64`
-skips the deploy with a warning. The `RECAPTCHA_V3_SITE_KEY` Actions variable and `WEB_ENV_B64` are
-optional; `firebase_options.dart` stays untracked until App Check is enforced.
+manual runs deploy live; same-repo PRs get a 7-day preview channel. It signs in
+keylessly (Workload Identity Federation) and generates the web-only
+`firebase_options.dart` from the Firebase API at build time
+(`scripts/web/write_web_config.py`). Missing `GCP_WORKLOAD_IDENTITY_PROVIDER` or
+`GCP_DEPLOY_SERVICE_ACCOUNT` Actions variables skip the deploy with a warning.
+`RECAPTCHA_ENTERPRISE_SITE_KEY`, `ANDROID_APK_URL` (`/android` redirect) and the
+`WEB_ENV_B64` secret are optional.
 `WEB_ENV_B64` becomes `assets/.env`, which Hosting serves publicly.
+
+## Cloud infrastructure
+
+`infra/terraform` manages the GitHub deploy identity, web API key referrer
+restriction and App Check (reCAPTCHA Enterprise; enforcement `UNENFORCED` until
+every client is registered). Apply with `scripts/infra/apply.sh` (owner gcloud
+login; state in `gs://my-foodsavr-store-tfstate`); it also sets the Actions
+variables when `gh` is logged in.

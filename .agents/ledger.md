@@ -117,3 +117,5 @@ derived relational and full-text index.
 - 2026-11-20T23:03:29.266350+00:00 — Pushed `feature/firebase-hosting` and opened PR #239 (https://github.com/JoachimTislov/foodsavr/pull/239).
 
 - 2026-11-20T23:08:43.771168+00:00 — PR #239: renamed secret to `FIREBASE_SERVICE_ACCOUNT`; `RECAPTCHA_V3_SITE_KEY` now read from Actions variables (public site key).
+
+- 2026-11-20T23:39:54+00:00 — PR #239: added `infra/terraform` + `scripts/infra/apply.sh` (applied): WIF pool/provider, `github-hosting-deploy` SA, web API key referrer restriction, reCAPTCHA Enterprise key + App Check config (UNENFORCED). Hosting workflow now keyless; generates web config via `scripts/web/write_web_config.py`. App Check web switched v3→Enterprise (`RECAPTCHA_ENTERPRISE_SITE_KEY`); v3 rejected by API for new setups.

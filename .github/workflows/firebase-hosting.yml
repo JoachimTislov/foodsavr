@@ -2,13 +2,16 @@ name: Firebase Hosting
 
 # Builds the production-flavor web app and deploys it to Firebase Hosting
 # (my-foodsavr-store). Pushes to main go live; same-repo PRs get a 7-day
-# preview channel.
+# preview channel. Independent of the Android Drive/Play workflows.
+#
+# Auth is keyless (Workload Identity Federation, see infra/terraform).
+# Variables (set by scripts/infra/apply.sh):
+#   GCP_WORKLOAD_IDENTITY_PROVIDER  required to deploy (else skipped)
+#   GCP_DEPLOY_SERVICE_ACCOUNT      required to deploy (else skipped)
+#   RECAPTCHA_ENTERPRISE_SITE_KEY   optional; App Check web site key (public)
+#   ANDROID_APK_URL                 optional; /android redirects here
 # Secrets:
-#   FIREBASE_SERVICE_ACCOUNT  required to deploy (else skipped)
-#   FIREBASE_WEB_OPTIONS_B64  required to deploy (else skipped)
-#   WEB_ENV_B64               optional; assets/.env (served publicly)
-# Variables:
-#   RECAPTCHA_V3_SITE_KEY     optional; App Check web site key (public)
+#   WEB_ENV_B64                     optional; assets/.env (served publicly)
 
 on:
   push:
@@ -21,6 +24,7 @@ on:
       - "pubspec.lock"
       - "packages/**"
       - ".github/workflows/firebase-hosting.yml"
+      - "scripts/web/**"
   pull_request:
     branches: [main]
     paths:
@@ -31,6 +35,7 @@ on:
       - "pubspec.lock"
       - "packages/**"
       - ".github/workflows/firebase-hosting.yml"
+      - "scripts/web/**"
   workflow_dispatch:
 
 concurrency:
@@ -40,93 +45,97 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  PROJECT_ID: my-foodsavr-store
+  WEB_APP_ID: "1:514586238925:web:e562b8b85d97417f83ae84"
+  FIREBASE_TOOLS: firebase-tools@15
+
 jobs:
   deploy:
     name: Build and deploy to Firebase Hosting
+    # Fork PRs get no OIDC token; skip them.
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
-      checks: write
+      id-token: write
       pull-requests: write
     env:
-      HAS_DEPLOY_SECRETS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' && secrets.FIREBASE_WEB_OPTIONS_B64 != '' }}
+      HAS_DEPLOY_CONFIG: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && vars.GCP_DEPLOY_SERVICE_ACCOUNT != '' }}
     steps:
-      - name: Skip without deploy secrets
-        if: ${{ env.HAS_DEPLOY_SECRETS != 'true' }}
+      - name: Skip without deploy configuration
+        if: ${{ env.HAS_DEPLOY_CONFIG != 'true' }}
         run: |
-          echo "::warning::FIREBASE_SERVICE_ACCOUNT or FIREBASE_WEB_OPTIONS_B64 is missing; skipping Firebase Hosting deploy."
-          echo '⚠️ Firebase Hosting deploy skipped: deploy secrets are not configured.' >> "$GITHUB_STEP_SUMMARY"
+          echo "::warning::GCP_WORKLOAD_IDENTITY_PROVIDER or GCP_DEPLOY_SERVICE_ACCOUNT is missing; run scripts/infra/apply.sh. Skipping Firebase Hosting deploy."
+          echo '⚠️ Firebase Hosting deploy skipped: run scripts/infra/apply.sh.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Checkout code
-        if: ${{ env.HAS_DEPLOY_SECRETS == 'true' }}
+        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' }}
         uses: actions/checkout@v6
         with:
           persist-credentials: false
 
+      - name: Authenticate to Google Cloud (keyless)
+        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' }}
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
       - name: Set up Flutter
-        if: ${{ env.HAS_DEPLOY_SECRETS == 'true' }}
+        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' }}
         uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.47.6
           channel: stable
           cache: true
 
-      - name: Restore web configuration
-        if: ${{ env.HAS_DEPLOY_SECRETS == 'true' }}
+      - name: Generate web configuration
+        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' }}
         env:
-          FIREBASE_WEB_OPTIONS_B64: ${{ secrets.FIREBASE_WEB_OPTIONS_B64 }}
           WEB_ENV_B64: ${{ secrets.WEB_ENV_B64 }}
+          ANDROID_APK_URL: ${{ vars.ANDROID_APK_URL }}
         run: |
-          printf '%s' "$FIREBASE_WEB_OPTIONS_B64" | base64 --decode > lib/firebase_options.dart
+          npx -y "$FIREBASE_TOOLS" apps:sdkconfig WEB "$WEB_APP_ID" --project "$PROJECT_ID" --json \
+            | python3 scripts/web/write_web_config.py
           if [ -n "$WEB_ENV_B64" ]; then
             printf '%s' "$WEB_ENV_B64" | base64 --decode > assets/.env
           else
             echo "::warning::WEB_ENV_B64 is missing; deploying with an empty assets/.env."
             : > assets/.env
           fi
-          cat > firebase.json <<'EOF'
-          {
-            "hosting": {
-              "site": "my-foodsavr-store",
-              "public": "build/web",
-              "ignore": ["firebase.json", "**/node_modules/**"],
-              "rewrites": [{ "source": "**", "destination": "/index.html" }]
-            }
-          }
-          EOF
 
       - name: Build web
-        if: ${{ env.HAS_DEPLOY_SECRETS == 'true' }}
+        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' }}
         env:
-          RECAPTCHA_V3_SITE_KEY: ${{ vars.RECAPTCHA_V3_SITE_KEY }}
+          RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.RECAPTCHA_ENTERPRISE_SITE_KEY }}
         run: |
           flutter pub get
           dart run build_runner build --delete-conflicting-outputs
           flutter create . --platforms web
           defines=(--dart-define=FLAVOR=production)
-          if [ -n "$RECAPTCHA_V3_SITE_KEY" ]; then
-            defines+=("--dart-define=RECAPTCHA_V3_SITE_KEY=$RECAPTCHA_V3_SITE_KEY")
+          if [ -n "$RECAPTCHA_ENTERPRISE_SITE_KEY" ]; then
+            defines+=("--dart-define=RECAPTCHA_ENTERPRISE_SITE_KEY=$RECAPTCHA_ENTERPRISE_SITE_KEY")
           else
-            echo "::warning::RECAPTCHA_V3_SITE_KEY is missing; App Check uses a placeholder key."
+            echo "::warning::RECAPTCHA_ENTERPRISE_SITE_KEY is missing; App Check uses a placeholder key."
           fi
           flutter build web --release "${defines[@]}"
 
       - name: Deploy preview channel
-        if: ${{ env.HAS_DEPLOY_SECRETS == 'true' && github.event_name == 'pull_request' }}
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: my-foodsavr-store
-          expires: 7d
+        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          url=$(npx -y "$FIREBASE_TOOLS" hosting:channel:deploy "pr-$PR" --expires 7d \
+            --project "$PROJECT_ID" --json | python3 -c 'import json,sys; print(next(iter(json.load(sys.stdin)["result"].values()))["url"])')
+          echo "Preview: $url" | tee -a "$GITHUB_STEP_SUMMARY"
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --edit-last --create-if-none \
+            --body "🔥 Firebase Hosting preview (7 days): $url"
 
       - name: Deploy live
-        if: ${{ env.HAS_DEPLOY_SECRETS == 'true' && github.event_name != 'pull_request' }}
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: my-foodsavr-store
-          channelId: live
+        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' && github.event_name != 'pull_request' }}
+        run: |
+          npx -y "$FIREBASE_TOOLS" deploy --only hosting --project "$PROJECT_ID" --non-interactive
+          echo "Live: https://$PROJECT_ID.web.app" >> "$GITHUB_STEP_SUMMARY"
