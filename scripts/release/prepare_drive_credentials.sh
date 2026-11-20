@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+cloud_scope='https://www.googleapis.com/auth/cloud-platform'
 drive_scope='https://www.googleapis.com/auth/drive'
 output_path="${1:-$PWD/google-drive-oauth.json}"
 config_dir="${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}"
@@ -12,7 +13,7 @@ command -v gcloud >/dev/null || {
 }
 
 echo 'Opening Google OAuth with Drive write access...'
-gcloud auth application-default login --scopes="$drive_scope"
+gcloud auth application-default login --scopes="$cloud_scope,$drive_scope"
 
 python3 - "$adc_path" "$output_path" <<'PY'
 import json

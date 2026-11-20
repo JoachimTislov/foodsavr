@@ -47,7 +47,8 @@ features until the secret is supplied.
 To prepare the OAuth secret locally, run
 `bash scripts/release/prepare_drive_credentials.sh /path/to/google-drive-oauth.json`.
 The helper invokes `gcloud auth application-default login` with Drive write
-scope, validates the refresh token, writes the compact JSON with mode `0600`,
+scopes (`cloud-platform` and Drive), validates the refresh token, writes the
+compact JSON with mode `0600`,
 and prints only the output path. Copy that file's contents into the
 `GOOGLE_DRIVE_OAUTH_JSON` GitHub secret, then delete the local file when done.
 
