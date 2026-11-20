@@ -9,6 +9,13 @@ Absorbed from `.github/workflows/` @ 103a70f:
 - Duplicate-run avoidance: `scripts/ci/already_tested.sh` skips push-to-`main` runs of `ci-checks.yml` and `validation.yml` only when the pushed commit tree equals a merged PR head tree with a green run of the same workflow; builds still run on push (release artifacts). Workflows use per-PR concurrency with cancel-in-progress; `ci-checks.yml` path-filters PRs inside its gate job so its checks always report.
 - Default-branch ruleset requires PRs (rebase only), linear history, up-to-date branches and checks `Decide whether to run CI`, `Check & Test`, `Detect changed areas`, `Web smoke test`, `Android smoke test`.
 
+Workflow secrets fail gracefully. Missing `FIREBASE_OPTIONS_B64` creates a
+compile-only placeholder and records a warning instead of producing an opaque
+base64 or file error. Missing `CODECOV_TOKEN` skips the optional coverage upload
+with a warning. Missing Firestore rules already skips that optional validation
+with a warning. Release and Drive credentials remain explicit prerequisites;
+their jobs stop with a named missing-secret error before attempting a publish.
+
 ## Android delivery for manual testing
 
 After an Android build on `main`, `release-gated.yml` waits for successful
@@ -29,9 +36,13 @@ For a direct test install, use the manually dispatched `Android test APK to
 Google Drive` workflow. It builds the production flavor against the existing
 Firebase test project and uploads the APK directly to Drive. It does not upload
 an Actions artifact, publish to Play, or write an APK into the repository.
-The workflow requires only `GOOGLE_DRIVE_FOLDER_ID` and
-`GOOGLE_DRIVE_OAUTH_JSON`; it uses the debug signing key intended for direct
-test installation.
+The workflow requires `GOOGLE_DRIVE_FOLDER_ID` and
+`GOOGLE_DRIVE_OAUTH_JSON`. It uses the existing `FIREBASE_OPTIONS_B64` Actions
+secret for the Firebase test project, uses a generated non-secret Android build
+metadata file, and uses the debug signing key intended for direct test
+installation. If the Firebase secret is absent, the helper records a warning
+and produces a compile-only placeholder; the APK then cannot exercise Firebase
+features until the secret is supplied.
 
 To prepare the OAuth secret locally, run
 `bash scripts/release/prepare_drive_credentials.sh /path/to/google-drive-oauth.json`.

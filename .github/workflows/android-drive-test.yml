@@ -24,6 +24,7 @@ jobs:
     env:
       GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
       GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
+      FIREBASE_OPTIONS_B64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
     steps:
       - name: Check Drive configuration
         run: |
@@ -46,11 +47,30 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Restore existing Firebase test project configuration
+      - name: Restore Firebase test configuration
         run: |
-          test -s lib/firebase_options.dart || { echo '::error::Missing lib/firebase_options.dart'; exit 1; }
-          test -s android/app/google-services.json || { echo '::error::Missing android/app/google-services.json'; exit 1; }
-          test -s assets/.env || { echo '::error::Missing assets/.env'; exit 1; }
+          bash scripts/ci/write_firebase_options.sh
+          mkdir -p android/app/src/production/debug
+          cat > android/app/src/production/debug/google-services.json <<'EOF'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "ci-build",
+              "storage_bucket": "ci-build.firebasestorage.app"
+            },
+            "client": [{
+              "client_info": {
+                "mobilesdk_app_id": "1:000000000000:android:ci-build",
+                "android_client_info": {"package_name": "com.foodsavr.app"}
+              },
+              "oauth_client": [],
+              "api_key": [{"current_key": "ci-build-key"}],
+              "services": {}
+            }],
+            "configuration_version": "1"
+          }
+          EOF
+          touch assets/.env
 
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs

@@ -103,7 +103,9 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
       - name: Write firebase_options.dart
-        run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
+        env:
+          FIREBASE_OPTIONS_B64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
+        run: bash scripts/ci/write_firebase_options.sh
       - name: Write minimal .env
         run: echo 'CI_TEST=1' > assets/.env
       - name: Build generative code
@@ -190,7 +192,9 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
       - name: Write firebase_options.dart
-        run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
+        env:
+          FIREBASE_OPTIONS_B64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
+        run: bash scripts/ci/write_firebase_options.sh
       - name: Write minimal .env
         run: echo 'CI_TEST=1' > assets/.env
       - name: Build generative code
@@ -361,7 +365,9 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
       - name: Write firebase_options.dart
-        run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
+        env:
+          FIREBASE_OPTIONS_B64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
+        run: bash scripts/ci/write_firebase_options.sh
       - name: Write minimal .env
         run: echo 'CI_TEST=1' > assets/.env
       - name: Build generative code
@@ -470,7 +476,9 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
       - name: Write firebase_options.dart
-        run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
+        env:
+          FIREBASE_OPTIONS_B64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
+        run: bash scripts/ci/write_firebase_options.sh
       - name: Write minimal .env
         run: echo 'CI_TEST=1' > assets/.env
       - name: Build generative code
