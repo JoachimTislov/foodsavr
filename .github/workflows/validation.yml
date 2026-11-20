@@ -52,6 +52,12 @@ jobs:
             android:
               - 'lib/**'
               - 'android/**'
+              - '.github/workflows/android-delivery.yml'
+              - '.github/workflows/release-gated.yml'
+              - '.github/workflows/build-android.yml'
+              - 'scripts/release/**'
+              - 'scripts/ci/android_smoke.sh'
+              - 'packages/**'
               - 'pubspec.yaml'
               - 'pubspec.lock'
             integration:
@@ -217,29 +223,40 @@ jobs:
             "configuration_version": "1"
           }
           EOT
+      - name: Start Firebase emulators for the app
+        run: |
+          cat > firebase.json <<'EOT'
+          {"emulators":{"auth":{"port":9099},"firestore":{"port":8080},"ui":{"enabled":false}}}
+          EOT
+          npx -y firebase-tools@15 emulators:start --project demo-project > firebase-emulators.log 2>&1 &
+          ready=false
+          for i in $(seq 1 90); do
+            if curl -fsS http://localhost:9099/ >/dev/null && curl -s http://localhost:8080/ >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" != true ]; then cat firebase-emulators.log; exit 1; fi
       - name: Build development debug APK
-        run: flutter build apk --flavor development --debug
+        run: flutter build apk --flavor development --debug --dart-define=EMULATOR_HOST=10.0.2.2
       - name: Install, launch and verify APK on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
           arch: x86_64
           target: google_apis
-          script: |
-            set -e
-            adb install -r build/app/outputs/flutter-apk/app-development-debug.apk
-            adb shell am start -W -n com.foodsavr.app.development/com.foodsavr.app.MainActivity
-            adb wait-for-device
-            for i in $(seq 1 30); do adb shell pidof com.foodsavr.app.development > /dev/null && break; sleep 1; done
-            adb shell pidof com.foodsavr.app.development
-            for i in $(seq 1 30); do adb shell "dumpsys activity activities 2>/dev/null | grep -q 'ResumedActivity.*com.foodsavr.app.development/com.foodsavr.app.MainActivity'" && break; sleep 2; done; adb shell "dumpsys activity activities 2>/dev/null | grep -q 'ResumedActivity.*com.foodsavr.app.development/com.foodsavr.app.MainActivity'"
-            for i in $(seq 1 30); do adb shell "dumpsys window 2>/dev/null | grep -Eq '(mCurrentFocus|mFocusedApp).*com.foodsavr.app.development'" && break; sleep 2; done; adb shell "dumpsys window 2>/dev/null | grep -Eq '(mCurrentFocus|mFocusedApp).*com.foodsavr.app.development'"
-                        sleep 5
-            adb shell "dumpsys window windows 2>/dev/null | grep -E 'mCurrentFocus|mFocusedApp'" || true
-            adb logcat -d -t 200 | grep -iE 'flutter|foodsavr' | tail -30 || true
-            APP_PID=$(adb shell pidof com.foodsavr.app.development | tr -d '\r\n')
-            adb logcat -d --pid="$APP_PID" -s AndroidRuntime:E | (! grep -q 'FATAL EXCEPTION')
-            adb logcat -d --pid="$APP_PID" | grep -v 'FlutterJNI\|chromium\|eglCodecCommon' | (! grep -qi 'unhandled exception\|FATAL EXCEPTION')
+          script: bash scripts/ci/android_smoke.sh
+      - name: Upload emulator screenshots and video
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-visuals
+          path: |
+            artifacts/android-visuals/
+            firebase-emulators.log
+          if-no-files-found: warn
+          retention-days: 14
 
   firestore-rules:
     name: Firestore security rules

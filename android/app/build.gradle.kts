@@ -18,6 +18,24 @@ val envProperties = Properties().apply {
     }
 }
 
+val signingProperties = Properties().apply {
+    val signingFile = rootProject.file("key.properties")
+    if (signingFile.exists()) {
+        signingFile.inputStream().use { load(it) }
+    }
+}
+fun signingValue(name: String, environment: String): String? =
+    System.getenv(environment)?.takeIf { it.isNotBlank() }
+        ?: signingProperties.getProperty(name)?.takeIf { it.isNotBlank() }
+
+val releaseStoreFile = signingValue("storeFile", "ANDROID_KEYSTORE_PATH")
+val releaseStorePassword = signingValue("storePassword", "ANDROID_KEYSTORE_PASSWORD")
+val releaseKeyAlias = signingValue("keyAlias", "ANDROID_KEY_ALIAS")
+val releaseKeyPassword = signingValue("keyPassword", "ANDROID_KEY_PASSWORD")
+val releaseSigningConfigured = listOf(
+    releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword
+).all { it != null }
+
 android {
     namespace = "com.foodsavr.app"
     compileSdk = flutter.compileSdkVersion
@@ -77,13 +95,35 @@ android {
         }
     }
 
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            create("release") {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release")
 
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name == "preProductionReleaseBuild") {
+        doFirst {
+            check(releaseSigningConfigured) {
+                "Production releases require signing credentials in android/key.properties " +
+                    "or ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, " +
+                    "ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD."
+            }
         }
     }
 }
