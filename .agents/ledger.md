@@ -115,3 +115,5 @@ derived relational and full-text index.
 - 2026-11-20T23:02:21.068777+00:00 — Web hosting: deployed https://my-foodsavr-store.web.app (web app `1:514586238925:web:e562b8b85d97417f83ae84`); added `FLAVOR` dart-define fallback in `Config`, bumped `firebase_auth_web` 6.2.7→6.3.0 (web compile fix), added `firebase-hosting.yml` (live on main, PR previews, skips without secrets). `firebase_options.dart` kept untracked (App Check not yet active). Branch `feature/firebase-hosting` from `origin/main`.
 
 - 2026-11-20T23:03:29.266350+00:00 — Pushed `feature/firebase-hosting` and opened PR #239 (https://github.com/JoachimTislov/foodsavr/pull/239).
+
+- 2026-11-20T23:08:43.771168+00:00 — PR #239: renamed secret to `FIREBASE_SERVICE_ACCOUNT`; `RECAPTCHA_V3_SITE_KEY` now read from Actions variables (public site key).

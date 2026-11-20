@@ -2,11 +2,13 @@ name: Firebase Hosting
 
 # Builds the production-flavor web app and deploys it to Firebase Hosting
 # (my-foodsavr-store). Pushes to main go live; same-repo PRs get a 7-day
-# preview channel. Secrets:
-#   FIREBASE_SERVICE_ACCOUNT_MY_FOODSAVR_STORE  required to deploy (else skipped)
-#   FIREBASE_WEB_OPTIONS_B64                    required to deploy (else skipped)
-#   RECAPTCHA_V3_SITE_KEY                       optional; App Check web key
-#   WEB_ENV_B64                                 optional; assets/.env (served publicly)
+# preview channel.
+# Secrets:
+#   FIREBASE_SERVICE_ACCOUNT  required to deploy (else skipped)
+#   FIREBASE_WEB_OPTIONS_B64  required to deploy (else skipped)
+#   WEB_ENV_B64               optional; assets/.env (served publicly)
+# Variables:
+#   RECAPTCHA_V3_SITE_KEY     optional; App Check web site key (public)
 
 on:
   push:
@@ -49,12 +51,12 @@ jobs:
       checks: write
       pull-requests: write
     env:
-      HAS_DEPLOY_SECRETS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MY_FOODSAVR_STORE != '' && secrets.FIREBASE_WEB_OPTIONS_B64 != '' }}
+      HAS_DEPLOY_SECRETS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' && secrets.FIREBASE_WEB_OPTIONS_B64 != '' }}
     steps:
       - name: Skip without deploy secrets
         if: ${{ env.HAS_DEPLOY_SECRETS != 'true' }}
         run: |
-          echo "::warning::FIREBASE_SERVICE_ACCOUNT_MY_FOODSAVR_STORE or FIREBASE_WEB_OPTIONS_B64 is missing; skipping Firebase Hosting deploy."
+          echo "::warning::FIREBASE_SERVICE_ACCOUNT or FIREBASE_WEB_OPTIONS_B64 is missing; skipping Firebase Hosting deploy."
           echo '⚠️ Firebase Hosting deploy skipped: deploy secrets are not configured.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Checkout code
@@ -98,7 +100,7 @@ jobs:
       - name: Build web
         if: ${{ env.HAS_DEPLOY_SECRETS == 'true' }}
         env:
-          RECAPTCHA_V3_SITE_KEY: ${{ secrets.RECAPTCHA_V3_SITE_KEY }}
+          RECAPTCHA_V3_SITE_KEY: ${{ vars.RECAPTCHA_V3_SITE_KEY }}
         run: |
           flutter pub get
           dart run build_runner build --delete-conflicting-outputs
@@ -116,7 +118,7 @@ jobs:
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MY_FOODSAVR_STORE }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           projectId: my-foodsavr-store
           expires: 7d
 
@@ -125,6 +127,6 @@ jobs:
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MY_FOODSAVR_STORE }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           projectId: my-foodsavr-store
           channelId: live
