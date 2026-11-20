@@ -3,8 +3,8 @@
 Absorbed from `.github/workflows/` @ 103a70f:
 
 - `ci-checks.yml` — analyze, localization check, unit tests, coverage.
-- `build-web.yml` / `build-android.yml` — platform builds; Android emulator jobs pinned to `ubuntu-24.04` ahead of the Ubuntu 26 migration (#200/#189).
-- `validation.yml` — validation gates; `release-gated.yml` — release workflow (#145).
+- `build-web.yml` / `build-android.yml` — platform builds; Android emulator jobs pinned to `ubuntu-24.04` ahead of the Ubuntu 26 migration (#200/#189). Web builds produce an Actions artifact; GitHub Pages deployment is removed.
+- `validation.yml` — validation gates; `release-gated.yml` — release candidate workflow (#145).
 - For matching non-pull-request changes, Firestore rules are validated when the `FIRESTORE_RULES_B64` secret is configured; an unset secret emits a warning and skips validation. Rules themselves remain deliberately untracked (#165/#185).
 - Duplicate-run avoidance: `scripts/ci/already_tested.sh` skips push-to-`main` runs of `ci-checks.yml` and `validation.yml` only when the pushed commit tree equals a merged PR head tree with a green run of the same workflow; builds still run on push (release artifacts). Workflows use per-PR concurrency with cancel-in-progress; `ci-checks.yml` path-filters PRs inside its gate job so its checks always report.
 - Default-branch ruleset requires PRs (rebase only), linear history, up-to-date branches and checks `Decide whether to run CI`, `Check & Test`, `Detect changed areas`, `Web smoke test`, `Android smoke test`.
@@ -16,26 +16,14 @@ with a warning. Missing Firestore rules already skips that optional validation
 with a warning. Release and Drive credentials remain explicit prerequisites;
 their jobs stop with a named missing-secret error before attempting a publish.
 
-## Android delivery for manual testing
-
-After an Android build on `main`, `release-gated.yml` waits for successful
-CI, Validation, and Android Build runs for that commit. Missing, failed,
-cancelled, or timed-out checks block delivery. The latest push run wins over
-an earlier success. The existing identical-tree optimization can reuse green
-PR verification through the corresponding successful push workflow.
-
-`android-delivery.yml` builds a signed production-flavor APK and Android App
-Bundle from the verified commit. The APK goes into an existing Google Drive
-folder; the bundle goes to Google Play's **internal** track. These uploads run
-independently after the build, so a Drive failure doesn't prevent a Play upload.
-The signed files and checksums also remain in GitHub Actions for 30 days.
-Missing configuration fails the affected job instead of silently skipping it.
-This replaces the optional Firebase App Distribution step for Android.
+## Android test APK for manual testing
 
 For a direct test install, use the manually dispatched `Android test APK to
 Google Drive` workflow. It builds the production flavor against the existing
 Firebase test project and uploads the APK directly to Drive. It does not upload
-an Actions artifact, publish to Play, or write an APK into the repository.
+an Actions artifact, publish to Play, or write an APK into the repository. The
+automatic Android delivery workflow and Play internal deployment have been
+removed.
 The workflow requires `GOOGLE_DRIVE_FOLDER_ID` and
 `GOOGLE_DRIVE_OAUTH_JSON`. It uses the existing `FIREBASE_OPTIONS_B64` Actions
 secret for the Firebase test project, uses a generated non-secret Android build

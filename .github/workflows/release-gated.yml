@@ -2,7 +2,7 @@ name: Release (Gated)
 
 on:
   workflow_run:
-    workflows: ["Android Build", "Web Build"]
+    workflows: ["Web Build"]
     types: [completed]
 
 permissions:
@@ -19,7 +19,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 115
     outputs:
-      release_android: ${{ steps.evaluate.outputs.release_android }}
       release_web: ${{ steps.evaluate.outputs.release_web }}
     steps:
       - uses: actions/checkout@v6
@@ -32,15 +31,6 @@ jobs:
         with:
           script: |
             await require('./scripts/release/release_gate.cjs').evaluate({github, context, core});
-
-  release-android:
-    name: Deliver Android for testing
-    needs: gate
-    if: needs.gate.outputs.release_android == 'true'
-    uses: ./.github/workflows/android-delivery.yml
-    with:
-      commit: ${{ github.event.workflow_run.head_sha }}
-    secrets: inherit
 
   release-web:
     name: Release Web candidate
