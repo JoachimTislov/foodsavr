@@ -26,11 +26,12 @@ automatic Android delivery workflow and Play internal deployment have been
 removed.
 The workflow requires `GOOGLE_DRIVE_FOLDER_ID` and
 `GOOGLE_DRIVE_OAUTH_JSON`. It uses the existing `FIREBASE_OPTIONS_B64` Actions
-secret for the Firebase test project, uses a generated non-secret Android build
-metadata file, and uses the debug signing key intended for direct test
-installation. If the Firebase secret is absent, the helper records a warning
-and produces a compile-only placeholder; the APK then cannot exercise Firebase
-features until the secret is supplied.
+secret for the Firebase test project and derives the matching native Android
+configuration from it. `ANDROID_ENV_B64` may provide the bundled runtime
+configuration; when absent, the workflow uses non-secret API endpoint defaults.
+The Drive job requires the Firebase secret because a compile-only placeholder
+would not be a usable remote-backend APK. It uses the debug signing key
+intended for direct test installation.
 
 The existing remote Firebase project is the test environment; a production
 backend will be added later. Supply that existing project's files for
