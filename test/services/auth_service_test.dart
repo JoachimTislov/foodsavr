@@ -21,6 +21,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(FakeAuthCredential());
     registerFallbackValue(Uri());
+    registerFallbackValue(GoogleAuthProvider());
   });
 
   setUp(() {
@@ -31,15 +32,81 @@ void main() {
     mockUserCredential = MockUserCredential();
     mockCollectionService = MockCollectionService();
     mockLogger = MockLogger();
+    when(() => mockGoogleSignIn.initialize()).thenAnswer((_) async {});
     authService = AuthService(
       mockFirebaseAuth,
       googleSignIn: mockGoogleSignIn,
       facebookAuth: mockFacebookAuth,
       supportsPersistence: true,
+      isWeb: false,
       firestore: mockFirestore,
       collectionService: mockCollectionService,
       logger: mockLogger,
     );
+  });
+
+  group('AuthService on web', () {
+    late AuthService webAuthService;
+
+    setUp(() {
+      webAuthService = AuthService(
+        mockFirebaseAuth,
+        googleSignIn: mockGoogleSignIn,
+        facebookAuth: mockFacebookAuth,
+        supportsPersistence: true,
+        isWeb: true,
+        firestore: mockFirestore,
+        collectionService: mockCollectionService,
+        logger: mockLogger,
+      );
+      when(
+        () => mockFirebaseAuth.signInWithPopup(any()),
+      ).thenAnswer((_) async => mockUserCredential);
+    });
+
+    test('signInWithGoogle uses the Firebase popup', () async {
+      final result = await webAuthService.signInWithGoogle();
+
+      expect(result, mockUserCredential);
+      final provider =
+          verify(
+                () => mockFirebaseAuth.signInWithPopup(captureAny()),
+              ).captured.single
+              as AuthProvider;
+      expect(provider.providerId, GoogleAuthProvider.PROVIDER_ID);
+      verifyNever(() => mockGoogleSignIn.initialize());
+      verifyNever(() => mockGoogleSignIn.authenticate());
+    });
+
+    test('signInWithFacebook uses the Firebase popup', () async {
+      final result = await webAuthService.signInWithFacebook();
+
+      expect(result, mockUserCredential);
+      final provider =
+          verify(
+                () => mockFirebaseAuth.signInWithPopup(captureAny()),
+              ).captured.single
+              as AuthProvider;
+      expect(provider.providerId, FacebookAuthProvider.PROVIDER_ID);
+      verifyNever(() => mockFacebookAuth.login());
+    });
+
+    test('closing the popup maps to an aborted sign-in', () async {
+      when(
+        () => mockFirebaseAuth.signInWithPopup(any()),
+      ).thenThrow(FirebaseAuthException(code: 'popup-closed-by-user'));
+
+      expect(
+        () => webAuthService.signInWithGoogle(),
+        throwsA(
+          isA<FirebaseAuthException>().having(
+            (e) => e.code,
+            'code',
+            'ERROR_ABORTED_BY_USER',
+          ),
+        ),
+      );
+    });
   });
 
   group('AuthService', () {
@@ -260,7 +327,10 @@ void main() {
       final result = await authService.signInWithGoogle();
 
       expect(result, mockUserCredential);
-      verify(() => mockGoogleSignIn.authenticate()).called(1);
+      verifyInOrder([
+        () => mockGoogleSignIn.initialize(),
+        () => mockGoogleSignIn.authenticate(),
+      ]);
       verify(() => mockFirebaseAuth.signInWithCredential(any())).called(1);
     });
 
