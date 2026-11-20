@@ -113,3 +113,5 @@ derived relational and full-text index.
 | 2026-10-03 | PR #170 (`vibe/ci-path-filters-71b359`): added CI path narrowing (`assets/translations/**`, `pubspec.lock`, `analysis_options.yaml`) and a `gate` job that skips push runs only for GitHub PR merge commits; fixed CodeRabbit/Copilot findings (`pubspec.lock` paths, PR-merge-only skip); replied to all threads. Draft, ready for re-review. |
 
 - 2026-11-20T23:02:21.068777+00:00 — Web hosting: deployed https://my-foodsavr-store.web.app (web app `1:514586238925:web:e562b8b85d97417f83ae84`); added `FLAVOR` dart-define fallback in `Config`, bumped `firebase_auth_web` 6.2.7→6.3.0 (web compile fix), added `firebase-hosting.yml` (live on main, PR previews, skips without secrets). `firebase_options.dart` kept untracked (App Check not yet active). Branch `feature/firebase-hosting` from `origin/main`.
+
+- 2026-11-20T23:03:29.266350+00:00 — Pushed `feature/firebase-hosting` and opened PR #239 (https://github.com/JoachimTislov/foodsavr/pull/239).
