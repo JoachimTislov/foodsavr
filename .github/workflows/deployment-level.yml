@@ -1,0 +1,184 @@
+name: Deployment level
+
+# Deployment levels (ADR 0005, specs/source-of-truth/deployment-levels.md).
+# - pull_request: validate deploy/ manifests and test packages/foodsavr_deploy.
+# - schedule / workflow_dispatch: poll usage of every cloud environment in
+#   deploy/instance.yaml against its current level's limits (KEDA-style
+#   triggers) and keep ONE open issue labelled `deployment-level` up to date
+#   while any environment recommends warn or promote.
+# Recommend-only: nothing here changes infrastructure, billing or levels.
+# A future gated `promote` job would run `levels plan` + apply.sh behind a
+# GitHub Environment with required reviewers (ADR 0003); it does not exist.
+#
+# Variables per environment (production plain, others suffixed, e.g.
+# GCP_DEPLOY_SERVICE_ACCOUNT_STAGING; set by scripts/infra/apply.sh):
+#   GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_DEPLOY_SERVICE_ACCOUNT — polling is
+#   skipped with a warning when missing. The deploy service account needs
+#   roles/monitoring.viewer and roles/firebaseauth.viewer (infra/terraform).
+
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "deploy/**"
+      - "packages/foodsavr_deploy/**"
+      - ".github/workflows/deployment-level.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: packages/foodsavr_deploy
+
+jobs:
+  check:
+    name: Validate manifests and test levels CLI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      environments: ${{ steps.envs.outputs.json }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+      - run: dart format --output=none --set-exit-if-changed .
+      - run: dart analyze --fatal-infos
+      - run: dart test
+      - name: Validate manifests
+        run: |
+          for m in ../../deploy/instance.yaml ../../deploy/examples/*.yaml; do
+            dart run bin/levels.dart validate "$m"
+          done
+      - name: List cloud environments
+        id: envs
+        run: echo "json=$(dart run bin/levels.dart environments --cloud --json)" >> "$GITHUB_OUTPUT"
+
+  poll:
+    name: Poll ${{ matrix.env.name }}
+    needs: check
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        env: ${{ fromJSON(needs.check.outputs.environments) }}
+    env:
+      ENV_NAME: ${{ matrix.env.name }}
+      WIF_PROVIDER: ${{ vars[format('GCP_WORKLOAD_IDENTITY_PROVIDER{0}', matrix.env.varSuffix)] }}
+      DEPLOY_SA: ${{ vars[format('GCP_DEPLOY_SERVICE_ACCOUNT{0}', matrix.env.varSuffix)] }}
+    steps:
+      - name: Skip without deploy configuration
+        if: ${{ env.WIF_PROVIDER == '' || env.DEPLOY_SA == '' }}
+        working-directory: .
+        run: |
+          echo "::warning::Workload Identity variables missing for $ENV_NAME; run ENV=$ENV_NAME scripts/infra/apply.sh. Skipping poll."
+          echo "Poll skipped for $ENV_NAME: no Workload Identity variables." >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v6
+        if: ${{ env.WIF_PROVIDER != '' && env.DEPLOY_SA != '' }}
+        with:
+          persist-credentials: false
+
+      - uses: dart-lang/setup-dart@v1
+        if: ${{ env.WIF_PROVIDER != '' && env.DEPLOY_SA != '' }}
+
+      - name: Authenticate to Google Cloud (keyless)
+        id: auth
+        if: ${{ env.WIF_PROVIDER != '' && env.DEPLOY_SA != '' }}
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SA }}
+          token_format: access_token
+
+      - name: Restore poll state
+        if: ${{ env.WIF_PROVIDER != '' && env.DEPLOY_SA != '' }}
+        uses: actions/cache@v4
+        with:
+          path: .deployment-level/${{ matrix.env.name }}
+          key: deployment-level-${{ matrix.env.name }}-${{ github.run_id }}
+          restore-keys: deployment-level-${{ matrix.env.name }}-
+
+      - name: Poll
+        if: ${{ env.WIF_PROVIDER != '' && env.DEPLOY_SA != '' }}
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          dart pub get
+          state="$GITHUB_WORKSPACE/.deployment-level/$ENV_NAME/state.json"
+          dart run bin/levels.dart poll --env "$ENV_NAME" --state "$state" \
+            --summary "$RUNNER_TEMP/summary.md" --json > "$RUNNER_TEMP/poll.json"
+          cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p "$RUNNER_TEMP/out"
+          cp "$RUNNER_TEMP/poll.json" "$RUNNER_TEMP/out/$ENV_NAME.json"
+          cp "$RUNNER_TEMP/summary.md" "$RUNNER_TEMP/out/$ENV_NAME.md"
+
+      - name: Upload result
+        if: ${{ env.WIF_PROVIDER != '' && env.DEPLOY_SA != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-level-${{ matrix.env.name }}
+          path: ${{ runner.temp }}/out/
+
+  report:
+    name: Update deployment-level issue
+    needs: poll
+    if: ${{ always() && github.event_name != 'pull_request' && needs.poll.result != 'cancelled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: deployment-level-*
+          merge-multiple: true
+          path: results
+      - name: Open or update the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          shopt -s nullglob
+          files=(results/*.json)
+          [ ${#files[@]} -gt 0 ] || { echo "No poll results."; exit 0; }
+          alert=false
+          {
+            echo "Recommend-only report from the [Deployment level workflow]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID). Act via \`levels plan\` and an owner-approved manifest change (ADR 0005)."
+            echo
+            for f in "${files[@]}"; do
+              action=$(jq -r .recommendation.action "$f")
+              case "$action" in warn|promote) alert=true ;; esac
+              cat "${f%.json}.md"
+              echo
+            done
+          } > body.md
+          number=$(gh issue list --label deployment-level --state open --json number --jq '.[0].number // empty')
+          if [ "$alert" != true ]; then
+            echo "No environment recommends warn or promote."
+            [ -n "$number" ] && gh issue comment "$number" --body "All environments back within limits; see run $GITHUB_RUN_ID."
+            exit 0
+          fi
+          gh label create deployment-level --color FBCA04 --description "Deployment level recommendations (ADR 0005)" 2>/dev/null || true
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --body-file body.md
+          else
+            gh issue create --title "Deployment level recommendation" --label deployment-level --body-file body.md
+          fi

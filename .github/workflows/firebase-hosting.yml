@@ -1,10 +1,13 @@
 name: Firebase Hosting
 
-# Builds the production-flavor web app and deploys it to Firebase Hosting
-# (my-foodsavr-store). Pushes to main go live. Previews are manual only:
-# Actions -> Firebase Hosting -> Run workflow on a branch (target: preview)
-# deploys a short-lived channel (default 4h) named after the branch and
-# comments on its PR.
+# Builds the web app for one environment (flavor) of deploy/instance.yaml and
+# deploys it to that environment's Firebase Hosting site. Project, web app,
+# site and FLAVOR come from the manifest (`levels env`), so forks only edit
+# the manifest. Pushes to main deploy production live. Previews are manual
+# only: Actions -> Firebase Hosting -> Run workflow on a branch (target:
+# preview) deploys a short-lived channel (default 4h) named after the branch
+# and comments on its PR; environment `auto` picks staging when the manifest
+# declares a cloud staging environment, else production.
 # Independent of the Android Drive/Play workflows.
 #
 # Storage budget (scripts/web/hosting_storage_guard.py, before each deploy):
@@ -13,7 +16,8 @@ name: Firebase Hosting
 # latest to stay under 10 GB.
 #
 # Auth is keyless (Workload Identity Federation, see infra/terraform).
-# Variables (set by scripts/infra/apply.sh):
+# Variables (set by scripts/infra/apply.sh; non-production environments use
+# a suffix, e.g. GCP_DEPLOY_SERVICE_ACCOUNT_STAGING):
 #   GCP_WORKLOAD_IDENTITY_PROVIDER  required to deploy (else skipped)
 #   GCP_DEPLOY_SERVICE_ACCOUNT      required to deploy (else skipped)
 #   RECAPTCHA_ENTERPRISE_SITE_KEY   optional; App Check web site key (public)
@@ -33,6 +37,7 @@ on:
       - "packages/**"
       - ".github/workflows/firebase-hosting.yml"
       - "scripts/web/**"
+      - "deploy/instance.yaml"
   workflow_dispatch:
     inputs:
       target:
@@ -40,6 +45,11 @@ on:
         type: choice
         options: [preview, live]
         default: preview
+      environment:
+        description: "Environment (flavor); auto = staging for previews if declared, else production"
+        type: choice
+        options: [auto, production, staging, test]
+        default: auto
       expires:
         description: "Preview lifetime (e.g. 2h, 12h, 1d; max 30d)"
         type: string
@@ -53,13 +63,50 @@ permissions:
   contents: read
 
 env:
-  PROJECT_ID: my-foodsavr-store
-  WEB_APP_ID: "1:514586238925:web:e562b8b85d97417f83ae84"
   FIREBASE_TOOLS: firebase-tools@15
+  TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'live' }}
 
 jobs:
+  resolve:
+    name: Resolve environment from deploy/instance.yaml
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      flavor: ${{ steps.env.outputs.FLAVOR }}
+      suffix: ${{ steps.env.outputs.VAR_SUFFIX }}
+      project_id: ${{ steps.env.outputs.PROJECT_ID }}
+      web_app_id: ${{ steps.env.outputs.WEB_APP_ID }}
+      site_id: ${{ steps.env.outputs.SITE_ID }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Resolve environment
+        id: env
+        working-directory: packages/foodsavr_deploy
+        env:
+          REQUESTED: ${{ inputs.environment || 'auto' }}
+        run: |
+          dart pub get
+          env_name="$REQUESTED"
+          if [ "$env_name" = auto ]; then
+            env_name=production
+            if [ "$TARGET" = preview ] && dart run bin/levels.dart environments --cloud | grep -q '^staging '; then
+              env_name=staging
+            fi
+          fi
+          dart run bin/levels.dart env --env "$env_name" --format github | tee -a "$GITHUB_OUTPUT"
+          grep -q '^PROJECT_ID=' "$GITHUB_OUTPUT" || { echo "::error::$env_name has no cloud (Firebase) identity"; exit 1; }
+          echo "Environment: $env_name" >> "$GITHUB_STEP_SUMMARY"
+
   deploy:
     name: Build and deploy to Firebase Hosting
+    needs: resolve
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -67,13 +114,18 @@ jobs:
       id-token: write
       pull-requests: write
     env:
-      HAS_DEPLOY_CONFIG: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && vars.GCP_DEPLOY_SERVICE_ACCOUNT != '' }}
-      TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'live' }}
+      PROJECT_ID: ${{ needs.resolve.outputs.project_id }}
+      WEB_APP_ID: ${{ needs.resolve.outputs.web_app_id }}
+      SITE_ID: ${{ needs.resolve.outputs.site_id }}
+      FLAVOR: ${{ needs.resolve.outputs.flavor }}
+      WIF_PROVIDER: ${{ vars[format('GCP_WORKLOAD_IDENTITY_PROVIDER{0}', needs.resolve.outputs.suffix)] }}
+      DEPLOY_SA: ${{ vars[format('GCP_DEPLOY_SERVICE_ACCOUNT{0}', needs.resolve.outputs.suffix)] }}
+      HAS_DEPLOY_CONFIG: ${{ vars[format('GCP_WORKLOAD_IDENTITY_PROVIDER{0}', needs.resolve.outputs.suffix)] != '' && vars[format('GCP_DEPLOY_SERVICE_ACCOUNT{0}', needs.resolve.outputs.suffix)] != '' }}
     steps:
       - name: Skip without deploy configuration
         if: ${{ env.HAS_DEPLOY_CONFIG != 'true' }}
         run: |
-          echo "::warning::GCP_WORKLOAD_IDENTITY_PROVIDER or GCP_DEPLOY_SERVICE_ACCOUNT is missing; run scripts/infra/apply.sh. Skipping Firebase Hosting deploy."
+          echo "::warning::GCP_WORKLOAD_IDENTITY_PROVIDER/GCP_DEPLOY_SERVICE_ACCOUNT (suffix '${{ needs.resolve.outputs.suffix }}') missing; run ENV=$FLAVOR scripts/infra/apply.sh. Skipping Firebase Hosting deploy."
           echo '⚠️ Firebase Hosting deploy skipped: run scripts/infra/apply.sh.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Checkout code
@@ -86,8 +138,8 @@ jobs:
         if: ${{ env.HAS_DEPLOY_CONFIG == 'true' }}
         uses: google-github-actions/auth@v3
         with:
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SA }}
 
       - name: Set up Flutter
         if: ${{ env.HAS_DEPLOY_CONFIG == 'true' }}
@@ -115,12 +167,12 @@ jobs:
       - name: Build web
         if: ${{ env.HAS_DEPLOY_CONFIG == 'true' }}
         env:
-          RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.RECAPTCHA_ENTERPRISE_SITE_KEY }}
+          RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars[format('RECAPTCHA_ENTERPRISE_SITE_KEY{0}', needs.resolve.outputs.suffix)] }}
         run: |
           flutter pub get
           dart run build_runner build --delete-conflicting-outputs
           flutter create . --platforms web
-          defines=(--dart-define=FLAVOR=production)
+          defines=("--dart-define=FLAVOR=$FLAVOR")
           if [ -n "$RECAPTCHA_ENTERPRISE_SITE_KEY" ]; then
             defines+=("--dart-define=RECAPTCHA_ENTERPRISE_SITE_KEY=$RECAPTCHA_ENTERPRISE_SITE_KEY")
           else
@@ -166,4 +218,4 @@ jobs:
         if: ${{ env.HAS_DEPLOY_CONFIG == 'true' && env.TARGET == 'live' }}
         run: |
           npx -y "$FIREBASE_TOOLS" deploy --only hosting --project "$PROJECT_ID" --non-interactive
-          echo "Live: https://$PROJECT_ID.web.app" >> "$GITHUB_STEP_SUMMARY"
+          echo "Live ($FLAVOR): https://$SITE_ID.web.app" >> "$GITHUB_STEP_SUMMARY"
