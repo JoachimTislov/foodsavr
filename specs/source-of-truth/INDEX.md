@@ -10,8 +10,9 @@ This folder is the canonical spec of FoodSavr (#212). Code and existing docs are
 4. [integrations.md](integrations.md) — per-source ingestion contracts
 5. [mcp-server.md](mcp-server.md) — remote MCP tools and shared package
 6. [qa-testing.md](qa-testing.md) and [ci-workflows.md](ci-workflows.md) — quality gates
-7. [status.md](status.md) — built vs spec'd vs unbuilt, and the session ledger
-8. [decisions/](decisions/) — ADRs
+7. [deployment-levels.md](deployment-levels.md) — levels ladder, environments, triggers, bootstrap
+8. [status.md](status.md) — built vs spec'd vs unbuilt, and the session ledger
+9. [decisions/](decisions/) — ADRs
 
 Shaped artifacts (authoritative where they exist, per ADR 0004): [schemas/](schemas/) and [registries/](registries/services.yaml) — mechanically validated against code (registry anchors; schema properties vs anchored model fields, in both directions) by `scripts/ci/check_shape_sync.dart` in CI. [contracts/](contracts/mcp-tools.yaml) are spec-ahead and not validated by that checker.
 

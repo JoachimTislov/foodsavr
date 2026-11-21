@@ -2,7 +2,8 @@
 """Write web-only lib/firebase_options.dart and firebase.json for Hosting.
 
 stdin: `firebase apps:sdkconfig WEB <appId> --json` output.
-env:   ANDROID_APK_URL (optional) -> /android redirect.
+env:   ANDROID_APK_URL (optional) -> /android redirect; SITE_ID (optional,
+       defaults to the projectId).
 """
 
 import json
@@ -42,7 +43,7 @@ def main():
         )
 
     hosting = {
-        "site": config["projectId"],
+        "site": os.environ.get("SITE_ID") or config["projectId"],
         "public": "build/web",
         "ignore": ["firebase.json", "**/node_modules/**"],
         "rewrites": [{"source": "**", "destination": "/index.html"}],

@@ -98,3 +98,10 @@ core_package:
     - shelf_life
     - confidence_gate
     - pipeline
+
+deploy_tooling:
+  - id: foodsavr_deploy
+    anchor: packages/foodsavr_deploy
+    domain: deployment-levels
+    status: built
+    description: Deployment levels CLI (validate/plan/poll/env) over deploy/instance.yaml; recommend-only (ADR 0005)

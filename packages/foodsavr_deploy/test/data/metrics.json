@@ -1,0 +1,7 @@
+{
+  "auth-users": 2400,
+  "firestore-reads": 12000,
+  "firestore-writes": 1500,
+  "firestore-deletes": 40,
+  "hosting-storage": 0.03
+}
