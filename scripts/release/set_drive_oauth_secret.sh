@@ -11,7 +11,7 @@ command -v curl >/dev/null || { echo 'curl is required.' >&2; exit 1; }
 
 adc_path="${CLOUDSDK_CONFIG:-${HOME}/.config/gcloud}/application_default_credentials.json"
 repo="${GH_REPO:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}"
-expected_account="${GOOGLE_DRIVE_ACCOUNT:-${1:-}}"
+expected_account="${GOOGLE_DRIVE_ACCOUNT:-}"
 
 if [ ! -r "$adc_path" ]; then
   echo "Application Default Credentials not found: $adc_path" >&2
