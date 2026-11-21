@@ -132,3 +132,4 @@ derived relational and full-text index.
   git diff --check passed. Local browser execution unavailable: no build/web and
   no Auth emulator listening on localhost:9099. Committed/pushed focused fix and
   opened PR; full browser validation delegated to existing CI (pending).
+2026-11-21 PR #258: addressed CodeRabbit startup assertion finding by waiting for Quick Actions content before checking captured errors. Playwright discovers 10 tests; browser execution remains CI-owned.
