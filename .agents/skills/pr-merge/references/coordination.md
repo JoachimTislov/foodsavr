@@ -6,7 +6,7 @@ work but does not deliver messages to a running harness.
 
 ## Establish coordination authority
 
-First discover whether the task already has a running, reachable main agent,
+First discover whether the task already has an owning main agent,
 orchestrator, or conductor. Confirm its role from the task/session context
 and live response; a name or old session record is insufficient. Send it the
 objective, proposed investigation, affected PRs, and intended merge scope.
@@ -14,7 +14,7 @@ Agree responsibilities and report findings there. The coordinator resolves
 cross-session priorities and owns escalation to the human. Another agent
 does not independently widen the research or ask the human the same question.
 
-When no coordinator is running and available, the following peer protocol
+When no coordinator retains the scope, the following peer protocol
 provides alignment: announce the proposed scope to affected active owners,
 agree one merge owner per base/stack, exchange revision-bound readiness or
 holds, and serialize agreed actions. Continue independent work while a
@@ -27,6 +27,19 @@ Escalate to the human only for an unresolved decision requiring human intent
 or authority, after checking the available coordinator and relevant evidence.
 Preserve direct user stop/correction requests and required approvals. A
 coordinator's agreement cannot supply authority that the human has reserved.
+
+A completed provider turn is not a completed coordination task. A session
+watching PRs, awaiting CI/reviews or delegated work, or promising to resume on
+an event retains ownership even when its thread/run status is `completed` or
+`idle`. Consult its latest plan, outstanding commitments, and handoff record.
+End ownership through explicit release, agreed transfer, or verified task
+completion, rather than a timeout or lack of a currently running process.
+Keep existing acceptance requirements, such as final-head parity signoff,
+until the authorized owner or human explicitly changes them.
+
+If that owner cannot currently receive messages, record the attempted handoff
+and hold its affected PRs. Continue independent work without taking over its
+scope or sending duplicate requests to the human.
 
 ## Discover owners
 
