@@ -56,6 +56,11 @@ class PlanTest(unittest.TestCase):
         bot.rebase_requested = NOW - timedelta(hours=2)
         self.assertEqual(actions([bot, pr(2, state="BEHIND")]), [("update", 1)])
 
+    def test_refused_dependabot_rebase_blocks_only_that_pr(self):
+        refused = pr(1, state="BEHIND", author="dependabot", bot=True, rebase_refused=True,
+                     rebase_requested=NOW - timedelta(minutes=5))
+        self.assertEqual(actions([refused, pr(2, state="BEHIND")]), [("update", 2)])
+
     def test_human_named_dependabot_is_not_dependabot(self):
         fork = pr(1, labels=(), author="dependabot", fork=True, title="bump a from 1.0.0 to 1.0.1")
         self.assertEqual(actions([fork]), [])
@@ -90,10 +95,14 @@ class ParseTest(unittest.TestCase):
                 {"__typename": "CheckRun", "name": gate.GATE_CHECK, "status": "IN_PROGRESS", "conclusion": None},
                 {"__typename": "StatusContext", "context": "x", "state": "SUCCESS"}]}}}}]},
             "timelineItems": {"nodes": [{"label": {"name": "other"}}]},
-            "comments": {"nodes": [{"body": "@dependabot rebase", "createdAt": "2026-11-21T11:00:00Z"}]},
+            "comments": {"nodes": [
+                {"body": "@dependabot rebase", "createdAt": "2026-11-21T11:00:00Z", "author": {"login": "owner"}},
+                {"body": "Looks like this PR has been edited by someone other than Dependabot.",
+                 "createdAt": "2026-11-21T11:00:05Z", "author": {"login": "dependabot"}}]},
         }
         p = gate.from_node(node)
-        self.assertEqual((p.open_threads, p.label_removed, p.dependabot, p.rollup), (1, False, True, "SUCCESS"))
+        self.assertEqual((p.open_threads, p.label_removed, p.dependabot, p.rollup, p.rebase_refused),
+                         (1, False, True, "SUCCESS", True))
         self.assertEqual(p.rebase_requested, datetime(2026, 11, 21, 11, 0, tzinfo=timezone.utc))
 
 

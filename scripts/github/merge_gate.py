@@ -26,6 +26,7 @@ DEPENDABOT = "dependabot"
 GATE_CHECK = "Integrate ready PRs"  # this workflow's own job; never waits on itself
 FAILED = {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"}
 REBASE_COMMAND = "@dependabot rebase"
+REFUSAL = re.compile(r"can't rebase|cannot rebase|edited by someone other than Dependabot", re.IGNORECASE)
 STALL_AFTER = timedelta(minutes=60)
 REBASE_WAIT = timedelta(minutes=30)
 ONE_WAY = re.compile(r"\*\*Door:\*\*\s*one-way", re.IGNORECASE)
@@ -51,7 +52,7 @@ query($owner: String!, $name: String!, $cursor: String) {
         timelineItems(itemTypes: [UNLABELED_EVENT], last: 50) {
           nodes { ... on UnlabeledEvent { label { name } } }
         }
-        comments(last: 20) { nodes { body createdAt } }
+        comments(last: 20) { nodes { body createdAt author { login } } }
       }
     }
   }
@@ -78,6 +79,7 @@ class PR:
     open_threads: int = 0
     label_removed: bool = False
     rebase_requested: datetime | None = None
+    rebase_refused: bool = False
 
     @property
     def dependabot(self) -> bool:
@@ -125,10 +127,10 @@ def from_node(node: dict[str, Any]) -> PR:
     commit = (node["commits"]["nodes"] or [{}])[0].get("commit", {})
     rollup = rollup_state(((commit.get("statusCheckRollup") or {}).get("contexts") or {}).get("nodes", []))
     head_time = parse_time(commit["committedDate"]) if commit.get("committedDate") else datetime.now(timezone.utc)
-    requested = [
-        parse_time(c["createdAt"]) for c in node["comments"]["nodes"]
-        if c["body"].strip() == REBASE_COMMAND
-    ]
+    comments = node["comments"]["nodes"]
+    requested = [parse_time(c["createdAt"]) for c in comments if c["body"].strip() == REBASE_COMMAND]
+    refused = [parse_time(c["createdAt"]) for c in comments
+               if (c.get("author") or {}).get("login") == DEPENDABOT and REFUSAL.search(c["body"])]
     return PR(
         number=node["number"],
         node_id=node["id"],
@@ -147,6 +149,7 @@ def from_node(node: dict[str, Any]) -> PR:
         open_threads=sum(1 for t in node["reviewThreads"]["nodes"] if not t["isResolved"] and not t["isOutdated"]),
         label_removed=any((n.get("label") or {}).get("name") == LABEL for n in node["timelineItems"]["nodes"]),
         rebase_requested=max(requested) if requested else None,
+        rebase_refused=bool(refused and requested and max(refused) >= max(requested)),
     )
 
 
@@ -164,6 +167,8 @@ def blocker(pr: PR) -> str | None:
         return "changes requested"
     if pr.open_threads:
         return f"{pr.open_threads} unresolved review thread(s)"
+    if pr.dependabot and pr.rebase_refused and pr.merge_state == "BEHIND":
+        return "Dependabot refused to rebase (branch edited); owner decides on @dependabot recreate"
     if pr.rollup == "FAILURE":
         return "a check failed on the head commit"
     return None
