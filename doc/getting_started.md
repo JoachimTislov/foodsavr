@@ -72,7 +72,7 @@ For quick iteration in a browser, use:
 make dev-chrome
 ```
 
-To build a release web bundle locally (same command CI uses for the GitHub Pages test environment) and serve it:
+To build a release web bundle locally (same command CI uses for the web artifact) and serve it:
 
 ```sh
 make serve-web
@@ -84,6 +84,28 @@ If you will host the bundle under a subpath (like GitHub Pages does), set the ba
 make serve-web BASE_HREF=/foodsavr/
 ```
 
-## Web test environment (GitHub Pages)
+## Published documentation and web builds
 
-Every push to `main` that changes web-affecting paths deploys a release web build to GitHub Pages — this is the project's shared **test environment** for trying the app in a browser without a local toolchain. It is not a production deployment target (production is Android; see #125). The deploy lives in `.github/workflows/build-web.yml` (`deploy-pages` job) and runs only on trusted `main` pushes; pull requests build and upload an artifact but never deploy.
+[GitHub Pages](https://joachimtislov.github.io/foodsavr/) hosts the app's vision,
+canonical specification, and contributor documentation. It does not run the
+Flutter app. The `Documentation Pages` workflow builds pull requests and deploys
+trusted `main` changes; it is the only Pages deployment owner.
+
+The `Web Build` workflow still compiles the Flutter app and uploads its
+`web-build` artifact. Download that artifact from a successful workflow run
+or use `make serve-web` for a local browser preview.
+
+To build the documentation locally, run:
+
+```sh
+python3 -m venv /tmp/foodsavr-docs-venv
+/tmp/foodsavr-docs-venv/bin/pip install -r scripts/docs/requirements.txt
+/tmp/foodsavr-docs-venv/bin/python scripts/docs/prepare.py
+/tmp/foodsavr-docs-venv/bin/python -m mkdocs build --strict
+/tmp/foodsavr-docs-venv/bin/python scripts/docs/check_site.py build/docs-site
+```
+
+The build stages existing repository sources in `build/docs-source` and writes
+the site to `build/docs-site`. Edit the original Markdown, schemas, or contracts;
+generated copies aren't maintained separately. The landing page source is
+`doc/pages-home.md`. Code and directory links open their repository sources.

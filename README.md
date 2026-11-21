@@ -58,4 +58,6 @@ For a complete overview of all project documentation, start with the [Documentat
 
 ## Documentation
 
+Read the [published vision, specification, and documentation](https://joachimtislov.github.io/foodsavr/).
+
 The canonical spec lives in [`specs/source-of-truth/`](specs/source-of-truth/INDEX.md).

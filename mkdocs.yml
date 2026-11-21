@@ -1,0 +1,58 @@
+site_name: FoodSavr
+site_description: Reduce food waste, save time, and make groceries easier to manage.
+site_url: https://joachimtislov.github.io/foodsavr/
+repo_url: https://github.com/JoachimTislov/foodsavr
+repo_name: JoachimTislov/foodsavr
+docs_dir: build/docs-source
+site_dir: build/docs-site
+use_directory_urls: true
+hooks:
+  - scripts/docs/hooks.py
+theme:
+  name: material
+  logo: assets/logos/foodsavr-logo.svg
+  favicon: assets/logos/foodsavr-logo.svg
+  font: false
+  palette:
+    primary: teal
+    accent: green
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+extra_css:
+  - stylesheets/extra.css
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - fenced_code
+nav:
+  - The vision: index.md
+  - Specification:
+      - Start here: specs/source-of-truth/INDEX.md
+      - Architecture: specs/source-of-truth/architecture.md
+      - Data model: specs/source-of-truth/data-model.md
+      - Ingestion pipeline: specs/source-of-truth/ingestion-pipeline.md
+      - Integrations: specs/source-of-truth/integrations.md
+      - MCP server: specs/source-of-truth/mcp-server.md
+      - Quality and testing: specs/source-of-truth/qa-testing.md
+      - CI and publishing: specs/source-of-truth/ci-workflows.md
+      - Implementation status: specs/source-of-truth/status.md
+      - Decisions:
+          - Source-of-truth sync: specs/source-of-truth/decisions/0001-source-of-truth-sync-loop.md
+          - Intent and verification: specs/source-of-truth/decisions/0002-intent-gated-specs-optimized-verification.md
+          - Agent execution: specs/source-of-truth/decisions/0003-autonomous-execution-boundary.md
+          - Authoritative shapes: specs/source-of-truth/decisions/0004-truth-in-shapes.md
+  - Contributor guides:
+      - Documentation overview: doc/introduction.md
+      - Getting started: doc/getting_started.md
+      - Test strategy: doc/test-strategy.md
+      - Contributing: CONTRIBUTING.md
+      - Coding standards: coding-standards.md
+  - Project:
+      - Readme: project-overview.md
+      - Documentation index: INDEX.md
+      - Roadmap: TODO.md
