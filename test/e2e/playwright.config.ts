@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173';
 
 export default defineConfig({
+  globalSetup: './global-setup.ts',
   testDir: './tests',
   timeout: 60_000,
   expect: { timeout: 15_000 },
