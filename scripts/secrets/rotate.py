@@ -3,8 +3,8 @@
 
 Usage:
   scripts/secrets/rotate.py NAME [NAME ...]   rotate the named secrets
-  scripts/secrets/rotate.py --cheap           rotate every registry entry marked cheap
-  scripts/secrets/rotate.py --group firebase  rotate a whole group (also: @firebase)
+  scripts/secrets/rotate.py --low-effort      rotate every low-effort registry entry
+  scripts/secrets/rotate.py --group firebase  rotate a whole group after a leak (also: @firebase)
   scripts/secrets/rotate.py --list            show the registry
 
 Any name works. Names missing from the registry are treated as manual secrets
@@ -20,13 +20,18 @@ Sinks (registry `sinks`):
   env      NAME=value in the repo-root .env (created with mode 600)
   command  `sink_command` with the value on stdin and SECRET_NAME set
 
-Cost (registry `cost`): `cheap` secrets have no side effects to regenerate and
-are included by --cheap. `expensive` ones (provider resets, signing keys) are
-only rotated when named explicitly, so nothing is regenerated redundantly.
+Effort (registry `effort`): how complex or time-consuming renewal is, never
+how bad a leak would be. `low` renews automatically and is included by
+--low-effort for routine rotation; `high` needs manual provider steps and is
+only rotated when named or grouped, so nothing is regenerated redundantly.
 
-Groups (registry `groups`): secrets that live close together, so one exposure
-likely leaks them all. `--group NAME` / `@NAME` rotates every member,
-expensive ones included, after a confirmation (skip it with --yes).
+Any leak means rotation, whatever the effort. Groups (registry `groups`) are
+secrets stored close together, so one leak exposes them all: `--group NAME` /
+`@NAME` rotates every member without asking, high-effort ones included.
+
+Public values (registry `public = true`) are shipped in clients by design, such
+as a bundled .env or Firebase client config. Being visible there is not a leak,
+so groups and --low-effort skip them; they rotate only when named.
 
 Values are never printed or written anywhere except the configured sinks.
 """
@@ -58,7 +63,8 @@ SINKS = {"github", "env", "command"}
 class Secret:
     name: str
     generate: str = "manual"
-    cost: str = "expensive"
+    effort: str = "high"
+    public: bool = False
     sinks: list[str] = field(default_factory=lambda: ["github"])
     length: int = 32
     alphabet: str = "urlsafe"
@@ -70,8 +76,8 @@ class Secret:
     def validate(self) -> None:
         if self.generate not in GENERATORS:
             raise ValueError(f"{self.name}: unknown generator {self.generate!r}")
-        if self.cost not in {"cheap", "expensive"}:
-            raise ValueError(f"{self.name}: cost must be cheap or expensive")
+        if self.effort not in {"low", "high"}:
+            raise ValueError(f"{self.name}: effort must be low or high")
         unknown = set(self.sinks) - SINKS
         if unknown:
             raise ValueError(f"{self.name}: unknown sinks {sorted(unknown)}")
@@ -161,7 +167,7 @@ def group_names(registry: dict[str, Secret]) -> dict[str, list[str]]:
 def select(
     registry: dict[str, Secret],
     names: list[str],
-    cheap: bool,
+    low_effort: bool,
     sinks: list[str],
     groups: list[str] = (),
 ) -> list[Secret]:
@@ -172,9 +178,9 @@ def select(
     for group in groups:
         if group not in known_groups:
             raise ValueError(f"unknown group {group!r}; known: {sorted(known_groups)}")
-        chosen.update({n: registry[n] for n in known_groups[group]})
-    if cheap:
-        chosen.update({n: s for n, s in registry.items() if s.cost == "cheap"})
+        chosen.update({n: registry[n] for n in known_groups[group] if not registry[n].public})
+    if low_effort:
+        chosen.update({n: s for n, s in registry.items() if s.effort == "low" and not s.public})
     for name in names:
         if name not in registry:
             secret = Secret(name=name, sinks=sinks or ["github"])
@@ -188,10 +194,9 @@ def select(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("names", nargs="*", help="secret names to rotate")
-    parser.add_argument("--cheap", action="store_true", help="also rotate every cheap registry entry")
+    parser.add_argument("--low-effort", action="store_true", help="also rotate every low-effort registry entry")
     parser.add_argument("--group", action="append", default=[],
-                        help="rotate every member of a group, e.g. after an exposure (repeatable)")
-    parser.add_argument("--yes", action="store_true", help="skip the confirmation for expensive group members")
+                        help="rotate every non-public member of a group after a leak (repeatable)")
     parser.add_argument("--sink", action="append", default=[], choices=sorted(SINKS - {"command"}),
                         help="sinks for names not in the registry (repeatable)")
     parser.add_argument("--registry", type=Path, default=REGISTRY)
@@ -204,26 +209,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.list:
         for s in registry.values():
             groups = f"  [{', '.join(s.groups)}]" if s.groups else ""
-            print(f"{s.name:28} {s.cost:9} {s.generate:8} -> {', '.join(s.sinks)}{groups}")
+            effort = "public" if s.public else f"{s.effort}-effort"
+            print(f"{s.name:28} {effort:12} {s.generate:8} -> {', '.join(s.sinks)}{groups}")
         return 0
 
     try:
-        selected = select(registry, args.names, args.cheap, args.sink, args.group)
+        selected = select(registry, args.names, args.low_effort, args.sink, args.group)
     except ValueError as error:
         parser.error(str(error))
     if not selected:
-        parser.error("name at least one secret, group, or pass --cheap")
+        parser.error("name at least one secret, group, or pass --low-effort")
 
-    grouped = bool(args.group) or any(n.startswith("@") for n in args.names)
-    expensive = [s.name for s in selected if s.cost == "expensive" and s.name in registry]
-    if grouped and expensive and not (args.dry_run or args.yes):
-        try:
-            answer = input(f"Group rotation includes expensive secrets: {', '.join(expensive)}. Continue? [y/N] ")
-        except EOFError:
-            answer = ""
-        if answer.strip().lower() not in {"y", "yes"}:
-            print("aborted", file=sys.stderr)
-            return 1
+    manual = [s.name for s in selected if s.effort == "high"]
+    if manual and not args.dry_run:
+        print(f"High-effort renewals (manual provider steps): {', '.join(manual)}", file=sys.stderr)
 
     failed = []
     for secret in selected:

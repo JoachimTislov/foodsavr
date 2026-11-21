@@ -116,3 +116,4 @@ derived relational and full-text index.
 - 2026-11-21T11:33:09+00:00 — Pushed `feature/rotate-secrets`; opened draft PR #246 (https://github.com/JoachimTislov/foodsavr/pull/246).
 - 2026-11-21T11:38:47+00:00 — PR #246: added Secrets rules to AGENTS.md (CLAUDE.md), GEMINI.md and copilot-instructions so agents use `scripts/secrets/rotate.py` and register new secrets.
 - 2026-11-21T11:45:16+00:00 — PR #246: added grouped rotation (`groups` in registry, `--group`/`@group`, confirmation for expensive members unless `--yes`), seeded `firebase` and `ci` groups, 4 new tests (14 passing), agent rule for exposure-driven group rotation.
+- 2026-11-21T11:49:16+00:00 — PR #246: replaced cost with `effort` (renewal complexity, not leak severity), `--cheap` with `--low-effort`, removed group confirmation (any leak rotates), added `public` for client-shipped values that groups skip; marked Firebase options and Android app ID public; updated agent rules; 15 tests passing.
