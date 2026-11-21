@@ -12,7 +12,6 @@ on:
       - "Agent system validation"
       - "Documentation Pages"
       - "Dependency Review"
-      - "Synchronize GitHub labels"
     types: [completed]
   pull_request_target:
     types: [labeled]
@@ -44,11 +43,13 @@ jobs:
     name: Integrate ready PRs
     # Dependabot-triggered events get no repository secrets; the schedule covers them.
     if: github.event_name != 'pull_request_target' && github.actor != 'dependabot[bot]'
-    concurrency:
-      group: merge-gate
-      cancel-in-progress: false
+    # No concurrency group: cancelled queued runs would mark main red. The
+    # script serializes instead (older runs finish first, superseded ones exit).
+    permissions:
+      contents: read
+      actions: read
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Checkout trusted gate
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -59,6 +60,7 @@ jobs:
         env:
           # Must not be GITHUB_TOKEN: its merges and pushes trigger no workflows.
           GH_TOKEN: ${{ secrets.MERGE_GATE_TOKEN }}
+          RUNS_TOKEN: ${{ github.token }}
         run: |
           if [ -z "$GH_TOKEN" ]; then
             echo "::error::MERGE_GATE_TOKEN is not set; run scripts/secrets/rotate.py MERGE_GATE_TOKEN"
