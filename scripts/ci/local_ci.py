@@ -326,7 +326,8 @@ def main(argv: list[str] | None = None) -> int:
             results.append(Result(name, "CACHED", "passed on this tree"))
         else:
             todo.append(name)
-    stream = len(todo) == 1
+    # Live output only in CI logs; locally print the failing tail instead.
+    stream = len(todo) == 1 and os.environ.get("GITHUB_ACTIONS") == "true"
     with ThreadPoolExecutor(max_workers=max(len(todo), 1)) as pool:
         for result in pool.map(lambda n: run_group(n, stream), todo):
             results.append(result)
