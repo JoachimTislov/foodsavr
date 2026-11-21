@@ -102,16 +102,16 @@ void main() async {
     initializedAppCheck = true;
 
     const recaptchaKey = String.fromEnvironment(
-      'RECAPTCHA_V3_SITE_KEY',
-      defaultValue: 'your-web-recaptcha-v3-site-key',
+      'RECAPTCHA_ENTERPRISE_SITE_KEY',
+      defaultValue: 'your-web-recaptcha-enterprise-site-key',
     );
     if (Config.isProduction &&
         kIsWeb &&
-        recaptchaKey == 'your-web-recaptcha-v3-site-key') {
-      logger.w('RECAPTCHA_V3_SITE_KEY is not set.');
+        recaptchaKey == 'your-web-recaptcha-enterprise-site-key') {
+      logger.w('RECAPTCHA_ENTERPRISE_SITE_KEY is not set.');
     }
     await FirebaseAppCheck.instance.activate(
-      providerWeb: ReCaptchaV3Provider(recaptchaKey),
+      providerWeb: ReCaptchaEnterpriseProvider(recaptchaKey),
       providerAndroid: Config.useEmulators
           ? AndroidDebugProvider()
           : AndroidPlayIntegrityProvider(),

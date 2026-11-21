@@ -111,3 +111,17 @@ derived relational and full-text index.
 | 2026-10-04 | PR #176 review: fixed 2 CodeRabbit findings in `android-smoke` (bounded 30s `pidof` poll replacing unbounded wait loop; 10x retry on resumed-activity/window-focus checks + 5s delayed logcat snapshot); replied to both threads and marked resolved. |
 | 2026-10-03 | PR #77 (`docs/update-readme-and-license`): verified mergeable, all checks green; commit `09f2355` fixed broken `CONTRIBUTING.md` link in `doc/introduction.md`; commit `docs(getting-started): add firebase login, npm prerequisite and PATH note` fixed 3 CodeRabbit findings; replied to all review threads. Merge blocked by sandbox (CLI/API/MCP all disallowed) — must be merged on GitHub. |
 | 2026-10-03 | PR #170 (`vibe/ci-path-filters-71b359`): added CI path narrowing (`assets/translations/**`, `pubspec.lock`, `analysis_options.yaml`) and a `gate` job that skips push runs only for GitHub PR merge commits; fixed CodeRabbit/Copilot findings (`pubspec.lock` paths, PR-merge-only skip); replied to all threads. Draft, ready for re-review. |
+
+- 2026-11-20T23:02:21.068777+00:00 — Web hosting: deployed https://my-foodsavr-store.web.app (web app `1:514586238925:web:e562b8b85d97417f83ae84`); added `FLAVOR` dart-define fallback in `Config`, bumped `firebase_auth_web` 6.2.7→6.3.0 (web compile fix), added `firebase-hosting.yml` (live on main, PR previews, skips without secrets). `firebase_options.dart` kept untracked (App Check not yet active). Branch `feature/firebase-hosting` from `origin/main`.
+
+- 2026-11-20T23:03:29.266350+00:00 — Pushed `feature/firebase-hosting` and opened PR #239 (https://github.com/JoachimTislov/foodsavr/pull/239).
+
+- 2026-11-20T23:08:43.771168+00:00 — PR #239: renamed secret to `FIREBASE_SERVICE_ACCOUNT`; `RECAPTCHA_V3_SITE_KEY` now read from Actions variables (public site key).
+
+- 2026-11-20T23:39:54+00:00 — PR #239: added `infra/terraform` + `scripts/infra/apply.sh` (applied): WIF pool/provider, `github-hosting-deploy` SA, web API key referrer restriction, reCAPTCHA Enterprise key + App Check config (UNENFORCED). Hosting workflow now keyless; generates web config via `scripts/web/write_web_config.py`. App Check web switched v3→Enterprise (`RECAPTCHA_ENTERPRISE_SITE_KEY`); v3 rejected by API for new setups.
+- 2026-11-20T23:40:57+00:00 — Pushed c8963c6 to PR #239; set Actions vars GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_DEPLOY_SERVICE_ACCOUNT, RECAPTCHA_ENTERPRISE_SITE_KEY; updated PR body.
+- 2026-11-20T23:44:49+00:00 — Took Hosting down on request: deleted preview channel pr-239, ran hosting:disable on my-foodsavr-store (both 404).
+- 2026-11-21T11:21:15+00:00 — PR #239: Hosting previews now manual only (workflow_dispatch target preview/live; channel per branch); removed pull_request trigger.
+- 2026-11-21T11:27:23+00:00 — PR #239: preview expiry now workflow input `expires` (default 4h).
+- 2026-11-21T11:34:46+00:00 — PR #239: added `scripts/web/hosting_storage_guard.py` (8 GB soft / 10 GB hard Hosting storage budget, keeps 3 latest live versions); wired before deploys. Dry-run verified against project (0.03 GB used).
+- 2026-11-21T11:44:12+00:00 — PR #239: storage guard warns (annotation + job summary) when web build exceeds 5 GB.
