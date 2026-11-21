@@ -9,6 +9,34 @@ test('app boots and renders the Flutter view', async ({ page }) => {
   });
 });
 
+test('app boots with persisted V3 App Check settings', async ({ page }) => {
+  const keys = [
+    'FlutterFire-[DEFAULT]-recaptchaType',
+    'FlutterFire-[DEFAULT]-recaptchaSiteKey',
+  ];
+  await page.addInitScript(([typeKey, siteKey]) => {
+    for (const storage of [localStorage, sessionStorage]) {
+      storage.setItem(typeKey, 'recaptcha-v3');
+      storage.setItem(siteKey, 'old-v3-site-key');
+    }
+  }, keys);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+
+  await page.goto('/');
+  await expect(page.locator('flutter-view, flt-glass-pane').first()).toBeVisible({
+    timeout: 30_000,
+  });
+  const persisted = await page.evaluate(
+    (keys) => [localStorage, sessionStorage].flatMap(
+      (storage) => keys.map((key) => storage.getItem(key)),
+    ),
+    keys,
+  );
+  expect(persisted).toEqual([null, null, null, null]);
+  expect(errors).toEqual([]);
+});
+
 test('app does not hit uncaught page errors or console errors', async ({ page }) => {
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
