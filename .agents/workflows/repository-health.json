@@ -9,7 +9,7 @@
       "source of truth sync status",
       "agent setup provider compatibility"
     ],
-    "files": ["AGENTS.md", "TODO.md", "specs/source-of-truth/status.md", ".agents/ledger.md"],
+    "files": ["AGENTS.md", "TODO.md", "specs/source-of-truth/status.md", ".agents/ledger.jsonl"],
     "skills": ["flutter-standards", "research"]
   },
   "steps": [

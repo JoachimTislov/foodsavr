@@ -15,15 +15,5 @@ Built vs spec'd vs unbuilt, per domain. The sync loop (#213) claims un-synced do
 
 ## Sync ledger
 
-Replay record per session. Store session ID, issue, PR, commit SHAs; forward to git history — never paste diffs here.
-
-| Session | Issue | PR | Commits | Domains audited | Result |
-|---|---|---|---|---|---|
-| vibe-848bbd-bootstrap | #213 | (this PR) | 103a70f baseline | none (bootstrap absorb only) | folder created; all domains un-synced pending audit |
-| vibe-848bbd-audit | #213 | #214 | head of vibe/source-of-truth-bootstrap-848bbd | all 8 domains | zero discrepancies; every spec claim verified read-only against code (collections, services, clients, core exports, workflows, tests); all domains marked synced |
-| vibe-848bbd-verification | #213 | #215 | head of vibe/optimized-verification-loop-848bbd | ci-workflows, qa-testing | ADR 0002 + ADR 0003 implemented and CI-verified green (206 tests, 2m20s); 6 autonomous fix commits per ADR 0003 |
-| vibe-848bbd-shapes | #213 | #215 | head of vibe/optimized-verification-loop-848bbd | data-model, integrations, mcp-server | ADR 0004: shapes (3 JSON Schemas, services registry, MCP contract) + check_shape_sync.dart validator wired into CI; verified locally (30 schema props, 14 anchors, shape-sync OK) |
-
-| t3-docs-pages-2026-11-21 | #261 | #263 | task branch | ci-workflows, docs-status | Owner requested vision-led Pages publication; existing sources staged without duplicating specs; Flutter web artifacts retained. |
-| claude-a925ae12-adr0005 | — | #264 | 4066bd7 | architecture, data-model | ADR 0005 (owner intent): hybrid event log + CRUD; raw/domain event schemas in contracts/ (spec-ahead) |
-| t3-merge-gate-2026-11-21 | — | (this PR) | task branch | ci-workflows | Owner goal: automated integration of revertable changes and local pre-push CI; ADR 0006 added. |
+Replay records live in [sync-ledger.jsonl](sync-ledger.jsonl). Record session IDs,
+issues, PRs, commit SHAs, audited domains, and results; link to git history.

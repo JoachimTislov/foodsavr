@@ -42,7 +42,7 @@ RUNNERS = configured_path("AGENT_RUNNERS_FILE", ROOT / ".agents/runners/provider
 POLICY = configured_path("AGENT_POLICY_FILE", ROOT / ".agents/policies/default.json")
 ROUTER = configured_path("AGENT_ROUTER_FILE", ROOT / ".agents/runners/router.json")
 LABELS = configured_path("AGENT_LABELS_FILE", ROOT / ".agents/github/labels.json")
-TEXT_SUFFIXES = {".md", ".markdown", ".yaml", ".yml", ".json", ".toml"}
+TEXT_SUFFIXES = {".md", ".markdown", ".yaml", ".yml", ".json", ".jsonl", ".toml"}
 EXCLUDED_PARTS = {".git", ".dart_tool", "build", "state"}
 URL_RE = re.compile(r"https?://[^\s)\]>]+")
 ISSUE_RE = re.compile(r"(?<![\w])#\d+")
@@ -80,7 +80,7 @@ def connect(path: Path) -> sqlite3.Connection:
 
 
 def document_paths() -> list[Path]:
-    roots = [ROOT / name for name in ("AGENTS.md", "README.md", "TODO.md", "INDEX.md", "doc", "docs", "specs", ".agents")]
+    roots = [ROOT / name for name in ("AGENTS.md", "README.md", "TODO.md", "INDEX.md", "doc", "docs", "specs", ".agents", "log")]
     result: set[Path] = set()
     for root in roots:
         if root.is_file() and root.suffix in TEXT_SUFFIXES:
@@ -553,9 +553,11 @@ def skills_command(args: argparse.Namespace) -> int:
 
 
 def write_session_records(index: Path, values: list[dict[str, Any]]) -> None:
+    if index.suffix != ".jsonl":
+        raise ValueError("session indexes must use .jsonl")
     index.parent.mkdir(parents=True, exist_ok=True)
     temporary = index.with_suffix(index.suffix + ".tmp")
-    temporary.write_text("".join(json.dumps(item, sort_keys=True) + "\n" for item in values), encoding="utf-8")
+    temporary.write_text("".join(json.dumps(item, sort_keys=True, allow_nan=False) + "\n" for item in values), encoding="utf-8")
     temporary.replace(index)
 
 
@@ -1121,9 +1123,11 @@ def normalized_events(provider: str, output: str) -> list[dict[str, Any]]:
 
 
 def append_event(path: Path, event: dict[str, Any]) -> None:
+    if path.suffix != ".jsonl":
+        raise ValueError("event logs must use .jsonl")
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as stream:
-        stream.write(json.dumps({"timestamp": now(), **event}, sort_keys=True) + "\n")
+        stream.write(json.dumps({"timestamp": now(), **event}, sort_keys=True, allow_nan=False) + "\n")
         stream.flush()
 
 
@@ -1405,28 +1409,17 @@ def write_provider_artifact(path: Path, provider: str, output: str, exit_code: i
     path.chmod(0o600)
 
 
-def ledger_value(value: object) -> str:
-    """Keep untrusted workflow metadata inside one Markdown table cell."""
-    return re.sub(r"[\r\n|]", " ", str(value)).strip()[:500]
-
-
 def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: str, artifact: str | None = None, references: dict[str, list[str]] | None = None) -> str:
-    ledger = configured_path("AGENT_LEDGER_FILE", ROOT / ".agents/ledger.md")
-    result_artifact = ledger_value(artifact or f".agents/state/runs/{run_id}/result.json")
-    reference_text = "; ".join(
-        f"{ledger_value(field)}: {', '.join(ledger_value(value) for value in values)}"
-        for field, values in (references or {}).items() if values
-    )
-    suffix = f"; references: {reference_text}" if reference_text else ""
-    event = f"| {datetime.now(timezone.utc).date().isoformat()} | Run `{ledger_value(run_id)}` for workflow `{ledger_value(workflow_id)}` used `{ledger_value(provider)}` and ended with `{ledger_value(status)}`; result artifact is `{result_artifact}`{suffix}. |\n"
-    content = ledger.read_text(encoding="utf-8")
-    marker = "|---|---|\n"
-    if marker not in content:
-        raise ValueError("ledger table header not found")
-    updated = content.replace(marker, marker + event, 1)
-    temporary = ledger.with_suffix(".md.tmp")
-    temporary.write_text(updated, encoding="utf-8")
-    temporary.replace(ledger)
+    ledger = configured_path("AGENT_LEDGER_FILE", ROOT / ".agents/ledger.jsonl")
+    append_event(ledger, {
+        "type": "workflow.completed",
+        "run_id": run_id,
+        "workflow_id": workflow_id,
+        "provider": provider,
+        "status": status,
+        "artifact": artifact or f".agents/state/runs/{run_id}/result.json",
+        "references": references or {},
+    })
     return f"{path_reference(ledger)}#{run_id}"
 
 

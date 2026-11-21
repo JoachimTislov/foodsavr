@@ -10,6 +10,10 @@ on:
       - '.github/instructions/**'
       - '.github/copilot-instructions.md'
       - '.github/workflows/agent-implement.yml'
+      - 'log/**'
+      - 'logs/**'
+      - '**/*.jsonl'
+      - '**/*.log'
       - 'AGENTS.md'
       - 'CLAUDE.md'
       - 'GEMINI.md'
@@ -37,6 +41,10 @@ on:
       - '.github/instructions/**'
       - '.github/copilot-instructions.md'
       - '.github/workflows/agent-implement.yml'
+      - 'log/**'
+      - 'logs/**'
+      - '**/*.jsonl'
+      - '**/*.log'
       - 'AGENTS.md'
       - 'CLAUDE.md'
       - 'GEMINI.md'
@@ -75,11 +83,11 @@ jobs:
         run: python3 scripts/ci/local_ci.py --group agents
       - name: Exercise declarative workflow lifecycle
         env:
-          AGENT_LEDGER_FILE: ${{ runner.temp }}/agent-ledger.md
+          AGENT_LEDGER_FILE: ${{ runner.temp }}/agent-ledger.jsonl
           AGENT_SESSION_INDEX: ${{ runner.temp }}/sessions.jsonl
           AGENT_KNOWLEDGE_DB: ${{ runner.temp }}/knowledge.sqlite3
         run: |
-          cp .agents/ledger.md "$AGENT_LEDGER_FILE"
+          cp .agents/ledger.jsonl "$AGENT_LEDGER_FILE"
           scripts/agents/agentctl workflow run .agents/workflows/repository-health.json
           test -s "$AGENT_LEDGER_FILE"
       - name: Check generated state is ignored

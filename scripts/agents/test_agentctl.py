@@ -380,12 +380,29 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(records[0]["issues"], ["#213"])
             self.assertEqual(records[0]["prs"], ["#236"])
 
+    def test_log_writers_reject_legacy_paths_and_non_json_numbers(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(ValueError, "must use .jsonl"):
+                module.append_event(root / "events.log", {"type": "test"})
+            with self.assertRaisesRegex(ValueError, "must use .jsonl"):
+                module.write_session_records(root / "index.md", [])
+            index = root / "index.jsonl"
+            index.write_text('{"existing":true}\n')
+            with self.assertRaises(ValueError):
+                module.write_session_records(index, [{"usage": float("nan")}])
+            self.assertEqual(index.read_text(), '{"existing":true}\n')
+            with self.assertRaises(ValueError):
+                module.append_event(root / "events.jsonl", {"usage": float("inf")})
+            self.assertEqual((root / "events.jsonl").read_text(), "")
+
     def test_ledger_and_session_references_are_preserved(self) -> None:
         module = load_agentctl_module()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / ".agents").mkdir()
-            (root / ".agents/ledger.md").write_text("|---|---|\n")
+            (root / ".agents/ledger.jsonl").write_text('{"event":"existing"}\n')
             index = root / "sessions.jsonl"
             with patch.object(module, "ROOT", root), patch.object(module, "INDEX", index):
                 module.append_session_record("fake", "session-1", "run-1", "summary", references={"issues": ["#212"], "prs": ["#236"]})
@@ -393,8 +410,9 @@ class AgentctlTest(unittest.TestCase):
             session = json.loads(index.read_text())
             self.assertEqual(session["issues"], ["#212"])
             self.assertEqual(session["prs"], ["#236"])
-            ledger = (root / ".agents/ledger.md").read_text()
-            self.assertIn("references: issues: #212; prs: #236 injected row", ledger)
+            ledger = (root / ".agents/ledger.jsonl").read_text()
+            self.assertEqual(json.loads(ledger.splitlines()[0]), {"event": "existing"})
+            self.assertEqual(json.loads(ledger.splitlines()[1])["references"], {"issues": ["#212"], "prs": ["#236|injected\nrow"]})
             self.assertEqual(len(ledger.splitlines()), 2)
 
     def test_context_exposes_session_references_without_transcript(self) -> None:

@@ -39,3 +39,16 @@ Each JSONL line must contain `session_id`, `provider`, `harness`, `started_at`,
 of references. Use the provider's real session ID; do not replace it with a
 human label. Link every issue, pull request, and external source relevant to
 the session in the record and the corresponding ledger entry.
+
+## Repository event logs
+
+Append repository events to [the ledger](../ledger.jsonl) as JSON objects with
+`timestamp` (UTC) and `event`; include session IDs and issue, PR, source, and
+commit references when available. Record changes, commits, pushes, replies,
+and unresolved blockers. Keep transcripts and credentials outside the repository.
+Workflow completions use structured run, workflow, provider, status, artifact,
+and reference fields. The ledger is append-only; the session index remains an
+upserted snapshot with attempt history. Rebuild the SQLite projection after
+source changes with `scripts/agents/agentctl knowledge rebuild`.
+
+The format rule in [AGENTS.md](../../AGENTS.md) covers all repository logs.

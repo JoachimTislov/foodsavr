@@ -14,5 +14,5 @@ metadata:
 5. End the message with trailers:
    - `Agent-Session: <harness>:<session-id>`, the ID registered with `scripts/agents/agentctl sessions register`. This trailer links the commit to its session: `scripts/agents/agentctl sessions commits <harness>:<session-id>`.
    - The co-author trailer your harness requires.
-6. Commit, then log the event in [.agents/ledger.md](../../ledger.md) and add the SHA to the session record (`sessions register --session-id ... --commit <sha>`; records upsert).
+6. Commit, then log the event in [.agents/ledger.jsonl](../../ledger.jsonl) and add the SHA to the session record (`sessions register --session-id ... --commit <sha>`; records upsert).
 7. Push after each completed task (`make push`), unless the user asked otherwise.

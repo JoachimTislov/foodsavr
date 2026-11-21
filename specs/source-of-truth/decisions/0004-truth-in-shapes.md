@@ -19,7 +19,7 @@ The source of truth is **not limited to text**. Each domain is expressed in the 
 | Ingestion pipeline | Mermaid graph + table | inline in `ingestion-pipeline.md` |
 | CI verification loop | Executable invariants | `scripts/ci/select_tests.dart` + `run_tests.dart` (already the truth) |
 | MCP contract | Tool manifest | `contracts/mcp-tools.yaml` |
-| Status/ledger | Table (already structured) | `status.md` |
+| Status/ledger | Status table and JSONL history | `status.md`, `sync-ledger.jsonl` |
 
 Rules:
 
