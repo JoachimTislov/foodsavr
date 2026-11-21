@@ -33,6 +33,17 @@ The Drive job requires the Firebase secret because a compile-only placeholder
 would not be a usable remote-backend APK. It uses the debug signing key
 intended for direct test installation.
 
+To populate the OAuth secret from the active gcloud account, set
+`GOOGLE_DRIVE_ACCOUNT` in the environment (or inject it from a GitHub Secret)
+and run `bash scripts/release/set_drive_oauth_secret.sh`. The helper validates the local ADC
+refresh token and Drive access, then pipes compact JSON directly to `gh secret
+set`; it never writes credentials to the repository.
+If it reports that Drive access is unavailable, reauthorize the configured account with
+`gcloud auth application-default login
+--scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/drive`
+and rerun the helper. If gcloud requires a custom OAuth client, add its
+`--client-id-file` option to that command.
+
 The existing remote Firebase project is the test environment; a production
 backend will be added later. Supply that existing project's files for
 `com.foodsavr.app`. The Android flavor is named `production` because it uses
