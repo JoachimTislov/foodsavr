@@ -43,10 +43,6 @@ test('app does not hit uncaught page errors or console errors', async ({ page })
   page.on('pageerror', (err) => pageErrors.push(err.message));
   page.on('console', (msg) => {
     if (msg.type() !== 'error') return;
-    // App Check calls reCAPTCHA with the placeholder site key in CI, which
-    // always returns 400. Those third-party resource failures are expected.
-    const url = msg.location()?.url ?? '';
-    if (url.includes('recaptcha')) return;
     consoleErrors.push(msg.text());
   });
   await openApp(page);
@@ -59,8 +55,10 @@ test('app does not hit uncaught page errors or console errors', async ({ page })
 test('landing renders and auth view is reachable', async ({ page }) => {
   await openApp(page);
   await waitForDashboard(page);
-  await page.getByRole('tab', { name: 'Settings' }).click();
-  await page.getByText('bob@example.com', { exact: true }).click();
+  // Open the profile route directly: Flutter's tab transition can leave
+  // inactive branch semantics in place while the destination is mounting.
+  await openApp(page, '/#/settings/profile');
+  await expect(page.getByText('bob@example.com', { exact: true })).toBeVisible();
   await page.getByText('Log Out', { exact: true }).click();
   await expect(page.getByText('Inventory Login')).toBeVisible();
   // Flutter re-renders semantics nodes during animations, which detaches the
