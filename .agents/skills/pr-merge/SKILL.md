@@ -1,9 +1,9 @@
 ---
-name: pr-merge-coordinator
-description: Prioritize the repository's open PRs against a user's objective, coordinate with local and CI agent sessions, and merge finalized PRs in dependency order. Use for a mixed-readiness PR queue or stack; an individual green-check notification is not an instruction to merge unrelated work.
+name: pr-merge
+description: Prioritize the repository's open PRs against a user's objective, coordinate with local and CI agent sessions, and merge finalized PRs in dependency order. Use to assess and merge PRs, including mixed-readiness queues and stacks, within the requested scope.
 ---
 
-# PR merge coordinator
+# PR merge
 
 Turn the current PR queue into an ordered plan and execute its authorized,
 ready portion. A blocked parent, active author, or uncertain PR blocks the
