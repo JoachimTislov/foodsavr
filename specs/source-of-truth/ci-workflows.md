@@ -39,16 +39,20 @@ than the 3 latest to stay under 10 GB, and fails only if that is not enough.
 restriction and App Check (reCAPTCHA Enterprise; enforcement `UNENFORCED` until
 every client is registered) for one environment, plus a monthly budget when the
 environment is on `firebase-blaze`. Apply with `ENV=<flavor> scripts/infra/apply.sh`
-(owner gcloud login; values from `deploy/instance.yaml`; state in `gs://<project>-tfstate`,
-prefix `firebase` for production, `firebase-<flavor>` otherwise); it also sets the Actions
-variables when `gh` is logged in. Newcomers start with `scripts/infra/bootstrap.sh`
+(owner gcloud login; values from `deploy/instance.yaml`). Existing GCS state
+is retained; fresh Spark instances use private local state under
+`.deployment-state/<project>/<flavor>`, which the owner must back up.
+It also sets the Actions variables when `gh` is logged in.
+Newcomers start with `scripts/infra/bootstrap.sh`
 (prerequisites, human-only steps, then `apply.sh`).
 
 ## Deployment level
 
-`deployment-level.yml` (ADR 0005): on pull requests touching `deploy/**` or
-`packages/foodsavr_deploy/**` it formats, analyzes and tests the package and validates the
-manifests; daily (cron) and on `workflow_dispatch` it polls every cloud environment (matrix;
+`deployment-level.yml` (ADR 0005): on pull requests touching manifests,
+deployment tooling, infrastructure, or Hosting workflows, it formats,
+analyzes, and tests the package, validates manifests, and tests bootstrap
+state selection and API-key discovery offline. Daily (cron) and on
+`workflow_dispatch` it polls every cloud environment (matrix;
 state per environment in `actions/cache`) and keeps one open issue labelled
 `deployment-level` updated while any recommends `warn` or `promote`. Recommend-only:
 there is no apply job; missing Workload Identity variables skip polling with a warning.

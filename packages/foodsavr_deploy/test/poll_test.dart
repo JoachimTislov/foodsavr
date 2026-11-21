@@ -89,8 +89,19 @@ void main() {
     );
     expect(r.action, isNot('promote'));
     expect(s.triggers['users']!.failures, 1);
-    expect(s.triggers['users']!.streak, 1);
+    expect(s.triggers['users']!.streak, 0);
     expect(r.reasons.join(), contains('users unreadable'));
+  });
+
+  test('recovered metrics need a fresh consecutive promotion streak', () async {
+    final results = await run([
+      {'users': 950, 'reads': 10},
+      {'reads': 10},
+      {'users': 950, 'reads': 10},
+      {'users': 950, 'reads': 10},
+    ]);
+    expect(results.map((r) => r.action), ['warn', 'hold', 'warn', 'promote']);
+    expect(results[2].reasons.first, contains('1/2 polls to promote'));
   });
 
   test('repeated metric failures alert as warn', () async {

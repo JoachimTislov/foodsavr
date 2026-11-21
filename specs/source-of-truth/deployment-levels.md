@@ -23,7 +23,9 @@ Why and how a FoodSavr instance moves between hosting levels, per environment. D
 **promote** when any trigger stays in its promote band for `stabilizationPolls` polls;
 **warn** when any is in warn/promote but not yet stable, or a metric has failed `fallback.alertAfterFailures` times;
 **demote** when every trigger with a demote band has held it for `stabilizationPolls` polls and the environment has been on its level for `minDwell`;
-otherwise **hold**. A failed read keeps the previous band and streak (never promotes on missing data). On paid levels limits are the free allowance; a ratio above 1 means paying, and the budget is the real guard.
+otherwise **hold**. A failed read keeps the previous band but resets its streak
+(never promotes on missing data). On paid levels limits are the free allowance;
+a ratio above 1 means paying. Budgets alert; they do not cap spend.
 
 `levels plan` describes current → target: migration class (derived from the binding diff), reversibility, approval, billing, declared or derived steps. Approval is required unless the class is `inPlace` and the mode is `auto`.
 
@@ -32,8 +34,15 @@ otherwise **hold**. A failed read keeps the previous band and streak (never prom
 `levels env --env <flavor> --format dotenv|github|tfvars` emits `FLAVOR`, project/web app/site ids, region, state bucket/prefix, Actions-variable suffix and Terraform variables. Consumers:
 
 - `scripts/infra/bootstrap.sh` — newcomer entry point: prerequisites, human-only steps, then `apply.sh`.
-- `scripts/infra/apply.sh` — Terraform per environment (`ENV=<flavor>`); state `gs://<project>-tfstate`, prefix `firebase` (production) or `firebase-<flavor>`; Actions variables suffixed per environment.
-- `.github/workflows/firebase-hosting.yml` — builds with the environment's `FLAVOR`.
+- `scripts/infra/apply.sh` — Terraform per environment (`ENV=<flavor>`).
+  Existing remote state stays in `gs://<project>-tfstate`, prefix `firebase`
+  (production) or `firebase-<flavor>`. Fresh Spark instances use private local
+  state under `.deployment-state/<project>/<flavor>`; keep a private backup.
+  `TF_STATE_BACKEND=auto|local|gcs` selects storage without automatic migration.
+  Missing web API-key IDs are discovered from Firebase; Actions variables
+  are suffixed per environment.
+- `.github/workflows/firebase-hosting.yml` — builds with the environment's
+  `FLAVOR` and honors its configured GitHub Environment approval gates.
 - `.github/workflows/deployment-level.yml` — polls each cloud environment.
 
 ## Provider research (2026-11)

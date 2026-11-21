@@ -211,8 +211,11 @@ Future<PollResult> poll(
         ..band = band;
       readings.add(Reading(t, value: value, limit: limit, state: s));
     } catch (e) {
-      // Fallback: hold the previous band and streak; count the failure.
-      s.failures++;
+      // Missing reads break consecutive evidence, while retaining the last
+      // observed band for diagnostics.
+      s
+        ..failures += 1
+        ..streak = 0;
       readings.add(Reading(t, limit: limit, state: s, note: 'error: $e'));
     }
   }

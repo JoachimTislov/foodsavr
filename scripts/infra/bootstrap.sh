@@ -20,6 +20,7 @@ echo "Prerequisites:"
 need gcloud "https://cloud.google.com/sdk/docs/install"
 need terraform "https://developer.hashicorp.com/terraform/install"
 need dart "https://dart.dev/get-dart (bundled with Flutter)"
+need python3 "https://www.python.org/downloads/ (bootstrap helpers)"
 need npx "Node.js; runs firebase-tools"
 command -v gh >/dev/null && echo "  ok      gh" || echo "  skip    gh (optional: sets GitHub Actions variables)"
 [ "$missing" = 0 ] || { echo "Install the missing tools and re-run."; exit 1; }

@@ -77,6 +77,7 @@ jobs:
       project_id: ${{ steps.env.outputs.PROJECT_ID }}
       web_app_id: ${{ steps.env.outputs.WEB_APP_ID }}
       site_id: ${{ steps.env.outputs.SITE_ID }}
+      github_environment: ${{ steps.env.outputs.GH_ENVIRONMENT }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -107,6 +108,7 @@ jobs:
   deploy:
     name: Build and deploy to Firebase Hosting
     needs: resolve
+    environment: ${{ needs.resolve.outputs.github_environment || needs.resolve.outputs.flavor }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

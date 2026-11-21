@@ -24,6 +24,9 @@ on:
     paths:
       - "deploy/**"
       - "packages/foodsavr_deploy/**"
+      - "scripts/infra/**"
+      - "infra/terraform/**"
+      - ".github/workflows/firebase-hosting.yml"
       - ".github/workflows/deployment-level.yml"
 
 concurrency:
@@ -53,6 +56,9 @@ jobs:
       - run: dart format --output=none --set-exit-if-changed .
       - run: dart analyze --fatal-infos
       - run: dart test
+      - name: Test infrastructure bootstrap
+        working-directory: .
+        run: python3 -m unittest discover -s scripts/infra -p 'test_*.py' -v
       - name: Validate manifests
         run: |
           for m in ../../deploy/instance.yaml ../../deploy/examples/*.yaml; do
