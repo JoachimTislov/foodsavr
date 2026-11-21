@@ -153,12 +153,14 @@ write_env() {
 # set_secret NAME VALUE stores a secret through the repository's rotation
 # script, which writes every sink registered for NAME (GitHub, .env). NAME must
 # be registered in scripts/secrets/registry.toml with `generate = "manual"`.
+# The value reaches rotate.py through an exported variable in a subshell, never
+# a command argument, so other local users cannot read it from the process list.
 # Falls back to a warning (and records it) if the script cannot store it.
 set_secret() {
   local name="$1" value="$2"
   local root
   root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-  if env "NEW_$name=$value" python3 "$root/scripts/secrets/rotate.py" "$name" >/dev/null 2>&1; then
+  if ( export "NEW_$name=$value"; exec python3 "$root/scripts/secrets/rotate.py" "$name" ) >/dev/null 2>&1; then
     WRITTEN_SECRET+=("$name")
     printf '  %s✓ set%s secret %s\n' "$GREEN" "$RESET" "$name"
     return
