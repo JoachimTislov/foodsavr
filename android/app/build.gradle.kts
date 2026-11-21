@@ -12,7 +12,7 @@ plugins {
 }
 
 val envProperties = Properties().apply {
-    val envFile = rootProject.file("../../.env")
+    val envFile = rootProject.file("../.env")
     if (envFile.exists()) {
         load(FileInputStream(envFile))
     }
@@ -41,19 +41,23 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
-        // Expose all .env variables to the manifest and code
-        envProperties.forEach { key, value ->
-            val k = key.toString()
-            val v = value.toString()
-            manifestPlaceholders[k] = v
-            resValue("string", k, v)
-        }
+        // Only allowlisted .env keys reach the APK; .env also holds server secrets.
+        val emulatorHost = envProperties.getProperty("EMULATOR_HOST")?.takeIf { it.isNotBlank() } ?: "10.0.2.2"
+        manifestPlaceholders["EMULATOR_HOST"] = emulatorHost
+        resValue("string", "EMULATOR_HOST", emulatorHost)
 
-        // Ensure EMULATOR_HOST has a default for the build to succeed if .env is missing
-        if (!envProperties.containsKey("EMULATOR_HOST")) {
-            manifestPlaceholders["EMULATOR_HOST"] = "10.0.2.2"
-            resValue("string", "EMULATOR_HOST", "10.0.2.2")
+        // Facebook Login (flutter_facebook_auth) reads these from string resources.
+        fun envValue(name: String): String =
+            System.getenv(name)?.takeIf { it.isNotBlank() }
+                ?: envProperties.getProperty(name)?.takeIf { it.isNotBlank() }
+                ?: ""
+        val facebookAppId = envValue("FACEBOOK_APP_ID")
+        if (facebookAppId.isEmpty()) {
+            logger.warn("FACEBOOK_APP_ID is not set; Facebook sign-in will fail at runtime.")
         }
+        resValue("string", "facebook_app_id", facebookAppId)
+        resValue("string", "fb_login_protocol_scheme", "fb$facebookAppId")
+        resValue("string", "facebook_client_token", envValue("FACEBOOK_CLIENT_TOKEN"))
 
         if (!manifestPlaceholders.containsKey("appAuthRedirectScheme")) {
             manifestPlaceholders["appAuthRedirectScheme"] = "foodsavr"
