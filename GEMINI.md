@@ -45,7 +45,8 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK >=3.32.0
 
 ## Dependabot PRs
 
-For Dependabot PR updates, follow [AGENTS.md](AGENTS.md#dependabot-prs).
+For Dependabot PR updates, read the
+[PR merge skill](.agents/skills/pr-merge/SKILL.md#dependabot-pr-updates).
 
 ## Secrets
 
