@@ -119,3 +119,6 @@ derived relational and full-text index.
 - 2026-11-20T23:08:43.771168+00:00 — PR #239: renamed secret to `FIREBASE_SERVICE_ACCOUNT`; `RECAPTCHA_V3_SITE_KEY` now read from Actions variables (public site key).
 
 - 2026-11-20T23:39:54+00:00 — PR #239: added `infra/terraform` + `scripts/infra/apply.sh` (applied): WIF pool/provider, `github-hosting-deploy` SA, web API key referrer restriction, reCAPTCHA Enterprise key + App Check config (UNENFORCED). Hosting workflow now keyless; generates web config via `scripts/web/write_web_config.py`. App Check web switched v3→Enterprise (`RECAPTCHA_ENTERPRISE_SITE_KEY`); v3 rejected by API for new setups.
+- 2026-11-20T23:40:57+00:00 — Pushed c8963c6 to PR #239; set Actions vars GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_DEPLOY_SERVICE_ACCOUNT, RECAPTCHA_ENTERPRISE_SITE_KEY; updated PR body.
+- 2026-11-20T23:44:49+00:00 — Took Hosting down on request: deleted preview channel pr-239, ran hosting:disable on my-foodsavr-store (both 404).
+- 2026-11-21T11:21:15+00:00 — PR #239: Hosting previews now manual only (workflow_dispatch target preview/live; channel per branch); removed pull_request trigger.

@@ -1,8 +1,10 @@
 name: Firebase Hosting
 
 # Builds the production-flavor web app and deploys it to Firebase Hosting
-# (my-foodsavr-store). Pushes to main go live; same-repo PRs get a 7-day
-# preview channel. Independent of the Android Drive/Play workflows.
+# (my-foodsavr-store). Pushes to main go live. Previews are manual only:
+# Actions -> Firebase Hosting -> Run workflow on a branch (target: preview)
+# deploys a 7-day channel named after the branch and comments on its PR.
+# Independent of the Android Drive/Play workflows.
 #
 # Auth is keyless (Workload Identity Federation, see infra/terraform).
 # Variables (set by scripts/infra/apply.sh):
@@ -25,22 +27,17 @@ on:
       - "packages/**"
       - ".github/workflows/firebase-hosting.yml"
       - "scripts/web/**"
-  pull_request:
-    branches: [main]
-    paths:
-      - "lib/**"
-      - "web/**"
-      - "assets/**"
-      - "pubspec.yaml"
-      - "pubspec.lock"
-      - "packages/**"
-      - ".github/workflows/firebase-hosting.yml"
-      - "scripts/web/**"
   workflow_dispatch:
+    inputs:
+      target:
+        description: "preview (7-day channel for this branch) or live"
+        type: choice
+        options: [preview, live]
+        default: preview
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -53,8 +50,6 @@ env:
 jobs:
   deploy:
     name: Build and deploy to Firebase Hosting
-    # Fork PRs get no OIDC token; skip them.
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -63,6 +58,7 @@ jobs:
       pull-requests: write
     env:
       HAS_DEPLOY_CONFIG: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && vars.GCP_DEPLOY_SERVICE_ACCOUNT != '' }}
+      TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'live' }}
     steps:
       - name: Skip without deploy configuration
         if: ${{ env.HAS_DEPLOY_CONFIG != 'true' }}
@@ -123,19 +119,23 @@ jobs:
           flutter build web --release "${defines[@]}"
 
       - name: Deploy preview channel
-        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' && github.event_name == 'pull_request' }}
+        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' && env.TARGET == 'preview' }}
         env:
           GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
+          BRANCH: ${{ github.ref_name }}
         run: |
-          url=$(npx -y "$FIREBASE_TOOLS" hosting:channel:deploy "pr-$PR" --expires 7d \
+          channel=$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-' | cut -c1-40 | sed 's/-*$//')
+          url=$(npx -y "$FIREBASE_TOOLS" hosting:channel:deploy "$channel" --expires 7d \
             --project "$PROJECT_ID" --json | python3 -c 'import json,sys; print(next(iter(json.load(sys.stdin)["result"].values()))["url"])')
           echo "Preview: $url" | tee -a "$GITHUB_STEP_SUMMARY"
-          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --edit-last --create-if-none \
-            --body "🔥 Firebase Hosting preview (7 days): $url"
+          pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$pr" ]; then
+            gh pr comment "$pr" --repo "$GITHUB_REPOSITORY" --edit-last --create-if-none \
+              --body "🔥 Firebase Hosting preview (7 days): $url"
+          fi
 
       - name: Deploy live
-        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' && github.event_name != 'pull_request' }}
+        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' && env.TARGET == 'live' }}
         run: |
           npx -y "$FIREBASE_TOOLS" deploy --only hosting --project "$PROJECT_ID" --non-interactive
           echo "Live: https://$PROJECT_ID.web.app" >> "$GITHUB_STEP_SUMMARY"

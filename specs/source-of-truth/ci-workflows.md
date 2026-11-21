@@ -14,8 +14,9 @@ Absorbed from `.github/workflows/` @ 103a70f:
 `firebase-hosting.yml` builds the web app with `--dart-define=FLAVOR=production`
 (web builds cannot pass `--flavor`; `Config.environment` falls back to `FLAVOR`)
 and deploys to Firebase Hosting site `my-foodsavr-store`
-(web app `1:514586238925:web:e562b8b85d97417f83ae84`). Pushes to `main` and
-manual runs deploy live; same-repo PRs get a 7-day preview channel. It signs in
+(web app `1:514586238925:web:e562b8b85d97417f83ae84`). Pushes to `main` deploy live;
+previews are manual only (`workflow_dispatch`, target `preview`: 7-day channel
+named after the branch, linked on its PR; target `live` deploys live). It signs in
 keylessly (Workload Identity Federation) and generates the web-only
 `firebase_options.dart` from the Firebase API at build time
 (`scripts/web/write_web_config.py`). Missing `GCP_WORKLOAD_IDENTITY_PROVIDER` or
