@@ -18,8 +18,8 @@ function normalizeHost(value: string | undefined, fallback: string): string {
     : `http://${value}`;
 }
 
-export async function openApp(page: Page) {
-  await page.goto('/');
+export async function openApp(page: Page, path = '/') {
+  await page.goto(path);
   await expect(page.locator('flutter-view, flt-glass-pane').first()).toBeVisible({
     timeout: 30_000,
   });

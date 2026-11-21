@@ -98,7 +98,8 @@ void main() async {
     await serviceLocator.setupDevelopment();
   }
 
-  if (!initializedAppCheck) {
+  // Emulator services do not enforce App Check; avoid loading real reCAPTCHA.
+  if (!Config.useEmulators && !initializedAppCheck) {
     initializedAppCheck = true;
 
     const recaptchaKey = String.fromEnvironment(

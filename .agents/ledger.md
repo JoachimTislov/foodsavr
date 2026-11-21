@@ -123,3 +123,15 @@ derived relational and full-text index.
 - 2026-11-21T11:27:01+00:00 — PR #240: added idempotent `scripts/setup/social_auth.sh` (`make social-auth-setup` / `social-auth-check`) covering SHA registration, google-services.json download, Firebase provider enablement and authorized domains (Identity Toolkit admin API), Meta key hashes (Graph API, best-effort), and optional GitHub secrets; fixed Gradle `.env` path to the repo root. `--check` run verified against the live project (read-only).
 - 2026-11-21T12:37:20+00:00 — PR #240 review fixes: Gradle no longer exposes every .env key as APK resources (EMULATOR_HOST allowlisted) and warns on missing FACEBOOK_APP_ID; Google init failure is retried; social_auth.sh keeps secrets out of argv, checks API errors, never overwrites Meta key hashes after a failed read, writes google-services.json atomically, checks the web OAuth client, routes GitHub secrets through scripts/secrets/rotate.py, exits 1 when items remain.
 - 2026-11-21T12:45:33+00:00 — PR #246 merged (rebase, guard ca30efb) as main 3224b09. PR #240 rebased onto it, ledger conflicts resolved keeping both sides; force-with-lease pushed; stale parity review on 73eb1c1 cancelled.
+
+- 2026-11-21: Shared browser CI fix (#257): provision and verify the development
+  Auth emulator account before browser startup; replace transient login race with
+  Dashboard → Settings → Profile → Log Out → email-auth assertions. Console
+  checks wait for Dashboard and retain error assertions. Inspected main and
+  pending #239/#255; isolated branch from main. Playwright discovery: 10 tests;
+  git diff --check passed. Local browser execution unavailable: no build/web and
+  no Auth emulator listening on localhost:9099. Committed/pushed focused fix and
+  opened PR; full browser validation delegated to existing CI (pending).
+2026-11-21 PR #258: addressed CodeRabbit startup assertion finding by waiting for Quick Actions content before checking captured errors. Playwright discovers 10 tests; browser execution remains CI-owned.
+
+- 2026-11-21 PR #258: inspected run 44911101941 snapshots; skipped App Check for emulator startup, removed reCAPTCHA console filtering, and opened profile directly for logout smoke coverage. Local browser execution blocked by Dart 3.12.2 (dependency requires 3.13) and missing firebase CLI. Playwright smoke discovery passed. Committed and pushed existing fix/browser-ci-startup branch; reported validation blockers to parent.
