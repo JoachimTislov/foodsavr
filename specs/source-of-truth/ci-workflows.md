@@ -23,6 +23,10 @@ keylessly (Workload Identity Federation) and generates the web-only
 `GCP_DEPLOY_SERVICE_ACCOUNT` Actions variables skip the deploy with a warning.
 `RECAPTCHA_ENTERPRISE_SITE_KEY`, `ANDROID_APK_URL` (`/android` redirect) and the
 `WEB_ENV_B64` secret are optional.
+Before each deploy `scripts/web/hosting_storage_guard.py` keeps Hosting storage
+in budget: above 8 GB it deletes preview channels oldest-first and skips a
+preview that would not fit; a live deploy may also delete live versions older
+than the 3 latest to stay under 10 GB, and fails only if that is not enough.
 `WEB_ENV_B64` becomes `assets/.env`, which Hosting serves publicly.
 
 ## Cloud infrastructure

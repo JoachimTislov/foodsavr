@@ -7,6 +7,11 @@ name: Firebase Hosting
 # comments on its PR.
 # Independent of the Android Drive/Play workflows.
 #
+# Storage budget (scripts/web/hosting_storage_guard.py, before each deploy):
+# previews are deleted oldest-first above 8 GB and skipped if they would
+# not fit; live deploys may also delete live versions older than the 3
+# latest to stay under 10 GB.
+#
 # Auth is keyless (Workload Identity Federation, see infra/terraform).
 # Variables (set by scripts/infra/apply.sh):
 #   GCP_WORKLOAD_IDENTITY_PROVIDER  required to deploy (else skipped)
@@ -123,15 +128,31 @@ jobs:
           fi
           flutter build web --release "${defines[@]}"
 
+      - name: Check Hosting storage budget
+        id: budget
+        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' }}
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          channel=$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-' | cut -c1-40 | sed 's/-*$//')
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          set +e
+          KEEP_CHANNEL="$channel" python3 scripts/web/hosting_storage_guard.py "$TARGET" "$(du -sb build/web | cut -f1)"
+          code=$?
+          set -e
+          if [ "$code" = 3 ]; then echo "fits=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          [ "$code" = 0 ] && echo "fits=true" >> "$GITHUB_OUTPUT"
+          exit "$code"
+
       - name: Deploy preview channel
-        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' && env.TARGET == 'preview' }}
+        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' && env.TARGET == 'preview' && steps.budget.outputs.fits == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ github.ref_name }}
           EXPIRES: ${{ inputs.expires }}
         run: |
           [[ "$EXPIRES" =~ ^[0-9]+[hdw]$ ]] || { echo "::error::expires must look like 4h, 1d or 2w"; exit 1; }
-          channel=$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-' | cut -c1-40 | sed 's/-*$//')
+          channel="${{ steps.budget.outputs.channel }}"
           url=$(npx -y "$FIREBASE_TOOLS" hosting:channel:deploy "$channel" --expires "$EXPIRES" \
             --project "$PROJECT_ID" --json | python3 -c 'import json,sys; print(next(iter(json.load(sys.stdin)["result"].values()))["url"])')
           echo "Preview: $url" | tee -a "$GITHUB_STEP_SUMMARY"
