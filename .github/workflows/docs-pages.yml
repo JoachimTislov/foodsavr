@@ -10,6 +10,7 @@ on:
       - '*.md'
       - 'mkdocs.yml'
       - 'scripts/docs/**'
+      - 'scripts/ci/local_ci.py'
       - '.github/workflows/docs-pages.yml'
   pull_request:
     branches: [main]
@@ -39,12 +40,10 @@ jobs:
           cache-dependency-path: scripts/docs/requirements.txt
       - name: Install documentation tools
         run: python -m pip install -r scripts/docs/requirements.txt
-      - name: Build documentation
-        run: |
-          python scripts/docs/prepare.py
-          python -m mkdocs build --strict
-      - name: Check local navigation and assets
-        run: python scripts/docs/check_site.py build/docs-site
+      - name: Build and check documentation
+        env:
+          LOCAL_CI_PYTHON: python
+        run: python scripts/ci/local_ci.py --group docs
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3

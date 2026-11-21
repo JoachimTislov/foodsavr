@@ -1,4 +1,4 @@
-.PHONY: reload-env run-dev run-prod build-apk-debug build-apk-release dev-chrome-prod dev-chrome build-web serve-web social-auth-setup social-auth-check firebase-options firebase-rules start-firebase-emulators kill-firebase-emulators deps generate-code view-emulator check _run-checks analyze fmt fix test clean locales locale-check locale-clean generate-locales preflight push worktree
+.PHONY: reload-env run-dev run-prod build-apk-debug build-apk-release dev-chrome-prod dev-chrome build-web serve-web social-auth-setup social-auth-check firebase-options firebase-rules start-firebase-emulators kill-firebase-emulators deps generate-code view-emulator check _run-checks analyze fmt fix test clean locales locale-check locale-clean generate-locales preflight push worktree hooks ci-local
 
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
 FLUTTER_INSTALL := flutter install
@@ -170,6 +170,13 @@ locale-clean: deps
 generate-locales: deps
 	@echo "Generating localization stubs..."
 	@dart run scripts/locale/generate_localizations.dart
+
+hooks:
+	@git config core.hooksPath .githooks
+	@echo "pre-push hook installed: runs scripts/ci/local_ci.py"
+
+ci-local:
+	@python3 scripts/ci/local_ci.py
 
 preflight:
 	@echo "Running preflight sync checks..."

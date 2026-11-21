@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (explicit owner intent, recorded on #213)
+Accepted (explicit owner intent, recorded on #213). Amended by [ADR 0006](0006-automated-integration-of-revertable-changes.md): merge-gate merges of opted-in PRs are autonomous.
 
 ## Context
 

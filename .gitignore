@@ -22,6 +22,7 @@ firebase_options.dart
 research/*
 !research/README.md
 .agents/state/
+.test-hashes/
 
 # generated code
 injection.config.dart

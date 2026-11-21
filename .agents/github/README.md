@@ -16,6 +16,10 @@ the result without mutation:
 python3 scripts/github/sync_labels.py --repo OWNER/REPO --number 123
 ```
 
+The `merge/auto` label is outside the managed prefixes: authors set it, and
+`merge-gate.yml` integrates labeled PRs (ADR 0006). Preview its next step with
+`python3 scripts/github/merge_gate.py --repo OWNER/REPO`.
+
 The workflow applies the same result with `--apply`, creates missing managed
 labels idempotently, and uses the commit SHA for workflow-run events so CI
 state can update the corresponding pull request.
