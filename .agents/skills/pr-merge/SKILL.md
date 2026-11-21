@@ -20,8 +20,10 @@ Read repository instructions and canonical status. Resolve the repository,
 target branches, user's objective, exclusions, urgency, and existing merge
 authorization from the invocation and session. Discover the available main
 agent, orchestrator, or conductor before starting independent investigation.
-Align scope, research, and merge ownership with that coordinator. When none
-is running and reachable, use the peer protocol in the coordination reference.
+Align scope, research, and merge ownership with that coordinator, including
+one waiting for CI, delegated work, or watch events. Use the peer protocol
+when no coordinator retains the scope; an unreachable owner leaves its
+affected scope blocked pending handoff.
 
 Enumerate **all open PRs**, paginating rather than accepting the CLI default
 limit. Inspect linked issues, actual diffs, base/head SHAs, dependencies,
@@ -81,7 +83,8 @@ A PR is ready only when all applicable conditions hold:
 Seek a revision-bound handoff from a session actively editing or reviewing
 the affected PR. Respect holds and permissions. Report an unreachable active
 owner as a blocker for that PR, then advance independent work. Historical
-authorship alone does not require approval from an idle former author.
+authorship alone does not require approval from a former author whose task
+is finished or handed off. An idle run awaiting events still retains its work.
 
 ## Execute the ready portion
 
