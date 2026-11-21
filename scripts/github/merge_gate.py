@@ -23,7 +23,9 @@ LABEL_COLOR = "0e8a16"
 LABEL_DESCRIPTION = "Finalized two-way-door PR; the merge gate integrates it"
 BASE = "main"
 DEPENDABOT = "dependabot"
-GATE_CHECK = "Integrate ready PRs"  # this workflow's own job; never waits on itself
+# Metadata workflows, not verification; the gate never waits on itself.
+IGNORED_WORKFLOWS = {"Merge gate", "Synchronize GitHub labels"}
+ACTIVE = {"queued", "in_progress", "waiting", "requested", "pending"}
 FAILED = {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"}
 REBASE_COMMAND = "@dependabot rebase"
 REFUSAL = re.compile(r"can't rebase|cannot rebase|edited by someone other than Dependabot", re.IGNORECASE)
@@ -46,7 +48,7 @@ query($owner: String!, $name: String!, $cursor: String) {
         reviewThreads(first: 100) { nodes { isResolved isOutdated } }
         commits(last: 1) { nodes { commit { committedDate statusCheckRollup { contexts(first: 100) { nodes {
           __typename
-          ... on CheckRun { name status conclusion }
+          ... on CheckRun { name status conclusion checkSuite { workflowRun { workflow { name } } } }
           ... on StatusContext { context state }
         } } } } } }
         timelineItems(itemTypes: [UNLABELED_EVENT], last: 50) {
@@ -108,11 +110,12 @@ def bump_kind(title: str) -> str | None:
 
 
 def rollup_state(contexts: list[dict[str, Any]]) -> str | None:
-    """Aggregate head checks like GitHub's rollup, excluding the gate's own job."""
+    """Aggregate head checks like GitHub's rollup, excluding metadata workflows."""
     states = []
     for c in contexts:
         if c.get("__typename") == "CheckRun":
-            if c.get("name") == GATE_CHECK:
+            workflow = (((c.get("checkSuite") or {}).get("workflowRun") or {}).get("workflow") or {}).get("name")
+            if workflow in IGNORED_WORKFLOWS:
                 continue
             states.append("PENDING" if c.get("status") != "COMPLETED" else
                           "FAILURE" if c.get("conclusion") in FAILED else "SUCCESS")
@@ -280,6 +283,42 @@ class GitHub:
             return False
 
 
+def gate_runs(repo: str, token: str) -> list[dict[str, Any]]:
+    out = subprocess.run(
+        ["gh", "api", f"repos/{repo}/actions/workflows/merge-gate.yml/runs?per_page=50", "--jq", ".workflow_runs"],
+        capture_output=True, text=True, check=True, env={**os.environ, "GH_TOKEN": token})
+    return json.loads(out.stdout)
+
+
+def supersession(runs: list[dict[str, Any]], me: int) -> str | None:
+    """'exit' when a newer gate run will act, 'wait' while an older one acts, else None.
+
+    Replaces a concurrency group: cancelled queued runs would mark main's
+    checks as failing, and the newest event's run always executes.
+    """
+    active = [r for r in runs if r["status"] in ACTIVE and r["id"] != me and r["event"] != "pull_request_target"
+              and (r.get("actor") or {}).get("login") != "dependabot[bot]"]
+    if any(r["id"] > me for r in active):
+        return "exit"
+    if any(r["id"] < me for r in active):
+        return "wait"
+    return None
+
+
+def serialize(repo: str) -> bool:
+    """Return False when a newer run supersedes this one."""
+    me, token = os.environ.get("GITHUB_RUN_ID"), os.environ.get("RUNS_TOKEN")
+    if not me or not token:
+        return True
+    deadline = time.monotonic() + 8 * 60
+    while time.monotonic() < deadline:
+        state = supersession(gate_runs(repo, token), int(me))
+        if state != "wait":
+            return state != "exit"
+        time.sleep(10)
+    return True
+
+
 def summarize(rows: list[tuple[int, str, str]], done: list[str]) -> str:
     lines = ["## Merge gate", "", "| PR | State | Detail |", "|---|---|---|"]
     lines += [f"| #{n} | {state} | {detail} |" for n, state, detail in rows] or ["| — | idle | no opted-in PRs |"]
@@ -296,6 +335,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if not args.repo:
         parser.error("--repo or GITHUB_REPOSITORY is required")
+    if args.apply and not serialize(args.repo):
+        print("Superseded by a newer merge-gate run.")
+        return 0
     gh = GitHub(args.repo, args.apply)
     done: list[str] = []
     rows: list[tuple[int, str, str]] = []

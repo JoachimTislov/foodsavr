@@ -76,6 +76,20 @@ class PlanTest(unittest.TestCase):
                          [("label", 1), ("label", 2)])
 
 
+class SupersessionTest(unittest.TestCase):
+    def run_(self, id, status="in_progress", event="workflow_run", actor="owner"):
+        return {"id": id, "status": status, "event": event, "actor": {"login": actor}}
+
+    def test_newest_run_acts_after_older_ones(self):
+        self.assertEqual(gate.supersession([self.run_(5), self.run_(7)], 5), "exit")
+        self.assertEqual(gate.supersession([self.run_(5), self.run_(7)], 7), "wait")
+        self.assertIsNone(gate.supersession([self.run_(5, "completed"), self.run_(7)], 7))
+
+    def test_runs_that_never_execute_the_gate_are_ignored(self):
+        runs = [self.run_(9, event="pull_request_target"), self.run_(8, actor="dependabot[bot]"), self.run_(5)]
+        self.assertIsNone(gate.supersession(runs, 5))
+
+
 class ParseTest(unittest.TestCase):
     def test_rollup_state(self):
         run = lambda status, conclusion=None: {"__typename": "CheckRun", "name": "c", "status": status, "conclusion": conclusion}
@@ -92,7 +106,8 @@ class ParseTest(unittest.TestCase):
             "reviewThreads": {"nodes": [{"isResolved": False, "isOutdated": True}, {"isResolved": False, "isOutdated": False}]},
             "commits": {"nodes": [{"commit": {"committedDate": "2026-11-21T10:00:00Z", "statusCheckRollup": {"contexts": {"nodes": [
                 {"__typename": "CheckRun", "name": "Check & Test", "status": "COMPLETED", "conclusion": "SKIPPED"},
-                {"__typename": "CheckRun", "name": gate.GATE_CHECK, "status": "IN_PROGRESS", "conclusion": None},
+                {"__typename": "CheckRun", "name": "sync", "status": "IN_PROGRESS", "conclusion": None,
+                 "checkSuite": {"workflowRun": {"workflow": {"name": "Synchronize GitHub labels"}}}},
                 {"__typename": "StatusContext", "context": "x", "state": "SUCCESS"}]}}}}]},
             "timelineItems": {"nodes": [{"label": {"name": "other"}}]},
             "comments": {"nodes": [
