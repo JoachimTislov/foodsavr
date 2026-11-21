@@ -3,7 +3,8 @@ name: Firebase Hosting
 # Builds the production-flavor web app and deploys it to Firebase Hosting
 # (my-foodsavr-store). Pushes to main go live. Previews are manual only:
 # Actions -> Firebase Hosting -> Run workflow on a branch (target: preview)
-# deploys a 7-day channel named after the branch and comments on its PR.
+# deploys a short-lived channel (default 4h) named after the branch and
+# comments on its PR.
 # Independent of the Android Drive/Play workflows.
 #
 # Auth is keyless (Workload Identity Federation, see infra/terraform).
@@ -30,10 +31,14 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "preview (7-day channel for this branch) or live"
+        description: "preview (short-lived channel for this branch) or live"
         type: choice
         options: [preview, live]
         default: preview
+      expires:
+        description: "Preview lifetime (e.g. 2h, 12h, 1d; max 30d)"
+        type: string
+        default: 4h
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -123,15 +128,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ github.ref_name }}
+          EXPIRES: ${{ inputs.expires }}
         run: |
+          [[ "$EXPIRES" =~ ^[0-9]+[hdw]$ ]] || { echo "::error::expires must look like 4h, 1d or 2w"; exit 1; }
           channel=$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-' | cut -c1-40 | sed 's/-*$//')
-          url=$(npx -y "$FIREBASE_TOOLS" hosting:channel:deploy "$channel" --expires 7d \
+          url=$(npx -y "$FIREBASE_TOOLS" hosting:channel:deploy "$channel" --expires "$EXPIRES" \
             --project "$PROJECT_ID" --json | python3 -c 'import json,sys; print(next(iter(json.load(sys.stdin)["result"].values()))["url"])')
           echo "Preview: $url" | tee -a "$GITHUB_STEP_SUMMARY"
           pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
           if [ -n "$pr" ]; then
             gh pr comment "$pr" --repo "$GITHUB_REPOSITORY" --edit-last --create-if-none \
-              --body "🔥 Firebase Hosting preview (7 days): $url"
+              --body "🔥 Firebase Hosting preview (expires in $EXPIRES): $url"
           fi
 
       - name: Deploy live
