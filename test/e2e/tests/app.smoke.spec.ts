@@ -51,6 +51,7 @@ test('app does not hit uncaught page errors or console errors', async ({ page })
   });
   await openApp(page);
   await waitForDashboard(page);
+  await expect(page.getByText('Quick Actions', { exact: true })).toBeVisible();
   expect(pageErrors, `Page errors: ${pageErrors.join(' | ')}`).toHaveLength(0);
   expect(consoleErrors, `Console errors: ${consoleErrors.join(' | ')}`).toHaveLength(0);
 });
