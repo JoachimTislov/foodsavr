@@ -15,6 +15,7 @@ class AuthService implements IAuthService {
   final GoogleSignIn _googleSignIn;
   final FacebookAuth _facebookAuth;
   final bool _supportsPersistence;
+  final bool _isWeb;
   final FirebaseFirestore _firestore;
   final CollectionService _collectionService;
   final Logger _logger;
@@ -24,12 +25,14 @@ class AuthService implements IAuthService {
     required GoogleSignIn googleSignIn,
     required FacebookAuth facebookAuth,
     @Named('supportsPersistence') required bool supportsPersistence,
+    @Named('isWeb') required bool isWeb,
     required FirebaseFirestore firestore,
     required CollectionService collectionService,
     required Logger logger,
   }) : _googleSignIn = googleSignIn,
        _facebookAuth = facebookAuth,
        _supportsPersistence = supportsPersistence,
+       _isWeb = isWeb,
        _firestore = firestore,
        _collectionService = collectionService,
        _logger = logger;
@@ -101,8 +104,18 @@ class AuthService implements IAuthService {
     return newUser;
   }
 
+  Future<void>? _googleSignInInitialization;
+
   @override
+  /// Signs in a user with Google.
+  ///
+  /// Web uses the Firebase popup flow; native platforms use `google_sign_in`,
+  /// which must be initialized once before [GoogleSignIn.authenticate].
   Future<UserCredential> signInWithGoogle() async {
+    if (_isWeb) {
+      return _signInWithPopup(GoogleAuthProvider());
+    }
+    await (_googleSignInInitialization ??= _initializeGoogleSignIn());
     final GoogleSignInAccount googleUser;
     try {
       googleUser = await _googleSignIn.authenticate();
@@ -127,12 +140,25 @@ class AuthService implements IAuthService {
     return _firebaseAuth.signInWithCredential(credential);
   }
 
+  Future<void> _initializeGoogleSignIn() async {
+    try {
+      await _googleSignIn.initialize();
+    } catch (_) {
+      // Allow a retry on the next attempt instead of caching the failure.
+      _googleSignInInitialization = null;
+      rethrow;
+    }
+  }
+
   @override
   /// Signs in a user with Facebook.
   ///
   /// Throws:
   /// - [FirebaseAuthException] if sign-in fails or is aborted by the user.
   Future<UserCredential> signInWithFacebook() async {
+    if (_isWeb) {
+      return _signInWithPopup(FacebookAuthProvider());
+    }
     // Trigger the sign-in flow
     final LoginResult loginResult = await _facebookAuth.login();
     final AccessToken? accessToken = loginResult.accessToken;
@@ -149,6 +175,21 @@ class AuthService implements IAuthService {
 
     // Once signed in, return the UserCredential
     return _firebaseAuth.signInWithCredential(facebookAuthCredential);
+  }
+
+  Future<UserCredential> _signInWithPopup(AuthProvider provider) async {
+    try {
+      return await _firebaseAuth.signInWithPopup(provider);
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'popup-closed-by-user' ||
+          e.code == 'cancelled-popup-request') {
+        throw FirebaseAuthException(
+          code: 'ERROR_ABORTED_BY_USER',
+          message: 'Sign in aborted by user',
+        );
+      }
+      rethrow;
+    }
   }
 
   @override

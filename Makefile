@@ -1,4 +1,4 @@
-.PHONY: reload-env run-dev run-prod build-apk-debug build-apk-release dev-chrome-prod dev-chrome build-web serve-web firebase-options firebase-rules start-firebase-emulators kill-firebase-emulators deps generate-code view-emulator check _run-checks analyze fmt fix test clean locales locale-check locale-clean generate-locales preflight push worktree
+.PHONY: reload-env run-dev run-prod build-apk-debug build-apk-release dev-chrome-prod dev-chrome build-web serve-web social-auth-setup social-auth-check firebase-options firebase-rules start-firebase-emulators kill-firebase-emulators deps generate-code view-emulator check _run-checks analyze fmt fix test clean locales locale-check locale-clean generate-locales preflight push worktree
 
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
 FLUTTER_INSTALL := flutter install
@@ -42,6 +42,12 @@ build-web: deps
 serve-web: build-web
 	@echo "Serving build/web at http://localhost:8080 ..."
 	@cd build/web && python3 -m http.server 8080
+
+social-auth-setup:
+	@scripts/setup/social_auth.sh
+
+social-auth-check:
+	@scripts/setup/social_auth.sh --check
 
 firebase-options:
 	@base64 -w 0 lib/firebase_options.dart | gh secret set FIREBASE_OPTIONS_B64
