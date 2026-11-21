@@ -113,3 +113,4 @@ derived relational and full-text index.
 | 2026-10-03 | PR #170 (`vibe/ci-path-filters-71b359`): added CI path narrowing (`assets/translations/**`, `pubspec.lock`, `analysis_options.yaml`) and a `gate` job that skips push runs only for GitHub PR merge commits; fixed CodeRabbit/Copilot findings (`pubspec.lock` paths, PR-merge-only skip); replied to all threads. Draft, ready for re-review. |
 
 - 2026-11-21T11:32:59+00:00 — Rotate secrets: branch `feature/rotate-secrets` from `origin/main`; added `scripts/secrets/rotate.py` (rotates any named secret; `--cheap` regenerates only cheap registry entries; generators random/command/manual; sinks github/.env/command), `scripts/secrets/registry.toml` seeded with current CI secrets, 10 unittest cases wired into agent-system CI. Tests and dry-run passed locally.
+- 2026-11-21T11:33:09+00:00 — Pushed `feature/rotate-secrets`; opened draft PR #246 (https://github.com/JoachimTislov/foodsavr/pull/246).
