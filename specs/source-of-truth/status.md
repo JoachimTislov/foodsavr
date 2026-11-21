@@ -25,4 +25,4 @@ Replay record per session. Store session ID, issue, PR, commit SHAs; forward to 
 | vibe-848bbd-shapes | #213 | #215 | head of vibe/optimized-verification-loop-848bbd | data-model, integrations, mcp-server | ADR 0004: shapes (3 JSON Schemas, services registry, MCP contract) + check_shape_sync.dart validator wired into CI; verified locally (30 schema props, 14 anchors, shape-sync OK) |
 
 | t3-docs-pages-2026-11-21 | #261 | #263 | task branch | ci-workflows, docs-status | Owner requested vision-led Pages publication; existing sources staged without duplicating specs; Flutter web artifacts retained. |
-| claude-a925ae12-adr0005 | — | (pending) | head of t3/8f90f7f0 | architecture, data-model | ADR 0005 (owner intent): hybrid event log + CRUD; raw/domain event schemas in contracts/ (spec-ahead) |
+| claude-a925ae12-adr0005 | — | #264 | 4066bd7 | architecture, data-model | ADR 0005 (owner intent): hybrid event log + CRUD; raw/domain event schemas in contracts/ (spec-ahead) |
