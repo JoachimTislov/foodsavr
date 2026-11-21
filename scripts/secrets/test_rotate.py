@@ -4,6 +4,9 @@
 from __future__ import annotations
 
 import importlib.util
+import os
+import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -16,17 +19,32 @@ sys.modules["rotate"] = rotate
 spec.loader.exec_module(rotate)
 
 
+def registry_from(text: str):
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp, "r.toml")
+        path.write_text(text)
+        return rotate.load_registry(path)
+
+
 class RegistryTest(unittest.TestCase):
     def test_checked_in_registry_is_valid(self):
         registry = rotate.load_registry()
         self.assertIn("FIREBASE_OPTIONS_B64", registry)
+        self.assertTrue(registry["FACEBOOK_CLIENT_TOKEN"].public)
+        self.assertFalse(registry["FACEBOOK_APP_SECRET"].public)
 
-    def test_invalid_entry_is_rejected(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp, "r.toml")
-            path.write_text('[secrets.X]\ngenerate = "nope"\n')
-            with self.assertRaises(ValueError):
-                rotate.load_registry(path)
+    def test_invalid_entries_raise_value_error(self):
+        for text in (
+            '[secrets.X]\ngenerate = "nope"\n',
+            "[secrets.X]\nunknown_key = 1\n",
+            '[secrets.X]\ngroups = "ci"\n',
+            '[secrets.X]\npublic = "false"\n',
+            "[secrets.X]\nlength = true\n",
+            '[secrets.lower]\ngenerate = "manual"\n',
+            "[secrets.X\n",
+        ):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                registry_from(text)
 
 
 class SelectTest(unittest.TestCase):
@@ -43,9 +61,19 @@ class SelectTest(unittest.TestCase):
         names = [s.name for s in rotate.select(self.registry, ["COSTLY", "CHEAP"], True, [])]
         self.assertEqual(names, ["CHEAP", "COSTLY"])
 
-    def test_unknown_name_is_manual_with_given_sinks(self):
+    def test_unknown_name_needs_sink(self):
+        with self.assertRaises(ValueError):
+            rotate.select(self.registry, ["COSTLI"], False, [])
         (secret,) = rotate.select(self.registry, ["ANY_SECRET"], False, ["env"])
         self.assertEqual((secret.generate, secret.sinks), ("manual", ["env"]))
+
+    def test_invalid_name_is_rejected(self):
+        with self.assertRaises(ValueError):
+            rotate.select(self.registry, ["lower-case!"], False, ["env"])
+
+    def test_sink_with_registered_name_is_rejected(self):
+        with self.assertRaises(ValueError):
+            rotate.select(self.registry, ["COSTLY"], False, ["env"])
 
 
 class GroupTest(unittest.TestCase):
@@ -62,6 +90,11 @@ class GroupTest(unittest.TestCase):
         named = [s.name for s in rotate.select(registry, ["@g", "P"], False, [])]
         self.assertIn("P", named)
 
+    def test_public_only_group_explains(self):
+        registry = {"P": rotate.Secret("P", public=True, groups=["pub"])}
+        with self.assertRaisesRegex(ValueError, "only public"):
+            rotate.select(registry, ["@pub"], False, [])
+
     def test_group_includes_high_effort_members(self):
         names = [s.name for s in rotate.select(self.registry, [], False, [], ["g"])]
         self.assertEqual(names, ["A", "B"])
@@ -74,10 +107,12 @@ class GroupTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             rotate.select(self.registry, ["@nope"], False, [])
 
-    def test_checked_in_groups_exist(self):
-        groups = rotate.group_names(rotate.load_registry())
+    def test_checked_in_groups(self):
+        registry = rotate.load_registry()
+        groups = rotate.group_names(registry)
         self.assertIn("FIREBASE_CLI_TOKEN", groups["firebase"])
-        self.assertTrue(rotate.load_registry()["FIREBASE_OPTIONS_B64"].public)
+        leaked = [s.name for s in rotate.select(registry, ["@meta"], False, [])]
+        self.assertEqual(leaked, ["FACEBOOK_APP_SECRET"])
 
 
 class GenerateTest(unittest.TestCase):
@@ -89,25 +124,61 @@ class GenerateTest(unittest.TestCase):
     def test_manual_prefers_env_then_prompt(self):
         secret = rotate.Secret("M")
         self.assertEqual(rotate.generate(secret, env={"NEW_M": "v1"}), "v1")
-        self.assertEqual(rotate.generate(secret, env={}, prompt=lambda _: "v2"), "v2")
+        self.assertEqual(rotate.generate(secret, env={}, prompt=lambda _: "v2", interactive=True), "v2")
+
+    def test_manual_without_tty_fails_instead_of_prompting(self):
+        prompt = MagicMock()
+        with self.assertRaisesRegex(ValueError, "NEW_M"):
+            rotate.generate(rotate.Secret("M"), env={}, prompt=prompt, interactive=False)
+        prompt.assert_not_called()
 
     def test_empty_value_fails(self):
         with self.assertRaises(ValueError):
-            rotate.generate(rotate.Secret("M"), env={}, prompt=lambda _: "")
+            rotate.generate(rotate.Secret("M"), env={}, prompt=lambda _: "", interactive=True)
 
 
 class PushTest(unittest.TestCase):
-    def test_env_sink_replaces_existing_line(self):
+    def test_env_sink_quotes_replaces_export_and_sets_mode(self):
         with tempfile.TemporaryDirectory() as tmp:
             env = Path(tmp, ".env")
-            env.write_text("A=1\nKEY=old\n")
-            rotate.push(rotate.Secret("KEY", sinks=["env"]), "new", env_path=env)
-            self.assertEqual(env.read_text(), "A=1\nKEY=new\n")
+            env.write_text("A=1\nexport KEY=old\n")
+            env.chmod(0o644)
+            rotate.push(rotate.Secret("KEY", sinks=["env"]), "a b#c=d", env_path=env)
+            self.assertEqual(env.read_text(), "A=1\nKEY='a b#c=d'\n")
+            self.assertEqual(stat.S_IMODE(os.stat(env).st_mode), 0o600)
+
+    def test_env_sink_rejects_unquotable_values(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for value in ("it's", "a\rb", "a\nb"):
+                with self.subTest(value=value), self.assertRaises(rotate.PushError):
+                    rotate.push(rotate.Secret("KEY", sinks=["env"]), value, env_path=Path(tmp, ".env"))
 
     def test_github_sink_sends_value_on_stdin(self):
         run = MagicMock()
         rotate.push(rotate.Secret("KEY"), "v", env_path=Path("/nonexistent"), run=run)
         run.assert_called_once_with(["gh", "secret", "set", "KEY"], input="v", text=True, check=True)
+
+    def test_partial_failure_reports_updated_sinks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run = MagicMock(side_effect=subprocess.CalledProcessError(1, "gh"))
+            secret = rotate.Secret("KEY", sinks=["env", "github"])
+            with self.assertRaises(rotate.PushError) as caught:
+                rotate.push(secret, "v", env_path=Path(tmp, ".env"), run=run)
+            self.assertEqual((caught.exception.done, caught.exception.sink), (["env"], "github"))
+            self.assertNotIn("'v'", str(caught.exception))
+
+
+class MainTest(unittest.TestCase):
+    def test_sync_is_reported_as_dry_run_sync(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "r.toml")
+            path.write_text('[secrets.S]\ngenerate = "sync"\ncommand = "echo x"\neffort = "low"\n')
+            out = subprocess.run(
+                [sys.executable, str(Path(__file__).with_name("rotate.py")), "--registry", str(path),
+                 "--low-effort", "--dry-run"],
+                capture_output=True, text=True, check=True,
+            ).stdout
+            self.assertIn("would sync S", out)
 
 
 if __name__ == "__main__":
