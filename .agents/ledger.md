@@ -133,3 +133,5 @@ derived relational and full-text index.
   no Auth emulator listening on localhost:9099. Committed/pushed focused fix and
   opened PR; full browser validation delegated to existing CI (pending).
 2026-11-21 PR #258: addressed CodeRabbit startup assertion finding by waiting for Quick Actions content before checking captured errors. Playwright discovers 10 tests; browser execution remains CI-owned.
+
+- 2026-11-21 PR #258: inspected run 44911101941 snapshots; skipped App Check for emulator startup, removed reCAPTCHA console filtering, and opened profile directly for logout smoke coverage. Local browser execution blocked by Dart 3.12.2 (dependency requires 3.13) and missing firebase CLI. Playwright smoke discovery passed. Committed and pushed existing fix/browser-ci-startup branch; reported validation blockers to parent.
