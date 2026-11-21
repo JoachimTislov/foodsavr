@@ -24,4 +24,4 @@ Replay record per session. Store session ID, issue, PR, commit SHAs; forward to 
 | vibe-848bbd-verification | #213 | #215 | head of vibe/optimized-verification-loop-848bbd | ci-workflows, qa-testing | ADR 0002 + ADR 0003 implemented and CI-verified green (206 tests, 2m20s); 6 autonomous fix commits per ADR 0003 |
 | vibe-848bbd-shapes | #213 | #215 | head of vibe/optimized-verification-loop-848bbd | data-model, integrations, mcp-server | ADR 0004: shapes (3 JSON Schemas, services registry, MCP contract) + check_shape_sync.dart validator wired into CI; verified locally (30 schema props, 14 anchors, shape-sync OK) |
 
-| t3-docs-pages-2026-11-21 | #261 | pending | task branch | ci-workflows, docs-status | Owner requested vision-led Pages publication; existing sources staged without duplicating specs; Flutter web artifacts retained. |
+| t3-docs-pages-2026-11-21 | #261 | #263 | task branch | ci-workflows, docs-status | Owner requested vision-led Pages publication; existing sources staged without duplicating specs; Flutter web artifacts retained. |
