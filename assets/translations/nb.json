@@ -214,9 +214,12 @@
 			},
 			"title": "Dagligvareintegrasjoner"
 		},
+		"app_installed": "Appen er installert",
 		"app_version": "App-versjon",
 		"appearance": "Utseende",
 		"guest_user": "Gjestebruker",
+		"install_app": "Installer app",
+		"install_app_subtitle": "Legg til FoodSavr på hjemskjermen eller skrivebordet",
 		"language": "Språk",
 		"languages": {
 			"en": "Engelsk",
@@ -246,5 +249,23 @@
 		"progress": "Gjenkjent: {percent}% · {items} varer",
 		"addItems": "Legg varer til lageret",
 		"ingestError": "Kunne ikke legge til kvitteringsvarer: {error}"
+	},
+	"pwa": {
+		"banner": {
+			"install": "Installer",
+			"subtitle": "Legg til på hjemskjermen eller skrivebordet for rask tilgang.",
+			"title": "Installer FoodSavr"
+		},
+		"guide": {
+			"ios_step1": "Trykk på Del-knappen i nettleserens verktøylinje.",
+			"ios_step2": "Velg «Legg til på Hjem-skjerm» og trykk på Legg til.",
+			"safari_step1": "Klikk på Del-knappen i Safari (eller Arkiv i menylinjen).",
+			"safari_step2": "Velg «Legg til i Dock» og bekreft.",
+			"standard_step1": "Klikk på installeringsikonet i adressefeltet eller åpne nettlesermenyen.",
+			"standard_step2": "Velg «Installer FoodSavr» eller «Legg til på startskjermen».",
+			"subtitle": "Installer FoodSavr som en app for fullskjermsopplevelse og rask tilgang.",
+			"title": "Installer FoodSavr"
+		},
+		"installed_snackbar": "FoodSavr ble installert."
 	}
 }

@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../constants/legal_docs.dart';
+import '../controllers/pwa_install_controller.dart';
 import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
 import '../utils/theme_notifier.dart';
 import '../features/third_party_integration/widgets/connections_list.dart';
+import '../widgets/common/pwa_install_banner.dart';
 
 class SettingsView extends StatefulWidget {
   const SettingsView({super.key});
@@ -18,11 +20,15 @@ class SettingsView extends StatefulWidget {
 
 class _SettingsViewState extends State<SettingsView> {
   late final IAuthService _authService;
+  PwaInstallController? _pwaInstallController;
 
   @override
   void initState() {
     super.initState();
     _authService = getIt<IAuthService>();
+    if (getIt.isRegistered<PwaInstallController>()) {
+      _pwaInstallController = getIt<PwaInstallController>();
+    }
   }
 
   @override
@@ -117,34 +123,54 @@ class _SettingsViewState extends State<SettingsView> {
             const SizedBox(height: 24),
 
             // Legal & Info Section
-            _SettingsSection(
-              title: 'settings.about'.tr(),
-              children: [
-                _SettingsTile(
-                  icon: Icons.description_outlined,
-                  title: 'settings.terms_of_service'.tr(),
-                  onTap: () => _showLegalDoc(
-                    context,
-                    title: 'common.terms_of_service'.tr(),
-                    loadContent: LegalDocs.termsOfService,
-                  ),
-                ),
-                _SettingsTile(
-                  icon: Icons.privacy_tip_outlined,
-                  title: 'settings.privacy_policy'.tr(),
-                  onTap: () => _showLegalDoc(
-                    context,
-                    title: 'common.privacy_notice'.tr(),
-                    loadContent: LegalDocs.privacyNotice,
-                  ),
-                ),
-                _SettingsTile(
-                  icon: Icons.info_outline,
-                  title: 'settings.app_version'.tr(),
-                  trailing: Text('generated.100_42'.tr()),
-                  onTap: null,
-                ),
-              ],
+            ListenableBuilder(
+              listenable: _pwaInstallController ?? ChangeNotifier(),
+              builder: (context, _) {
+                final pwa = _pwaInstallController;
+                return _SettingsSection(
+                  title: 'settings.about'.tr(),
+                  children: [
+                    if (pwa != null && pwa.canInstall)
+                      _SettingsTile(
+                        icon: Icons.install_mobile_outlined,
+                        title: 'settings.install_app'.tr(),
+                        subtitle: 'settings.install_app_subtitle'.tr(),
+                        onTap: () =>
+                            PwaInstallSheet.handleInstallTap(context, pwa),
+                      )
+                    else if (pwa != null && pwa.isInstalled)
+                      _SettingsTile(
+                        icon: Icons.check_circle_outline,
+                        title: 'settings.app_installed'.tr(),
+                        onTap: null,
+                      ),
+                    _SettingsTile(
+                      icon: Icons.description_outlined,
+                      title: 'settings.terms_of_service'.tr(),
+                      onTap: () => _showLegalDoc(
+                        context,
+                        title: 'common.terms_of_service'.tr(),
+                        loadContent: LegalDocs.termsOfService,
+                      ),
+                    ),
+                    _SettingsTile(
+                      icon: Icons.privacy_tip_outlined,
+                      title: 'settings.privacy_policy'.tr(),
+                      onTap: () => _showLegalDoc(
+                        context,
+                        title: 'common.privacy_notice'.tr(),
+                        loadContent: LegalDocs.privacyNotice,
+                      ),
+                    ),
+                    _SettingsTile(
+                      icon: Icons.info_outline,
+                      title: 'settings.app_version'.tr(),
+                      trailing: Text('generated.100_42'.tr()),
+                      onTap: null,
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),

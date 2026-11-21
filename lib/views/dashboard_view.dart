@@ -7,6 +7,7 @@ import '../controllers/dashboard_controller.dart';
 import '../service_locator.dart';
 import '../utils/collection_types.dart'; // Import CollectionType
 import '../utils/product_add_helper.dart';
+import '../widgets/common/pwa_install_banner.dart';
 import '../widgets/common/retry_scaffold.dart';
 import '../widgets/dashboard/overview_card.dart';
 import '../widgets/dashboard/expiring_soon_section.dart';
@@ -142,6 +143,7 @@ class DashboardView extends WatchingWidget {
                 ),
               ],
             ),
+            const PwaInstallBanner(margin: EdgeInsets.only(top: 24)),
           ],
         ),
       ),

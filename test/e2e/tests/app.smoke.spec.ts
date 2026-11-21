@@ -49,3 +49,43 @@ test('landing renders and auth view is reachable', async ({ page }) => {
     .dispatchEvent('click');
   await expect(page.getByText('Welcome Back')).toBeVisible({ timeout: 15_000 });
 });
+
+test('PWA manifest, service worker, and install bridge are configured', async ({
+  page,
+  request,
+}) => {
+  await page.goto('/');
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute(
+    'href',
+    'manifest.json',
+  );
+
+  const manifestRes = await request.get('/manifest.json');
+  expect(manifestRes.ok()).toBeTruthy();
+  const manifest = (await manifestRes.json()) as {
+    name?: string;
+    short_name?: string;
+    display?: string;
+    icons?: { src?: string }[];
+  };
+  expect(manifest.name).toBe('FoodSavr');
+  expect(manifest.short_name).toBe('FoodSavr');
+  expect(manifest.display).toBe('standalone');
+  expect(manifest.icons?.length ?? 0).toBeGreaterThanOrEqual(4);
+
+  const swRes = await request.get('/sw.js');
+  expect(swRes.ok()).toBeTruthy();
+
+  const hasBridge = await page.evaluate(() => {
+    const pwa = (window as unknown as { foodsavrPwa?: Record<string, unknown> })
+      .foodsavrPwa;
+    return (
+      typeof pwa === 'object' &&
+      pwa !== null &&
+      typeof pwa.canPrompt === 'function' &&
+      typeof pwa.isInstalled === 'function' &&
+      typeof pwa.promptInstall === 'function'
+    );
+  });
+  expect(hasBridge).toBe(true);
+});

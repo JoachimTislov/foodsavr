@@ -6,6 +6,7 @@ import 'package:foodsavr/features/third_party_integration/models/provider_model.
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/features/third_party_integration/interfaces/i_oauth_service.dart';
 import 'package:foodsavr/service_locator.dart';
+import 'package:foodsavr/controllers/pwa_install_controller.dart';
 import 'package:foodsavr/controllers/user_controller.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/features/third_party_integration/oauth_controller.dart';
@@ -24,6 +25,31 @@ class _MockAuthController extends Mock implements UserController {}
 class _MockCollectionService extends Mock implements CollectionService {}
 
 class _MockGroceryStoreAuthService extends Mock implements IOAuthService {}
+
+class _FakeSettingsPwaBridge implements PwaBridge {
+  _FakeSettingsPwaBridge({required this.isInstalled});
+
+  @override
+  bool get isSupported => true;
+
+  @override
+  final bool isInstalled;
+
+  @override
+  bool get canPrompt => false;
+
+  @override
+  PwaPlatformHint get platformHint => PwaPlatformHint.standard;
+
+  @override
+  Stream<void> get onStateChanged => const Stream.empty();
+
+  @override
+  Future<PwaPromptResult> promptInstall() async => PwaPromptResult.unavailable;
+
+  @override
+  void dispose() {}
+}
 
 class _TestWrapper extends StatelessWidget {
   final Widget child;
@@ -446,6 +472,58 @@ void main() async {
         expect(find.byIcon(Icons.description_outlined), findsOneWidget);
         expect(find.byIcon(Icons.privacy_tip_outlined), findsOneWidget);
         expect(find.byIcon(Icons.info_outline), findsOneWidget);
+      });
+    });
+
+    testWidgets('shows Install App tile on web when not yet installed', (
+      tester,
+    ) async {
+      final pwaController = PwaInstallController(
+        bridge: _FakeSettingsPwaBridge(isInstalled: false),
+      );
+      addTearDown(pwaController.dispose);
+      getIt.registerSingleton<PwaInstallController>(pwaController);
+
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            child: const _TestWrapper(child: SettingsView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Install App'), findsOneWidget);
+        expect(
+          find.text('Add FoodSavr to your home screen or desktop'),
+          findsOneWidget,
+        );
+      });
+    });
+
+    testWidgets('shows App Installed tile on web when installed', (
+      tester,
+    ) async {
+      final pwaController = PwaInstallController(
+        bridge: _FakeSettingsPwaBridge(isInstalled: true),
+      );
+      addTearDown(pwaController.dispose);
+      getIt.registerSingleton<PwaInstallController>(pwaController);
+
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            child: const _TestWrapper(child: SettingsView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('App Installed'), findsOneWidget);
       });
     });
   });

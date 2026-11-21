@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../service_locator.dart';
 import '../controllers/user_controller.dart';
 import '../widgets/auth/social_auth_section.dart';
+import '../widgets/common/pwa_install_banner.dart';
 
 class LandingPageView extends StatefulWidget {
   const LandingPageView({super.key});
@@ -169,6 +170,7 @@ class _LandingPageViewState extends State<LandingPageView> {
                           ),
                         ],
                       ),
+                      const PwaInstallBanner(margin: EdgeInsets.only(top: 20)),
                     ],
                   );
                 },

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="FoodSavr helps you reduce food waste by providing features such as meal planning, recipe suggestions, and food storage management assistance.">
+  <meta name="application-name" content="FoodSavr">
+  <meta name="theme-color" content="#13c8ec">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#13c8ec">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#101f22">
+
+  <!-- iOS & mobile PWA meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="FoodSavr">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>FoodSavr</title>
+  <link rel="manifest" href="manifest.json">
+
+  <script>
+    (function () {
+      let deferredPrompt = null;
+      let installedFlag = false;
+
+      function checkStandalone() {
+        if (installedFlag) return true;
+        try {
+          if (window.navigator && window.navigator.standalone === true) {
+            return true;
+          }
+          if (window.matchMedia) {
+            if (
+              window.matchMedia('(display-mode: standalone)').matches ||
+              window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+              window.matchMedia('(display-mode: fullscreen)').matches
+            ) {
+              return true;
+            }
+          }
+        } catch (_) {}
+        return false;
+      }
+
+      function detectPlatformHint() {
+        try {
+          const ua = (window.navigator && window.navigator.userAgent) || '';
+          const platform = (window.navigator && window.navigator.platform) || '';
+          const maxTouchPoints =
+            (window.navigator && window.navigator.maxTouchPoints) || 0;
+          const isIOS =
+            /iPad|iPhone|iPod/.test(ua) ||
+            (platform === 'MacIntel' && maxTouchPoints > 1);
+          if (isIOS) return 'ios';
+          const isSafari =
+            /^((?!chrome|android|crios|fxios|edgios).)*safari/i.test(ua);
+          if (isSafari) return 'macos-safari';
+        } catch (_) {}
+        return 'standard';
+      }
+
+      function notifyStateChange() {
+        try {
+          window.dispatchEvent(new CustomEvent('foodsavr:pwa-state'));
+        } catch (_) {}
+      }
+
+      window.addEventListener('beforeinstallprompt', function (event) {
+        event.preventDefault();
+        deferredPrompt = event;
+        notifyStateChange();
+      });
+
+      window.addEventListener('appinstalled', function () {
+        deferredPrompt = null;
+        installedFlag = true;
+        notifyStateChange();
+      });
+
+      try {
+        if (window.matchMedia) {
+          const mql = window.matchMedia('(display-mode: standalone)');
+          if (mql && typeof mql.addEventListener === 'function') {
+            mql.addEventListener('change', notifyStateChange);
+          }
+        }
+      } catch (_) {}
+
+      window.foodsavrPwa = {
+        isInstalled: function () {
+          return checkStandalone();
+        },
+        canPrompt: function () {
+          return Boolean(deferredPrompt) && !checkStandalone();
+        },
+        platformHint: function () {
+          return detectPlatformHint();
+        },
+        promptInstall: async function () {
+          if (!deferredPrompt) return 'unavailable';
+          const promptEvent = deferredPrompt;
+          deferredPrompt = null;
+          try {
+            await promptEvent.prompt();
+            const choice = await promptEvent.userChoice;
+            const outcome =
+              choice && choice.outcome === 'accepted' ? 'accepted' : 'dismissed';
+            if (outcome === 'accepted') {
+              installedFlag = true;
+            }
+            notifyStateChange();
+            return outcome;
+          } catch (_) {
+            notifyStateChange();
+            return 'dismissed';
+          }
+        },
+      };
+
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('sw.js').catch(function () {});
+        });
+      }
+    })();
+  </script>
+</head>
+<body>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

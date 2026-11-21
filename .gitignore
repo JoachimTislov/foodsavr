@@ -9,7 +9,6 @@ windows
 ios
 macos
 linux
-web
 functions
 .firebaserc
 firebase.json
