@@ -2,10 +2,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class Config {
-  static const String environment = appFlavor ?? 'development';
+  /// Web builds cannot pass `--flavor`; use `--dart-define=FLAVOR=production`.
+  static const String environment =
+      appFlavor ??
+      String.fromEnvironment('FLAVOR', defaultValue: 'development');
 
   static bool get isDevelopment => environment == 'development';
-  static bool get isProduction => appFlavor == 'production';
+  static bool get isProduction => environment == 'production';
   static bool get useEmulators => isDevelopment;
 
   /// The IP address for local development emulators.
