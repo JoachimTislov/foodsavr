@@ -1,1 +1,0 @@
-../../../.agents/skills/teach/LEARNING-RECORD-FORMAT.md

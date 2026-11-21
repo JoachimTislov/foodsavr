@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "agent-implement",
+  "description": "Runner policy for implementing a ready-for-agent issue: the provider edits an isolated worktree only; the runner, not the model, commits, pushes, and opens the draft PR.",
+  "filesystem": "workspace-write",
+  "network": "none",
+  "git": "read-only",
+  "github": "none",
+  "allow_hosts": ["github.com", "api.github.com"],
+  "require_draft_pr": true,
+  "require_session_id": true,
+  "require_ledger_event": true,
+  "require_acceptance": true
+}

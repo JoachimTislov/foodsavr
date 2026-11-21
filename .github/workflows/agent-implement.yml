@@ -1,0 +1,280 @@
+name: Agent implement
+
+# Implements an issue labelled triage/ready-for-agent through the same agentctl
+# workflow used locally and in T3 Code. The provider edits an isolated worktree
+# with no git, network, or GitHub permission. Agent-written code runs only in
+# the read-only `implement` job; the `publish` job, on a fresh runner, applies
+# the verified patch, commits it with an Agent-Session trailer, and opens a
+# draft PR.
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number to implement
+        required: true
+
+concurrency:
+  group: agent-implement-${{ github.event.issue.number || inputs.issue }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  ISSUE: ${{ github.event.issue.number || inputs.issue }}
+  BRANCH: agent/issue-${{ github.event.issue.number || inputs.issue }}
+
+jobs:
+  implement:
+    # Only the repository owner can start a run (labelling needs triage access).
+    if: >-
+      (github.event_name == 'workflow_dispatch' ||
+       github.event.label.name == 'triage/ready-for-agent') &&
+      github.actor == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      changed: ${{ steps.patch.outputs.changed }}
+      session: ${{ steps.patch.outputs.session }}
+      status: ${{ steps.patch.outputs.status }}
+      verify: ${{ steps.verify.outputs.result }}
+    steps:
+      - name: Validate input and skip existing agent branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$ISSUE" =~ ^[0-9]+$ ]] || { echo "issue must be a number"; exit 1; }
+          if gh api "repos/${GITHUB_REPOSITORY}/branches/${BRANCH}" >/dev/null 2>&1; then
+            echo "Branch ${BRANCH} already exists; resolve or delete it first."; exit 1
+          fi
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Harness tokens, not API keys: install only the CLIs whose login is
+      # configured; the router then picks the first policy-safe one installed.
+      - name: Install provider CLIs with harness logins (versions verified in .agents/runners/providers.json)
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CODEX_AUTH_JSON_B64: ${{ secrets.CODEX_AUTH_JSON_B64 }}
+        run: |
+          installed=0
+          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            npm install --global @anthropic-ai/claude-code@2.1.326; installed=1
+          fi
+          if [ -n "$CODEX_AUTH_JSON_B64" ]; then
+            npm install --global @openai/codex@0.169.0
+            install -d -m 700 "$HOME/.codex"
+            umask 077; echo "$CODEX_AUTH_JSON_B64" | base64 -d > "$HOME/.codex/auth.json"; installed=1
+          fi
+          if [ "$installed" = 0 ]; then
+            echo "No harness login configured: run scripts/secrets/rotate.py CLAUDE_CODE_OAUTH_TOKEN (or CODEX_AUTH_JSON_B64)."
+            exit 1
+          fi
+
+      - name: Prepare issue context
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .agents/state/workflows
+          gh issue view "$ISSUE" --json number,title,body,labels \
+            --jq '"# Issue #\(.number): \(.title)\n\nLabels: \([.labels[].name] | join(", "))\n\n\(.body)"' \
+            > ".agents/state/issue-${ISSUE}.md"
+          jq --arg file ".agents/state/issue-${ISSUE}.md" --arg issue "#${ISSUE}" \
+            '.context.files += [$file] | .references.issues = [$issue]' \
+            .agents/workflows/implement-issue.json > .agents/state/workflows/implement-issue.json
+
+      - name: Run implement-issue workflow
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          AGENT_POLICY_FILE: .agents/policies/agent-implement.json
+        run: |
+          scripts/agents/agentctl workflow run .agents/state/workflows/implement-issue.json \
+            --execute --provider auto > .agents/state/result.json || true
+          rm -f "$HOME/.codex/auth.json"
+          jq '{status, run_id, session_ids, patch, steps: [.steps[] | {id, status, provider, reason}]}' .agents/state/result.json || true
+
+      - name: Apply patch
+        id: patch
+        run: |
+          patch="$(jq -r '.patch // empty' .agents/state/result.json 2>/dev/null || true)"
+          session="$(jq -r '.session_ids[0] // empty' .agents/state/result.json 2>/dev/null || true)"
+          echo "session=${session}" >> "$GITHUB_OUTPUT"
+          echo "status=$(jq -r '.status // "error"' .agents/state/result.json 2>/dev/null || echo error)" >> "$GITHUB_OUTPUT"
+          if [ -n "$patch" ] && [ -s "$patch" ] && [ -n "$session" ]; then
+            git apply --index "$patch"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: subosito/flutter-action@v2
+        if: steps.patch.outputs.changed == 'true'
+        with:
+          flutter-version: 3.47.6
+          channel: "stable"
+          cache: true
+
+      - name: Verify patch
+        if: steps.patch.outputs.changed == 'true'
+        id: verify
+        env:
+          FIREBASE_OPTIONS_B64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
+        run: |
+          echo "$FIREBASE_OPTIONS_B64" | base64 -d > lib/firebase_options.dart
+          echo 'CI_TEST=1' > assets/.env
+          flutter pub get
+          dart run build_runner build --delete-conflicting-outputs
+          dart format lib test
+          set +e
+          flutter analyze --fatal-infos --fatal-warnings --no-pub > .agents/state/analyze.log 2>&1; analyze=$?
+          dart run scripts/locale/check_localizations.dart > .agents/state/locale.log 2>&1; locale=$?
+          flutter test --no-pub > .agents/state/test.log 2>&1; tests=$?
+          set -e
+          state() { [ "$1" = 0 ] && echo passed || echo failed; }
+          result=passed; [ "$analyze$locale$tests" = "000" ] || result=failed
+          echo "result=${result}" >> "$GITHUB_OUTPUT"
+          printf -- '- analyze: %s\n- localization: %s\n- tests: %s\n' "$(state $analyze)" "$(state $locale)" "$(state $tests)" > .agents/state/verify.md
+
+      - name: Export final patch
+        if: steps.patch.outputs.changed == 'true'
+        run: |
+          git add --update
+          git diff --cached --binary > .agents/state/final.patch
+
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-implement-${{ env.ISSUE }}
+          path: |
+            .agents/state/result.json
+            .agents/state/final.patch
+            .agents/state/verify.md
+            .agents/state/*.log
+            .agents/state/runs/*/events.jsonl
+          if-no-files-found: ignore
+          retention-days: 14
+
+  publish:
+    needs: implement
+    if: always() && needs.implement.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      # The agent GitHub App (scripts/human/github/create-agent-app.sh) gives the bot its
+      # own identity and a one-hour token whose pushes and PRs trigger CI. Without
+      # it, the job falls back to the Actions token.
+      - name: Check agent App configuration
+        id: app-config
+        env:
+          AGENT_APP_ID: ${{ secrets.AGENT_APP_ID }}
+          AGENT_APP_PRIVATE_KEY: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
+        run: |
+          if [ -n "$AGENT_APP_ID" ] && [ -n "$AGENT_APP_PRIVATE_KEY" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Agent App not configured; publishing with the Actions token (run scripts/human/github/create-agent-app.sh)."
+          fi
+
+      - name: Mint agent App token
+        id: app
+        if: steps.app-config.outputs.configured == 'true'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.AGENT_APP_ID }}
+          private-key: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        if: needs.implement.outputs.changed == 'true'
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        if: needs.implement.outputs.changed == 'true'
+        with:
+          name: agent-implement-${{ env.ISSUE }}
+          path: ${{ runner.temp }}/agent
+
+      - name: Commit, push, and open draft PR
+        if: needs.implement.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          SESSION: ${{ needs.implement.outputs.session }}
+          VERIFY: ${{ needs.implement.outputs.verify }}
+          ARTIFACTS: ${{ runner.temp }}/agent
+        run: |
+          title="$(gh issue view "$ISSUE" --json title --jq .title)"
+          git apply --index "$ARTIFACTS/final.patch"
+          if [ -n "$APP_SLUG" ]; then
+            bot="${APP_SLUG}[bot]"
+            bot_id="$(gh api "/users/${bot}" --jq .id)"
+            ci_note="Pushed by ${bot}, so CI runs on this PR."
+          else
+            bot="github-actions[bot]"; bot_id=41898282
+            ci_note="Opened with the Actions token, which does not trigger workflows: push a commit or re-run checks to start CI (or set up the agent App)."
+          fi
+          git config user.name "$bot"
+          git config user.email "${bot_id}+${bot}@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git -c core.hooksPath=/dev/null commit --no-verify -m "feat: implement #${ISSUE}" -m "${title}" \
+            -m "Closes #${ISSUE}" -m "Agent-Session: ${SESSION}"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
+          {
+            echo "### What does this PR do?"
+            echo
+            echo "Implements #${ISSUE} (${title}) through the \`implement-issue\` agent workflow."
+            echo
+            echo "Closes: #${ISSUE}"
+            echo
+            echo "## Evidence"
+            echo
+            echo "Runner verification (${VERIFY:-not run}):"
+            cat "$ARTIFACTS/verify.md" 2>/dev/null || true
+            echo
+            echo "## Merge Danger"
+            echo
+            echo "**Door:** two-way. Draft until reviewed. ${ci_note}"
+            echo
+            echo "### AI Contribution & Experience Disclosure"
+            echo
+            echo "*   **Author-By:** agent-implement workflow, run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "*   **Model-Used:** provider session \`${SESSION}\`"
+            echo "*   **Summary of AI-generated content:** the full diff"
+          } > "$RUNNER_TEMP/pr-body.md"
+          gh pr create --draft --base "${GITHUB_REF_NAME}" --head "$BRANCH" \
+            --title "feat: implement #${ISSUE}" --body-file "$RUNNER_TEMP/pr-body.md"
+
+      - name: Report to the issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
+          CHANGED: ${{ needs.implement.outputs.changed }}
+          STATUS: ${{ needs.implement.outputs.status }}
+          VERIFY: ${{ needs.implement.outputs.verify }}
+          SESSION: ${{ needs.implement.outputs.session }}
+        run: |
+          if [ "$CHANGED" = "true" ]; then
+            outcome="produced a patch on \`${BRANCH}\` (runner verification: ${VERIFY:-not run}); see the draft PR"
+          else
+            outcome="made no change (workflow status: ${STATUS:-not run})"
+          fi
+          printf '> *This was generated by AI during an agent run.*\n\nAgent run %s %s. Session: `%s`.\n' \
+            "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" "$outcome" "${SESSION:-none}" \
+            > "$RUNNER_TEMP/comment.md"
+          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/comment.md"

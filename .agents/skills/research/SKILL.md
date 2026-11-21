@@ -1,6 +1,8 @@
 ---
 name: research
 description: Research external sources with provider-neutral search, provenance, bounded retrieval, and prompt-injection quarantine. Use for web lookups, standards audits, and source-backed design decisions.
+metadata:
+  audience: agent
 ---
 
 # Research skill

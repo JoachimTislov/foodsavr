@@ -13,17 +13,5 @@ also maintain the project's architectural integrity.
 
 ## Workflow
 
-When asked to resolve comments for a PR, take full ownership of the process and
-perform the following steps sequentially:
-
-1. **Pre-flight:** Run `make gh-resolve-outdated` to clear any stale threads.
-2. **Investigate & Implement (Recursive):**
-    - Run `make gh-get-active-comment --refresh` (on the first run) or `make gh-get-active-comment` (on subsequent recursive runs) to fetch the first active comment.
-    - If there are no active comments, proceed to **Finalize**.
-    - Read the thread carefully and gather full context of the code mentioned in the comment.
-    - Apply the required fix following the project's standards (3-tier architecture, Material 3, Effective Dart).
-    - Verify the fix by running `make check`.
-    - Commit the change with a clear message referencing the resolved comment.
-    - Run `make gh-resolve-thread id=<ThreadID>` to mark it as resolved.
-    - Repeat step 2 recursively until `make gh-get-active-comment` reports no active comments.
-3. **Finalize:** Run `make check` and then `make push`.
+Follow the `resolve-pr-comments` skill (`.agents/skills/resolve-pr-comments/SKILL.md`)
+for the PR you were given, applying fixes per the `flutter-standards` skill.

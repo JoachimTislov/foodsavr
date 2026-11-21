@@ -1,1 +1,0 @@
-../../../.agents/skills/maintenance/SKILL.md

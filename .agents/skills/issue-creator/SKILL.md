@@ -1,9 +1,11 @@
 ---
 name: issue-creator
-description: Use this skill when asked to create an issue (bug, feature, or task). It ensures issues are clear, actionable, and follow repository standards.
+description: Create a single GitHub issue (bug, feature, or task). Use when asked to file or open an issue; for a plan split into many tickets use `to-tickets`.
+metadata:
+  audience: agent
 ---
 
-This skill guides the creation of high-quality issues to track bugs, features, or tasks.
+Tracker operations and labels: [.agents/tracker.md](../../tracker.md).
 
 # Workflow
 
@@ -34,8 +36,11 @@ This skill guides the creation of high-quality issues to track bugs, features, o
 
 5.  **Create Issue**: Use the `gh` CLI. To avoid shell escaping issues with multi-line Markdown, write the description to a temporary file first.
     ```bash
-    gh issue create --title "type: succinct description" --body-file "<description>" --label "bug|feature|task"
+    gh issue create --title "type: succinct description" --body-file "<description>" --label "type/bug|type/feature|type/task"
     ```
+    Add `triage/ready-for-agent` only when the issue is fully specified for an agent.
+
+6.  **Log**: record the issue in the ledger and the session record (`sessions register ... --issue '#N'`).
 
 # Principles
 

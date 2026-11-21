@@ -150,19 +150,21 @@ write_env() {
   printf '  %s✓ wrote%s %s → %s\n' "$GREEN" "$RESET" "$key" "$ENV_FILE"
 }
 
-# set_secret NAME VALUE sets a GitHub Actions repo secret via gh. Falls back
-# to a warning (and records it) if gh is unavailable or unauthenticated.
+# set_secret NAME VALUE stores a secret through the repository's rotation
+# script, which writes every sink registered for NAME (GitHub, .env). NAME must
+# be registered in scripts/secrets/registry.toml with `generate = "manual"`.
+# Falls back to a warning (and records it) if the script cannot store it.
 set_secret() {
   local name="$1" value="$2"
-  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-    if printf '%s' "$value" | gh secret set "$name" >/dev/null 2>&1; then
-      WRITTEN_SECRET+=("$name")
-      printf '  %s✓ set%s GitHub secret %s\n' "$GREEN" "$RESET" "$name"
-      return
-    fi
+  local root
+  root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  if env "NEW_$name=$value" python3 "$root/scripts/secrets/rotate.py" "$name" >/dev/null 2>&1; then
+    WRITTEN_SECRET+=("$name")
+    printf '  %s✓ set%s secret %s\n' "$GREEN" "$RESET" "$name"
+    return
   fi
-  SKIPPED+=("GitHub secret $name (set it manually: gh secret set $name)")
-  warn "skipped GitHub secret $name: gh not ready; set it later"
+  SKIPPED+=("secret $name (store it later: scripts/secrets/rotate.py $name)")
+  warn "skipped secret $name: rotate.py could not store it; set it later"
 }
 
 # set_var NAME VALUE sets a GitHub Actions repo variable (non-secret).

@@ -1,6 +1,8 @@
 ---
 name: code-review
-description: "Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes: Standards (does the code follow this repo's documented coding standards?) and Spec (does the code match what the originating issue/spec asked for?). Runs both reviews in parallel sub-agents and reports them side by side. Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to \"review since X\"."
+description: "Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes: Standards (does the code follow this repo's documented coding standards?) and Spec (does the code match what the originating issue/spec asked for?). Runs both reviews in parallel sub-agents and reports them side by side. Use to review a branch, a PR, work-in-progress changes, or \"since X\"."
+metadata:
+  audience: agent
 ---
 
 Two-axis review of the diff between `HEAD` and a fixed point the user supplies:
@@ -10,13 +12,13 @@ Two-axis review of the diff between `HEAD` and a fixed point the user supplies:
 
 Both axes run as **parallel sub-agents** so they don't pollute each other's context, then this skill aggregates their findings. Start every sub-agent with a fresh context window.
 
-The issue tracker should have been provided to you. If not, tell the user to run `/setup-matt-pocock-skills`.
+The issue tracker and domain docs are configured in [.agents/tracker.md](../../tracker.md).
 
 ## Process
 
 ### 1. Pin the fixed point
 
-Whatever the user said is the fixed point (a commit SHA, branch name, tag, `main`, `HEAD~5`, etc.). If they didn't specify one, ask for it.
+Whatever the invocation names is the fixed point (a commit SHA, branch name, tag, `main`, `HEAD~5`, a PR's base). If none is named, use `origin/main` and state that in the report.
 
 Capture the diff command once: `git diff <fixed-point>...HEAD` (three-dot, so the comparison is against the merge-base). Also note the list of commits via `git log <fixed-point>..HEAD --oneline`.
 
@@ -28,12 +30,13 @@ Look for the originating spec, in this order:
 
 1. Issue references in the commit messages (`#123`, `Closes #45`, GitLab `!67`, etc.), fetched via the workflow in the tracker doc.
 2. A path the user passed as an argument.
-3. A spec file under `docs/`, `specs/`, or `.scratch/` matching the branch name or feature.
-4. If nothing is found, ask the user where the spec is. If they say there isn't one, the **Spec** sub-agent will skip and report "no spec available".
+3. A spec file under `doc/`, `docs/`, or `specs/` matching the branch name or feature.
+4. The canonical spec in `specs/source-of-truth/` for the domains the diff touches.
+5. If nothing is found, the **Spec** sub-agent skips and reports "no spec available".
 
 ### 3. Identify the standards sources
 
-Search the repo for every file that documents how code should be written. When `CODING_STANDARDS.md` or `CONTRIBUTING.md` exists, it must be on the list.
+Search the repo for every file that documents how code should be written. Always include `AGENTS.md`, [flutter-standards](../flutter-standards/SKILL.md) when the diff touches Dart, and `CONTRIBUTING.md`; add any ADR in `specs/source-of-truth/decisions/` that governs the touched area.
 
 On top of whatever the repo documents, the Standards axis always carries the **smell baseline** below: a fixed set of Fowler code smells (_Refactoring_, ch.3) that applies even when a repo documents nothing. Two rules bind it:
 
@@ -63,7 +66,7 @@ Issue both sub-agent calls together, in the foreground, and aggregate the report
 
 - The full diff command and commit list.
 - The list of standards-source files you found in step 3, **plus the smell baseline from step 3** pasted in full (the sub-agent has no other access to it).
-- The brief: "Report, per file/hunk where relevant, (a) every place the diff violates a documented standard: cite the standard (file + the rule); and (b) any baseline smell you spot: name it and quote the hunk. Distinguish hard violations from judgement calls: documented-standard breaches can be hard, but baseline smells are always judgement calls, and a documented repo standard overrides the baseline. Skip anything tooling enforces. Under 400 words."
+- The brief: "Report only findings that objectively improve correctness, safety, architecture, or future development; skip stylistic preference that no documented standard backs. Report, per file/hunk where relevant, (a) every place the diff violates a documented standard: cite the standard (file + the rule); and (b) any baseline smell you spot: name it and quote the hunk. Distinguish hard violations from judgement calls: documented-standard breaches can be hard, but baseline smells are always judgement calls, and a documented repo standard overrides the baseline. Skip anything tooling enforces. Under 400 words."
 
 **Spec sub-agent prompt** should include:
 
@@ -77,7 +80,18 @@ If the spec is missing, skip the Spec sub-agent and note this in the final repor
 
 Present the two reports under `## Standards` and `## Spec` headings, verbatim or lightly cleaned. Do **not** merge or rerank findings, because the two axes are deliberately separate (see _Why two axes_).
 
+Each finding is one line, tagged and anchored, with its fix:
+
+```markdown
+* **[BUG]** `lib/views/dashboard.dart:80` - Unawaited future races the refresh.
+  * **[FIX]** `await Future.wait([expiringSoon, inventories]);`
+```
+
+Tags: `[BUG]`, `[SPEC]`, `[STANDARD]`, `[SMELL]`, `[ARCH]`, `[PERF]`, `[SECURITY]`, `[FUTURE]` (debt that will block upcoming work).
+
 End with a one-line summary: total findings per axis, and the worst issue _within each axis_ (if any). Don't pick a single winner across axes: that's the reranking the separation exists to prevent.
+
+Deliver the report where the invocation asks: in the conversation, as one PR review comment (`gh pr review <PR> --comment --body-file <file>`) when the run has GitHub write permission, or in the workflow run result.
 
 ## Why two axes
 

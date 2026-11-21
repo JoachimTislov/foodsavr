@@ -1,7 +1,8 @@
 ---
 name: pr
-description: "Use when writing a PR body."
+description: "Open a pull request and write its body. Use when creating a PR or writing or updating a PR body."
 metadata:
+  audience: agent
   credits:
     skill: show-me
     author: Dex Horthy
@@ -9,7 +10,14 @@ metadata:
     url: "https://github.com/humanlayer/skills/blob/main/plugins/show-me/skills/show-me/SKILL.md"
 ---
 
-Use this template for writing the PR body:
+## Open the PR
+
+1. Commit pending work with the `commit` skill. Never push `main`: check `git branch --show-current` first.
+2. Push with `make push` (it runs `make check`).
+3. Write the body below to a temporary file; create the PR as a draft unless asked otherwise: `gh pr create --draft --title "type(scope): summary" --body-file <file>`. The title is a Conventional Commit subject.
+4. Apply the host's PR-linking rules, and log the PR in the ledger and the session record (`sessions register ... --pr '#N'`).
+
+The body fills the repository template (`.github/PULL_REQUEST_TEMPLATE.md`): keep its `Closes: #N` line, checklist (tick only what was done), and AI disclosure, with these sections as "What does this PR do?":
 
 ```markdown
 ## Summary
@@ -32,9 +40,11 @@ Use this template for writing the PR body:
 <optional: potential ramifications of merge>
 ```
 
+The AI disclosure names the harness, model, and `Agent-Session` ID.
+
 ## Sections
 
-Skip all preambles and keep prose brief. Use the user's domain language from `GLOSSARY.md`.
+Skip all preambles and keep prose brief. Use the domain language of `specs/source-of-truth/`.
 
 ### Summary
 

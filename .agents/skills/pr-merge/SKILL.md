@@ -1,6 +1,8 @@
 ---
 name: pr-merge
 description: Prioritize the repository's open PRs against a user's objective, coordinate with local and CI agent sessions, and merge finalized PRs in dependency order. Use for Dependabot PR updates and to assess and merge PRs, including mixed-readiness queues and stacks, within the requested scope.
+metadata:
+  audience: agent
 ---
 
 # PR merge

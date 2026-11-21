@@ -1,0 +1,1 @@
+../../../.agents/skills/introspect/SKILL.md

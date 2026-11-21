@@ -238,7 +238,7 @@ feature:
 		exit 1; \
 	fi
 	@echo "Scaffolding feature: $(name)..."
-	@gemini -p "Activate the 'creation' skill and scaffold a new feature named '$(name)' following the 3-tier Layered Architecture (lib/models, lib/interfaces, lib/repositories, lib/services, lib/views)."
+	@gemini -p "Activate the 'flutter-standards' skill and scaffold a new feature named '$(name)' following the 3-tier Layered Architecture (lib/models, lib/interfaces, lib/repositories, lib/services, lib/views)."
 
 research:
 	@if [ -z "$(topic)" ]; then \
@@ -255,7 +255,7 @@ resolve-comments:
 		echo "Error: No active pull request found for this branch."; \
 		exit 1; \
 	fi; \
-	gemini -p "/resolve $$PR_NUM"
+	gemini -p "Use the resolve-pr-comments skill for PR #$$PR_NUM."
 
 unit-tests: deps
 	@echo "Running unit tests..."

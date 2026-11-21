@@ -93,3 +93,37 @@ Use `workflow cancel <run-id>` to transition a planned or running artifact to
 `cancelled`. The controller records a cancellation event and ledger reference,
 removes the active marker, and signals the owning runner when its process is
 still present. Terminal runs are left unchanged.
+
+## Implementing issues
+
+`implement-issue.json` turns one `triage/ready-for-agent` issue into a patch.
+It requests `workspace-write` only, so it runs under
+`.agents/policies/agent-implement.json` (the default read-only policy rejects
+it). The same command works locally, in T3 Code, and on a runner:
+
+```sh
+jq --arg f .agents/state/issue-42.md '.context.files += [$f] | .references.issues = ["#42"]' \
+  .agents/workflows/implement-issue.json > .agents/state/workflows/implement-issue.json
+AGENT_POLICY_FILE=.agents/policies/agent-implement.json \
+  scripts/agents/agentctl workflow run .agents/state/workflows/implement-issue.json --execute --provider auto
+```
+
+The run ends `awaiting_acceptance` with `changes.patch` (new files included);
+verification belongs to whoever applies the patch.
+`.github/workflows/agent-implement.yml` does this when the owner labels an
+issue: an unprivileged job runs the provider and verifies the patch (analyze,
+localization, tests), and a separate job applies it, commits with the
+`Agent-Session` trailer, opens a draft PR, and comments on the issue. It uses
+harness logins, never API keys: `CLAUDE_CODE_OAUTH_TOKEN` (from `claude
+setup-token`, a Claude subscription) and, optionally, `CODEX_AUTH_JSON_B64`
+(a mirror of `~/.codex/auth.json`). Store them with `scripts/secrets/rotate.py
+CLAUDE_CODE_OAUTH_TOKEN`. The Codex login shares its refresh token with this
+machine, so re-sync it if either side stops authenticating.
+
+Publishing uses the agent GitHub App when `AGENT_APP_ID` and
+`AGENT_APP_PRIVATE_KEY` are set (`scripts/human/github/create-agent-app.sh` walks
+through creating and installing it): commits, PRs, and comments come from
+`<app>[bot]` with a one-hour installation token, and its pushes trigger CI.
+The App has no Workflows permission, so agent patches cannot change CI.
+Without it, the job falls back to the Actions token, whose PRs start no
+workflows.
