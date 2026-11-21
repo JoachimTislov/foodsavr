@@ -17,6 +17,7 @@ import 'service_locator.dart';
 import 'utils/theme_notifier.dart';
 import 'utils/app_theme.dart';
 import 'utils/config.dart';
+import 'utils/app_check_storage.dart';
 
 const dummyOptions = FirebaseOptions(
   apiKey: 'AIzaSyDummyKeyForDemoOnly',
@@ -38,12 +39,16 @@ void main() async {
       'No app flavor provided. Please run the app using `make run-dev` or specify a flavor using `--flavor development`. See archive/issues/gradle-build-failed-apk-flavor.md for more info.',
     );
   }
-  if (appFlavor != null && !supportedFlavors.contains(appFlavor)) {
+  if (!supportedFlavors.contains(Config.environment)) {
     throw Exception(
-      'Invalid app flavor: $appFlavor. Supported flavors: ${supportedFlavors.join(', ')}',
+      'Invalid app flavor: ${Config.environment}. Supported flavors: ${supportedFlavors.join(', ')}',
     );
   }
   WidgetsFlutterBinding.ensureInitialized();
+  const recaptchaKey = String.fromEnvironment('RECAPTCHA_ENTERPRISE_SITE_KEY');
+  prepareAppCheckStorage(
+    enterpriseSiteKey: Config.useEmulators ? null : recaptchaKey,
+  );
   await dotenv.load(fileName: 'assets/.env');
 
   OpenFoodAPIConfiguration.userAgent = UserAgent(
@@ -98,24 +103,17 @@ void main() async {
     await serviceLocator.setupDevelopment();
   }
 
-  if (!initializedAppCheck) {
-    initializedAppCheck = true;
-
-    const recaptchaKey = String.fromEnvironment(
-      'RECAPTCHA_V3_SITE_KEY',
-      defaultValue: 'your-web-recaptcha-v3-site-key',
-    );
-    if (Config.isProduction &&
-        kIsWeb &&
-        recaptchaKey == 'your-web-recaptcha-v3-site-key') {
-      logger.w('RECAPTCHA_V3_SITE_KEY is not set.');
+  if (!Config.useEmulators && !initializedAppCheck) {
+    if (Config.isProduction && kIsWeb && recaptchaKey.isEmpty) {
+      logger.w('RECAPTCHA_ENTERPRISE_SITE_KEY is not set.');
     }
     await FirebaseAppCheck.instance.activate(
-      providerWeb: ReCaptchaV3Provider(recaptchaKey),
+      providerWeb: ReCaptchaEnterpriseProvider(recaptchaKey),
       providerAndroid: Config.useEmulators
           ? AndroidDebugProvider()
           : AndroidPlayIntegrityProvider(),
     );
+    initializedAppCheck = true;
   }
 
   const enLocale = Locale('en');

@@ -77,3 +77,7 @@ gha-creds-*.json
 # foodsavr_core local package build artifacts
 packages/foodsavr_core/.dart_tool/
 packages/foodsavr_core/.packages
+.firebase/
+infra/terraform/.terraform/
+infra/terraform/*.tfstate*
+infra/terraform/*.tfvars
