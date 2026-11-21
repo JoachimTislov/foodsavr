@@ -31,15 +31,15 @@ class RegistryTest(unittest.TestCase):
 
 class SelectTest(unittest.TestCase):
     registry = {
-        "CHEAP": rotate.Secret("CHEAP", generate="random", cost="cheap"),
+        "CHEAP": rotate.Secret("CHEAP", generate="random", effort="low"),
         "COSTLY": rotate.Secret("COSTLY"),
     }
 
-    def test_cheap_skips_expensive(self):
+    def test_low_effort_skips_high_effort(self):
         names = [s.name for s in rotate.select(self.registry, [], True, [])]
         self.assertEqual(names, ["CHEAP"])
 
-    def test_named_expensive_is_included_once(self):
+    def test_named_high_effort_is_included_once(self):
         names = [s.name for s in rotate.select(self.registry, ["COSTLY", "CHEAP"], True, [])]
         self.assertEqual(names, ["CHEAP", "COSTLY"])
 
@@ -50,12 +50,19 @@ class SelectTest(unittest.TestCase):
 
 class GroupTest(unittest.TestCase):
     registry = {
-        "A": rotate.Secret("A", generate="random", cost="cheap", groups=["g"]),
+        "A": rotate.Secret("A", generate="random", effort="low", groups=["g"]),
         "B": rotate.Secret("B", groups=["g", "h"]),
         "C": rotate.Secret("C", groups=["h"]),
     }
 
-    def test_group_includes_expensive_members(self):
+    def test_group_skips_public_unless_named(self):
+        registry = {**self.registry, "P": rotate.Secret("P", public=True, groups=["g"])}
+        grouped = [s.name for s in rotate.select(registry, ["@g"], False, [])]
+        self.assertNotIn("P", grouped)
+        named = [s.name for s in rotate.select(registry, ["@g", "P"], False, [])]
+        self.assertIn("P", named)
+
+    def test_group_includes_high_effort_members(self):
         names = [s.name for s in rotate.select(self.registry, [], False, [], ["g"])]
         self.assertEqual(names, ["A", "B"])
 
@@ -70,6 +77,7 @@ class GroupTest(unittest.TestCase):
     def test_checked_in_groups_exist(self):
         groups = rotate.group_names(rotate.load_registry())
         self.assertIn("FIREBASE_CLI_TOKEN", groups["firebase"])
+        self.assertTrue(rotate.load_registry()["FIREBASE_OPTIONS_B64"].public)
 
 
 class GenerateTest(unittest.TestCase):
