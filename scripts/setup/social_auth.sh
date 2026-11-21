@@ -4,6 +4,9 @@
 # Usage: scripts/setup/social_auth.sh [--check]
 #   --check   report what is missing without changing anything.
 # Exits 1 while anything besides the manual Meta console check is missing.
+# Console-only steps (copying secrets, Meta settings) are human scripts, run first:
+#   scripts/human/meta/create-app-credentials.sh   (rotate: rotate-app-secret.sh)
+#   scripts/human/google/create-web-client-secret.sh (rotate: rotate-web-client-secret.sh)
 #
 # Inputs (environment or repo-root .env):
 #   FIREBASE_PROJECT          default: my-foodsavr-store
@@ -177,7 +180,10 @@ provider() { # idp clientId clientSecret
   if [ "$enabled" = true ]; then
     ok "$idp is enabled"
   elif [ -z "$id" ] || [ -z "$secret" ]; then
-    miss "$idp is disabled; set its client ID/secret, or enable it in the Firebase console"
+    case "$idp" in
+      google.com) miss "$idp is disabled; run scripts/human/google/create-web-client-secret.sh, then re-run" ;;
+      *) miss "$idp is disabled; run scripts/human/meta/create-app-credentials.sh, then re-run" ;;
+    esac
   elif [ "$check_only" = 1 ]; then
     miss "$idp is disabled"
   else
@@ -228,7 +234,7 @@ for sha in "${shas[@]}"; do
   [ "${#sha}" = 40 ] && key_hashes+=("$(python3 -I -c 'import base64,sys; print(base64.b64encode(bytes.fromhex(sys.argv[1])).decode())' "$sha")")
 done
 if [ -z "${FACEBOOK_APP_ID:-}" ] || [ -z "${FACEBOOK_APP_SECRET:-}" ]; then
-  miss "Set FACEBOOK_APP_ID and FACEBOOK_APP_SECRET to configure the Meta app"
+  miss "FACEBOOK_APP_ID/FACEBOOK_APP_SECRET missing; run scripts/human/meta/create-app-credentials.sh"
 else
   app_token="$FACEBOOK_APP_ID|$FACEBOOK_APP_SECRET"
   app_meta="$(curl -sS -G "$graph/$FACEBOOK_APP_ID" --data-urlencode "fields=android_key_hash" \
@@ -257,14 +263,13 @@ else
     fi
   fi
 fi
-note "Meta console (manual, check once): Facebook Login > Valid OAuth Redirect URIs contains $redirect_uri;
-      Android platform has packages com.foodsavr.app and com.foodsavr.app.development, class com.foodsavr.app.MainActivity;
-      app mode is Live"
+note "Meta console (manual, check once): scripts/human/meta/create-app-credentials.sh stage 3
+      (redirect URI $redirect_uri, Android packages, Live mode)"
 
 step "Facebook client config"
 for name in FACEBOOK_APP_ID FACEBOOK_CLIENT_TOKEN; do
   if [ -z "${!name:-}" ]; then
-    miss "$name is not set (repo-root .env or environment)"
+    miss "$name is not set; run scripts/human/meta/create-app-credentials.sh"
   else
     ok "$name is set"
   fi
