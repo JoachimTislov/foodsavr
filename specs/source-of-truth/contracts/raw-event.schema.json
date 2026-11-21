@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "foodsavr://raw-event",
+  "title": "RawEvent",
+  "description": "Spec-ahead (ADR 0005). Unordered, idempotent inbox entry: raw input from a source or a user command, before the foodsavr_core pipeline. Firestore: owners/{ownerId}/rawEvents/{id}. No code anchor yet; moves to schemas/ once implemented.",
+  "type": "object",
+  "required": ["id", "ownerId", "source", "externalId", "occurredAt", "payload", "schemaVersion"],
+  "properties": {
+    "id": { "type": "string", "description": "Idempotency key and document ID: source:provider:externalId" },
+    "ownerId": { "type": "string", "description": "User or group the event belongs to" },
+    "source": {
+      "type": "string",
+      "enum": ["receipt", "loyaltyApi", "order", "barcode", "freeText", "userCommand"],
+      "description": "Input class; extends LineItem IngestionSource with order and userCommand"
+    },
+    "provider": { "type": ["string", "null"], "default": null, "description": "e.g. rema, coop, trumf, pizzabakeren; null for app-local input" },
+    "externalId": { "type": "string", "description": "Source-assigned ID (transaction ID, receipt hash, client UUID for commands)" },
+    "occurredAt": { "type": "string", "format": "date-time", "description": "When it happened at the source" },
+    "receivedAt": { "type": ["string", "null"], "format": "date-time", "default": null, "description": "Server timestamp on write" },
+    "payload": { "type": "object", "description": "Source-specific raw data, opaque to everything but its adapter" },
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "processedSeq": { "type": ["integer", "null"], "default": null, "description": "seq of the domain event produced from it; set by the worker" }
+  },
+  "additionalProperties": false
+}

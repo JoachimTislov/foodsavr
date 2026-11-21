@@ -19,6 +19,7 @@ Vision: FoodSavr is an adapter, not a duplicate architecture — normalize any f
 1. **Universal ingestion pipeline** — receipts, loyalty APIs (Rema/Coop/Trumf), order systems, recipes, barcodes, free text → LineItem via `foodsavr_core` (normalization → fuzzy matching → shelf-life inference → confidence-based confirmation).
 2. **Thin in-app agent** — orchestrates existing services; no parallel logic.
 3. **Remote MCP server** — streamable HTTP, OAuth 2.1, exposing `ingest_receipt`, `read_orders`, `generate_shopping_list` (#171); logic shared with the app via `foodsavr_core`.
+4. **Hybrid event log and CRUD** — data derived from raw sources flows inbox → ordered domain events → read-only projections; only user-authored data is CRUD. A Dart worker on Cloud Run (co-located with the MCP server) runs the pipeline and projectors. See [ADR 0005](decisions/0005-hybrid-event-log-and-crud.md).
 
 ## Boundaries
 
