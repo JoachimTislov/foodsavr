@@ -9,7 +9,8 @@ Before changing code or documentation, read [specs/source-of-truth/INDEX.md](spe
 - Be minimal. Write nothing beyond what the user strictly needs to know.
 - Always log events (what was changed, committed, pushed, replied) when doing repo work.
 - Keep comments and console output professional; no emojis.
-- Historical repository events are recorded in [.agents/ledger.md](.agents/ledger.md); read it only when historical context is needed.
+- Use `.jsonl` for every repository-maintained log: one JSON object per line, UTF-8, with a final newline and no blank lines. This includes ledgers, session indexes, review follow-ups, rationale, risks, and workflow events. Validate with `python3 scripts/agents/check_logs.py`; third-party runtime output is outside this rule.
+- Historical repository events are recorded in [.agents/ledger.jsonl](.agents/ledger.jsonl); read it only when historical context is needed.
 
 ## Sessions
 
