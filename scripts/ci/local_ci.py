@@ -65,7 +65,7 @@ GROUPS: dict[str, Group] = {
             ["scripts/agents/agentctl", "router", "plan", ".agents/workflows/repository-health.json"],
             ["scripts/agents/agentctl", "workflow", "validate", ".agents/workflows/implement-issue.json"],
             ["env", "AGENT_POLICY_FILE=.agents/policies/agent-implement.json",
-             "scripts/agents/agentctl", "workflow", "plan", ".agents/workflows/implement-issue.json"],
+             "scripts/agents/agentctl", "router", "plan", ".agents/workflows/implement-issue.json"],
             ["scripts/agents/agentctl", "doctor"],
             *[["scripts/agents/agentctl", "policy", "compile", "--provider", p]
               for p in ("codex", "claude", "opencode", "gemini", "vibe", "copilot")],
