@@ -20,7 +20,7 @@ The `merge/auto` label means: the task's acceptance is met, review feedback is a
 
 1. merges the oldest opted-in PR that is up to date with **every** check on its head green (`CLEAN` and rollup `SUCCESS`, not only required checks), with no changes requested, no unresolved current review threads, and no one-way-door declaration; rebase method, bound to the verified head SHA;
 2. otherwise, when no opted-in PR is running checks, updates the oldest `BEHIND` one: rebase onto `main`, or `@dependabot rebase` for Dependabot (never rewritten by the gate);
-3. leaves blocked PRs (conflicts, failures, review, draft, fork) to their authors and reports them in the run summary.
+3. leaves blocked PRs (conflicts, failures, review, draft, fork, refused Dependabot rebase) to their authors and reports them in the run summary.
 
 One PR is in flight at a time, so each merged head is exactly what CI tested. Checks pending for over 60 minutes stop holding the queue. The gate acts as `MERGE_GATE_TOKEN` because merges and pushes made with `GITHUB_TOKEN` trigger no workflows (push CI, Pages, release candidates).
 
