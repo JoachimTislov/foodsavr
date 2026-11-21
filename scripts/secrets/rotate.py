@@ -4,6 +4,7 @@
 Usage:
   scripts/secrets/rotate.py NAME [NAME ...]   rotate the named secrets
   scripts/secrets/rotate.py --cheap           rotate every registry entry marked cheap
+  scripts/secrets/rotate.py --group firebase  rotate a whole group (also: @firebase)
   scripts/secrets/rotate.py --list            show the registry
 
 Any name works. Names missing from the registry are treated as manual secrets
@@ -22,6 +23,10 @@ Sinks (registry `sinks`):
 Cost (registry `cost`): `cheap` secrets have no side effects to regenerate and
 are included by --cheap. `expensive` ones (provider resets, signing keys) are
 only rotated when named explicitly, so nothing is regenerated redundantly.
+
+Groups (registry `groups`): secrets that live close together, so one exposure
+likely leaks them all. `--group NAME` / `@NAME` rotates every member,
+expensive ones included, after a confirmation (skip it with --yes).
 
 Values are never printed or written anywhere except the configured sinks.
 """
@@ -60,6 +65,7 @@ class Secret:
     command: str | None = None
     sink_command: str | None = None
     hint: str | None = None
+    groups: list[str] = field(default_factory=list)
 
     def validate(self) -> None:
         if self.generate not in GENERATORS:
@@ -144,8 +150,29 @@ def push(secret: Secret, value: str, *, env_path: Path, run=subprocess.run) -> N
             )
 
 
-def select(registry: dict[str, Secret], names: list[str], cheap: bool, sinks: list[str]) -> list[Secret]:
+def group_names(registry: dict[str, Secret]) -> dict[str, list[str]]:
+    groups: dict[str, list[str]] = {}
+    for secret in registry.values():
+        for group in secret.groups:
+            groups.setdefault(group, []).append(secret.name)
+    return groups
+
+
+def select(
+    registry: dict[str, Secret],
+    names: list[str],
+    cheap: bool,
+    sinks: list[str],
+    groups: list[str] = (),
+) -> list[Secret]:
     chosen: dict[str, Secret] = {}
+    known_groups = group_names(registry)
+    groups = list(groups) + [n[1:] for n in names if n.startswith("@")]
+    names = [n for n in names if not n.startswith("@")]
+    for group in groups:
+        if group not in known_groups:
+            raise ValueError(f"unknown group {group!r}; known: {sorted(known_groups)}")
+        chosen.update({n: registry[n] for n in known_groups[group]})
     if cheap:
         chosen.update({n: s for n, s in registry.items() if s.cost == "cheap"})
     for name in names:
@@ -162,6 +189,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("names", nargs="*", help="secret names to rotate")
     parser.add_argument("--cheap", action="store_true", help="also rotate every cheap registry entry")
+    parser.add_argument("--group", action="append", default=[],
+                        help="rotate every member of a group, e.g. after an exposure (repeatable)")
+    parser.add_argument("--yes", action="store_true", help="skip the confirmation for expensive group members")
     parser.add_argument("--sink", action="append", default=[], choices=sorted(SINKS - {"command"}),
                         help="sinks for names not in the registry (repeatable)")
     parser.add_argument("--registry", type=Path, default=REGISTRY)
@@ -173,12 +203,27 @@ def main(argv: list[str] | None = None) -> int:
     registry = load_registry(args.registry)
     if args.list:
         for s in registry.values():
-            print(f"{s.name:28} {s.cost:9} {s.generate:8} -> {', '.join(s.sinks)}")
+            groups = f"  [{', '.join(s.groups)}]" if s.groups else ""
+            print(f"{s.name:28} {s.cost:9} {s.generate:8} -> {', '.join(s.sinks)}{groups}")
         return 0
 
-    selected = select(registry, args.names, args.cheap, args.sink)
+    try:
+        selected = select(registry, args.names, args.cheap, args.sink, args.group)
+    except ValueError as error:
+        parser.error(str(error))
     if not selected:
-        parser.error("name at least one secret or pass --cheap")
+        parser.error("name at least one secret, group, or pass --cheap")
+
+    grouped = bool(args.group) or any(n.startswith("@") for n in args.names)
+    expensive = [s.name for s in selected if s.cost == "expensive" and s.name in registry]
+    if grouped and expensive and not (args.dry_run or args.yes):
+        try:
+            answer = input(f"Group rotation includes expensive secrets: {', '.join(expensive)}. Continue? [y/N] ")
+        except EOFError:
+            answer = ""
+        if answer.strip().lower() not in {"y", "yes"}:
+            print("aborted", file=sys.stderr)
+            return 1
 
     failed = []
     for secret in selected:

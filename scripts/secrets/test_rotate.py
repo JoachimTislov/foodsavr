@@ -48,6 +48,30 @@ class SelectTest(unittest.TestCase):
         self.assertEqual((secret.generate, secret.sinks), ("manual", ["env"]))
 
 
+class GroupTest(unittest.TestCase):
+    registry = {
+        "A": rotate.Secret("A", generate="random", cost="cheap", groups=["g"]),
+        "B": rotate.Secret("B", groups=["g", "h"]),
+        "C": rotate.Secret("C", groups=["h"]),
+    }
+
+    def test_group_includes_expensive_members(self):
+        names = [s.name for s in rotate.select(self.registry, [], False, [], ["g"])]
+        self.assertEqual(names, ["A", "B"])
+
+    def test_at_shorthand_and_overlapping_groups_dedupe(self):
+        names = [s.name for s in rotate.select(self.registry, ["@g", "@h", "B"], False, [])]
+        self.assertEqual(names, ["A", "B", "C"])
+
+    def test_unknown_group_fails(self):
+        with self.assertRaises(ValueError):
+            rotate.select(self.registry, ["@nope"], False, [])
+
+    def test_checked_in_groups_exist(self):
+        groups = rotate.group_names(rotate.load_registry())
+        self.assertIn("FIREBASE_CLI_TOKEN", groups["firebase"])
+
+
 class GenerateTest(unittest.TestCase):
     def test_random_respects_length_and_alphabet(self):
         value = rotate.generate(rotate.Secret("R", generate="random", length=40, alphabet="hex"))
