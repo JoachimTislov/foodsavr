@@ -25,11 +25,13 @@ permissions:
   contents: read
 
 jobs:
-  # Runs attached to a PR only dispatch; the gate itself runs on main, so its
-  # queued or cancelled runs never show up as checks on PRs.
+  # Label events (attached to the PR) and Dependabot-triggered CI (no repository
+  # secrets) only dispatch a gate run on main; no PR code is checked out.
   dispatch:
     name: Request gate run
-    if: github.event_name == 'pull_request_target' && github.event.label.name == 'merge/auto'
+    if: >
+      (github.event_name == 'pull_request_target' && github.event.label.name == 'merge/auto') ||
+      (github.event_name == 'workflow_run' && github.actor == 'dependabot[bot]')
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -37,11 +39,13 @@ jobs:
     steps:
       - env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run merge-gate.yml --repo "${{ github.repository }}" --ref "${{ github.event.repository.default_branch }}"
+        run: |
+          gh workflow run merge-gate.yml --repo "${{ github.repository }}" --ref "${{ github.event.repository.default_branch }}" ||
+            echo "::warning::Could not dispatch the merge gate; the schedule will run it."
 
   gate:
     name: Integrate ready PRs
-    # Dependabot-triggered events get no repository secrets; the schedule covers them.
+    # Dependabot-triggered events get no repository secrets; `dispatch` covers them.
     if: github.event_name != 'pull_request_target' && github.actor != 'dependabot[bot]'
     # No concurrency group: cancelled queued runs would mark main red. The
     # script serializes instead (older runs finish first, superseded ones exit).
