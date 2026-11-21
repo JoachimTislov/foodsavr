@@ -124,3 +124,4 @@ derived relational and full-text index.
 - 2026-11-21T11:21:15+00:00 — PR #239: Hosting previews now manual only (workflow_dispatch target preview/live; channel per branch); removed pull_request trigger.
 - 2026-11-21T11:27:23+00:00 — PR #239: preview expiry now workflow input `expires` (default 4h).
 - 2026-11-21T11:34:46+00:00 — PR #239: added `scripts/web/hosting_storage_guard.py` (8 GB soft / 10 GB hard Hosting storage budget, keeps 3 latest live versions); wired before deploys. Dry-run verified against project (0.03 GB used).
+- 2026-11-21T11:44:12+00:00 — PR #239: storage guard warns (annotation + job summary) when web build exceeds 5 GB.

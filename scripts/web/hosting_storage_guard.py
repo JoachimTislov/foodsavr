@@ -7,6 +7,7 @@ env:   PROJECT_ID, SITE_ID (defaults to PROJECT_ID), ACCESS_TOKEN
        channel being deployed; never deleted).
 
 Storage = sum of versionBytes of FINALIZED versions (conservative).
+- Build over BUILD_WARN (5 GB): warning + job summary.
 - Over SOFT_LIMIT (8 GB, incl. the new build): delete preview channels,
   oldest first. A preview that still does not fit is skipped (exit 3), so
   previews never eat production headroom.
@@ -25,6 +26,7 @@ GB = 1024**3
 SOFT_LIMIT = 8 * GB
 HARD_LIMIT = 10 * GB
 KEEP_LIVE = 3
+BUILD_WARN = 5 * GB
 API = "https://firebasehosting.googleapis.com/v1beta1"
 
 
@@ -104,6 +106,13 @@ def main():
             call(method, path)
 
     print(f"Hosting storage: {gb(used)} + new build {gb(new_bytes)}")
+    if new_bytes > BUILD_WARN:
+        msg = f"Web build is {gb(new_bytes)} (over {gb(BUILD_WARN)}); check build/web for bloat."
+        print(f"::warning::{msg}")
+        summary = os.environ.get("GITHUB_STEP_SUMMARY")
+        if summary:
+            with open(summary, "a") as f:
+                f.write(f"⚠️ {msg}\n")
 
     # 1) Over soft limit -> drop previews, oldest first.
     for ch in previews:
