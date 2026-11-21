@@ -115,7 +115,7 @@ class AuthService implements IAuthService {
     if (_isWeb) {
       return _signInWithPopup(GoogleAuthProvider());
     }
-    await (_googleSignInInitialization ??= _googleSignIn.initialize());
+    await (_googleSignInInitialization ??= _initializeGoogleSignIn());
     final GoogleSignInAccount googleUser;
     try {
       googleUser = await _googleSignIn.authenticate();
@@ -138,6 +138,16 @@ class AuthService implements IAuthService {
     );
 
     return _firebaseAuth.signInWithCredential(credential);
+  }
+
+  Future<void> _initializeGoogleSignIn() async {
+    try {
+      await _googleSignIn.initialize();
+    } catch (_) {
+      // Allow a retry on the next attempt instead of caching the failure.
+      _googleSignInInitialization = null;
+      rethrow;
+    }
   }
 
   @override
