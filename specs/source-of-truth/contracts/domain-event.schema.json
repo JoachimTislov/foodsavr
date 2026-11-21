@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "foodsavr://domain-event",
+  "title": "DomainEvent",
+  "description": "Spec-ahead (ADR 0005). Ordered, append-only fact per owner, written only by the worker; projections are rebuilt from these. Firestore: owners/{ownerId}/events/{seq}. No code anchor yet; moves to schemas/ once implemented.",
+  "type": "object",
+  "required": ["seq", "ownerId", "type", "actor", "causationId", "occurredAt", "recordedAt", "schemaVersion"],
+  "properties": {
+    "seq": { "type": "integer", "minimum": 1, "description": "Strictly increasing per ownerId; assigned by the worker in a transaction" },
+    "ownerId": { "type": "string" },
+    "type": {
+      "type": "string",
+      "enum": ["purchased", "consumed", "discarded", "transferred", "confirmed", "corrected", "dismissed"]
+    },
+    "actor": { "type": "string", "enum": ["system", "user"], "description": "system = derived by the pipeline; user = from a user command" },
+    "causationId": { "type": "string", "description": "RawEvent id this event was derived from" },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "lineItems": {
+      "type": "array",
+      "items": { "$ref": "../schemas/line-item.schema.json" },
+      "default": [],
+      "description": "Coarse: one import carries all its items"
+    },
+    "targetEventSeq": { "type": ["integer", "null"], "default": null, "description": "For confirmed/corrected/dismissed: the event acted on" },
+    "data": { "type": "object", "default": {}, "description": "Type-specific fields, e.g. a correction's changed fields or a transfer's target collectionId" },
+    "schemaVersion": { "type": "integer", "minimum": 1 }
+  },
+  "additionalProperties": false
+}

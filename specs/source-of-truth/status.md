@@ -4,8 +4,8 @@ Built vs spec'd vs unbuilt, per domain. The sync loop (#213) claims un-synced do
 
 | Domain | State | Built | Spec-ahead |
 |---|---|---|---|
-| architecture | synced | layered Flutter/Firebase app, controller layer, DI | universal pipeline → agent → MCP server |
-| data-model | synced | `products`, `collections`, models, LineItem in foodsavr_core | lists, meal plans, recipes, groups, offline sync |
+| architecture | synced | layered Flutter/Firebase app, controller layer, DI | universal pipeline → agent → MCP server; hybrid event log + CRUD with Dart worker (ADR 0005) |
+| data-model | synced | `products`, `collections`, models, LineItem in foodsavr_core | lists, meal plans, recipes, groups, offline sync; inbox, domain events, projections (ADR 0005) |
 | ingestion-pipeline | synced | receipt/barcode/expiry services, pipeline skeleton (#202) | unify paths through pipeline (#192), confirmation UI (#193) |
 | integrations | synced | Rema client, receipts, ML Kit, OFF enrichment | Coop (#194), Trumf/Storebox, orders, recipes, free text |
 | mcp-server | synced | foodsavr_core skeleton | MCP server + Go API (#171) |
@@ -25,3 +25,4 @@ Replay record per session. Store session ID, issue, PR, commit SHAs; forward to 
 | vibe-848bbd-shapes | #213 | #215 | head of vibe/optimized-verification-loop-848bbd | data-model, integrations, mcp-server | ADR 0004: shapes (3 JSON Schemas, services registry, MCP contract) + check_shape_sync.dart validator wired into CI; verified locally (30 schema props, 14 anchors, shape-sync OK) |
 
 | t3-docs-pages-2026-11-21 | #261 | #263 | task branch | ci-workflows, docs-status | Owner requested vision-led Pages publication; existing sources staged without duplicating specs; Flutter web artifacts retained. |
+| claude-a925ae12-adr0005 | — | (pending) | head of t3/8f90f7f0 | architecture, data-model | ADR 0005 (owner intent): hybrid event log + CRUD; raw/domain event schemas in contracts/ (spec-ahead) |

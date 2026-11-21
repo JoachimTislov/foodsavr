@@ -20,6 +20,7 @@ Per #212 and `doc/implementation/`:
 
 - Shopping lists, meal plans, recipes, groups/family collections as Firestore collections covered by owner/group rules (#195, #196, #197).
 - Offline support and sync for Firestore data (TODO.md).
+- Hybrid persistence per [ADR 0005](decisions/0005-hybrid-event-log-and-crud.md): raw inbox ([contracts/raw-event.schema.json](contracts/raw-event.schema.json)), ordered domain events ([contracts/domain-event.schema.json](contracts/domain-event.schema.json)), read-only projections (inventory, consumption, shopping list, activity), and CRUD only for user-authored data. `products` splits into a derived inventory projection and a user-authored catalogue.
 - Composite indexes guided by `firestore.indexes.json`.
 
 Sync sessions: a model file's claims are checked against `lib/models/` and `packages/foodsavr_core/lib/src/line_item.dart`. Items above under "Spec-ahead" are contract decisions, not drift.
