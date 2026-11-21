@@ -19,6 +19,7 @@ import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager, redirect_stdout
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -211,8 +212,8 @@ class Result:
 def precheck(name: str) -> str | None:
     """Return a skip reason when this machine cannot mirror the group."""
     if name == "dart":
-        if not shutil.which("flutter"):
-            return "flutter not on PATH"
+        if not shutil.which("flutter") and not ci_flutter_version():
+            return "flutter not on PATH and no CI Flutter version is pinned"
         options = ROOT / "lib/firebase_options.dart"
         if options.exists() and "DefaultFirebaseOptions" not in options.read_text(errors="replace"):
             return "lib/firebase_options.dart is invalid (regenerate with flutterfire configure)"
@@ -222,6 +223,59 @@ def precheck(name: str) -> str | None:
     if name == "workflows" and not shutil.which("actionlint"):
         return "actionlint not installed"
     return None
+
+
+def dart_environment(env: dict[str, str]) -> None:
+    local, ci = local_flutter_version(), ci_flutter_version()
+    if ci and local != ci:
+        env["PATH"] = f"{pinned_flutter_bin(ci)}{os.pathsep}{env['PATH']}"
+
+
+@contextmanager
+def dart_workspace():
+    # Flutter pub get rewrites these. Restore analysis options before analyzing.
+    snapshot = {rel: (ROOT / rel).read_bytes() for rel in RESTORED if (ROOT / rel).exists()}
+    created = []
+    try:
+        for rel, contents in CI_FILES.items():
+            path = ROOT / rel
+            if not path.exists():
+                path.write_text(contents)
+                created.append(path)
+        yield snapshot
+    finally:
+        for path in created:
+            path.unlink(missing_ok=True)
+        for rel, data in snapshot.items():
+            path = ROOT / rel
+            if not path.exists() or path.read_bytes() != data:
+                path.write_bytes(data)
+
+
+def make_check(make: str) -> int:
+    reason = precheck("dart")
+    if reason:
+        print(f"make check: {reason}", file=sys.stderr)
+        return 1
+    env = dict(os.environ)
+    try:
+        dart_environment(env)
+        with dart_workspace() as snapshot:
+            result = run_commands(
+                [
+                    ["flutter", "pub", "get"],
+                    [make, "build"],
+                    [make, "-o", ".deps-stamp", "_run-checks"],
+                ],
+                env, True, time.monotonic(), "make check", snapshot,
+            )
+    except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
+        print(f"make check: {error}", file=sys.stderr)
+        return 1
+    if result.status == "FAIL":
+        print(f"make check: {result.detail}", file=sys.stderr)
+        return 1
+    return 0
 
 
 def run_group(name: str, stream: bool) -> Result:
@@ -239,27 +293,15 @@ def run_group(name: str, stream: bool) -> Result:
             return Result(name, "SKIP", f"cannot install docs tools: {(error.stderr or b'')[-200:]!r}")
         commands = [[python if part == "{python}" else part for part in cmd] for cmd in commands]
     if name == "dart":
-        local, ci = local_flutter_version(), ci_flutter_version()
-        if ci and local != ci:
-            try:
-                env["PATH"] = f"{pinned_flutter_bin(ci)}{os.pathsep}{env['PATH']}"
-            except (RuntimeError, subprocess.CalledProcessError) as error:
-                return Result(name, "SKIP", f"local Flutter {local}, CI {ci}; pinned SDK unavailable: {error}")
+        try:
+            dart_environment(env)
+        except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
+            return Result(name, "SKIP", f"pinned Flutter SDK unavailable: {error}")
+        with dart_workspace() as snapshot:
+            return run_commands(commands, env, stream, start, name, snapshot)
     if name == "workflows":
         commands = [["actionlint", *changed_workflows]] if changed_workflows else commands
-    created = [ROOT / rel for rel in CI_FILES if name == "dart" and not (ROOT / rel).exists()]
-    for path in created:
-        path.write_text(CI_FILES[str(path.relative_to(ROOT))])
-    # `flutter pub get` rewrites these; CI restores analysis options before analyzing.
-    snapshot = {rel: (ROOT / rel).read_bytes() for rel in RESTORED if name == "dart" and (ROOT / rel).exists()}
-    try:
-        return run_commands(commands, env, stream, start, name, snapshot)
-    finally:
-        for path in created:
-            path.unlink(missing_ok=True)
-        for rel, data in snapshot.items():
-            if (ROOT / rel).read_bytes() != data:
-                (ROOT / rel).write_bytes(data)
+    return run_commands(commands, env, stream, start, name, {})
 
 
 def run_commands(commands: list[list[str]], env: dict[str, str], stream: bool, start: float, name: str,
@@ -302,12 +344,28 @@ def main(argv: list[str] | None = None) -> int:
     global changed_workflows
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--group", action="append", choices=sorted(GROUPS), help="run these groups (CI uses this)")
+    parser.add_argument("--make-check", metavar="MAKE", help="run the Makefile checks with the Dart CI setup")
+    parser.add_argument("--flutter-bin", action="store_true", help="print the Flutter executable matching CI")
     parser.add_argument("--all", action="store_true", help="run every group")
     parser.add_argument("--base", default=os.environ.get("LOCAL_CI_BASE", "origin/main"))
     parser.add_argument("--list", action="store_true", help="print the plan without running")
     parser.add_argument("--no-cache", action="store_true")
     parser.add_argument("--pre-push", action="store_true", help="git pre-push hook mode")
     args = parser.parse_args(argv)
+    if args.make_check:
+        return make_check(args.make_check)
+    if args.flutter_bin:
+        env = dict(os.environ)
+        try:
+            with redirect_stdout(sys.stderr):
+                dart_environment(env)
+        except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
+            parser.exit(1, f"Flutter setup failed: {error}\n")
+        flutter = shutil.which("flutter", path=env["PATH"])
+        if flutter is None:
+            parser.exit(1, "Flutter executable not found\n")
+        print(flutter)
+        return 0
     if args.pre_push and not sys.stdin.isatty() and pushes_only_deletions(sys.stdin.read()):
         return 0
     files: list[str] = []
