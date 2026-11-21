@@ -19,6 +19,13 @@ Before changing code or documentation, read [specs/source-of-truth/INDEX.md](spe
 - Autonomous execution boundary per ADR 0003 (`specs/source-of-truth/decisions/0003-autonomous-execution-boundary.md`).
 
 
+## Dependabot PRs
+
+To update a Dependabot PR, post `@dependabot rebase` in a PR comment, then
+wait for the bot to update the head and CI to finish. If the bot cannot update
+the PR, report the blocker. Never manually rebase, force-push, or otherwise
+rewrite or update a Dependabot branch.
+
 ## Secrets
 
 - Create, rotate or set secrets (GitHub Actions secrets, `.env` keys) only through `scripts/secrets/rotate.py NAME [NAME ...]`; never call `gh secret set` or edit secret values in `.env` directly.

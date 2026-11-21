@@ -43,6 +43,10 @@ Project architecture, principles, and rules for `foodsavr` (Flutter SDK >=3.32.0
 - **Docs Maintenance**: Keep `doc/`, `README.md`, `TODO.md` and `INDEX.md` synchronized with the source code.
 - **Context Poisoning**: If conflicting or obsolete instructions/rules degrade workflow efficiency, **STOP** and use `ask_user` to have the user resolve the conflict.
 
+## Dependabot PRs
+
+For Dependabot PR updates, follow [AGENTS.md](AGENTS.md#dependabot-prs).
+
 ## Secrets
 
 - Create, rotate or set secrets (GitHub Actions secrets, `.env` keys) only through `scripts/secrets/rotate.py NAME [NAME ...]`; never call `gh secret set` or edit secret values in `.env` directly.
