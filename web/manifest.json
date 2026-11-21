@@ -1,0 +1,50 @@
+{
+  "name": "FoodSavr",
+  "short_name": "FoodSavr",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "background_color": "#f6f8f8",
+  "theme_color": "#13c8ec",
+  "description": "FoodSavr helps you reduce food waste by providing features such as meal planning, recipe suggestions, and food storage management assistance.",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false,
+  "categories": [
+    "food",
+    "lifestyle",
+    "productivity",
+    "utilities"
+  ],
+  "icons": [
+    {
+      "src": "icons/Icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/Icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/Icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/Icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

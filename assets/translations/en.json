@@ -214,9 +214,12 @@
 			},
 			"title": "Grocery integrations"
 		},
+		"app_installed": "App Installed",
 		"app_version": "App Version",
 		"appearance": "Appearance",
 		"guest_user": "Guest User",
+		"install_app": "Install App",
+		"install_app_subtitle": "Add FoodSavr to your home screen or desktop",
 		"language": "Language",
 		"languages": {
 			"en": "English",
@@ -246,5 +249,23 @@
 		"progress": "Recognized: {percent}% · {items} items",
 		"addItems": "Add items to inventory",
 		"ingestError": "Failed to add receipt items: {error}"
+	},
+	"pwa": {
+		"banner": {
+			"install": "Install",
+			"subtitle": "Add to your home screen or desktop for quick access.",
+			"title": "Install FoodSavr"
+		},
+		"guide": {
+			"ios_step1": "Tap the Share button in your browser toolbar.",
+			"ios_step2": "Select \"Add to Home Screen\" and tap Add.",
+			"safari_step1": "Click the Share button in Safari (or File in the menu bar).",
+			"safari_step2": "Choose \"Add to Dock\" and confirm.",
+			"standard_step1": "Click the install icon in the address bar or open the browser menu.",
+			"standard_step2": "Choose \"Install FoodSavr\" or \"Add to Home screen\".",
+			"subtitle": "Install FoodSavr as an app for a full-screen experience and instant access.",
+			"title": "Install FoodSavr"
+		},
+		"installed_snackbar": "FoodSavr installed successfully."
 	}
 }
