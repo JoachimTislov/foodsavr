@@ -14,7 +14,8 @@ def prepare():
         shutil.copytree(ROOT / directory, destination / directory)
     for filename in ("README.md", "INDEX.md", "TODO.md", "CONTRIBUTING.md", "coding-standards.md"):
         shutil.copy2(ROOT / filename, destination / ("project-overview.md" if filename == "README.md" else filename))
-    shutil.copy2(ROOT / "doc/pages-home.md", destination / "index.md")
+    home = (ROOT / "doc/pages-home.md").read_text()
+    (destination / "index.md").write_text(home.replace("](../", "]("))
     # The landing page has one public URL.
     (destination / "doc/pages-home.md").unlink()
     styles = destination / "stylesheets"
