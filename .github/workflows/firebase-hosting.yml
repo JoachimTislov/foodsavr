@@ -139,7 +139,9 @@ jobs:
         env:
           BRANCH: ${{ github.ref_name }}
         run: |
-          channel=$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-' | cut -c1-40 | sed 's/-*$//')
+          channel=$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-' | cut -c1-27 | sed 's/^-*//;s/-*$//')
+          digest=$(printf '%s' "$BRANCH" | sha256sum | cut -c1-12)
+          channel="${channel:-branch}-$digest"
           echo "channel=$channel" >> "$GITHUB_OUTPUT"
           set +e
           keep=""; [ "$TARGET" = preview ] && keep="$channel"
