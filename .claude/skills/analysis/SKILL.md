@@ -1,1 +1,0 @@
-../../../.agents/skills/analysis/SKILL.md

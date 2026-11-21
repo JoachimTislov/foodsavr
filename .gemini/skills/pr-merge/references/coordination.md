@@ -1,0 +1,1 @@
+../../../../.agents/skills/pr-merge/references/coordination.md

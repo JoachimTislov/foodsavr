@@ -1,0 +1,5 @@
+interface:
+  display_name: "Check Loop"
+  short_description: "Run make check, fix what fails, commit, and repeat until..."
+policy:
+  allow_implicit_invocation: false

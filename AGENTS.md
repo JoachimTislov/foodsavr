@@ -1,13 +1,36 @@
 # Agent Instructions
 
+The one always-loaded context file for every harness (`CLAUDE.md` and `GEMINI.md` are symlinks to it). Everything task-specific lives in skills, loaded on demand.
+
 Before changing code or documentation, read [specs/source-of-truth/INDEX.md](specs/source-of-truth/INDEX.md) and follow its sync process.
 
 ## User preferences
 
 - Be minimal. Write nothing beyond what the user strictly needs to know.
 - Always log events (what was changed, committed, pushed, replied) when doing repo work.
+- Keep comments and console output professional; no emojis.
 - Historical repository events are recorded in [.agents/ledger.md](.agents/ledger.md); read it only when historical context is needed.
-- Provider session IDs and searchable session metadata are recorded in [.agents/sessions/index.jsonl](.agents/sessions/index.jsonl); use `scripts/agents/agentctl context "..."` before starting from an ambiguous prior session.
+
+## Sessions
+
+One agent system serves local shells, T3 Code threads, and GitHub runners through `scripts/agents/agentctl`.
+
+- Register your session when work starts: `scripts/agents/agentctl sessions register --session-id '<harness>:<id>' --provider <p> --harness <h> --summary '...'`, adding `--issue`/`--pr`/`--commit` as they appear (records upsert into [.agents/sessions/index.jsonl](.agents/sessions/index.jsonl)).
+- Every agent commit carries an `Agent-Session: <harness>:<id>` trailer; `scripts/agents/agentctl sessions commits <harness>:<id>` lists a session's changes. Commit with the `commit` skill.
+- Before resuming from an ambiguous prior session, run `scripts/agents/agentctl context "..."`.
+
+## Skills
+
+- Catalog: [.agents/skills/README.md](.agents/skills/README.md), split into agent skills (model-invoked) and human skills (user-invoked; start with `/skills-guide`).
+- `.agents/skills/` is the only source. `.claude/skills/`, `.gemini/skills/`, and `.gemini/commands/` are generated: edit the source, then run `scripts/agents/agentctl skills sync`; CI runs `skills check`.
+- Dart/Flutter work loads `flutter-standards`. Tracker and label configuration: [.agents/tracker.md](.agents/tracker.md).
+
+## Workflow
+
+- Task order: (1) existing PRs, (2) open issues, (3) new issues from the `TODO.md` backlog.
+- The main working folder is for meta tasks (agents, docs, research); source-code changes go in a worktree (`make worktree name=<issue>`).
+- `make check` (analyze, format, test, locale-check) is green before every commit. After two consecutive failures, stop and ask; headless runs record the blocker and stop.
+- Commit and push after each completed task or tight batch.
 
 ## Source of truth & sync rules
 
@@ -35,4 +58,5 @@ For Dependabot PR updates, read the
 - Register every new secret in `scripts/secrets/registry.toml` (generator, effort, groups, public, sinks, hint) in the same change that introduces it. Never put values in the registry, code, logs, or commits.
 - Any leak means rotation, without waiting for approval: rotate the leaked secret's whole group (`--group NAME` or `@NAME`), since secrets stored together leak together. Give every new secret the groups of the places it is stored.
 - `effort` (low | high) describes how complex or time-consuming renewal is, never leak severity. Outside a leak, rotate only what the task needs; `--low-effort` handles routine bulk rotation. Use `--dry-run` to preview.
+- Steps that need the owner (browser consent, console clicks, downloaded keys) live in [scripts/human/](scripts/human/README.md), split by domain, intent, and area. Never run them; name the script the owner should run.
 - Values shipped in clients by design (bundled `.env`, Firebase client config, Facebook app ID/client token) are not leaked by being visible there; mark them `public = true`.

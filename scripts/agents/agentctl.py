@@ -25,6 +25,8 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import agent_skills  # noqa: E402
 
 
 def configured_path(environment: str, default: Path) -> Path:
@@ -519,6 +521,37 @@ def session_register(args: argparse.Namespace) -> int:
     return 0
 
 
+def session_commits(args: argparse.Namespace) -> int:
+    """List commits carrying `Agent-Session: <id>`, the trailer that links changes to a session."""
+    trailer = f"Agent-Session: {args.session_id}"
+    output = subprocess.run(
+        ["git", "-C", str(ROOT), "log", "--all", "--fixed-strings", f"--grep={trailer}", "--format=%H%x1f%cI%x1f%s"],
+        check=True, capture_output=True, text=True,
+    ).stdout
+    commits = [dict(zip(("sha", "committed_at", "subject"), line.split("\x1f"))) for line in output.splitlines() if line]
+    record = next((row for row in records(Path(args.index).expanduser()) if row.get("session_id") == args.session_id), None)
+    print(json.dumps({"session": record, "commits": commits}, indent=2, sort_keys=True))
+    return 0 if record or commits else 1
+
+
+def skills_command(args: argparse.Namespace) -> int:
+    catalog = agent_skills.discover(ROOT)
+    if args.skills_command == "list":
+        rows = [{"name": s.name, "audience": s.audience, "interactive": s.interactive, "description": s.description} for s in catalog]
+        print(json.dumps([row for row in rows if not args.audience or row["audience"] == args.audience], indent=2))
+        return 0
+    errors = agent_skills.validation_errors(ROOT, catalog)
+    if args.skills_command == "sync":
+        if not errors:
+            written = agent_skills.sync(ROOT, catalog)
+            print(json.dumps({"status": "synced", "skills": len(catalog), "written": len(written)}, indent=2))
+            return 0
+    else:
+        errors += agent_skills.context_errors(ROOT) + agent_skills.drift(ROOT, catalog)
+    print(json.dumps({"status": "failed" if errors else "ok", "skills": len(catalog), "errors": errors}, indent=2))
+    return 1 if errors else 0
+
+
 def write_session_records(index: Path, values: list[dict[str, Any]]) -> None:
     index.parent.mkdir(parents=True, exist_ok=True)
     temporary = index.with_suffix(index.suffix + ".tmp")
@@ -622,6 +655,25 @@ def validate_declarative_manifests() -> list[str]:
                     errors.append(f"{RUNNERS}: provider {provider}.capability_verification must use version-and-flags")
                 elif not isinstance(verification.get("verified_version_prefix"), str) or not isinstance(verification.get("required_flags"), list):
                     errors.append(f"{RUNNERS}: provider {provider}.capability_verification is incomplete")
+                modes = spec.get("permission_modes", {})
+                if not isinstance(modes, dict):
+                    errors.append(f"{RUNNERS}: provider {provider}.permission_modes must be an object")
+                    modes = {}
+                for mode_name, mode in modes.items():
+                    where = f"{RUNNERS}: provider {provider}.permission_modes.{mode_name}"
+                    if mode_name not in permission_values["filesystem"]:
+                        errors.append(f"{where}: key must be a filesystem permission")
+                    if not isinstance(mode, dict) or set(mode) - {"headless", "enforced_permissions", "capability_verification"}:
+                        errors.append(f"{where}: may only override headless, enforced_permissions, capability_verification")
+                        continue
+                    headless = mode.get("headless")
+                    flags = mode.get("capability_verification", {}).get("required_flags", [])
+                    if not isinstance(headless, list) or not all(isinstance(value, str) for value in headless):
+                        errors.append(f"{where}.headless must be an array of strings")
+                    elif not isinstance(flags, list) or not flags or any(flag not in headless for flag in flags):
+                        errors.append(f"{where}: required_flags must be non-empty and present in headless")
+                    if mode_name not in mode.get("enforced_permissions", {}).get("filesystem", []):
+                        errors.append(f"{where}: must declare enforcement of filesystem {mode_name}")
     except ValueError as error:
         errors.append(str(error))
 
@@ -689,6 +741,11 @@ def validate_workflow_file(path: Path) -> list[str]:
                 repository_path(file_path, require_file=True)
             except ValueError as error:
                 errors.append(f"{path}: {error}")
+    requested_skills = list(context.get("skills", [])) if isinstance(context, dict) else []
+    for step in workflow.get("steps", []) if isinstance(workflow.get("steps"), list) else []:
+        if isinstance(step, dict):
+            requested_skills.extend(step.get("skills", []))
+    errors.extend(f"{path}: {error}" for error in agent_skills.workflow_skill_errors(ROOT, list(dict.fromkeys(requested_skills))))
     if not isinstance(workflow.get("steps"), list) or not workflow.get("steps"):
         errors.append(f"{path}: steps must be a non-empty array")
     else:
@@ -762,6 +819,8 @@ def acceptance_command_errors(command: str, permissions: dict[str, str], allow_h
         return ["acceptance command cannot contain shell composition or redirection"]
     executable = Path(tokens[0]).name
     errors: list[str] = []
+    if any(Path(token).as_posix().lstrip("./").startswith("scripts/human/") for token in tokens):
+        errors.append("acceptance command runs a human-only script under scripts/human/")
     if executable in {"sudo", "rm", "mv", "cp", "install", "chmod", "chown", "ln", "mkdir", "touch", "dd", "tee"}:
         errors.append(f"acceptance command uses a mutating executable: {executable}")
     if executable in {"python", "python3", "node", "ruby", "perl", "bash", "sh", "zsh"} and any(flag in tokens for flag in ("-c", "--command", "-e", "--eval")):
@@ -860,7 +919,7 @@ def workflow_plan(args: argparse.Namespace) -> int:
             elif not availability.get(candidate, False):
                 capabilities[candidate] = {"available": False, "policy_safe": False, "failure_reasons": ["command-unavailable"]}
             else:
-                capabilities[candidate] = capability_report(candidate, runner_specs[candidate], workflow["permissions"])
+                capabilities[candidate] = capability_report(candidate, effective_spec(runner_specs[candidate], workflow["permissions"]), workflow["permissions"])
         available = [provider for provider in installed if capabilities[provider]["policy_safe"]]
         steps.append({
             "id": step["id"],
@@ -872,7 +931,7 @@ def workflow_plan(args: argparse.Namespace) -> int:
             "selected": available[0] if available else None,
             "acceptance": step["acceptance"],
             "status": "ready" if available else "unavailable",
-            "runner": runner_specs.get(available[0], {}) if available else None,
+            "runner": effective_spec(runner_specs[available[0]], workflow["permissions"]) if available else None,
         })
     unavailable_steps = [step["id"] for step in steps if step["status"] == "unavailable"]
     plan = {
@@ -1291,6 +1350,8 @@ def cleanup_isolated_worktree(run_dir: Path) -> str | None:
 
 def export_worktree_changes(worktree: Path, base_revision: str, run_dir: Path) -> str:
     """Persist a permission-restricted portable patch for an isolated run."""
+    # Mark new files intent-to-add so the diff carries them; the worktree is disposable.
+    subprocess.run(["git", "-C", str(worktree), "add", "--intent-to-add", "--all"], cwd=ROOT, capture_output=True, text=True, timeout=30, check=False)
     diff = subprocess.run(
         ["git", "-C", str(worktree), "diff", "--binary", base_revision, "--"],
         cwd=ROOT, capture_output=True, text=True, timeout=30, check=False,
@@ -1366,8 +1427,22 @@ def available_providers(candidates: list[str], specs: dict[str, dict[str, Any]])
     ]
 
 
+def effective_spec(spec: dict[str, Any], requested: dict[str, str]) -> dict[str, Any]:
+    """Select the adapter mode declared for the requested filesystem permission.
+
+    A mode replaces the headless flags, enforced permissions, and verified flags as a
+    whole, so a write mode is only policy-safe when its own enforcement is declared.
+    """
+    mode = spec.get("permission_modes", {}).get(requested.get("filesystem", "read-only"))
+    if not mode:
+        return spec
+    merged = {**spec, **{key: value for key, value in mode.items() if key != "capability_verification"}}
+    merged["capability_verification"] = {**spec.get("capability_verification", {}), **mode.get("capability_verification", {})}
+    return merged
+
+
 def provider_is_safe(provider: str, workflow: dict[str, Any], specs: dict[str, dict[str, Any]]) -> bool:
-    spec = specs[provider]
+    spec = effective_spec(specs[provider], workflow["permissions"])
     return capability_report(provider, spec, workflow["permissions"])["policy_safe"]
 
 
@@ -1671,14 +1746,14 @@ def workflow_run(args: argparse.Namespace) -> int:
                 break
             continue
         if not provider_is_safe(selected, workflow, specs):
-            result["steps"].append({"id": step_id, "status": "unavailable", "acceptance_results": [], "provider": selected, "reason": f"provider adapter {selected} has not verified read-only enforcement", "route_reason": route_reason})
+            result["steps"].append({"id": step_id, "status": "unavailable", "acceptance_results": [], "provider": selected, "reason": f"provider adapter {selected} has not verified enforcement of the requested permissions", "route_reason": route_reason})
             append_event(events_path, {"type": "step.completed", "step_id": step_id, "status": "unavailable", "provider": selected})
             had_failure = True
             if step.get("on_failure", "stop") != "continue":
                 break
             continue
         prompt = workflow_prompt(workflow, step, run_id, resolved_context)
-        spec = specs[selected]
+        spec = effective_spec(specs[selected], workflow["permissions"])
         attempts = []
         step_succeeded = False
         for attempt in range(1, workflow["limits"]["max_attempts"] + 1):
@@ -1988,6 +2063,14 @@ def build_parser() -> argparse.ArgumentParser:
     register.add_argument("--commit", action="append", default=[])
     register.add_argument("--transcript")
     register.add_argument("--summary", required=True)
+    session_commit_parser = session_commands.add_parser("commits", help="list commits linked by the Agent-Session trailer")
+    session_commit_parser.add_argument("session_id")
+    skills = commands.add_parser("skills", help="validate, list, and project the canonical skill catalog")
+    skill_commands = skills.add_subparsers(dest="skills_command", required=True)
+    skill_list = skill_commands.add_parser("list")
+    skill_list.add_argument("--audience", choices=sorted(agent_skills.AUDIENCES))
+    skill_commands.add_parser("check", help="fail on invalid skills, broken context, or stale projections")
+    skill_commands.add_parser("sync", help="regenerate harness projections and the catalog")
     return parser
 
 
@@ -2025,6 +2108,10 @@ def main(argv: list[str] | None = None) -> int:
         return session_find(args)
     if args.command == "sessions" and args.session_command == "register":
         return session_register(args)
+    if args.command == "sessions" and args.session_command == "commits":
+        return session_commits(args)
+    if args.command == "skills":
+        return skills_command(args)
     raise ValueError("unsupported command")
 
 

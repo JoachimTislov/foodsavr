@@ -1,0 +1,5 @@
+interface:
+  display_name: "Compress Memory"
+  short_description: "Compress a document or context while keeping what it must..."
+policy:
+  allow_implicit_invocation: false

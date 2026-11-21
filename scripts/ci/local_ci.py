@@ -29,7 +29,7 @@ CI_ONLY = "Web/Android smoke, E2E, Android integration, Firestore rules, depende
 AGENT_JSON = [
     ".agents/policies/default.json", ".agents/github/labels.json", ".agents/policies/schema.json",
     ".agents/runners/providers.json", ".agents/runners/router.json", ".agents/workflows/schema.json",
-    ".agents/workflows/result.schema.json",
+    ".agents/workflows/result.schema.json", ".agents/policies/agent-implement.json",
 ]
 
 
@@ -46,11 +46,16 @@ GROUPS: dict[str, Group] = {
             ".agents/**", "AGENTS.md", "CLAUDE.md", "GEMINI.md", "scripts/agents/**", "scripts/github/**",
             "scripts/secrets/**", "scripts/ci/local_ci.py", "scripts/ci/test_local_ci.py", ".githooks/**", ".agents/github/**",
             ".github/workflows/github-labels.yml", ".github/workflows/merge-gate.yml", "specs/**", "docs/**", "doc/**",
-            ".github/workflows/agent-system.yml",
+            ".github/workflows/agent-system.yml", ".claude/**", ".gemini/**", ".github/agents/**",
+            ".github/instructions/**", ".github/copilot-instructions.md", ".github/workflows/agent-implement.yml",
+            "scripts/human/**",
         ],
         commands=[
-            ["python3", "-m", "py_compile", "scripts/agents/agentctl.py", "scripts/agents/session_query.py"],
+            ["python3", "-m", "py_compile", "scripts/agents/agentctl.py", "scripts/agents/agent_skills.py",
+             "scripts/agents/session_query.py"],
             ["python3", "-m", "unittest", "scripts/agents/test_agentctl.py"],
+            ["python3", "-m", "unittest", "scripts/agents/test_agent_skills.py"],
+            ["scripts/agents/agentctl", "skills", "check"],
             ["python3", "-m", "unittest", "scripts/github/test_sync_labels.py"],
             ["python3", "-m", "unittest", "scripts/github/test_merge_gate.py"],
             ["python3", "-m", "unittest", "scripts/secrets/test_rotate.py"],
@@ -58,6 +63,9 @@ GROUPS: dict[str, Group] = {
             ["scripts/agents/agentctl", "heal"],
             ["scripts/agents/agentctl", "workflow", "validate", ".agents/workflows/repository-health.json"],
             ["scripts/agents/agentctl", "router", "plan", ".agents/workflows/repository-health.json"],
+            ["scripts/agents/agentctl", "workflow", "validate", ".agents/workflows/implement-issue.json"],
+            ["env", "AGENT_POLICY_FILE=.agents/policies/agent-implement.json",
+             "scripts/agents/agentctl", "workflow", "plan", ".agents/workflows/implement-issue.json"],
             ["scripts/agents/agentctl", "doctor"],
             *[["scripts/agents/agentctl", "policy", "compile", "--provider", p]
               for p in ("codex", "claude", "opencode", "gemini", "vibe", "copilot")],

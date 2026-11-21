@@ -1,1 +1,0 @@
-../../../.agents/skills/teach/RESOURCES-FORMAT.md

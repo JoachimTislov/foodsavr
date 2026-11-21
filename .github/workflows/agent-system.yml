@@ -4,6 +4,12 @@ on:
   pull_request:
     paths:
       - '.agents/**'
+      - '.claude/**'
+      - '.gemini/**'
+      - '.github/agents/**'
+      - '.github/instructions/**'
+      - '.github/copilot-instructions.md'
+      - '.github/workflows/agent-implement.yml'
       - 'AGENTS.md'
       - 'CLAUDE.md'
       - 'GEMINI.md'
@@ -13,6 +19,7 @@ on:
       - 'scripts/ci/local_ci.py'
       - 'scripts/ci/test_local_ci.py'
       - '.githooks/**'
+      - 'scripts/human/**'
       - '.agents/github/**'
       - '.github/workflows/github-labels.yml'
       - '.github/workflows/merge-gate.yml'
@@ -24,6 +31,12 @@ on:
     branches: [main]
     paths:
       - '.agents/**'
+      - '.claude/**'
+      - '.gemini/**'
+      - '.github/agents/**'
+      - '.github/instructions/**'
+      - '.github/copilot-instructions.md'
+      - '.github/workflows/agent-implement.yml'
       - 'AGENTS.md'
       - 'CLAUDE.md'
       - 'GEMINI.md'
@@ -33,6 +46,7 @@ on:
       - 'scripts/ci/local_ci.py'
       - 'scripts/ci/test_local_ci.py'
       - '.githooks/**'
+      - 'scripts/human/**'
       - '.agents/github/**'
       - '.github/workflows/github-labels.yml'
       - '.github/workflows/merge-gate.yml'

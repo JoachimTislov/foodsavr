@@ -696,6 +696,102 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(reason, "external-router-disabled-by-network-policy")
             urlopen.assert_not_called()
 
+    def test_write_mode_is_selected_only_for_declared_enforcement(self) -> None:
+        module = load_agentctl_module()
+        manifest = json.loads((ROOT / ".agents/runners/providers.json").read_text())["providers"]
+        write = {"filesystem": "workspace-write", "network": "none", "git": "read-only", "github": "none"}
+        claude = module.effective_spec(manifest["claude"], write)
+        self.assertIn("acceptEdits", claude["headless"])
+        self.assertNotIn("plan", claude["headless"])
+        self.assertEqual(["workspace-write"], claude["enforced_permissions"]["filesystem"])
+        codex_command, _ = module.provider_command("codex", module.effective_spec(manifest["codex"], write), "prompt")
+        self.assertIn("workspace-write", codex_command)
+        read_only = {**write, "filesystem": "read-only"}
+        self.assertIs(manifest["claude"], module.effective_spec(manifest["claude"], read_only))
+        self.assertNotIn("permission_modes", manifest["gemini"])
+        self.assertIs(manifest["gemini"], module.effective_spec(manifest["gemini"], write))
+        with patch.object(module, "version_for", return_value="2.1.326 (Claude Code)"):
+            self.assertTrue(module.capability_report("claude", claude, write)["permissions_enforced"])
+            pushing = {**write, "git": "push"}
+            self.assertFalse(module.capability_report("claude", module.effective_spec(manifest["claude"], pushing), pushing)["permissions_enforced"])
+
+    def test_manifest_health_rejects_unenforced_permission_mode(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            runners = json.loads((ROOT / ".agents/runners/providers.json").read_text())
+            runners["providers"]["claude"]["permission_modes"]["workspace-write"]["enforced_permissions"] = {}
+            runners["providers"]["claude"]["permission_modes"]["workspace-write"]["capability_verification"]["required_flags"] = ["--missing"]
+            path = Path(directory) / "providers.json"
+            path.write_text(json.dumps(runners))
+            with patch.object(module, "RUNNERS", path):
+                errors = "\n".join(module.validate_declarative_manifests())
+        self.assertIn("must declare enforcement of filesystem workspace-write", errors)
+        self.assertIn("required_flags must be non-empty and present in headless", errors)
+
+    def test_implement_workflow_is_unavailable_under_default_policy(self) -> None:
+        module = load_agentctl_module()
+        workflow = json.loads((ROOT / ".agents/workflows/implement-issue.json").read_text())
+        default = json.loads((ROOT / ".agents/policies/default.json").read_text())
+        implement = json.loads((ROOT / ".agents/policies/agent-implement.json").read_text())
+        self.assertTrue(module.policy_errors(workflow, default))
+        self.assertEqual([], module.policy_errors(workflow, implement))
+        self.assertEqual([], module.validate_workflow_file(ROOT / ".agents/workflows/implement-issue.json"))
+
+    def test_exported_patch_includes_new_files(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory) / "repo"
+            repo.mkdir()
+            git = ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            (repo / "tracked.txt").write_text("one\n")
+            subprocess.run([*git, "add", "tracked.txt"], check=True)
+            subprocess.run([*git, "commit", "-q", "-m", "base"], check=True)
+            base = subprocess.run([*git, "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+            (repo / "tracked.txt").write_text("two\n")
+            (repo / "new_test.dart").write_text("void main() {}\n")
+            run_dir = Path(directory) / "run"
+            run_dir.mkdir()
+            with patch.object(module, "path_reference", side_effect=str):
+                module.export_worktree_changes(repo, base, run_dir)
+            patch_text = (run_dir / "changes.patch").read_text()
+        self.assertIn("new_test.dart", patch_text)
+        self.assertIn("+two", patch_text)
+
+    def test_human_scripts_follow_convention_and_are_blocked_for_agents(self) -> None:
+        module = load_agentctl_module()
+        self.assertIn("human-only", " ".join(module.acceptance_command_errors("scripts/human/github/create-agent-app.sh", {})))
+        self.assertIn("human-only", " ".join(module.acceptance_command_errors("bash ./scripts/human/agents/login-claude-runner.sh", {})))
+        guard = '[[ -t 0 && -t 1 ]] || { echo "scripts/human: interactive only; run it yourself in a terminal" >&2; exit 2; }'
+        scripts = sorted((ROOT / "scripts/human").glob("**/*.sh"))
+        self.assertTrue(scripts)
+        for script in scripts:
+            relative = script.relative_to(ROOT / "scripts/human")
+            with self.subTest(script=str(relative)):
+                self.assertEqual(2, len(relative.parts), "layout is <domain>/<intent>-<area>.sh")
+                intent = relative.name.split("-", 1)[0]
+                self.assertIn(intent, {"create", "login", "rotate", "sync", "revoke", "verify"})
+                text = script.read_text(encoding="utf-8")
+                for field in ("Intent", "Domain", "Area", "Secrets", "Why human"):
+                    self.assertIn(f"# {field}:", text)
+                self.assertIn(f"# Intent: {intent}", text)
+                self.assertIn(f"# Domain: {relative.parts[0]}", text)
+                self.assertIn("run_wizard() {\n" + guard, text)
+                self.assertTrue(os.access(script, os.X_OK))
+                subprocess.run(["bash", "-n", str(script)], check=True)
+                completed = subprocess.run(["bash", str(script)], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30)
+                self.assertEqual(2, completed.returncode, completed.stderr)
+
+    def test_session_commits_follow_agent_session_trailer(self) -> None:
+        module = load_agentctl_module()
+        args = argparse.Namespace(session_id="t3-code:a6d43689-90da-4199-95ca-abbb173cdecb", index=str(ROOT / ".agents/sessions/index.jsonl"))
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = module.session_commits(args)
+        result = json.loads(output.getvalue())
+        self.assertEqual(0, code)
+        self.assertEqual(args.session_id, result["session"]["session_id"])
+
 
 if __name__ == "__main__":
     unittest.main()

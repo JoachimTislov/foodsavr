@@ -1,0 +1,5 @@
+interface:
+  display_name: "Introspect"
+  short_description: "Explain which instructions drove a specific action, to..."
+policy:
+  allow_implicit_invocation: false

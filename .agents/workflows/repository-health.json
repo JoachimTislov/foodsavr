@@ -10,7 +10,7 @@
       "agent setup provider compatibility"
     ],
     "files": ["AGENTS.md", "TODO.md", "specs/source-of-truth/status.md", ".agents/ledger.md"],
-    "skills": ["analysis", "research"]
+    "skills": ["flutter-standards", "research"]
   },
   "steps": [
     {
