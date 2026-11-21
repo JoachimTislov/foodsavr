@@ -132,3 +132,5 @@ derived relational and full-text index.
 - 2026-11-21T13:49:06+00:00 — Renamed pr-merge-coordinator to pr-merge (directory, frontmatter, heading, and discovery description); retained one merge skill for all PR queue sizes. Validated skill and references.
 
 - 2026-11-21T14:24:40+00:00 — Clarified pr-merge ownership using thread 086cf9a4-7bb7-4f10-b469-899afeac353f: completed/idle turns awaiting watch events, CI, reviews, or delegated work retain coordination ownership; handoff or verified task completion is required before takeover; existing parity requirements remain binding. Skill validation and diff checks passed. No PR or session ownership changed.
+
+- 2026-11-21T16:27:18+00:00 — Pushed t3/continue-prior-work and opened PR #262 (https://github.com/JoachimTislov/foodsavr/pull/262) for pr-merge skill and session-coordination reference, related to #256; linked PR to this thread. Skill validation and diff checks pass. No merge requested or performed.
