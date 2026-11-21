@@ -53,11 +53,13 @@ else
 fi
 
 echo "Symlinking essential environment files..."
-MAIN_DIR=$(git rev-parse --show-toplevel)
+SOURCE_DIR=$(git rev-parse --show-toplevel)
+MAIN_DIR=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
 
 LINK_MAP=(
     ".gemini/policies:$HOME/.gemini/policies"
     ".env:$MAIN_DIR/.env"
+    "assets/.env:$MAIN_DIR/assets/.env"
     "firebase.json:$MAIN_DIR/firebase.json"
     ".firebaserc:$MAIN_DIR/.firebaserc"
     "firestore.rules:$MAIN_DIR/firestore.rules"
@@ -69,13 +71,31 @@ LINK_MAP=(
     "lib/firebase_options.dart:$MAIN_DIR/lib/firebase_options.dart"
 )
 
+usable_firebase_options() {
+    grep -q 'class DefaultFirebaseOptions' "$1" 2>/dev/null &&
+        ! grep -q 'Compile-only stub written by scripts/ci/local_ci.py' "$1"
+}
+
 for entry in "${LINK_MAP[@]}"; do
     DEST_REL="${entry%%:*}"
     SRC="${entry#*:}"
     DEST="$TARGET_DIR/$DEST_REL"
+    if [[ -e "$DEST" || -L "$DEST" ]] ||
+        ! git -C "$TARGET_DIR" check-ignore -q -- "$DEST_REL"; then
+        continue
+    fi
+    if [[ "$SRC" == "$MAIN_DIR/"* && "$DEST_REL" == "lib/firebase_options.dart" ]] &&
+        ! usable_firebase_options "$SRC"; then
+        SRC="$SOURCE_DIR/$DEST_REL"
+        if ! usable_firebase_options "$SRC"; then
+            echo "  Skipped: $DEST_REL (no usable local Firebase options)"
+            continue
+        fi
+    elif [[ "$SRC" == "$MAIN_DIR/"* && ! -e "$SRC" ]]; then
+        SRC="$SOURCE_DIR/$DEST_REL"
+    fi
     if [[ -e "$SRC" ]]; then
         mkdir -p "$(dirname "$DEST")"
-        rm -rf "$DEST"
         ln -s "$SRC" "$DEST"
         echo "  Symlinked: $DEST_REL"
     else
@@ -84,8 +104,9 @@ for entry in "${LINK_MAP[@]}"; do
 done
 
 echo "Fetching dependencies in new worktree..."
+FLUTTER_BIN=$(python3 "$SOURCE_DIR/scripts/ci/local_ci.py" --flutter-bin)
 cd "$TARGET_DIR" || exit 1
-flutter pub get
+"$FLUTTER_BIN" pub get
 
 echo "Worktree ready at $TARGET_DIR"
 

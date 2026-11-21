@@ -117,11 +117,11 @@ view-emulator:
 
 # Code quality commands
 check:
-	@CURRENT_HASH=$$($(CHECK_HASH_CMD)); \
+	+@CURRENT_HASH=$$($(CHECK_HASH_CMD)); \
 	if [ -f .check.sha256 ] && [ "$$CURRENT_HASH" = "$$(cat .check.sha256)" ]; then \
 		echo "Code matches cached check. Skipping duplicate checks..."; \
 	else \
-		$(MAKE) _run-checks || exit 1; \
+		python3 scripts/ci/local_ci.py --make-check "$(MAKE)" || exit 1; \
 		echo "All checks passed! Caching result..."; \
 		$(CHECK_HASH_CMD) > .check.sha256; \
 	fi

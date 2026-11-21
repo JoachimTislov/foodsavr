@@ -2,8 +2,10 @@
 import importlib.util
 import re
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("local_ci", ROOT / "scripts/ci/local_ci.py")
@@ -53,6 +55,38 @@ class LocalCiTest(unittest.TestCase):
         checks = (workflows / "ci-checks.yml").read_text()
         for command in ci.GROUPS["dart"].commands:
             self.assertIn(" ".join(command), checks)
+
+    def test_make_check_bootstraps_and_cleans_up_after_failure(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(ci, "ROOT", Path(directory)):
+            for item in ("lib", "assets"):
+                (ci.ROOT / item).mkdir()
+            analysis = ci.ROOT / "analysis_options.yaml"
+            analysis.write_text("original")
+            commands = []
+
+            def run(command, **kwargs):
+                commands.append(command)
+                self.assertTrue((ci.ROOT / "assets/.env").is_file())
+                self.assertIn("DefaultFirebaseOptions", (ci.ROOT / "lib/firebase_options.dart").read_text())
+                if command == ["flutter", "pub", "get"]:
+                    analysis.write_text("rewritten")
+                else:
+                    self.assertEqual(analysis.read_text(), "original")
+                code = int(command[-1] == "_run-checks")
+                return ci.subprocess.CompletedProcess(command, code, None)
+
+            with patch.object(ci, "precheck", return_value=None), \
+                    patch.object(ci, "dart_environment"), \
+                    patch.object(ci.subprocess, "run", side_effect=run):
+                self.assertEqual(ci.make_check("make"), 1)
+            self.assertEqual(commands, [
+                ["flutter", "pub", "get"],
+                ["make", "build"],
+                ["make", "-o", ".deps-stamp", "_run-checks"],
+            ])
+            for rel in ci.CI_FILES:
+                self.assertFalse((ci.ROOT / rel).exists())
+            self.assertEqual(analysis.read_text(), "original")
 
     def test_pre_push_skips_branch_deletions(self):
         zero = "0" * 40
