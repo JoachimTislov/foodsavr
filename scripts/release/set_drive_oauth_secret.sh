@@ -22,7 +22,7 @@ fi
 account="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' | head -n 1)"
 account="${account:-$(jq -r '.account // empty' "$adc_path")}" 
 if [ -n "$expected_account" ] && [ "$account" != "$expected_account" ]; then
-  echo "Active gcloud account is $account, expected $expected_account." >&2
+  echo 'Active gcloud account does not match GOOGLE_DRIVE_ACCOUNT.' >&2
   exit 1
 fi
 

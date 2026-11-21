@@ -33,16 +33,12 @@ The Drive job requires the Firebase secret because a compile-only placeholder
 would not be a usable remote-backend APK. It uses the debug signing key
 intended for direct test installation.
 
-To populate the OAuth secret from the active gcloud account, set
-`GOOGLE_DRIVE_ACCOUNT` in the environment (or inject it from a GitHub Secret)
-and run `bash scripts/release/set_drive_oauth_secret.sh`. The helper validates the local ADC
-refresh token and Drive access, then pipes compact JSON directly to `gh secret
-set`; it never writes credentials to the repository.
-If it reports that Drive access is unavailable, reauthorize the configured account with
-`gcloud auth application-default login
---scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/drive`
-and rerun the helper. If gcloud requires a custom OAuth client, add its
-`--client-id-file` option to that command.
+For one-time setup, run `bash scripts/release/setup_drive_deployment.sh
+<drive-folder-id>`. It authorizes the active gcloud account with Drive access,
+validates the grant, and provisions `GOOGLE_DRIVE_ACCOUNT`,
+`GOOGLE_DRIVE_FOLDER_ID`, and `GOOGLE_DRIVE_OAUTH_JSON` through `gh secret set`.
+If gcloud requires a custom OAuth client, set `GOOGLE_OAUTH_CLIENT_ID_FILE`.
+The helper never writes credentials to the repository or prints the account.
 
 The existing remote Firebase project is the test environment; a production
 backend will be added later. Supply that existing project's files for
@@ -66,6 +62,7 @@ single-line encoded files, for example `base64 -w 0 <file>` on Linux.
 | `ANDROID_GOOGLE_SERVICES_B64` | Matching test project's `google-services.json` with `com.foodsavr.app`, base64 encoded. |
 | `ANDROID_ENV_B64` | Runtime `assets/.env` configuration, base64 encoded. Its contents are bundled into the app; don't include server credentials. |
 | `GOOGLE_DRIVE_FOLDER_ID` | Destination folder ID, not its full URL. |
+| `GOOGLE_DRIVE_ACCOUNT` | The gcloud account authorized for Drive; used only during setup validation. |
 | `GOOGLE_DRIVE_OAUTH_JSON` | OAuth JSON containing `client_id`, `client_secret`, and `refresh_token` for a user who can write to the folder. |
 | `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | Play publishing service-account JSON with access to this app's testing releases. |
 
