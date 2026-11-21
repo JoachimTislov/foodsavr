@@ -33,10 +33,12 @@ The Drive job requires the Firebase secret because a compile-only placeholder
 would not be a usable remote-backend APK. It uses the debug signing key
 intended for direct test installation.
 
-For one-time setup, run `bash scripts/release/setup_drive_deployment.sh
-<drive-folder-id>`. It authorizes the active gcloud account with Drive access,
-validates the grant, and provisions `GOOGLE_DRIVE_ACCOUNT`,
+For one-time interactive setup, run `bash scripts/release/setup_drive_deployment.sh`.
+It lists the available Drive folders and lets you select one, authorizes the
+active gcloud account with Drive access, validates the grant, and provisions `GOOGLE_DRIVE_ACCOUNT`,
 `GOOGLE_DRIVE_FOLDER_ID`, and `GOOGLE_DRIVE_OAUTH_JSON` through `gh secret set`.
+For noninteractive use, pass the folder ID as the first argument or set
+`GOOGLE_DRIVE_FOLDER_ID`.
 If gcloud requires a custom OAuth client, set `GOOGLE_OAUTH_CLIENT_ID_FILE`.
 The helper never writes credentials to the repository or prints the account.
 
