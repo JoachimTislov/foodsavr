@@ -334,6 +334,26 @@ void main() {
       verify(() => mockFirebaseAuth.signInWithCredential(any())).called(1);
     });
 
+    test('signInWithGoogle retries initialization after a failure', () async {
+      final mockAccount = MockGoogleSignInAccount();
+      final mockAuth = MockGoogleSignInAuthentication();
+      var calls = 0;
+      when(() => mockGoogleSignIn.initialize()).thenAnswer((_) async {
+        if (calls++ == 0) throw Exception('init failed');
+      });
+      when(
+        () => mockGoogleSignIn.authenticate(),
+      ).thenAnswer((_) async => mockAccount);
+      when(() => mockAccount.authentication).thenReturn(mockAuth);
+      when(
+        () => mockFirebaseAuth.signInWithCredential(any()),
+      ).thenAnswer((_) async => mockUserCredential);
+
+      await expectLater(authService.signInWithGoogle(), throwsException);
+      expect(await authService.signInWithGoogle(), mockUserCredential);
+      verify(() => mockGoogleSignIn.initialize()).called(2);
+    });
+
     test('signInWithGoogle throws a clear error when canceled', () async {
       when(() => mockGoogleSignIn.authenticate()).thenThrow(
         GoogleSignInException(

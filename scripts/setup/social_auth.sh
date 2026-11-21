@@ -3,6 +3,7 @@
 #
 # Usage: scripts/setup/social_auth.sh [--check]
 #   --check   report what is missing without changing anything.
+# Exits 1 while anything besides the manual Meta console check is missing.
 #
 # Inputs (environment or repo-root .env):
 #   FIREBASE_PROJECT          default: my-foodsavr-store
@@ -15,7 +16,7 @@
 #   EXTRA_SHA                 comma-separated extra SHA-1/SHA-256 (e.g. Play signing)
 #   ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS
 #                             release keystore (or android/key.properties)
-#   SET_GITHUB_SECRETS=1      also write FACEBOOK_* to GitHub Actions secrets
+#   SET_GITHUB_SECRETS=1      also push FACEBOOK_APP_ID/CLIENT_TOKEN via scripts/secrets/rotate.py
 #
 # Requires: firebase (or npx), gcloud, keytool, curl, python3; gh is optional.
 # The gcloud account needs roles/firebaseauth.admin and
@@ -42,6 +43,8 @@ todo=()
 
 ok() { printf '  \033[32m✔\033[0m %s\n' "$1"; }
 miss() { printf '  \033[33m✘\033[0m %s\n' "$1"; todo+=("$1"); }
+note() { printf '  \033[36m•\033[0m %s\n' "$1"; }
+failed() { [ -z "$1" ] || printf '%s' "$1" | grep -q '"error"'; }
 step() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 json() { python3 -I -c "import json,sys; d=json.load(sys.stdin); $1"; }
 if command -v firebase >/dev/null; then
@@ -57,13 +60,16 @@ done
 
 step "Access"
 token="$(gcloud auth print-access-token 2>/dev/null || true)"
+# Secrets never go through argv: the token goes in a curl config and request
+# bodies through process substitution (printf is a shell builtin).
 api() {
-  local method="$1" url="$2" body="${3:-}"
+  local method="$1" url="$2" body="${3:-}" args=()
+  [ -n "$body" ] && args=(--data-binary @<(printf '%s' "$body"))
   curl -sS -X "$method" "$url" \
-    -H "Authorization: Bearer $token" \
+    -K <(printf 'header = "Authorization: Bearer %s"\n' "$token") \
     -H "x-goog-user-project: $project" \
     -H 'Content-Type: application/json' \
-    ${body:+--data "$body"}
+    "${args[@]}"
 }
 auth_config=""
 if [ -n "$token" ]; then
@@ -81,7 +87,7 @@ fi
 
 step "Android SHA fingerprints"
 fingerprints() { # keystore storepass alias -> "sha1 sha256" lines (lowercase hex)
-  keytool -list -v -keystore "$1" -storepass "$2" -alias "$3" 2>/dev/null |
+  KEYSTORE_PASS="$2" keytool -list -v -keystore "$1" -storepass:env KEYSTORE_PASS -alias "$3" 2>/dev/null |
     awk '/SHA1:|SHA256:/ {gsub(":", "", $2); print tolower($2)}'
 }
 shas=()
@@ -132,9 +138,15 @@ done
 step "google-services.json"
 target="android/app/google-services.json"
 if [ "$check_only" = 0 ] && { [ "$changed_shas" = 1 ] || [ ! -f "$target" ]; }; then
-  firebase_cli apps:sdkconfig ANDROID "${app_ids[0]}" --out "$target" >/dev/null 2>&1 ||
-    firebase_cli apps:sdkconfig ANDROID "${app_ids[0]}" > "$target"
-  ok "Wrote $target"
+  tmp="$(mktemp -d)/google-services.json"
+  if firebase_cli apps:sdkconfig ANDROID "${app_ids[0]}" --out "$tmp" >/dev/null 2>&1 &&
+    json "assert d['client']" <"$tmp" 2>/dev/null; then
+    mv "$tmp" "$target"
+    ok "Wrote $target"
+  else
+    miss "Could not download $target"
+  fi
+  rm -rf "$(dirname "$tmp")"
 fi
 if [ -f "$target" ]; then
   android_clients="$(json "print(sum(1 for c in d['client'] for o in c.get('oauth_client', []) if o.get('client_type') == 1))" <"$target")"
@@ -144,6 +156,11 @@ if [ -f "$target" ]; then
     miss "$target has no Android OAuth clients; re-run after SHA registration"
   fi
   web_client_id="$(json "print(next((o['client_id'] for c in d['client'] for o in c.get('oauth_client', []) if o.get('client_type') == 3), ''))" <"$target")"
+  if [ -n "$web_client_id" ]; then
+    ok "$target has a web OAuth client (google_sign_in needs it on Android)"
+  else
+    miss "$target has no web OAuth client; enable Google sign-in in Firebase, then re-run"
+  fi
 else
   miss "$target is missing; run without --check to download it"
 fi
@@ -152,6 +169,10 @@ step "Firebase Auth providers"
 provider() { # idp clientId clientSecret
   local idp="$1" id="$2" secret="$3" current enabled
   current="$(api GET "$idt/defaultSupportedIdpConfigs/$idp")"
+  if failed "$current" && ! printf '%s' "$current" | grep -q '"NOT_FOUND"'; then
+    miss "Could not read the $idp provider config"
+    return
+  fi
   enabled="$(printf '%s' "$current" | json "print(str(d.get('enabled', False)).lower())")"
   if [ "$enabled" = true ]; then
     ok "$idp is enabled"
@@ -160,14 +181,18 @@ provider() { # idp clientId clientSecret
   elif [ "$check_only" = 1 ]; then
     miss "$idp is disabled"
   else
-    local body
-    body="$(python3 -I -c 'import json,sys; print(json.dumps({"enabled": True, "clientId": sys.argv[1], "clientSecret": sys.argv[2]}))' "$id" "$secret")"
-    if printf '%s' "$current" | grep -q '"NOT_FOUND"\|"code": 404'; then
-      api POST "$idt/defaultSupportedIdpConfigs?idpId=$idp" "$body" >/dev/null
+    local body result
+    body="$(IDP_ID="$id" IDP_SECRET="$secret" python3 -I -c 'import json,os; print(json.dumps({"enabled": True, "clientId": os.environ["IDP_ID"], "clientSecret": os.environ["IDP_SECRET"]}))')"
+    if printf '%s' "$current" | grep -q '"NOT_FOUND"'; then
+      result="$(api POST "$idt/defaultSupportedIdpConfigs?idpId=$idp" "$body")"
     else
-      api PATCH "$idt/defaultSupportedIdpConfigs/$idp?updateMask=enabled,clientId,clientSecret" "$body" >/dev/null
+      result="$(api PATCH "$idt/defaultSupportedIdpConfigs/$idp?updateMask=enabled,clientId,clientSecret" "$body")"
     fi
-    ok "$idp enabled"
+    if failed "$result"; then
+      miss "Enabling $idp failed"
+    else
+      ok "$idp enabled"
+    fi
   fi
 }
 if [ -n "$auth_config" ]; then
@@ -187,8 +212,11 @@ if [ -n "$auth_config" ]; then
     else
       body="$(printf '%s\n' "$domains" "${missing_domains[@]}" |
         python3 -I -c 'import json,sys; print(json.dumps({"authorizedDomains": [l for l in sys.stdin.read().split() if l]}))')"
-      api PATCH "$idt/config?updateMask=authorizedDomains" "$body" >/dev/null
-      ok "Added authorized domains: ${missing_domains[*]}"
+      if failed "$(api PATCH "$idt/config?updateMask=authorizedDomains" "$body")"; then
+        miss "Adding authorized domains failed: ${missing_domains[*]}"
+      else
+        ok "Added authorized domains: ${missing_domains[*]}"
+      fi
     fi
   fi
 fi
@@ -203,11 +231,17 @@ if [ -z "${FACEBOOK_APP_ID:-}" ] || [ -z "${FACEBOOK_APP_SECRET:-}" ]; then
   miss "Set FACEBOOK_APP_ID and FACEBOOK_APP_SECRET to configure the Meta app"
 else
   app_token="$FACEBOOK_APP_ID|$FACEBOOK_APP_SECRET"
-  current_hashes="$(curl -sS -G "$graph/$FACEBOOK_APP_ID" --data-urlencode "fields=android_key_hash" \
-    --data-urlencode "access_token=$app_token" | json "print('\n'.join(d.get('android_key_hash', [])))" || true)"
+  app_meta="$(curl -sS -G "$graph/$FACEBOOK_APP_ID" --data-urlencode "fields=android_key_hash" \
+    --data-urlencode "access_token@"<(printf '%s' "$app_token") || true)"
+  current_hashes=""
+  failed "$app_meta" ||
+    current_hashes="$(printf '%s' "$app_meta" | json "print('\n'.join(d.get('android_key_hash', [])))")"
   missing_hashes=()
   for h in "${key_hashes[@]}"; do grep -qxF "$h" <<<"$current_hashes" || missing_hashes+=("$h"); done
-  if [ "${#missing_hashes[@]}" = 0 ]; then
+  if failed "$app_meta"; then
+    # Never overwrite the list when it could not be read.
+    miss "Meta Graph API could not read the app; add key hashes manually: ${key_hashes[*]}"
+  elif [ "${#missing_hashes[@]}" = 0 ]; then
     ok "Meta app has all Android key hashes"
   elif [ "$check_only" = 1 ]; then
     miss "Meta app is missing key hashes: ${missing_hashes[*]}"
@@ -215,7 +249,7 @@ else
     all="$(printf '%s\n' "$current_hashes" "${missing_hashes[@]}" |
       python3 -I -c 'import json,sys; print(json.dumps([l for l in sys.stdin.read().split() if l]))')"
     result="$(curl -sS -X POST "$graph/$FACEBOOK_APP_ID" --data-urlencode "android_key_hash=$all" \
-      --data-urlencode "access_token=$app_token")"
+      --data-urlencode "access_token@"<(printf '%s' "$app_token"))"
     if printf '%s' "$result" | grep -q '"success": *true'; then
       ok "Meta app key hashes updated"
     else
@@ -223,7 +257,7 @@ else
     fi
   fi
 fi
-miss "Meta console (manual, check once): Facebook Login > Valid OAuth Redirect URIs contains $redirect_uri;
+note "Meta console (manual, check once): Facebook Login > Valid OAuth Redirect URIs contains $redirect_uri;
       Android platform has packages com.foodsavr.app and com.foodsavr.app.development, class com.foodsavr.app.MainActivity;
       app mode is Live"
 
@@ -233,15 +267,24 @@ for name in FACEBOOK_APP_ID FACEBOOK_CLIENT_TOKEN; do
     miss "$name is not set (repo-root .env or environment)"
   else
     ok "$name is set"
-    if [ "${SET_GITHUB_SECRETS:-0}" = 1 ] && [ "$check_only" = 0 ] && command -v gh >/dev/null; then
-      printf '%s' "${!name}" | gh secret set "$name" >/dev/null && ok "GitHub secret $name updated"
-    fi
   fi
 done
+# Secrets only change through the rotate script (see AGENTS.md).
+if [ "${SET_GITHUB_SECRETS:-0}" = 1 ] && [ "$check_only" = 0 ]; then
+  if [ ! -x scripts/secrets/rotate.py ]; then
+    miss "scripts/secrets/rotate.py is missing; cannot set GitHub secrets"
+  elif NEW_FACEBOOK_APP_ID="${FACEBOOK_APP_ID:-}" NEW_FACEBOOK_CLIENT_TOKEN="${FACEBOOK_CLIENT_TOKEN:-}" \
+    scripts/secrets/rotate.py FACEBOOK_APP_ID FACEBOOK_CLIENT_TOKEN </dev/null; then
+    ok "Facebook client values pushed via scripts/secrets/rotate.py"
+  else
+    miss "scripts/secrets/rotate.py failed for FACEBOOK_APP_ID/FACEBOOK_CLIENT_TOKEN"
+  fi
+fi
 
 step "Summary"
-if [ "${#todo[@]}" -eq 1 ]; then
-  echo "Only the one-time Meta console check remains."
+if [ "${#todo[@]}" -eq 0 ]; then
+  echo "Done. Only the one-time Meta console check (•) remains."
 else
   echo "${#todo[@]} item(s) need attention (see ✘ above)."
+  exit 1
 fi
