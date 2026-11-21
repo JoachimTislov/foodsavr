@@ -175,3 +175,9 @@ Services orchestrate repositories and contain validation/business rules.
 5. Register in `service_locator.dart`
 6. Build UI in `views/` and `widgets/`, injecting dependencies via GetIt
 7. Test with Firebase emulators before deploying to production
+
+## Secrets
+
+- Create, rotate or set secrets (GitHub Actions secrets, `.env` keys) only through `scripts/secrets/rotate.py NAME [NAME ...]`; never call `gh secret set` or edit secret values in `.env` directly.
+- Register every new secret in `scripts/secrets/registry.toml` (generator, cost, sinks, hint) in the same change that introduces it. Never put values in the registry, code, logs, or commits.
+- Rotate only the secrets the task needs; use `--cheap` for bulk rotation. Expensive secrets (provider resets, signing keys) need owner approval first. Use `--dry-run` to preview.
