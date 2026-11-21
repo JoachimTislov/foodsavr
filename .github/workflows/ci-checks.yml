@@ -7,7 +7,12 @@ on:
       - "**.dart"
       - "lib/**"
       - "test/**"
-      - "assets/translations/**"
+      - "assets/**"
+      - "packages/**"
+      - ".github/workflows/build-android.yml"
+      - ".github/workflows/release-gated.yml"
+      - "scripts/release/**"
+      - "scripts/ci/**"
       - "pubspec.yaml"
       - "pubspec.lock"
       - "analysis_options.yaml"
@@ -38,7 +43,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
-
       - name: Changed code paths (pull requests)
         id: paths
         if: github.event_name == 'pull_request'
@@ -57,6 +61,13 @@ jobs:
               - "web/**"
               - "integration_test/**"
               - "test_driver/**"
+              - "assets/**"
+              - "packages/**"
+              - ".github/workflows/build-android.yml"
+              - ".github/workflows/android-drive-test.yml"
+              - ".github/workflows/release-gated.yml"
+              - "scripts/release/**"
+              - "scripts/ci/**"
 
       - name: Decide
         id: decide
@@ -88,6 +99,11 @@ jobs:
           channel: "stable"
           cache: true
 
+      - name: Check Android release orchestration
+        run: |
+          node --test scripts/release/release_gate.test.cjs
+          python3 -m unittest discover -s scripts/release -p '*_test.py'
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -98,7 +114,9 @@ jobs:
         run: dart format --output=none --set-exit-if-changed .
 
       - name: Write firebase_options.dart
-        run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
+        env:
+          FIREBASE_OPTIONS_B64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
+        run: bash scripts/ci/write_firebase_options.sh
 
       - name: Create empty .env file
         run: touch assets/.env
@@ -138,9 +156,17 @@ jobs:
           FORCE_ALL: ${{ github.event_name == 'workflow_dispatch' }}
 
       - name: Upload coverage to Codecov
-        if: hashFiles('coverage/lcov.info') != ''
+        if: hashFiles('coverage/lcov.info') != '' && env.CODECOV_TOKEN != ''
         uses: codecov/codecov-action@v5
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          token: ${{ env.CODECOV_TOKEN }}
           files: coverage/lcov.info
           fail_ci_if_error: true
+
+      - name: Report skipped Codecov upload
+        if: hashFiles('coverage/lcov.info') != '' && env.CODECOV_TOKEN == ''
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: echo '::warning::CODECOV_TOKEN is missing; coverage upload was skipped.'

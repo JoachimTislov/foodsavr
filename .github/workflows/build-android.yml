@@ -10,6 +10,10 @@ on:
       - "pubspec.yaml"
       - "pubspec.lock"
       - ".github/workflows/build-android.yml"
+      - ".github/workflows/release-gated.yml"
+      - "scripts/release/**"
+      - "scripts/ci/**"
+      - "packages/**"
   pull_request:
     branches: [main]
     paths:
@@ -19,6 +23,10 @@ on:
       - "pubspec.yaml"
       - "pubspec.lock"
       - ".github/workflows/build-android.yml"
+      - ".github/workflows/release-gated.yml"
+      - "scripts/release/**"
+      - "scripts/ci/**"
+      - "packages/**"
   workflow_dispatch:
 
 concurrency:
@@ -120,8 +128,9 @@ jobs:
         run: flutter pub get
 
       - name: Write firebase_options.dart
-        run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          FIREBASE_OPTIONS_B64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
+        run: bash scripts/ci/write_firebase_options.sh
       - name: Write placeholder firebase_options.dart (fork PRs)
         run: |
           cat > lib/firebase_options.dart <<'EOT'

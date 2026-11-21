@@ -10,7 +10,7 @@ Built vs spec'd vs unbuilt, per domain. The sync loop (#213) claims un-synced do
 | integrations | synced | Rema client, receipts, ML Kit, OFF enrichment | Coop (#194), Trumf/Storebox, orders, recipes, free text |
 | mcp-server | synced | foodsavr_core skeleton | MCP server + Go API (#171) |
 | qa-testing | synced | unit/integration tests, validation gates | eval setup (#166, #168) |
-| ci-workflows | synced | ci-checks, builds, validation, release-gated | Ubuntu 26 migration remainder |
+| ci-workflows | synced | ci-checks, builds, validation, manual Drive APK workflow, emulator visual artifacts | Ubuntu 26 migration remainder; first live Drive test awaits secrets and verification |
 | docs-status | synced | README/INDEX/TODO reconciled (#201) | this folder becomes authoritative; reconcile pointers |
 
 ## Sync ledger
@@ -23,3 +23,4 @@ Replay record per session. Store session ID, issue, PR, commit SHAs; forward to 
 | vibe-848bbd-audit | #213 | #214 | head of vibe/source-of-truth-bootstrap-848bbd | all 8 domains | zero discrepancies; every spec claim verified read-only against code (collections, services, clients, core exports, workflows, tests); all domains marked synced |
 | vibe-848bbd-verification | #213 | #215 | head of vibe/optimized-verification-loop-848bbd | ci-workflows, qa-testing | ADR 0002 + ADR 0003 implemented and CI-verified green (206 tests, 2m20s); 6 autonomous fix commits per ADR 0003 |
 | vibe-848bbd-shapes | #213 | #215 | head of vibe/optimized-verification-loop-848bbd | data-model, integrations, mcp-server | ADR 0004: shapes (3 JSON Schemas, services registry, MCP contract) + check_shape_sync.dart validator wired into CI; verified locally (30 schema props, 14 anchors, shape-sync OK) |
+| android-continuous-delivery | #145, #168, #126 | none | task branch | ci-workflows | Manual Drive APK workflow and emulator evidence implemented; automatic Android delivery and Play deployment removed. |

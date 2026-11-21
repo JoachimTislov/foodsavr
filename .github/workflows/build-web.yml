@@ -10,6 +10,7 @@ on:
       - "pubspec.yaml"
       - "pubspec.lock"
       - ".github/workflows/build-web.yml"
+      - "scripts/ci/**"
   pull_request:
     branches: [main]
     paths:
@@ -19,6 +20,7 @@ on:
       - "pubspec.yaml"
       - "pubspec.lock"
       - ".github/workflows/build-web.yml"
+      - "scripts/ci/**"
   workflow_dispatch:
 
 concurrency:
@@ -97,8 +99,6 @@ jobs:
     if: ${{ needs.dep-impact.outputs.run_web == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    outputs:
-      deploy: ${{ steps.check.outputs.deploy }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -116,8 +116,9 @@ jobs:
         run: flutter pub get
 
       - name: Write firebase_options.dart
-        run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          FIREBASE_OPTIONS_B64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
+        run: bash scripts/ci/write_firebase_options.sh
 
       - name: Write placeholder firebase_options.dart (fork PRs)
         run: |
@@ -144,55 +145,9 @@ jobs:
 
       - name: Build web
         run: flutter build web --release
-        if: ${{ github.event_name != 'push' }}
-
-      - name: Build web (Pages base href)
-        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
-        if: ${{ github.event_name == 'push' }}
-
-      - name: Check whether to deploy
-        id: check
-        run: |
-          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "deploy=false" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Upload web artifact
         uses: actions/upload-artifact@v4
         with:
           name: web-build
           path: build/web
-
-  deploy-pages:
-    name: Deploy web test environment (GitHub Pages)
-    needs: build-web
-    if: needs.build-web.outputs.deploy == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Download web artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: web-build
-          path: web-build
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: web-build
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
