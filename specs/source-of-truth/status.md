@@ -12,6 +12,7 @@ Built vs spec'd vs unbuilt, per domain. The sync loop (#213) claims un-synced do
 | qa-testing | synced | unit/integration tests, validation gates | eval setup (#166, #168) |
 | ci-workflows | synced | ci-checks, builds, validation, release-gated | Ubuntu 26 migration remainder |
 | docs-status | synced | README/INDEX/TODO reconciled (#201) | this folder becomes authoritative; reconcile pointers |
+| deployment-levels | synced | manifest + schema, `foodsavr_deploy` CLI (validate/plan/poll/env), Firebase scalers, Spark level (live) + Blaze level (Terraform `level`, budget; not yet applied), production + development (emulator) environments, bootstrap script, recommend-only workflow | Supabase/hybrid/standalone levels, app backend port, `test`/`staging` app flavors, gated promote executor (ADR 0005 phases 2-4) |
 
 ## Sync ledger
 
@@ -23,3 +24,4 @@ Replay record per session. Store session ID, issue, PR, commit SHAs; forward to 
 | vibe-848bbd-audit | #213 | #214 | head of vibe/source-of-truth-bootstrap-848bbd | all 8 domains | zero discrepancies; every spec claim verified read-only against code (collections, services, clients, core exports, workflows, tests); all domains marked synced |
 | vibe-848bbd-verification | #213 | #215 | head of vibe/optimized-verification-loop-848bbd | ci-workflows, qa-testing | ADR 0002 + ADR 0003 implemented and CI-verified green (206 tests, 2m20s); 6 autonomous fix commits per ADR 0003 |
 | vibe-848bbd-shapes | #213 | #215 | head of vibe/optimized-verification-loop-848bbd | data-model, integrations, mcp-server | ADR 0004: shapes (3 JSON Schemas, services registry, MCP contract) + check_shape_sync.dart validator wired into CI; verified locally (30 schema props, 14 anchors, shape-sync OK) |
+| deployment-levels-phase1 | — (owner intent in session, ADR 0005) | stacked on #239 (not opened) | head of feature/deployment-levels | deployment-levels (new), ci-workflows | ADR 0005 + spec + schema/manifest; foodsavr_deploy CLI with offline tests; apply.sh/bootstrap.sh read the manifest; hosting workflow per environment; deployment-level.yml recommend-only; nothing applied or deployed |
