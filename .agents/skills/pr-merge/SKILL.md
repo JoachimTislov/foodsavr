@@ -105,7 +105,12 @@ Choose `--squash` only when allowed by repository policy. Respect the merge
 queue and protection checks; bypass flags are outside this workflow. Preserve
 branches and worktrees used by other sessions. Confirm the server reports
 `MERGED` and record its resulting SHA; a queued or auto-merge request is still
-pending. Apply the host's PR-linking rules to each PR taken over.
+pending. Keep a named owner and actionable handoff until it completes. If a
+hold or authorization change arrives, the owner must remove the PR from the
+merge queue and disable auto-merge wherever enabled, then confirm the server
+has withdrawn those pending requests. If withdrawal fails, notify the
+coordinator immediately and retain the blocker until server state is known.
+Apply the host's PR-linking rules to each PR taken over.
 
 After each merge, notify affected owners, refresh the remaining dependency
 graph, and re-evaluate descendants. Retargeting a stack changes its diff and
