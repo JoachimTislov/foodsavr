@@ -740,23 +740,29 @@ class AgentctlTest(unittest.TestCase):
     def test_exported_patch_includes_new_files(self) -> None:
         module = load_agentctl_module()
         with tempfile.TemporaryDirectory() as directory:
-            repo = Path(directory) / "repo"
-            repo.mkdir()
+            # Git hooks export GIT_DIR/GIT_INDEX_FILE; never let them redirect these
+            # commands into the surrounding checkout.
+            env = module.isolated_git_env()
+            repo, decoy = Path(directory) / "repo", Path(directory) / "decoy"
             git = ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
-            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            for path in (repo, decoy):
+                subprocess.run(["git", "init", "-q", str(path)], check=True, env=env)
             (repo / "tracked.txt").write_text("one\n")
-            subprocess.run([*git, "add", "tracked.txt"], check=True)
-            subprocess.run([*git, "commit", "-q", "-m", "base"], check=True)
-            base = subprocess.run([*git, "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+            subprocess.run([*git, "add", "tracked.txt"], check=True, env=env)
+            subprocess.run([*git, "commit", "-q", "-m", "base"], check=True, env=env)
+            base = subprocess.run([*git, "rev-parse", "HEAD"], check=True, capture_output=True, text=True, env=env).stdout.strip()
             (repo / "tracked.txt").write_text("two\n")
             (repo / "new_test.dart").write_text("void main() {}\n")
             run_dir = Path(directory) / "run"
             run_dir.mkdir()
-            with patch.object(module, "path_reference", side_effect=str):
+            hook_env = {"GIT_DIR": str(decoy / ".git"), "GIT_INDEX_FILE": str(decoy / ".git/index")}
+            with patch.object(module, "path_reference", side_effect=str), patch.dict(os.environ, hook_env):
                 module.export_worktree_changes(repo, base, run_dir)
             patch_text = (run_dir / "changes.patch").read_text()
+            decoy_index = subprocess.run(["git", "-C", str(decoy), "ls-files"], capture_output=True, text=True, env=env).stdout
         self.assertIn("new_test.dart", patch_text)
         self.assertIn("+two", patch_text)
+        self.assertEqual("", decoy_index)
 
     def test_human_scripts_follow_convention_and_are_blocked_for_agents(self) -> None:
         module = load_agentctl_module()

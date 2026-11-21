@@ -1348,13 +1348,23 @@ def cleanup_isolated_worktree(run_dir: Path) -> str | None:
     return None
 
 
+def isolated_git_env() -> dict[str, str]:
+    """Environment for git commands aimed at another repository or worktree.
+
+    Git hooks export GIT_DIR, GIT_INDEX_FILE, and similar variables; inherited, they
+    redirect `git -C <worktree>` to the hook's repository and its index.
+    """
+    return {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+
+
 def export_worktree_changes(worktree: Path, base_revision: str, run_dir: Path) -> str:
     """Persist a permission-restricted portable patch for an isolated run."""
+    env = isolated_git_env()
     # Mark new files intent-to-add so the diff carries them; the worktree is disposable.
-    subprocess.run(["git", "-C", str(worktree), "add", "--intent-to-add", "--all"], cwd=ROOT, capture_output=True, text=True, timeout=30, check=False)
+    subprocess.run(["git", "-C", str(worktree), "add", "--intent-to-add", "--all"], cwd=worktree, env=env, capture_output=True, text=True, timeout=30, check=False)
     diff = subprocess.run(
         ["git", "-C", str(worktree), "diff", "--binary", base_revision, "--"],
-        cwd=ROOT, capture_output=True, text=True, timeout=30, check=False,
+        cwd=worktree, env=env, capture_output=True, text=True, timeout=30, check=False,
     )
     if diff.returncode != 0:
         raise ValueError((diff.stderr or diff.stdout).strip() or "git diff failed")
