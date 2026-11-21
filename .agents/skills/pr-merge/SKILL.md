@@ -1,6 +1,6 @@
 ---
 name: pr-merge
-description: Prioritize the repository's open PRs against a user's objective, coordinate with local and CI agent sessions, and merge finalized PRs in dependency order. Use to assess and merge PRs, including mixed-readiness queues and stacks, within the requested scope.
+description: Prioritize the repository's open PRs against a user's objective, coordinate with local and CI agent sessions, and merge finalized PRs in dependency order. Use for Dependabot PR updates and to assess and merge PRs, including mixed-readiness queues and stacks, within the requested scope.
 ---
 
 # PR merge
@@ -73,8 +73,10 @@ A PR is ready only when all applicable conditions hold:
 - Required checks and meaningful task-specific validation passed for its
   current head and relevant base/merge result. Explain skipped or absent
   checks; missing validation is not passing validation.
-- Required reviews are satisfied; inspect review threads and material
-  objections, including feedback not represented by approval status.
+- Required reviews are satisfied; inspect human inline review comments,
+  review threads, and material objections, including feedback not represented
+  by approval status. Address each requested change or record an explicit
+  owner decision before marking the PR ready.
 - Dependencies landed in the intended destination, mergeability is known,
   and branch/environment protection and any deployment authorization allow
   the merge. A stack PR green against a feature branch is not thereby ready
@@ -85,6 +87,15 @@ the affected PR. Respect holds and permissions. Report an unreachable active
 owner as a blocker for that PR, then advance independent work. Historical
 authorship alone does not require approval from a former author whose task
 is finished or handed off. An idle run awaiting events still retains its work.
+
+## Dependabot PR updates
+
+To update a Dependabot PR, post `@dependabot rebase` in a PR comment, then
+wait for the bot to update the head and CI to finish. If the bot refuses or
+cannot update the PR, report the blocker. Never manually rebase, force-push,
+or otherwise rewrite or update a Dependabot branch. Preserve explicit owner
+intent; a bot refusal does not authorize a workaround. Reassess readiness
+against the bot-updated head before merging.
 
 ## Execute the ready portion
 

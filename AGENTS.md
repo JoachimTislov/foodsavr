@@ -21,10 +21,8 @@ Before changing code or documentation, read [specs/source-of-truth/INDEX.md](spe
 
 ## Dependabot PRs
 
-To update a Dependabot PR, post `@dependabot rebase` in a PR comment, then
-wait for the bot to update the head and CI to finish. If the bot cannot update
-the PR, report the blocker. Never manually rebase, force-push, or otherwise
-rewrite or update a Dependabot branch.
+For Dependabot PR updates, read the
+[PR merge skill](.agents/skills/pr-merge/SKILL.md#dependabot-pr-updates).
 
 ## Secrets
 
