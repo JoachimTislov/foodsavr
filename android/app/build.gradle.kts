@@ -12,7 +12,7 @@ plugins {
 }
 
 val envProperties = Properties().apply {
-    val envFile = rootProject.file("../../.env")
+    val envFile = rootProject.file("../.env")
     if (envFile.exists()) {
         load(FileInputStream(envFile))
     }
