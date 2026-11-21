@@ -12,9 +12,10 @@ on:
       - "Agent system validation"
       - "Documentation Pages"
       - "Dependency Review"
+      - "Synchronize GitHub labels"
     types: [completed]
   pull_request_target:
-    types: [labeled, ready_for_review, reopened]
+    types: [labeled]
   push:
     branches: [main]
   schedule:
@@ -24,18 +25,28 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: merge-gate
-  cancel-in-progress: false
-
 jobs:
+  # Runs attached to a PR only dispatch; the gate itself runs on main, so its
+  # queued or cancelled runs never show up as checks on PRs.
+  dispatch:
+    name: Request gate run
+    if: github.event_name == 'pull_request_target' && github.event.label.name == 'merge/auto'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run merge-gate.yml --repo "${{ github.repository }}" --ref "${{ github.event.repository.default_branch }}"
+
   gate:
     name: Integrate ready PRs
     # Dependabot-triggered events get no repository secrets; the schedule covers them.
-    if: >
-      github.actor != 'dependabot[bot]' &&
-      (github.event_name != 'pull_request_target' ||
-       github.event.action != 'labeled' || github.event.label.name == 'merge/auto')
+    if: github.event_name != 'pull_request_target' && github.actor != 'dependabot[bot]'
+    concurrency:
+      group: merge-gate
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

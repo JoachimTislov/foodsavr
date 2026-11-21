@@ -36,6 +36,7 @@ class PlanTest(unittest.TestCase):
 
     def test_non_required_failure_or_pending_check_blocks_merge(self):
         self.assertEqual(actions([pr(1, state="UNSTABLE", rollup="FAILURE")]), [])
+        self.assertEqual(actions([pr(1, state="UNSTABLE")]), [("merge", 1)])
         self.assertEqual(actions([pr(1, rollup="PENDING", state="BLOCKED")]), [])
 
     def test_updates_one_behind_pr_when_nothing_in_flight(self):
@@ -45,19 +46,25 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(actions([pr(1, state="BEHIND"), pr(2, state="BLOCKED", rollup="PENDING")]), [])
 
     def test_stalled_checks_do_not_hold_the_queue(self):
-        stalled = pr(2, state="BLOCKED", rollup="EXPECTED", head_time=NOW - timedelta(hours=2))
+        stalled = pr(2, state="BLOCKED", rollup="PENDING", head_time=NOW - timedelta(hours=2))
         self.assertEqual(actions([pr(1, state="BEHIND"), stalled]), [("update", 1)])
 
     def test_dependabot_rebase_request_counts_as_in_flight(self):
-        bot = pr(1, state="BEHIND", author="dependabot", head_time=NOW - timedelta(hours=1),
+        bot = pr(1, state="BEHIND", author="dependabot", bot=True, head_time=NOW - timedelta(hours=1),
                  rebase_requested=NOW - timedelta(minutes=5))
         self.assertEqual(actions([bot, pr(2, state="BEHIND")]), [])
         bot.rebase_requested = NOW - timedelta(hours=2)
         self.assertEqual(actions([bot, pr(2, state="BEHIND")]), [("update", 1)])
 
+    def test_human_named_dependabot_is_not_dependabot(self):
+        fork = pr(1, labels=(), author="dependabot", fork=True, title="bump a from 1.0.0 to 1.0.1")
+        self.assertEqual(actions([fork]), [])
+        fork.labels = {gate.LABEL}
+        self.assertEqual(actions([fork]), [])
+
     def test_dependabot_minor_and_patch_opt_in_unless_label_was_removed(self):
         def bot(n, title, **kw):
-            return pr(n, labels=(), author="dependabot", title=title, **kw)
+            return pr(n, labels=(), author="dependabot", bot=True, title=title, **kw)
         self.assertEqual(actions([bot(1, "bump a from 1.2.3 to 1.2.4"), bot(2, "bump b from 1.2.3 to 1.3.0"),
                                   bot(3, "bump c from 1.2.3 to 2.0.0"), bot(4, "bump d from 0.2.0 to 0.3.0"),
                                   bot(5, "bump e from 1.0.0 to 1.0.1", label_removed=True)]),
@@ -65,13 +72,23 @@ class PlanTest(unittest.TestCase):
 
 
 class ParseTest(unittest.TestCase):
+    def test_rollup_state(self):
+        run = lambda status, conclusion=None: {"__typename": "CheckRun", "name": "c", "status": status, "conclusion": conclusion}
+        self.assertIsNone(gate.rollup_state([]))
+        self.assertEqual(gate.rollup_state([run("COMPLETED", "SUCCESS"), run("QUEUED")]), "PENDING")
+        self.assertEqual(gate.rollup_state([run("COMPLETED", "CANCELLED"), run("QUEUED")]), "FAILURE")
+        self.assertEqual(gate.rollup_state([run("COMPLETED", "NEUTRAL"), {"__typename": "StatusContext", "state": "EXPECTED"}]), "PENDING")
+
     def test_from_node(self):
         node = {
             "id": "N", "number": 9, "title": "t", "body": None, "isDraft": False, "isCrossRepository": False,
             "mergeStateStatus": "BEHIND", "reviewDecision": None, "headRefOid": "abc",
-            "author": {"login": "dependabot"}, "labels": {"nodes": [{"name": gate.LABEL}]},
+            "author": {"__typename": "Bot", "login": "dependabot"}, "labels": {"nodes": [{"name": gate.LABEL}]},
             "reviewThreads": {"nodes": [{"isResolved": False, "isOutdated": True}, {"isResolved": False, "isOutdated": False}]},
-            "commits": {"nodes": [{"commit": {"committedDate": "2026-11-21T10:00:00Z", "statusCheckRollup": {"state": "SUCCESS"}}}]},
+            "commits": {"nodes": [{"commit": {"committedDate": "2026-11-21T10:00:00Z", "statusCheckRollup": {"contexts": {"nodes": [
+                {"__typename": "CheckRun", "name": "Check & Test", "status": "COMPLETED", "conclusion": "SKIPPED"},
+                {"__typename": "CheckRun", "name": gate.GATE_CHECK, "status": "IN_PROGRESS", "conclusion": None},
+                {"__typename": "StatusContext", "context": "x", "state": "SUCCESS"}]}}}}]},
             "timelineItems": {"nodes": [{"label": {"name": "other"}}]},
             "comments": {"nodes": [{"body": "@dependabot rebase", "createdAt": "2026-11-21T11:00:00Z"}]},
         }

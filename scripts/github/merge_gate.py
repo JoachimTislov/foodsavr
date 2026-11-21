@@ -22,7 +22,9 @@ LABEL = "merge/auto"
 LABEL_COLOR = "0e8a16"
 LABEL_DESCRIPTION = "Finalized two-way-door PR; the merge gate integrates it"
 BASE = "main"
-DEPENDABOT = {"dependabot", "dependabot[bot]", "app/dependabot"}
+DEPENDABOT = "dependabot"
+GATE_CHECK = "Integrate ready PRs"  # this workflow's own job; never waits on itself
+FAILED = {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"}
 REBASE_COMMAND = "@dependabot rebase"
 STALL_AFTER = timedelta(minutes=60)
 REBASE_WAIT = timedelta(minutes=30)
@@ -38,10 +40,14 @@ query($owner: String!, $name: String!, $cursor: String) {
       nodes {
         id number title body isDraft isCrossRepository mergeStateStatus
         reviewDecision headRefOid
-        author { login }
+        author { __typename login }
         labels(first: 50) { nodes { name } }
         reviewThreads(first: 100) { nodes { isResolved isOutdated } }
-        commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } }
+        commits(last: 1) { nodes { commit { committedDate statusCheckRollup { contexts(first: 100) { nodes {
+          __typename
+          ... on CheckRun { name status conclusion }
+          ... on StatusContext { context state }
+        } } } } } }
         timelineItems(itemTypes: [UNLABELED_EVENT], last: 50) {
           nodes { ... on UnlabeledEvent { label { name } } }
         }
@@ -65,6 +71,7 @@ class PR:
     draft: bool = False
     fork: bool = False
     author: str = ""
+    bot: bool = False
     labels: set[str] = field(default_factory=set)
     body: str = ""
     review_decision: str | None = None
@@ -74,7 +81,7 @@ class PR:
 
     @property
     def dependabot(self) -> bool:
-        return self.author in DEPENDABOT
+        return self.bot and self.author == DEPENDABOT
 
 
 @dataclass
@@ -98,9 +105,25 @@ def bump_kind(title: str) -> str | None:
     return "minor" if new[1] != old[1] else "patch"
 
 
+def rollup_state(contexts: list[dict[str, Any]]) -> str | None:
+    """Aggregate head checks like GitHub's rollup, excluding the gate's own job."""
+    states = []
+    for c in contexts:
+        if c.get("__typename") == "CheckRun":
+            if c.get("name") == GATE_CHECK:
+                continue
+            states.append("PENDING" if c.get("status") != "COMPLETED" else
+                          "FAILURE" if c.get("conclusion") in FAILED else "SUCCESS")
+        elif c.get("__typename") == "StatusContext":
+            states.append({"SUCCESS": "SUCCESS", "PENDING": "PENDING", "EXPECTED": "PENDING"}.get(c.get("state"), "FAILURE"))
+    if not states:
+        return None
+    return "FAILURE" if "FAILURE" in states else "PENDING" if "PENDING" in states else "SUCCESS"
+
+
 def from_node(node: dict[str, Any]) -> PR:
     commit = (node["commits"]["nodes"] or [{}])[0].get("commit", {})
-    rollup = (commit.get("statusCheckRollup") or {}).get("state")
+    rollup = rollup_state(((commit.get("statusCheckRollup") or {}).get("contexts") or {}).get("nodes", []))
     head_time = parse_time(commit["committedDate"]) if commit.get("committedDate") else datetime.now(timezone.utc)
     requested = [
         parse_time(c["createdAt"]) for c in node["comments"]["nodes"]
@@ -117,6 +140,7 @@ def from_node(node: dict[str, Any]) -> PR:
         draft=node["isDraft"],
         fork=node["isCrossRepository"],
         author=(node.get("author") or {}).get("login", ""),
+        bot=(node.get("author") or {}).get("__typename") == "Bot",
         labels={label["name"] for label in node["labels"]["nodes"]},
         body=node.get("body") or "",
         review_decision=node.get("reviewDecision"),
@@ -130,7 +154,7 @@ def blocker(pr: PR) -> str | None:
     """Return why an opted-in PR needs its author, or None."""
     if pr.draft:
         return "draft"
-    if pr.fork and not pr.dependabot:
+    if pr.fork:
         return "fork PRs are not eligible"
     if ONE_WAY.search(pr.body):
         return "PR body declares a one-way door"
@@ -140,7 +164,7 @@ def blocker(pr: PR) -> str | None:
         return "changes requested"
     if pr.open_threads:
         return f"{pr.open_threads} unresolved review thread(s)"
-    if pr.rollup in {"FAILURE", "ERROR"}:
+    if pr.rollup == "FAILURE":
         return "a check failed on the head commit"
     return None
 
@@ -162,7 +186,8 @@ def plan(prs: list[PR], now: datetime) -> Plan:
             continue
         queue.append(pr)
 
-    ready = [p for p in queue if p.merge_state in {"CLEAN", "HAS_HOOKS"} and p.rollup == "SUCCESS"]
+    # UNSTABLE only reflects non-required checks; the gate's own rollup must still be green.
+    ready = [p for p in queue if p.merge_state in {"CLEAN", "HAS_HOOKS", "UNSTABLE"} and p.rollup == "SUCCESS"]
     if ready:
         pr = ready[0]
         actions.append(("merge", pr))
@@ -181,7 +206,7 @@ def plan(prs: list[PR], now: datetime) -> Plan:
             report.append((pr.number, "in flight" if rebasing else "behind", "Dependabot rebase requested" if rebasing else "needs update with main"))
         elif pr.merge_state == "UNKNOWN":
             report.append((pr.number, "unknown", "GitHub is computing mergeability"))
-        elif pr.rollup in {None, "PENDING", "EXPECTED"} and now - pr.head_time < STALL_AFTER:
+        elif pr.rollup in {None, "PENDING"} and now - pr.head_time < STALL_AFTER:
             in_flight.append(pr)
             report.append((pr.number, "in flight", "checks running"))
         else:
