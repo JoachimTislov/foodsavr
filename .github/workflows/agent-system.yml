@@ -10,8 +10,12 @@ on:
       - 'scripts/agents/**'
       - 'scripts/github/**'
       - 'scripts/secrets/**'
+      - 'scripts/ci/local_ci.py'
+      - 'scripts/ci/test_local_ci.py'
+      - '.githooks/**'
       - '.agents/github/**'
       - '.github/workflows/github-labels.yml'
+      - '.github/workflows/merge-gate.yml'
       - 'specs/**'
       - 'docs/**'
       - 'doc/**'
@@ -26,8 +30,12 @@ on:
       - 'scripts/agents/**'
       - 'scripts/github/**'
       - 'scripts/secrets/**'
+      - 'scripts/ci/local_ci.py'
+      - 'scripts/ci/test_local_ci.py'
+      - '.githooks/**'
       - '.agents/github/**'
       - '.github/workflows/github-labels.yml'
+      - '.github/workflows/merge-gate.yml'
       - 'specs/**'
       - 'docs/**'
       - 'doc/**'
@@ -50,25 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Validate agent CLI
-        run: |
-          python3 -m py_compile scripts/agents/agentctl.py scripts/agents/session_query.py
-          python3 -m unittest scripts/agents/test_agentctl.py
-          python3 -m unittest scripts/github/test_sync_labels.py
-          python3 -m unittest scripts/secrets/test_rotate.py
-          scripts/agents/agentctl heal
-          scripts/agents/agentctl workflow validate .agents/workflows/repository-health.json
-          scripts/agents/agentctl router plan .agents/workflows/repository-health.json
-          scripts/agents/agentctl doctor
-          for provider in codex claude opencode gemini vibe copilot; do
-            scripts/agents/agentctl policy compile --provider "$provider" >/dev/null
-          done
-          python3 -m json.tool .agents/policies/default.json >/dev/null
-          python3 -m json.tool .agents/github/labels.json >/dev/null
-          python3 -m json.tool .agents/policies/schema.json >/dev/null
-          python3 -m json.tool .agents/runners/providers.json >/dev/null
-          python3 -m json.tool .agents/runners/router.json >/dev/null
-          python3 -m json.tool .agents/workflows/schema.json >/dev/null
-          python3 -m json.tool .agents/workflows/result.schema.json >/dev/null
+        run: python3 scripts/ci/local_ci.py --group agents
       - name: Exercise declarative workflow lifecycle
         env:
           AGENT_LEDGER_FILE: ${{ runner.temp }}/agent-ledger.md

@@ -10,7 +10,7 @@ Built vs spec'd vs unbuilt, per domain. The sync loop (#213) claims un-synced do
 | integrations | synced | Rema client, receipts, ML Kit, OFF enrichment | Coop (#194), Trumf/Storebox, orders, recipes, free text |
 | mcp-server | synced | foodsavr_core skeleton | MCP server + Go API (#171) |
 | qa-testing | synced | unit/integration tests, validation gates | eval setup (#166, #168) |
-| ci-workflows | synced | ci-checks, builds, validation, release-gated, documentation Pages | Ubuntu 26 migration remainder |
+| ci-workflows | synced | ci-checks, builds, validation, release-gated, documentation Pages, merge gate, local CI mirror | Ubuntu 26 migration remainder |
 | docs-status | synced | README/INDEX/TODO reconciled (#201) | this folder becomes authoritative; reconcile pointers |
 
 ## Sync ledger
@@ -26,3 +26,4 @@ Replay record per session. Store session ID, issue, PR, commit SHAs; forward to 
 
 | t3-docs-pages-2026-11-21 | #261 | #263 | task branch | ci-workflows, docs-status | Owner requested vision-led Pages publication; existing sources staged without duplicating specs; Flutter web artifacts retained. |
 | claude-a925ae12-adr0005 | — | #264 | 4066bd7 | architecture, data-model | ADR 0005 (owner intent): hybrid event log + CRUD; raw/domain event schemas in contracts/ (spec-ahead) |
+| t3-merge-gate-2026-11-21 | — | (this PR) | task branch | ci-workflows | Owner goal: automated integration of revertable changes and local pre-push CI; ADR 0006 added. |

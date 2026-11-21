@@ -46,6 +46,7 @@ nav:
           - Intent and verification: specs/source-of-truth/decisions/0002-intent-gated-specs-optimized-verification.md
           - Agent execution: specs/source-of-truth/decisions/0003-autonomous-execution-boundary.md
           - Authoritative shapes: specs/source-of-truth/decisions/0004-truth-in-shapes.md
+          - Automated integration: specs/source-of-truth/decisions/0006-automated-integration-of-revertable-changes.md
   - Contributor guides:
       - Documentation overview: doc/introduction.md
       - Getting started: doc/getting_started.md

@@ -88,6 +88,15 @@ owner as a blocker for that PR, then advance independent work. Historical
 authorship alone does not require approval from a former author whose task
 is finished or handed off. An idle run awaiting events still retains its work.
 
+## Merge gate
+
+The merge gate workflow (ADR 0006) owns integration of PRs labeled
+`merge/auto`: it serializes updates and merges without an invoking session.
+Treat those PRs as owned by the gate; do not merge, rebase, or request
+rebases for them yourself. To take one back, remove the label. Use this skill
+for PRs outside the gate: triage, one-way doors, stacks, and owner-scoped
+merges. Read the gate's latest run summary when assessing the queue.
+
 ## Dependabot PR updates
 
 To update a Dependabot PR, post `@dependabot rebase` in a PR comment, then

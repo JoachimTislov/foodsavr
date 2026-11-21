@@ -19,6 +19,11 @@ Before changing code or documentation, read [specs/source-of-truth/INDEX.md](spe
 - Autonomous execution boundary per ADR 0003 (`specs/source-of-truth/decisions/0003-autonomous-execution-boundary.md`).
 
 
+## Integration (ADR 0006)
+
+- Install the pre-push hook once per clone with `make hooks`; it runs `scripts/ci/local_ci.py` for the changed areas. Fix its failures before pushing; never bypass it with `--no-verify`.
+- When a two-way-door PR is finalized (acceptance met, review addressed), add the `merge/auto` label; the merge gate updates and merges it. Remove the label before resuming work, then fetch: the gate may have rebased the branch.
+
 ## Dependabot PRs
 
 For Dependabot PR updates, read the
