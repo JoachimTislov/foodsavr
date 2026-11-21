@@ -29,6 +29,11 @@ def load_agentctl_module():
     return module
 
 
+def module_env() -> dict[str, str]:
+    """The test process environment without hook-exported GIT_* variables."""
+    return {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+
+
 class AgentctlTest(unittest.TestCase):
     def run_cli(self, *arguments: str, database: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -787,6 +792,26 @@ class AgentctlTest(unittest.TestCase):
                 subprocess.run(["bash", "-n", str(script)], check=True)
                 completed = subprocess.run(["bash", str(script)], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30)
                 self.assertEqual(2, completed.returncode, completed.stderr)
+
+    def test_wizard_library_is_shared_and_keeps_secrets_out_of_argv(self) -> None:
+        template = (ROOT / ".agents/skills/wizard/template.sh").read_text(encoding="utf-8")
+        library = template[: template.index("run_wizard() {")].split("\n", 1)[1]
+        for script in sorted((ROOT / "scripts/human").glob("**/*.sh")):
+            with self.subTest(script=str(script.relative_to(ROOT))):
+                self.assertTrue(library + "run_wizard() {" in script.read_text(encoding="utf-8"),
+                                "embed the current .agents/skills/wizard/template.sh library unchanged")
+        with tempfile.TemporaryDirectory() as directory:
+            stub = Path(directory) / "python3"
+            record = Path(directory) / "record"
+            stub.write_text(f'#!/bin/sh\nprintf "argv=%s\\nenv=%s\\n" "$*" "$NEW_DEMO_SECRET" > "{record}"\n')
+            stub.chmod(0o755)
+            env = {**module_env(), "PATH": f"{directory}:{os.environ['PATH']}"}
+            runner = library + 'set_secret DEMO_SECRET "s3cr3t-value"\n'
+            subprocess.run(["bash", "-c", runner], cwd=ROOT, env=env, check=True, capture_output=True, text=True)
+            argv_line, env_line = record.read_text().splitlines()
+        self.assertNotIn("s3cr3t-value", argv_line)
+        self.assertIn("scripts/secrets/rotate.py DEMO_SECRET", argv_line)
+        self.assertEqual("env=s3cr3t-value", env_line)
 
     def test_session_commits_follow_agent_session_trailer(self) -> None:
         module = load_agentctl_module()
