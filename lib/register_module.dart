@@ -46,6 +46,9 @@ abstract class RegisterModule {
   @Named('supportsPersistence')
   bool get supportsPersistence => kIsWeb;
 
+  @Named('isWeb')
+  bool get isWeb => kIsWeb;
+
   @singleton
   ThemeNotifier get themeNotifier =>
       ThemeNotifier(getIt<SharedPreferencesWithCache>());

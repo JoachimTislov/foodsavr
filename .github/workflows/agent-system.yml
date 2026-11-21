@@ -9,6 +9,7 @@ on:
       - 'GEMINI.md'
       - 'scripts/agents/**'
       - 'scripts/github/**'
+      - 'scripts/secrets/**'
       - '.agents/github/**'
       - '.github/workflows/github-labels.yml'
       - 'specs/**'
@@ -24,6 +25,7 @@ on:
       - 'GEMINI.md'
       - 'scripts/agents/**'
       - 'scripts/github/**'
+      - 'scripts/secrets/**'
       - '.agents/github/**'
       - '.github/workflows/github-labels.yml'
       - 'specs/**'
@@ -52,6 +54,7 @@ jobs:
           python3 -m py_compile scripts/agents/agentctl.py scripts/agents/session_query.py
           python3 -m unittest scripts/agents/test_agentctl.py
           python3 -m unittest scripts/github/test_sync_labels.py
+          python3 -m unittest scripts/secrets/test_rotate.py
           scripts/agents/agentctl heal
           scripts/agents/agentctl workflow validate .agents/workflows/repository-health.json
           scripts/agents/agentctl router plan .agents/workflows/repository-health.json
