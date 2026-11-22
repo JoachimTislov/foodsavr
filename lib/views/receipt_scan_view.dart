@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:logger/logger.dart';
 import 'package:receipt_recognition/receipt_recognition.dart';
 
 import '../controllers/preferences_controller.dart';
@@ -72,8 +73,9 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
         _inventories = inventories;
         _targetId = inventories.any((c) => c.id == target) ? target : null;
       });
-    } catch (_) {
+    } catch (e) {
       // The service falls back to the default inventory when none is picked.
+      getIt<Logger>().w('Failed to load inventories for receipt scan: $e');
     }
   }
 

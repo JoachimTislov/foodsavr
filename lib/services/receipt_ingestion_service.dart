@@ -72,7 +72,7 @@ class ReceiptIngestionService {
     String? collectionId,
   }) async {
     final receiptId = ReceiptRecord.idFor(receipt);
-    if (await _receipts.exists(userId, receiptId)) {
+    if (await _alreadyAdded(userId, receiptId)) {
       _logger.i('Receipt $receiptId was already added');
       return const ReceiptIngestionResult(
         savedProducts: [],
@@ -106,7 +106,7 @@ class ReceiptIngestionService {
       } else {
         _logger.w('No inventory to place ${ids.length} receipt items in');
       }
-      await _receipts.create(
+      await _record(
         userId,
         ReceiptRecord.from(
           receipt,
@@ -122,6 +122,27 @@ class ReceiptIngestionService {
       failedItems: failed,
       collectionId: target,
     );
+  }
+
+  /// Duplicate detection is best effort: when the record cannot be read (for
+  /// example before the inbox rule is applied), the receipt is ingested.
+  Future<bool> _alreadyAdded(String userId, String receiptId) async {
+    try {
+      return await _receipts.exists(userId, receiptId);
+    } catch (e) {
+      _logger.w('Could not check receipt $receiptId, ingesting it: $e');
+      return false;
+    }
+  }
+
+  /// Writes the idempotency record. A failure is logged, not thrown: the
+  /// products are already placed, so the ingest itself succeeded.
+  Future<void> _record(String userId, ReceiptRecord record) async {
+    try {
+      await _receipts.create(userId, record);
+    } catch (e) {
+      _logger.e('Failed to record receipt ${record.id}: $e');
+    }
   }
 
   /// A product with an empty id (the repository assigns one). A known

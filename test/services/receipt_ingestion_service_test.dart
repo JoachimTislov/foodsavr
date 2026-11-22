@@ -35,6 +35,16 @@ class _InMemoryReceiptRepository implements IReceiptRepository {
   }
 }
 
+class _FailingReceiptRepository implements IReceiptRepository {
+  @override
+  Future<bool> exists(String userId, String receiptId) async =>
+      throw Exception('permission-denied');
+
+  @override
+  Future<bool> create(String userId, ReceiptRecord record) async =>
+      throw Exception('permission-denied');
+}
+
 RecognizedPosition _position(String name, {double price = 1.0}) {
   return RecognizedPosition(
     product: RecognizedProduct(line: const ReceiptTextLine(), value: name),
@@ -300,6 +310,36 @@ void main() {
 
       expect(receipts.records, isEmpty);
     });
+  });
+
+  group('record unavailable', () {
+    test(
+      'still places the items when the record cannot be read or written',
+      () async {
+        final failing = ReceiptIngestionService(
+          productService,
+          collectionService,
+          preferences,
+          _FailingReceiptRepository(),
+          Logger(level: Level.off),
+        );
+
+        final result = await failing.ingestReceiptDetailed(
+          _receipt([_position('Milk'), _position('Bread')]),
+          'user-1',
+          collectionId: 'inv-1',
+        );
+
+        expect(result.alreadyAdded, isFalse);
+        expect(result.savedProducts.length, 2);
+        verify(
+          () => collectionService.addProductsToCollection('inv-1', [
+            'generated-0',
+            'generated-1',
+          ]),
+        ).called(1);
+      },
+    );
   });
 
   group('ReceiptRecord keys', () {
