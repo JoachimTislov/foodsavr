@@ -35,6 +35,9 @@
         "properties": {
           "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$"},
           "role": {"type": "string"},
+          "work_type": {"enum": ["triage", "research", "documentation", "review", "testing", "implementation", "refactoring", "architecture", "security"]},
+          "tier": {"enum": ["fast", "balanced", "deep", "code-specialist"]},
+          "model": {"type": "string", "minLength": 1},
           "prompt": {"type": "string", "minLength": 1},
           "providers": {"type": "array", "items": {"type": "string"}},
           "skills": {"type": "array", "items": {"type": "string"}},

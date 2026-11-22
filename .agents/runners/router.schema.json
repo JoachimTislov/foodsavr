@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Provider router configuration",
+  "type": "object",
+  "required": ["schema_version", "id", "decision_provider", "fallback", "work_routes"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "decision_provider": {
+      "type": "object",
+      "required": ["enabled", "protocol", "base_url_env", "api_key_env", "model_env", "timeout_ms"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "engine": {"type": "string", "minLength": 1},
+        "protocol": {"enum": ["openai-compatible"]},
+        "structured_output": {"type": "boolean"},
+        "control_plane_egress": {"enum": ["independent", "workflow"]},
+        "allow_control_plane_on_none": {"type": "boolean"},
+        "base_url_env": {"type": "string", "minLength": 1},
+        "api_key_env": {"type": "string", "minLength": 1},
+        "model_env": {"type": "string", "minLength": 1},
+        "timeout_ms": {"type": "integer", "minimum": 50}
+      },
+      "additionalProperties": false
+    },
+    "fallback": {
+      "type": "object",
+      "required": ["strategy", "requires_explicit_provider"],
+      "properties": {
+        "strategy": {"enum": ["first-available-policy-safe"]},
+        "requires_explicit_provider": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "decision_fields": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "model_tiers": {
+      "type": "object",
+      "propertyNames": {"enum": ["fast", "balanced", "deep", "code-specialist"]},
+      "additionalProperties": {
+        "type": "object",
+        "required": ["description", "default_reasoning_effort", "models"],
+        "properties": {
+          "description": {"type": "string", "minLength": 1},
+          "default_reasoning_effort": {"enum": ["low", "medium", "high", "xhigh"]},
+          "models": {"type": "array", "items": {"type": "string", "minLength": 1}}
+        },
+        "additionalProperties": false
+      }
+    },
+    "work_routes": {
+      "type": "object",
+      "required": [
+        "triage",
+        "research",
+        "documentation",
+        "review",
+        "testing",
+        "implementation",
+        "refactoring",
+        "architecture",
+        "security"
+      ],
+      "propertyNames": {
+        "enum": [
+          "triage",
+          "research",
+          "documentation",
+          "review",
+          "testing",
+          "implementation",
+          "refactoring",
+          "architecture",
+          "security"
+        ]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["tier", "reasoning_effort", "preferences"],
+        "properties": {
+          "tier": {"enum": ["fast", "balanced", "deep", "code-specialist"]},
+          "reasoning_effort": {"enum": ["low", "medium", "high", "xhigh"]},
+          "preferences": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["provider", "model"],
+              "properties": {
+                "provider": {"type": "string", "minLength": 1},
+                "model": {"type": "string", "minLength": 1}
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

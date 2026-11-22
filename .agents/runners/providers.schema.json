@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent provider runners",
+  "type": "object",
+  "required": ["schema_version", "providers"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "providers": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["command", "headless", "prompt_mode", "capability_verification"],
+        "properties": {
+          "command": {"type": "string", "minLength": 1},
+          "headless": {"type": "array", "items": {"type": "string"}},
+          "prompt_mode": {"enum": ["stdin", "argument", "flag"]},
+          "prompt_flag": {"type": "string", "minLength": 1},
+          "model_flag": {"type": "string", "minLength": 1},
+          "default_model": {"type": "string", "minLength": 1},
+          "models": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "object",
+              "required": ["tier", "work_types", "reasoning_effort"],
+              "properties": {
+                "tier": {"enum": ["fast", "balanced", "deep", "code-specialist"]},
+                "work_types": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "enum": [
+                      "triage",
+                      "research",
+                      "documentation",
+                      "review",
+                      "testing",
+                      "implementation",
+                      "refactoring",
+                      "architecture",
+                      "security"
+                    ]
+                  }
+                },
+                "reasoning_effort": {"enum": ["low", "medium", "high", "xhigh"]}
+              },
+              "additionalProperties": false
+            }
+          },
+          "enforces_read_only": {"type": "boolean"},
+          "enforced_permissions": {
+            "type": "object",
+            "properties": {
+              "filesystem": {"type": "array", "items": {"enum": ["read-only", "workspace-write"]}},
+              "network": {"type": "array", "items": {"enum": ["none", "allowlisted", "full"]}},
+              "git": {"type": "array", "items": {"enum": ["read-only", "branch-write", "push"]}},
+              "github": {"type": "array", "items": {"enum": ["none", "read-only", "write"]}}
+            },
+            "additionalProperties": false
+          },
+          "capability_verification": {
+            "type": "object",
+            "required": ["mode", "verified_version_prefix", "required_flags"],
+            "properties": {
+              "mode": {"const": "version-and-flags"},
+              "verified_version_prefix": {"type": "string"},
+              "required_flags": {"type": "array", "items": {"type": "string"}}
+            },
+            "additionalProperties": false
+          },
+          "usage_fields": {"type": "array", "items": {"type": "string"}},
+          "version": {"type": "array", "items": {"type": "string"}},
+          "session_id_source": {"type": "string"},
+          "permission_modes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "headless": {"type": "array", "items": {"type": "string"}},
+                "enforced_permissions": {"type": "object"},
+                "capability_verification": {"type": "object"}
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
