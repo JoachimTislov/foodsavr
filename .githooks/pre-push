@@ -1,7 +1,5 @@
 #!/bin/sh
-# Mirror CI for the changed areas before pushing (ADR 0006). Install: make hooks
-root=$(git rev-parse --show-toplevel) || exit 1
-# Git tests exercise temporary repositories. Avoid binding them to this worktree.
-local_git_env=$(git rev-parse --local-env-vars) || exit 1
-unset $local_git_env
+# Block pushes of branches behind the base branch, then mirror CI for the changed areas (ADR 0006). Install: make hooks
+root="$(git rev-parse --show-toplevel)"
+python3 "$root/scripts/ci/check_pr_base.py" || exit 1
 exec python3 "$root/scripts/ci/local_ci.py" --pre-push
