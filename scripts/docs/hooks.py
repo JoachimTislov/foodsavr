@@ -29,14 +29,14 @@ def on_page_markdown(markdown, page, config, files):
         parsed_repo = urlsplit(repo_url)
         if match[1].startswith("!"):
             if parsed_repo.netloc == "github.com" and parsed_repo.path.strip("/"):
-                base = f"https://raw.githubusercontent.com/{parsed_repo.path.strip('/')}/main/"
+                base = f"https://raw.githubusercontent.com/{parsed_repo.path.strip('/')}/HEAD/"
             elif repo_url:
-                base = f"{repo_url}/raw/main/"
+                base = f"{repo_url}/raw/HEAD/"
             else:
                 base = ""
         else:
             kind = "tree" if (ROOT / target).is_dir() else "blob"
-            base = f"{repo_url}/{kind}/main/" if repo_url else ""
+            base = f"{repo_url}/{kind}/HEAD/" if repo_url else ""
         rewritten = urlunsplit(("", "", base + target, url.query, url.fragment))
         return match[1] + rewritten + match[3]
 
