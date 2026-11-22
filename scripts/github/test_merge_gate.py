@@ -52,6 +52,9 @@ class PlanTest(unittest.TestCase):
     def test_waits_while_another_pr_runs_checks(self):
         self.assertEqual(actions([pr(1, state="BEHIND"), pr(2, state="BLOCKED", rollup="PENDING")]), [])
 
+    def test_holds_ready_pr_while_up_to_date_pr_validates(self):
+        self.assertEqual(actions([pr(2), pr(1, state="BLOCKED", rollup="PENDING")]), [])
+
     def test_stalled_checks_do_not_hold_the_queue(self):
         stalled = pr(2, state="BLOCKED", rollup="PENDING", head_time=NOW - timedelta(hours=2))
         self.assertEqual(actions([pr(1, state="BEHIND"), stalled]), [("update", 1)])

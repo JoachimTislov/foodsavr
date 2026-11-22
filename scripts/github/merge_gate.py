@@ -206,6 +206,20 @@ def plan(prs: list[PR], now: datetime) -> Plan:
         p for p in queue
         if p.merge_state in {"CLEAN", "HAS_HOOKS", "UNSTABLE"} and p.rollup == "SUCCESS" and p.queue_ok
     ]
+    # A merge moves main and forces every other PR to restart its checks. Hold
+    # ready PRs while an up-to-date PR is still validating, so slow checks (for
+    # example a Dependabot PR's smoke tests) finish instead of being reset.
+    validating = [
+        p for p in queue
+        if p.merge_state in {"CLEAN", "HAS_HOOKS", "UNSTABLE", "BLOCKED"}
+        and p.rollup in {None, "PENDING"} and now - p.head_time < STALL_AFTER
+    ]
+    if ready and validating:
+        for pr in validating:
+            report.append((pr.number, "in flight", "checks running; merges are held so main does not move"))
+        for pr in ready:
+            report.append((pr.number, "queued", f"held until #{validating[0].number} finishes checks"))
+        return Plan(actions, report)
     if ready:
         pr = ready[0]
         actions.append(("merge", pr))
