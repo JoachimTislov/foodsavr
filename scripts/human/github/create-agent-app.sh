@@ -408,20 +408,6 @@ os.close(descriptor)
 PY
   AGENT_APP_SLUG="$(cat "$WORK/slug")"
   set_repo_secret "$ID_SECRET" "$(cat "$WORK/id")" || true
-  if [[ "$ROLE" == "agent" ]]; then
-    if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-      if gh variable set --repo "$REPO_SLUG" AGENT_APP_SLUG --body "$AGENT_APP_SLUG" >/dev/null 2>&1; then
-        WRITTEN_VAR+=("AGENT_APP_SLUG")
-        printf '  %s✓ set%s GitHub variable AGENT_APP_SLUG (%s)\n' "$GREEN" "$RESET" "$REPO_SLUG"
-      else
-        SKIPPED+=("GitHub variable AGENT_APP_SLUG")
-        warn "skipped GitHub variable AGENT_APP_SLUG; set it later"
-      fi
-    else
-      SKIPPED+=("GitHub variable AGENT_APP_SLUG")
-      warn "skipped GitHub variable AGENT_APP_SLUG, gh not ready; set it later"
-    fi
-  fi
   if set_repo_secret "$KEY_SECRET" "$(cat "$WORK/pem")"; then
     rm -f "$WORK/pem"
   else
@@ -434,6 +420,10 @@ PY
     note "Retry upload, then delete it:"
     note "  NEW_${KEY_SECRET}=\"\$(cat '${RECOVERY_PEM}')\" scripts/secrets/rotate.py --repo '${REPO_SLUG}' ${KEY_SECRET} && rm -f '${RECOVERY_PEM}'"
   fi
+fi
+
+if [[ "$ROLE" == "agent" && -n "${AGENT_APP_SLUG:-}" ]]; then
+  GH_REPO="$REPO_SLUG" set_var AGENT_APP_SLUG "$AGENT_APP_SLUG"
 fi
 
 stage "Install the App on ${REPO_SLUG}"
