@@ -58,7 +58,7 @@ class ProductAddHelper {
         );
         return await ProductFormView.show(
           context,
-          product: result.product,
+          prefill: result.product,
           collectionId: collectionId,
         );
       } else {

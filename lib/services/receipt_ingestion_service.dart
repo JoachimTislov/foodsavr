@@ -46,7 +46,7 @@ class ReceiptIngestionService {
       if (name.isEmpty) continue;
       final quantity = _quantityFromPosition(position);
       final product = Product(
-        id: '${DateTime.now().microsecondsSinceEpoch}-${saved.length}',
+        id: '',
         name: name,
         description: '',
         userId: userId,

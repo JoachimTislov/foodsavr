@@ -158,6 +158,7 @@
 		"normal": "Normal",
 		"personal_product": "Personal Product",
 		"quantity_units": "{} units",
+		"saveError": "Failed to save product: {error}",
 		"scanBarcode": "Scan Barcode",
 		"scan_expiry": "Scan Expiry",
 		"scanExpiryHint": "Hold the printed expiry date steady inside the frame",

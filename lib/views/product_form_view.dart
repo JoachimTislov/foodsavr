@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
@@ -14,18 +12,31 @@ import '../widgets/product/expiries_section.dart';
 import '../constants/product_categories.dart';
 
 class ProductFormView extends StatelessWidget {
+  /// The existing product being edited. Mutually exclusive with [prefill].
   final Product? product;
+
+  /// An unsaved product (for example from a barcode scan) that prefills the
+  /// form; saving it creates a new product.
+  final Product? prefill;
   final String? initialCollectionId;
 
-  const ProductFormView({super.key, this.product, this.initialCollectionId});
+  const ProductFormView({
+    super.key,
+    this.product,
+    this.prefill,
+    this.initialCollectionId,
+  }) : assert(product == null || prefill == null);
 
   /// Shows the product form as a centered dialog.
-  /// Returns `true` if a product was saved.
+  /// Pass [product] to edit an existing product, or [prefill] to create a new
+  /// one from partial data. Returns `true` if a product was saved.
   static Future<bool?> show(
     BuildContext context, {
     Product? product,
+    Product? prefill,
     String? collectionId,
   }) {
+    assert(product == null || prefill == null);
     return showDialog<bool>(
       context: context,
       barrierDismissible: true,
@@ -35,6 +46,7 @@ class ProductFormView extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 450, maxHeight: 600),
           child: _ProductFormContent(
             product: product,
+            prefill: prefill,
             initialCollectionId: collectionId,
           ),
         ),
@@ -50,16 +62,20 @@ class ProductFormView extends StatelessWidget {
 
 class _ProductFormContent extends StatefulWidget {
   final Product? product;
+  final Product? prefill;
   final String? initialCollectionId;
 
-  const _ProductFormContent({this.product, this.initialCollectionId});
+  const _ProductFormContent({
+    this.product,
+    this.prefill,
+    this.initialCollectionId,
+  });
 
   @override
   State<_ProductFormContent> createState() => _ProductFormContentState();
 }
 
 class _ProductFormContentState extends State<_ProductFormContent> {
-  static final Random _random = Random();
   final _formKey = GlobalKey<FormState>();
   late final ProductService _productService;
   late final CollectionService _collectionService;
@@ -74,6 +90,8 @@ class _ProductFormContentState extends State<_ProductFormContent> {
 
   bool _isSaving = false;
 
+  bool get _isEditing => widget.product != null;
+
   @override
   void initState() {
     super.initState();
@@ -82,13 +100,14 @@ class _ProductFormContentState extends State<_ProductFormContent> {
     _authService = getIt<IAuthService>();
     _userId = _authService.getUserId();
 
-    _nameController = TextEditingController(text: widget.product?.name ?? '');
+    final source = widget.product ?? widget.prefill;
+    _nameController = TextEditingController(text: source?.name ?? '');
     _descriptionController = TextEditingController(
-      text: widget.product?.description ?? '',
+      text: source?.description ?? '',
     );
-    _selectedCategory = widget.product?.category;
-    _nonExpiringQuantity = widget.product?.nonExpiringQuantity ?? 0;
-    _expiries = List.from(widget.product?.expiries ?? []);
+    _selectedCategory = source?.category;
+    _nonExpiringQuantity = source?.nonExpiringQuantity ?? 0;
+    _expiries = List.from(source?.expiries ?? []);
   }
 
   @override
@@ -99,68 +118,46 @@ class _ProductFormContentState extends State<_ProductFormContent> {
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate() || _userId == null) return;
+    final userId = _userId;
+    if (!_formKey.currentState!.validate() || userId == null) return;
 
     setState(() => _isSaving = true);
 
     try {
-      final productId = widget.product?.id ?? _generateProductId();
-      final product = Product(
-        id: productId,
+      // Start from the source product so fields the form does not show
+      // (barcode, image, tags, registry mapping) survive the save.
+      final base =
+          widget.product ??
+          widget.prefill ??
+          Product(id: '', name: '', description: '', userId: userId);
+      final product = base.copyWith(
         name: _nameController.text,
         description: _descriptionController.text,
-        userId: _userId,
+        userId: _isEditing ? base.userId : userId,
         expiries: _expiries,
         nonExpiringQuantity: _nonExpiringQuantity,
         category: _selectedCategory,
-        isGlobal: widget.product?.isGlobal ?? false,
-        registryType: widget.product?.registryType ?? 'current',
-        mappedFromProductId: widget.product?.mappedFromProductId,
       );
 
-      if (widget.product == null) {
-        if (widget.initialCollectionId != null) {
-          var personalProductId = _generateProductId();
-          final personalProduct = Product(
-            id: personalProductId,
-            name: _nameController.text,
-            description: _descriptionController.text,
-            userId: _userId,
-            category: _selectedCategory,
-            registryType: 'personal',
-          );
-          await _productService.addProduct(personalProduct);
-          await _productService.addProduct(
-            Product(
-              id: product.id,
-              name: product.name,
-              description: product.description,
-              userId: product.userId,
-              expiries: product.expiries,
-              nonExpiringQuantity: product.nonExpiringQuantity,
-              category: product.category,
-              imageUrl: product.imageUrl,
-              isGlobal: false,
-              registryType: 'current',
-              mappedFromProductId: personalProductId,
-            ),
-          );
-        } else {
-          await _productService.addProduct(product);
-        }
-        if (widget.initialCollectionId != null) {
+      if (_isEditing) {
+        await _productService.updateProduct(product);
+      } else {
+        final collectionId = widget.initialCollectionId;
+        final created = await _productService.createProduct(
+          product,
+          withPersonalTemplate: collectionId != null,
+        );
+        if (collectionId != null) {
           final collection = await _collectionService.getCollection(
-            widget.initialCollectionId!,
+            collectionId,
           );
-          if (collection != null && collection.userId == _userId) {
+          if (collection != null && collection.userId == userId) {
             await _collectionService.addProductToCollection(
-              widget.initialCollectionId!,
-              productId,
+              collectionId,
+              created.id,
             );
           }
         }
-      } else {
-        await _productService.updateProduct(product);
       }
 
       if (mounted) {
@@ -168,21 +165,17 @@ class _ProductFormContentState extends State<_ProductFormContent> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to save product: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('product.saveError'.tr(namedArgs: {'error': '$e'})),
+          ),
+        );
       }
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
       }
     }
-  }
-
-  String _generateProductId() {
-    final id =
-        (DateTime.now().microsecondsSinceEpoch * 1000) + _random.nextInt(1000);
-    return id.toString();
   }
 
   @override
@@ -196,7 +189,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
           child: Text(
-            widget.product == null ? 'product.add'.tr() : 'product.edit'.tr(),
+            _isEditing ? 'product.edit'.tr() : 'product.add'.tr(),
             style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
         ),
@@ -278,9 +271,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : Text(
-                      widget.product == null
-                          ? 'common.create'.tr()
-                          : 'common.save'.tr(),
+                      _isEditing ? 'common.save'.tr() : 'common.create'.tr(),
                     ),
             ),
           ),

@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import 'package:openfoodfacts/openfoodfacts.dart' as off;
@@ -91,30 +89,15 @@ class ProductService {
         );
       }
 
-      final updatedProduct = Product(
-        id: existingProduct.id,
-        name: existingProduct.name,
-        description: existingProduct.description,
-        userId: existingProduct.userId,
+      final updatedProduct = existingProduct.copyWith(
         expiries: newExpiries,
         nonExpiringQuantity: estimatedExpiry == null
             ? existingProduct.nonExpiringQuantity + 1
             : existingProduct.nonExpiringQuantity,
-        category: existingProduct.category,
-        imageUrl: existingProduct.imageUrl,
-        barcode: existingProduct.barcode,
-        isGlobal: existingProduct.isGlobal,
-        tags: existingProduct.tags,
       );
+      _validateOrThrow(updatedProduct);
       await _productRepository.update(updatedProduct);
       _invalidateCache();
-      final validationResult = _productValidator.validate(updatedProduct);
-      if (!validationResult.isValid) {
-        _logger.e(
-          'Validation failed for updated product: ${updatedProduct.name}',
-        );
-        throw FormatException(validationResult.errors.first.message);
-      }
       return ScanAddProductResult(
         product: updatedProduct,
         matchedExisting: true,
@@ -160,9 +143,8 @@ class ProductService {
           ),
         );
 
-        final randomSuffix = Random().nextInt(1000);
         final newProduct = Product(
-          id: '${DateTime.now().microsecondsSinceEpoch} $randomSuffix',
+          id: '',
           name: productName,
           description: '',
           userId: userId,
@@ -175,13 +157,9 @@ class ProductService {
               : [],
         );
 
+        _validateOrThrow(newProduct);
         final addedProduct = await _productRepository.add(newProduct);
         _invalidateCache();
-        final validationResult = _productValidator.validate(addedProduct);
-        if (!validationResult.isValid) {
-          _logger.e('Validation failed for new product: ${addedProduct.name}');
-          throw FormatException(validationResult.errors.first.message);
-        }
         _logger.i('Created new product from OFF API: $normalizedBarcode');
         return ScanAddProductResult(
           product: addedProduct,
@@ -195,11 +173,12 @@ class ProductService {
       _logger.e('Error fetching from Open Food Facts API: $e');
     }
 
-    // Not found locally or on OFF API. Return special result to prompt user.
+    // Not found locally or on OFF API. Return an unsaved draft to prefill the
+    // manual-entry form; its empty id is assigned by the repository on save.
     _logger.i('Barcode not found on OFF API: $normalizedBarcode');
     return ScanAddProductResult(
       product: Product(
-        id: '0',
+        id: '',
         name: '',
         description: '',
         userId: userId,
@@ -305,13 +284,18 @@ class ProductService {
     }
   }
 
-  Future<Product> addProduct(Product product) async {
-    _logger.i('Adding product: ${product.name}');
+  void _validateOrThrow(Product product) {
     final validationResult = _productValidator.validate(product);
     if (!validationResult.isValid) {
       _logger.e('Validation failed for product: ${product.name}');
       throw FormatException(validationResult.errors.first.message);
     }
+  }
+
+  /// Saves a new product. An empty [Product.id] is replaced by the repository.
+  Future<Product> addProduct(Product product) async {
+    _logger.i('Adding product: ${product.name}');
+    _validateOrThrow(product);
     try {
       final addedProduct = await _productRepository.add(product);
       _invalidateCache();
@@ -323,13 +307,38 @@ class ProductService {
     }
   }
 
+  /// Saves [draft] as a new current product and returns it with its generated
+  /// id. With [withPersonalTemplate], a personal registry template is saved
+  /// first and the new product is mapped to it. Everything is validated before
+  /// the first write.
+  Future<Product> createProduct(
+    Product draft, {
+    bool withPersonalTemplate = false,
+  }) async {
+    final current = draft.copyWith(
+      id: '',
+      isGlobal: false,
+      registryType: 'current',
+    );
+    if (!withPersonalTemplate) return addProduct(current);
+
+    final template = draft.copyWith(
+      id: '',
+      isGlobal: false,
+      registryType: 'personal',
+      mappedFromProductId: null,
+      expiries: const [],
+      nonExpiringQuantity: 0,
+    );
+    _validateOrThrow(template);
+    _validateOrThrow(current);
+    final savedTemplate = await addProduct(template);
+    return addProduct(current.copyWith(mappedFromProductId: savedTemplate.id));
+  }
+
   Future<void> updateProduct(Product product) async {
     _logger.i('Updating product: ${product.name}');
-    final validationResult = _productValidator.validate(product);
-    if (!validationResult.isValid) {
-      _logger.e('Validation failed for product: ${product.name}');
-      throw FormatException(validationResult.errors.first.message);
-    }
+    _validateOrThrow(product);
     try {
       await _productRepository.update(product);
       _invalidateCache();

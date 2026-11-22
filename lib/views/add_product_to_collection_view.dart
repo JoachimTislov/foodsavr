@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
@@ -56,7 +54,6 @@ class _AddProductSheet extends StatefulWidget {
 }
 
 class _AddProductSheetState extends State<_AddProductSheet> {
-  static final Random _random = Random();
   late final ProductService _productService;
   late final CollectionService _collectionService;
   late final IAuthService _authService;
@@ -97,7 +94,7 @@ class _AddProductSheetState extends State<_AddProductSheet> {
       final createdProductIds = <String>[];
       for (final sourceProduct in selectedProducts) {
         final currentProduct = Product(
-          id: _generateProductId(),
+          id: '',
           name: sourceProduct.name,
           description: sourceProduct.description,
           userId: userId,
@@ -105,8 +102,8 @@ class _AddProductSheetState extends State<_AddProductSheet> {
           registryType: 'current',
           mappedFromProductId: sourceProduct.id,
         );
-        await _productService.addProduct(currentProduct);
-        createdProductIds.add(currentProduct.id);
+        final savedProduct = await _productService.addProduct(currentProduct);
+        createdProductIds.add(savedProduct.id);
       }
       await _collectionService.addProductsToCollection(
         widget.collectionId,
@@ -122,12 +119,6 @@ class _AddProductSheetState extends State<_AddProductSheet> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
-  }
-
-  String _generateProductId() {
-    final id =
-        (DateTime.now().microsecondsSinceEpoch * 1000) + _random.nextInt(1000);
-    return id.toString();
   }
 
   @override
