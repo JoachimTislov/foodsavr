@@ -4,7 +4,7 @@ FLUTTER_INSTALL := flutter install
 FLUTTER_RUN_CMD := flutter run --no-pub $(DOTENV_FLAGS)
 # dev:integration_test is ignored when doing a release build - https://github.com/flutter/flutter/issues/169336
 FLUTTER_BUILD_APK_CMD := flutter build apk $(DOTENV_FLAGS)
-CHECK_HASH_CMD := find lib test pubspec.yaml analysis_options.yaml -type f 2>/dev/null | sort | xargs sha256sum | sha256sum | awk '{print $$1}'
+CHECK_HASH_CMD := find lib test packages pubspec.yaml analysis_options.yaml -type f -not -path "*/.dart_tool/*" -not -name pubspec.lock 2>/dev/null | sort | xargs sha256sum | sha256sum | awk '{print $$1}'
 
 
 run-dev: deps start-firebase-emulators

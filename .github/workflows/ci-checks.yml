@@ -139,7 +139,7 @@ jobs:
           restore-keys: |
             test-hashes-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}-
 
-      - name: "Run tests (selected slice, cached-green skip, core workflows pinned)"
+      - name: "Run tests (selected slice incl. foodsavr_core package tests, cached-green skip, core workflows pinned)"
         run: dart run scripts/ci/run_tests.dart
         env:
           SELECTED_FILES: ${{ steps.select.outputs.files }}
