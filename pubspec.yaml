@@ -83,7 +83,7 @@ dev_dependencies:
   path: ^1.9.1 # BSD-3-Clause
   shared_preferences_platform_interface: ^2.4.2 # BSD-3-Clause
   json_serializable: ^6.15.2 # BSD-3-Clause
-  freezed: ^4.0.1 # MIT
+  freezed: ^4.0.3 # MIT
   go_router_builder: ^4.5.3 # BSD-3-Clause
 
 # For information on the generic Dart part of this file, see the
