@@ -194,10 +194,15 @@ jobs:
             defines+=("--dart-define=ERROR_COLLECTOR_ENDPOINT=$ERROR_COLLECTOR_ENDPOINT")
           fi
           build_flags=(--release)
-          if [ "$FIREBASE_PLAN" = "blaze" ]; then
+          if [ "$FIREBASE_PLAN" = "blaze" ] && [ "$TARGET" = "live" ]; then
             build_flags+=(--source-maps)
           fi
           flutter build web "${build_flags[@]}" "${defines[@]}"
+
+      - name: Upload web source maps (Blaze)
+        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' && env.TARGET == 'live' && vars.FIREBASE_PLAN == 'blaze' }}
+        run: |
+          npx -y "$FIREBASE_TOOLS" crashlytics:sourcemap:upload --app "$WEB_APP_ID" --clean build/web
 
       - name: Check Hosting storage budget
         id: budget
@@ -241,8 +246,3 @@ jobs:
         run: |
           npx -y "$FIREBASE_TOOLS" deploy --only hosting --project "$PROJECT_ID" --non-interactive
           echo "Live ($FLAVOR): https://$SITE_ID.web.app" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload web source maps (Blaze)
-        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' && env.TARGET == 'live' && vars.FIREBASE_PLAN == 'blaze' }}
-        run: |
-          npx -y "$FIREBASE_TOOLS" crashlytics:sourcemap:upload --app "$WEB_APP_ID" --clean build/web
