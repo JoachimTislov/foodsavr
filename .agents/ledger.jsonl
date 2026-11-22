@@ -206,3 +206,25 @@
 {"branch": "chore/rebase-main-into-develop", "commits": ["767be3f8457fb9d92cda0c6ebaed43dd8f8cb270"], "event": "Rebased 10 exclusive origin/main commits onto origin/develop, renamed main deployment references to release, added periodic fast-forward channels (nightly/beta/stable/release) in promote.yml and promote_release.py, updated specs and ADR 0007, and fixed validation.yml release push trigger for release_gate.cjs.", "timestamp": "2026-11-22T02:00:56.805633+00:00", "session_id": "antigravity:c8cef0ed-e9c1-4a23-9f3f-24594cb5bf30"}
 {"event": "Rebased Makefile split onto origin/develop", "prs": ["#307"], "session_id": "claude:a2454963", "timestamp": "2026-11-22T02:45:56+00:00"}
 {"branch": "chore/pr-merge-dependabot-unresolvable", "event": "Merged #299 (rebase, f5106db), closed #300 (freezed 4.0.3 vs SDK-pinned test_api); added close-unresolvable-Dependabot rule to pr-merge skill.", "timestamp": "2026-11-22T03:14:25+00:00", "session_id": "claude:0572696a"}
+{"pr": 258, "event": "- 2026-11-21: Shared browser CI fix (#257): provision and verify the development"}
+{"pr": 258, "event": "Auth emulator account before browser startup; replace transient login race with"}
+{"pr": 258, "event": "Dashboard → Settings → Profile → Log Out → email-auth assertions. Console"}
+{"pr": 258, "event": "checks wait for Dashboard and retain error assertions. Inspected main and"}
+{"pr": 258, "event": "pending #239/#255; isolated branch from main. Playwright discovery: 10 tests;"}
+{"pr": 258, "event": "git diff --check passed. Local browser execution unavailable: no build/web and"}
+{"pr": 258, "event": "no Auth emulator listening on localhost:9099. Committed/pushed focused fix and"}
+{"pr": 258, "event": "opened PR; full browser validation delegated to existing CI (pending)."}
+{"pr": 258, "event": "2026-11-21 PR #258: addressed CodeRabbit startup assertion finding by waiting for Quick Actions content before checking captured errors. Playwright discovers 10 tests; browser execution remains CI-owned."}
+{"pr": 258, "event": "- 2026-11-21 PR #258: inspected run 44911101941 snapshots; skipped App Check for emulator startup, removed reCAPTCHA console filtering, and opened profile directly for logout smoke coverage. Local browser execution blocked by Dart 3.12.2 (dependency requires 3.13) and missing firebase CLI. Playwright smoke discovery passed. Committed and pushed existing fix/browser-ci-startup branch; reported validation blockers to parent."}
+{"pr": 258, "event": "- 2026-11-21 PR #258: rebased three browser-fix commits onto main"}
+{"pr": 258, "event": "55214e8f39727d77001277c3006273abd644b88a, dropping merge updates;"}
+{"pr": 258, "event": "preserved upstream ledger and all five requested browser behaviors."}
+{"pr": 258, "event": "Old remote head dc62d494a92cc9c987de224d6dda959cf72fc80d."}
+{"pr": 258, "event": "Playwright discovery passed (10 tests), diff check passed, no merge commits."}
+{"pr": 258, "event": "Flutter test blocked by Dart 3.12.2 versus required 3.13; browser execution"}
+{"pr": 258, "event": "lacks build/web and Firebase CLI. Exact-SHA lease push prepared."}
+{"pr": 258, "event": "- 2026-11-21 — PR #258: rebased observed remote 39e82db45681e3cb0ac9ce69742006bfccf87351 onto current origin/main; preserved both ledger histories and all browser fixes (code identical to old head). Whitespace and Playwright discovery passed (10 tests); zero merge commits. Local Flutter checks blocked by Dart 3.12.2 versus required 3.13. Committed rebase record; exact-lease push and final revision/CI reported in session. Android must pass again on the rebased head."}
+{"ts": "2026-11-21T23:42:22.737202+00:00", "pr": 258, "event": "Rebased on current main, kept its emulator App Check guard and preserved browser test changes. Migrated branch log additions to JSONL."}
+{"ts": "2026-11-22T00:21:22.001196+00:00", "session": "t3-code:0847d67b-2e31-40c8-9a88-2ad3d114c481", "branch": "fix/local-worktree-bootstrap", "commits": ["86826152f1b2fe24ce1cc975ffb32edb0f5fc913", "c3bc92029a3d905d226359ddab6f58c9f8f3e5c6"], "event": "Rebased fix/local-worktree-bootstrap onto origin/main, restored analysis_options.yaml/pubspec.lock after flutter pub get in create_worktree.sh, and added unit tests for dart_workspace preservation and --flutter-bin."}
+{"ts": "2026-11-22T00:22:08.820493+00:00", "session": "t3-code:0847d67b-2e31-40c8-9a88-2ad3d114c481", "pr": 290, "branch": "fix/local-worktree-bootstrap", "event": "Opened draft PR #290 for fix/local-worktree-bootstrap into main."}
+{"ts": "2026-11-22T01:04:11.477806+00:00", "session": "t3-code:c67462e3-941a-4571-a36e-55b99117e61b", "branch": "t3/optimize-ci-workflow-triggers", "issues": [293], "commits": ["b22e9ad02d42027bad364562535abdbeaaf6edad"], "event": "Implemented CI workflow trigger optimizations, shared composite actions, dep_impact classification, and grouped web/Android validation checks for #293."}
