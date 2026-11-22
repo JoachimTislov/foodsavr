@@ -5,7 +5,7 @@
   "references": {"issues": ["#212", "#213"], "prs": ["#236"]},
   "context": {
     "queries": [
-      "FoodSavr current app status open TODOs",
+      "current app status open TODOs",
       "source of truth sync status",
       "agent setup provider compatibility"
     ],
