@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "foodsavr://legal-documents",
+  "title": "LegalDocumentManifest",
+  "description": "Spec-ahead (ADR 0009). One manifest per environment: the single source of that environment's legal documents, read by the app (bundled offline copy of the same version) and by the environment's landing page (#371). $defs.acceptance is the per-user acceptance record. No code anchor yet; moves to schemas/ once implemented.",
+  "type": "object",
+  "required": ["environment", "operator", "documents"],
+  "properties": {
+    "environment": { "type": "string", "enum": ["development", "test", "staging", "production"] },
+    "operator": {
+      "type": "object",
+      "required": ["kind", "jurisdiction"],
+      "properties": {
+        "kind": { "type": "string", "const": "privatePerson", "description": "The owner as a private person" },
+        "jurisdiction": { "type": "string", "const": "NO", "description": "Norwegian law and the GDPR" }
+      },
+      "additionalProperties": false
+    },
+    "documents": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/document" }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "environment": { "const": "production" } }, "required": ["environment"] },
+      "then": {
+        "properties": {
+          "documents": {
+            "allOf": [
+              { "contains": { "properties": { "kind": { "const": "privacy" } } } },
+              { "contains": { "properties": { "kind": { "const": "terms" } } } },
+              { "contains": { "properties": { "kind": { "const": "subscription" } } } }
+            ],
+            "items": { "properties": { "kind": { "not": { "const": "tester" } } } }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "documents": { "contains": { "properties": { "kind": { "const": "tester" } } } }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "documentKind": {
+      "type": "string",
+      "enum": ["tester", "privacy", "terms", "subscription"],
+      "description": "tester for development, test and staging; privacy, terms and subscription for production"
+    },
+    "document": {
+      "type": "object",
+      "required": ["kind", "version", "effectiveFrom", "materialChange", "locales"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/documentKind" },
+        "version": { "type": "integer", "minimum": 1 },
+        "effectiveFrom": { "type": "string", "format": "date" },
+        "materialChange": { "type": "boolean", "description": "true: users who accepted an earlier version must accept this one" },
+        "locales": {
+          "type": "object",
+          "required": ["nb", "en"],
+          "properties": {
+            "nb": { "type": "string", "description": "Repository path of the nb text" },
+            "en": { "type": "string", "description": "Repository path of the en text" }
+          },
+          "additionalProperties": false
+        },
+        "publicPath": { "type": "string", "description": "Path on the environment's landing page, for example /legal/privacy (#371)" }
+      },
+      "additionalProperties": false
+    },
+    "acceptance": {
+      "description": "A user's acceptance of one document version; append-only, one record per accepted version.",
+      "type": "object",
+      "required": ["uid", "environment", "kind", "version", "locale", "acceptedAt"],
+      "properties": {
+        "uid": { "type": "string" },
+        "environment": { "type": "string", "enum": ["development", "test", "staging", "production"] },
+        "kind": { "$ref": "#/$defs/documentKind" },
+        "version": { "type": "integer", "minimum": 1 },
+        "locale": { "type": "string", "enum": ["nb", "en"], "description": "Language the user accepted" },
+        "acceptedAt": { "type": "string", "format": "date-time" },
+        "consentedBy": { "type": ["string", "null"], "default": null, "description": "UID of the consenting adult for a member aged 13 to 17" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

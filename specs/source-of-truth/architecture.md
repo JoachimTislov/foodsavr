@@ -20,9 +20,12 @@ Vision: FoodSavr is an adapter, not a duplicate architecture — normalize any f
 2. **Thin in-app agent** — orchestrates existing services; no parallel logic.
 3. **Remote MCP server** — streamable HTTP, OAuth 2.1, exposing `ingest_receipt`, `read_orders`, `generate_shopping_list` (#171); logic shared with the app via `foodsavr_core`.
 4. **Hybrid event log and CRUD** — data derived from raw sources flows inbox → ordered domain events → read-only projections; only user-authored data is CRUD. A Dart worker on Cloud Run (co-located with the MCP server) runs the pipeline and projectors. See [ADR 0005](decisions/0005-hybrid-event-log-and-crud.md).
+5. **Feature modules and entitlements** ([ADR 0008](decisions/0008-feature-modules-entitlements-and-plans.md)) — every capability is a module in a bundled catalog ([registries/feature-modules.yaml](registries/feature-modules.yaml), shape [contracts/feature-registry.schema.json](contracts/feature-registry.schema.json)). A resolver enables a module when the build supports it, Remote Config has not switched it off, the plan (RevenueCat, [contracts/entitlement.schema.json](contracts/entitlement.schema.json)), a trial or a Plus pick grants it, and the user has not hidden it. On-device modules are client-enforced; cloud modules launch with Blaze behind a trusted, RevenueCat-written entitlement that Firestore rules check.
+6. **Legal documents per environment** ([ADR 0009](decisions/0009-legal-documents-per-environment.md)) — one manifest per environment ([contracts/legal-documents.schema.json](contracts/legal-documents.schema.json)) feeds both the app and the environment's landing page (#371); acceptance is versioned per user.
 
 ## Boundaries
 
 - `foodsavr_core` is pure Dart, no Flutter or Firebase imports; both the app and MCP server depend on it, never the reverse.
 - Firestore collections: `products`, `collections` today; users, shopping lists, recipes, meals, groups are spec'd but unbuilt (#195–#197).
+- Feature call sites ask the module resolver, never a plan, a flag or RevenueCat directly (ADR 0008).
 - Firestore rules are deliberately untracked; CI validates them via `FIRESTORE_RULES_B64` secret (#165/#185).
