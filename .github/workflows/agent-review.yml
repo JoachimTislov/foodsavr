@@ -1,0 +1,222 @@
+name: Agent review
+
+# Classifies and reviews non-draft, same-repository PRs at their adaptive review
+# tier (exempt, fast, balanced, deep, human) and posts a head-bound attestation
+# comment (<!-- agent-review: ... -->) consumed by the merge gate (ADR 0006).
+# Untrusted PR code is never checked out or executed; the workflow checks out
+# the default branch and fetches PR metadata and diff text via the GitHub API.
+#
+# Two jobs isolate the model from write access: `review` reads untrusted PR text and
+# holds provider credentials but only a read-only token; `publish` holds write
+# permissions but never runs a model or sees provider credentials, and only parses
+# the review job's artifact.
+
+on:
+  pull_request_target:
+    types: [opened, ready_for_review, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number to classify and review
+        required: true
+
+concurrency:
+  group: agent-review-${{ github.event.pull_request.number || inputs.pr }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
+
+jobs:
+  review:
+    name: Adaptive PR review
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (!github.event.pull_request.draft &&
+       !github.event.pull_request.head.repo.fork &&
+       github.actor != 'dependabot[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      skip: ${{ steps.classify.outputs.skip }}
+      required_tier: ${{ steps.classify.outputs.required_tier }}
+      head_sha: ${{ steps.classify.outputs.head_sha }}
+      installed: ${{ steps.providers.outputs.installed }}
+    steps:
+      - name: Checkout trusted control plane
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Load review history from the history branch
+        env:
+          HISTORY_TOKEN: ${{ github.token }}
+        run: scripts/github/review_history.sh fetch "$HISTORY_TOKEN"
+
+      - name: Fetch PR metadata and classify adaptive review tier
+        id: classify
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || { echo "PR_NUMBER must be an integer"; exit 1; }
+          mkdir -p .agents/state/workflows
+          gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            --json number,title,body,isDraft,isCrossRepository,headRefOid,author,authorAssociation,labels,files,additions,deletions,changedFiles,reviewDecision \
+            > ".agents/state/pr-${PR_NUMBER}-raw.json"
+          is_draft="$(jq -r '.isDraft // false' ".agents/state/pr-${PR_NUMBER}-raw.json")"
+          is_fork="$(jq -r '.isCrossRepository // false' ".agents/state/pr-${PR_NUMBER}-raw.json")"
+          if [ "$is_draft" = "true" ] || [ "$is_fork" = "true" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" > ".agents/state/pr-${PR_NUMBER}.diff" || true
+          python3 scripts/github/pr_review.py classify \
+            --pr "$PR_NUMBER" \
+            --pr-json ".agents/state/pr-${PR_NUMBER}-raw.json" \
+            --diff-file ".agents/state/pr-${PR_NUMBER}.diff" \
+            --owner "${GITHUB_REPOSITORY_OWNER}" \
+            --stage-dir .agents/state \
+            --stage-workflow ".agents/state/workflows/integrate-pr-${PR_NUMBER}.json" \
+            > ".agents/state/pr-${PR_NUMBER}-classification.json"
+          req_tier="$(jq -r '.required_tier' ".agents/state/pr-${PR_NUMBER}-classification.json")"
+          head_sha="$(jq -r '.head_sha' ".agents/state/pr-${PR_NUMBER}-classification.json")"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "required_tier=${req_tier}" >> "$GITHUB_OUTPUT"
+          echo "head_sha=${head_sha}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: steps.classify.outputs.skip == 'false' && steps.classify.outputs.required_tier != 'exempt'
+        with:
+          node-version: 22
+
+      - name: Install available provider CLIs
+        id: providers
+        if: steps.classify.outputs.skip == 'false' && steps.classify.outputs.required_tier != 'exempt'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CODEX_AUTH_JSON_B64: ${{ secrets.CODEX_AUTH_JSON_B64 }}
+        run: |
+          installed=0
+          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            npm install --global @anthropic-ai/claude-code@2.1.326; installed=1
+          fi
+          if [ -n "$CODEX_AUTH_JSON_B64" ]; then
+            npm install --global @openai/codex@0.169.0
+            install -d -m 700 "$HOME/.codex"
+            umask 077; echo "$CODEX_AUTH_JSON_B64" | base64 -d > "$HOME/.codex/auth.json"; installed=1
+          fi
+          echo "installed=${installed}" >> "$GITHUB_OUTPUT"
+
+      # The only step that runs a model. GH_TOKEN is deliberately not set here, and the
+      # job token is read-only, so injected instructions cannot write to the repository.
+      - name: Execute adaptive integrate-pr review workflow
+        if: steps.classify.outputs.skip == 'false' && steps.classify.outputs.required_tier != 'exempt'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          INSTALLED: ${{ steps.providers.outputs.installed }}
+        run: |
+          if [ "$INSTALLED" = "1" ]; then
+            scripts/agents/agentctl workflow run ".agents/state/workflows/integrate-pr-${PR_NUMBER}.json" \
+              --execute --provider auto > ".agents/state/pr-${PR_NUMBER}-result.json" || true
+          else
+            scripts/agents/agentctl workflow run ".agents/state/workflows/integrate-pr-${PR_NUMBER}.json" \
+              > ".agents/state/pr-${PR_NUMBER}-result.json" || true
+          fi
+
+      - name: Remove provider credentials
+        if: always()
+        run: rm -rf "$HOME/.codex"
+
+      - name: Upload review state
+        if: always() && steps.classify.outputs.skip == 'false'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: agent-review-state-${{ env.PR_NUMBER }}
+          path: |
+            .agents/state/pr-${{ env.PR_NUMBER }}*.json
+            .agents/state/pr-${{ env.PR_NUMBER }}*.md
+            .agents/state/workflows/integrate-pr-${{ env.PR_NUMBER }}.json
+            .agents/state/runs/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
+
+  publish:
+    name: Record review and attest
+    needs: review
+    if: needs.review.result == 'success' && needs.review.outputs.skip == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # pushes only the agent-review-history branch
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout trusted control plane
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Download review state
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: agent-review-state-${{ env.PR_NUMBER }}
+          path: .
+
+      # History is re-fetched here, never taken from the model job's artifact.
+      - name: Load review history from the history branch
+        env:
+          HISTORY_TOKEN: ${{ github.token }}
+        run: scripts/github/review_history.sh fetch "$HISTORY_TOKEN"
+
+      - name: Record review decision and post head-bound attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ needs.review.outputs.head_sha }}
+          REQ_TIER: ${{ needs.review.outputs.required_tier }}
+          INSTALLED: ${{ needs.review.outputs.installed }}
+        run: |
+          [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || { echo "PR_NUMBER must be an integer"; exit 1; }
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{7,40}$ ]] || { echo "invalid head sha"; exit 1; }
+          reviewer="github-actions[bot]"
+          common=(
+            --pr "$PR_NUMBER" --head-sha "$HEAD_SHA" --required-tier "$REQ_TIER"
+            --reviewer "$reviewer" --bot --owner "${GITHUB_REPOSITORY_OWNER}"
+            --pr-json ".agents/state/pr-${PR_NUMBER}-raw.json"
+          )
+          if [ "$REQ_TIER" = "exempt" ]; then
+            # Exempt PRs need no attestation, but their outcome still feeds tier learning.
+            python3 scripts/github/pr_review.py record-review "${common[@]}" \
+              --status approved --provider policy-exempt --model none
+            exit 0
+          fi
+          status_arg=()
+          if [ "$REQ_TIER" = "human" ]; then
+            status_arg=(--status commented)
+          elif [ "$INSTALLED" = "1" ]; then
+            # record-review derives the status from the run result and the agent VERDICT line.
+            status_arg=()
+          elif [ "$REQ_TIER" = "fast" ]; then
+            status_arg=(--status approved --provider deterministic-gate --model policy-verifier)
+          else
+            # No model ran: a deterministic gate cannot satisfy a standard or deep tier.
+            status_arg=(--status commented --provider deterministic-gate --model policy-verifier)
+          fi
+          python3 scripts/github/pr_review.py record-review "${common[@]}" \
+            --workflow-result ".agents/state/pr-${PR_NUMBER}-result.json" \
+            --output-markdown ".agents/state/pr-${PR_NUMBER}-review.md" \
+            "${status_arg[@]}"
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file ".agents/state/pr-${PR_NUMBER}-review.md"
+
+      - name: Persist review history to the history branch
+        env:
+          HISTORY_TOKEN: ${{ github.token }}
+        run: scripts/github/review_history.sh push "$HISTORY_TOKEN"

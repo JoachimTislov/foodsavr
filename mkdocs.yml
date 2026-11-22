@@ -40,6 +40,7 @@ nav:
       - MCP server: specs/source-of-truth/mcp-server.md
       - Quality and testing: specs/source-of-truth/qa-testing.md
       - CI and publishing: specs/source-of-truth/ci-workflows.md
+      - Agent system: specs/source-of-truth/agent-system.md
       - Implementation status: specs/source-of-truth/status.md
       - Decisions:
           - Source-of-truth sync: specs/source-of-truth/decisions/0001-source-of-truth-sync-loop.md

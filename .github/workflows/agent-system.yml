@@ -11,6 +11,7 @@ on:
       - '.github/instructions/**'
       - '.github/copilot-instructions.md'
       - '.github/workflows/agent-implement.yml'
+      - '.github/workflows/agent-review.yml'
       - 'log/**'
       - 'logs/**'
       - '**/*.jsonl'

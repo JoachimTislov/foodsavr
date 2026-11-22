@@ -1,0 +1,70 @@
+name: Agent incident learning
+
+# Owner-triggered: bisects a regression on the default branch (merge level, then the
+# culprit's branch), maps the culprit to its PR and original review tier, and records an
+# escalating incident on the agent-review-history branch so later PRs touching the same
+# code get a deeper review tier (ADR 0006). Runs only trusted default-branch code; the
+# test command is supplied by a repository writer via workflow_dispatch.
+on:
+  workflow_dispatch:
+    inputs:
+      good:
+        description: Known good commit or ref
+        required: true
+      bad:
+        description: Known bad commit or ref
+        required: false
+        default: HEAD
+      test_cmd:
+        description: Non-interactive command that exits 0 on good and non-zero on bad
+        required: true
+      failure_signature:
+        description: Short description of the symptom
+        required: false
+        default: ""
+
+concurrency:
+  group: agent-incident
+  cancel-in-progress: false
+
+permissions:
+  contents: write # pushes only the agent-review-history branch
+
+jobs:
+  learn:
+    name: Bisect and record incident
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout default branch with history
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Load review history from the history branch
+        env:
+          HISTORY_TOKEN: ${{ github.token }}
+        run: scripts/github/review_history.sh fetch "$HISTORY_TOKEN"
+
+      - name: Bisect and learn
+        env:
+          GOOD: ${{ inputs.good }}
+          BAD: ${{ inputs.bad }}
+          TEST_CMD: ${{ inputs.test_cmd }}
+          SIGNATURE: ${{ inputs.failure_signature }}
+        run: |
+          python3 scripts/github/pr_review.py bisect-learn \
+            --good "$GOOD" --bad "$BAD" --test-cmd "$TEST_CMD" \
+            --failure-signature "$SIGNATURE" | tee incident-report.json
+
+      - name: Persist incident to the history branch
+        env:
+          HISTORY_TOKEN: ${{ github.token }}
+        run: scripts/github/review_history.sh push "$HISTORY_TOKEN"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: incident-report
+          path: incident-report.json

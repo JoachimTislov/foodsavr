@@ -40,11 +40,15 @@ class LogFormatTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / 'new.jsonl').write_text('false\n')
-            errors = logs.check(root, ['new.jsonl', '.agents/ledger.md', 'log/new.log', 'elsewhere/new.log', '.agents/sessions/index.md'])
-            self.assertEqual(len(errors), 5)
+            errors = logs.check(root, [
+                'new.jsonl', '.agents/ledger.md', 'log/new.log',
+                'elsewhere/new.log', '.agents/sessions/index.md', '.agents/reviews/history.md',
+            ])
+            self.assertEqual(len(errors), 6)
             self.assertIn('record must be an object', errors[0])
             self.assertIn('must use .jsonl', errors[1])
             self.assertIn('must use .jsonl', errors[2])
+            self.assertIn('must use .jsonl', errors[5])
             self.assertEqual(logs.check(root, ['docs/README.md']), [])
 
 

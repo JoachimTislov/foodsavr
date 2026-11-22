@@ -862,6 +862,10 @@ class AgentctlTest(unittest.TestCase):
         self.assertNotIn("s3cr3t-value", argv_line)
         self.assertIn("scripts/secrets/rotate.py DEMO_SECRET", argv_line)
         self.assertEqual("env=s3cr3t-value", env_line)
+        agent_app_script = (ROOT / "scripts/human/github/create-agent-app.sh").read_text(encoding="utf-8")
+        self.assertIn('set_var AGENT_APP_SLUG "$AGENT_APP_SLUG"', agent_app_script)
+        self.assertIn('WRITTEN_VAR+=("$name")', library)
+        self.assertIn('GitHub variable(s): ${WRITTEN_VAR[*]}', library)
 
     def test_session_commits_follow_agent_session_trailer(self) -> None:
         module = load_agentctl_module()
