@@ -84,7 +84,7 @@ Rule 6 needs a server runtime (#321), so the worker cannot exist on Spark. Waiti
 2. **First types.**
    - User commands: `source: userCommand` with `payload.type` of `consumed` or `discarded`. `externalId` is a client UUID generated once per user action. The payload carries a snapshot (`productName`, `barcode`, `category`) so the history survives deleting the product.
    - Imports: `receipt` (`externalId` is the receipt hash) and `loyaltyApi` store transactions (`provider` is the store, `externalId` is the transaction ID). Their payloads stay opaque to everything but their adapter.
-3. **CRUD stays the read model.** `products` keeps being edited directly during the transition, a documented exception to rule 1. An action that changes `products` and records a command writes both in one Firestore batch, so the product edit and its inbox entry commit or fail together, including offline.
+3. **CRUD stays the read model.** `products` keeps being edited directly during the transition, a documented exception to rule 1. An action that changes `products` and records a command writes both in one Firestore batch, so the product edit and its inbox entry commit or fail together, including offline. The batch is not a precondition on the value the client read: the `expiries` array cannot be incremented atomically and transactions fail offline, so concurrent edits from two devices can lose a `products` update (last write wins, as today). The inbox keeps every command, so it is the authoritative history.
 4. **No `seq` on the client.** Clients never write `events`, projections, `processedSeq` or `seq`. The client may derive read-only views (for example consumption history for #195) from the inbox. Those views are replaceable and are never persisted as events.
 5. **Projector placement.** The first projector runs on the device and reads the inbox. When the worker exists, it takes over the same derivation. It first replays the whole inbox ordered by `receivedAt`, then by `id`, assigns `seq` (rule 6) and sets `processedSeq`.
 6. **Insights read the inbox** until projections exist.
@@ -94,7 +94,7 @@ Rule 6 needs a server runtime (#321), so the worker cannot exist on Spark. Waiti
 The transition ends, and `products` stops being edited by the client (rule 1 applies in full), when all of these hold:
 
 1. The worker (#321) runs on Cloud Run on Blaze.
-2. The worker has replayed the inbox into `events`, and an `inventory` projection matches the `products` rows for the owner.
+2. The worker has replayed the inbox into `events`, and an `inventory` projection matches the `products` rows for the owner; a mismatch caused by a lost `products` update (rule 3) is resolved in favour of the projection.
 3. The app reads inventory and consumption from projections, and user edits to derived data go through commands (`corrected`, `dismissed`).
 4. `products` is split into a derived inventory projection and a user-authored catalogue (see Consequences).
 
