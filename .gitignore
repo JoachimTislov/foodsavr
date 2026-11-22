@@ -21,6 +21,7 @@ firebase_options.dart
 research/*
 !research/README.md
 .agents/state/
+.agents/instance.local.json
 .test-hashes/
 
 # generated code
