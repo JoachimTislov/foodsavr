@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:logger/logger.dart';
 import 'package:watch_it/watch_it.dart';
 
 import '../constants/legal_docs.dart';
@@ -311,8 +312,9 @@ class _BehaviorSectionState extends State<_BehaviorSection> {
             type: CollectionType.inventory,
           );
       if (mounted) setState(() => _inventories = inventories);
-    } catch (_) {
+    } catch (e) {
       // The default inventory then shows as the first-inventory fallback.
+      getIt<Logger>().w('Failed to load inventories for settings: $e');
     }
   }
 
