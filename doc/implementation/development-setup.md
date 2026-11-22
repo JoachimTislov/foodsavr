@@ -68,6 +68,28 @@ guest user's existing app data.
 
 Reference: https://firebase.google.com/docs/auth/web/anonymous-auth
 
+### Facebook authentication
+
+The Dart-side Facebook sign-in flow is implemented
+(`FirebaseAuthService.signInWithFacebook`). To enable it on Android, expose the
+Facebook credentials to the build:
+
+1.  Set `FACEBOOK_APP_ID` and `FACEBOOK_CLIENT_TOKEN` in `.env` (or the build
+    environment). The Android build only forwards allowlisted keys to the APK
+    and generates the `facebook_app_id`, `facebook_client_token` and
+    `fb_login_protocol_scheme` string resources that the manifest references
+    for `com.facebook.CustomTabActivity`.
+2.  In the Facebook app dashboard, add the Android platform with the FoodSavr
+    package name (`com.foodsavr.app` / `com.foodsavr.app.development`) and key
+    hashes.
+3.  In Firebase Authentication, enable **Facebook** as a sign-in provider and
+    paste the Facebook app ID and app secret.
+
+Without `FACEBOOK_APP_ID` the build still succeeds (with a warning), but
+Facebook sign-in fails at runtime.
+
+Reference: https://developers.facebook.com/docs/facebook-login/android
+
 ### Common commands
 
 | Command | Description |
