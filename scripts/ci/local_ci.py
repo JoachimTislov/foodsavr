@@ -66,7 +66,7 @@ GROUPS: dict[str, Group] = {
             ["scripts/agents/agentctl", "skills", "check"],
             ["python3", "-m", "unittest", "scripts/github/test_sync_labels.py"],
             ["python3", "-m", "unittest", "scripts/github/test_merge_gate.py"],
-            ["python3", "-m", "unittest", "scripts/github/test_promote_main.py"],
+            ["python3", "-m", "unittest", "scripts/github/test_promote_release.py"],
             ["python3", "-m", "unittest", "scripts/secrets/test_rotate.py"],
             ["python3", "-m", "unittest", "scripts/ci/test_local_ci.py"],
             ["python3", "-m", "unittest", "scripts/ci/test_dep_impact.py"],

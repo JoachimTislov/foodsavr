@@ -1,11 +1,16 @@
-"""Shared GitHub check-run and status-context evaluation for merge_gate and promote_main."""
+"""Shared GitHub check-run and status-context evaluation for merge_gate and promote_release."""
 
 from __future__ import annotations
 
 from typing import Any
 
 QUEUE_CHECK = "Detect changed areas"
-IGNORED_WORKFLOWS = {"Merge gate", "Synchronize GitHub labels", "Promote develop to main"}
+IGNORED_WORKFLOWS = {
+    "Merge gate",
+    "Synchronize GitHub labels",
+    "Promote develop to main",
+    "Promote release channels",
+}
 FAILED = {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"}
 
 

@@ -2,16 +2,16 @@
 
 Absorbed from `.github/workflows/` @ 103a70f:
 
-- `ci-checks.yml` — analyze, localization check, unit tests, coverage (scoped to Dart/Flutter/package paths; runs on PRs to `develop` and pushes to `develop`/`main`).
-- `build-web.yml` / `build-android.yml` — platform release-artifact builds on `push` to `develop`/`main` (and `workflow_dispatch`), sharing `.github/actions/setup-flutter-app`; Android emulator jobs pinned to `ubuntu-24.04` ahead of the Ubuntu 26 migration (#200/#189).
-- `docs-pages.yml` — strict MkDocs build and local navigation/asset validation on documentation PRs to `develop` and pushes to `develop`/`main`; `main` promotions publish the vision, canonical spec, and project docs to GitHub Pages. This is the sole Pages deployment owner; `build-web.yml` retains Flutter build artifacts without deploying them.
-- `validation.yml` — expensive change-gated validation using `scripts/ci/dep_impact.py` for Dependabot bumps and grouping Web smoke + Playwright E2E (`Web smoke test`) and Android smoke + integration tests (`Android smoke test`) into single setup/emulator runs, plus non-fork Firestore rules; gated on `merge/auto` for PRs to `develop` and also runs on pushes to `develop` (ADR 0007). `release-gated.yml` — release candidate workflow on `main` pushes (#145). `dependency-review.yml` runs on dependency manifest/lockfile PRs only.
+- `ci-checks.yml` — analyze, localization check, unit tests, coverage (scoped to Dart/Flutter/package paths; runs on PRs to `develop` and pushes to `develop`/`release`).
+- `build-web.yml` / `build-android.yml` — platform release-artifact builds on `push` to `develop`/`nightly`/`beta`/`stable`/`release` (and `workflow_dispatch`), sharing `.github/actions/setup-flutter-app`; Android emulator jobs pinned to `ubuntu-24.04` ahead of the Ubuntu 26 migration (#200/#189).
+- `docs-pages.yml` — strict MkDocs build and local navigation/asset validation on documentation PRs to `develop` and pushes to `develop`/`release`; `release` promotions publish the vision, canonical spec, and project docs to GitHub Pages. This is the sole Pages deployment owner; `build-web.yml` retains Flutter build artifacts without deploying them.
+- `validation.yml` — expensive change-gated validation using `scripts/ci/dep_impact.py` for Dependabot bumps and grouping Web smoke + Playwright E2E (`Web smoke test`) and Android smoke + integration tests (`Android smoke test`) into single setup/emulator runs, plus non-fork Firestore rules; gated on `merge/auto` for PRs to `develop` and also runs on pushes to `develop`/`release` (ADR 0007). `release-gated.yml` — release candidate workflow on `release` pushes (#145). `dependency-review.yml` runs on dependency manifest/lockfile PRs only.
 - For matching pushes or non-fork `merge/auto` PRs, Firestore rules are validated when the `FIRESTORE_RULES_B64` secret is configured; an unset secret emits a warning and skips validation. Rules themselves remain deliberately untracked (#165/#185).
-- Duplicate-run avoidance: `scripts/ci/already_tested.sh` skips push runs of `ci-checks.yml` and `validation.yml` when the exact SHA already succeeded (e.g., fast-forward `develop` -> `main` promotion) or when the pushed commit tree equals a merged PR head tree with a green run of the same workflow; builds still run on push (release artifacts). Workflows use per-PR concurrency with cancel-in-progress; `ci-checks.yml` path-filters PRs inside its gate job so its checks always report.
+- Duplicate-run avoidance: `scripts/ci/already_tested.sh` skips push runs of `ci-checks.yml` and `validation.yml` when the exact SHA already succeeded (e.g., fast-forward promotion to `release`) or when the pushed commit tree equals a merged PR head tree with a green run of the same workflow; builds still run on push (release artifacts). Workflows use per-PR concurrency with cancel-in-progress; `ci-checks.yml` path-filters PRs inside its gate job so its checks always report.
 - `merge-gate.yml` — integrates PRs labeled `merge/auto` into `develop` one at a time: waits for `Detect changed areas` (`Validation`) and merges via `--rebase` when up to date with every head check green, otherwise rebases the oldest `BEHIND` PR (`@dependabot rebase` for Dependabot); runs as `MERGE_GATE_TOKEN` (ADR 0006, ADR 0007).
-- `promote.yml` — scheduled daily (`0 4 * * *` UTC) and manual (`workflow_dispatch`) fast-forward promotion of green `develop` -> `main` via `scripts/github/promote_main.py` using `MERGE_GATE_TOKEN`, triggering `main` deployment workflows without creating merge commits (ADR 0007).
+- `promote.yml` — periodic and manual (`workflow_dispatch`) fast-forward promotion along the linear release pipeline (`develop` -> `nightly` daily `0 4 * * *` UTC, `nightly` -> `beta` weekly Mondays `0 5 * * 1` UTC, `beta` -> `stable` -> `release` biweekly 1st & 15th `0 6 1,15 * *` UTC) via `scripts/github/promote_release.py` using `MERGE_GATE_TOKEN`, triggering `release` deployment workflows without creating merge commits (ADR 0007).
 - `scripts/ci/local_ci.py` — local mirror of CI for changed areas (diffing against `origin/develop` by default), run by the `.githooks/pre-push` hook (`make hooks`); `agent-system.yml` and `docs-pages.yml` run its `agents` and `docs` groups, and its `dart` group is kept equal to `ci-checks.yml` at CI's pinned Flutter version.
-- Default-branch (`develop`) ruleset requires PRs (rebase only), linear history, up-to-date branches, and cheap checks `Decide whether to run CI` and `Check & Test`. `main` enforces linear history, no force pushes, no deletion, and fast-forward promotion from `develop`.
+- Default-branch (`develop`) ruleset requires PRs (rebase only), linear history, up-to-date branches, and cheap checks `Decide whether to run CI` and `Check & Test`. Release branches (`nightly`, `beta`, `stable`, `release`) enforce linear history, no force pushes, no deletion, and fast-forward-only promotion.
 
 Workflow secrets fail gracefully. Missing `FIREBASE_OPTIONS_B64` creates a
 compile-only placeholder and records a warning instead of producing an opaque
@@ -23,7 +23,7 @@ their jobs stop with a named missing-secret error before attempting a publish.
 ## Firebase Hosting
 
 `firebase-hosting.yml` first resolves an environment (flavor) from `deploy/instance.yaml`
-(`levels env`; see [deployment-levels.md](deployment-levels.md)): pushes to `main` use `production`;
+(`levels env`; see [deployment-levels.md](deployment-levels.md)): pushes to `release` use `production`;
 `workflow_dispatch` input `environment` (default `auto`: `staging` for previews when the manifest
 declares a cloud staging environment, else `production`). It builds the web app with
 `--dart-define=FLAVOR=<environment>` (web builds cannot pass `--flavor`; `Config.environment`
@@ -32,7 +32,7 @@ from the manifest (production: `my-foodsavr-store`). All deployments are
 skipped unless the owner explicitly sets repository variable
 `FIREBASE_HOSTING_ENABLED=true`. Keep it unset while Hosting is disabled;
 merging the workflow does not authorize enabling it. Once enabled, pushes
-to `main` deploy live;
+to `release` deploy live;
 previews are manual only (`workflow_dispatch`, target `preview`: channel named after the branch,
 expiring after input `expires` (default `4h`), linked on its PR; target `live` deploys live). It signs in
 keylessly (Workload Identity Federation) and generates the web-only

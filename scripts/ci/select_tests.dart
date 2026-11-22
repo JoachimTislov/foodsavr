@@ -106,7 +106,7 @@ void main(List<String> args) async {
           'origin/develop',
         ])).exitCode ==
         0;
-    baseRef = hasDevelop ? 'origin/develop' : 'origin/main';
+    baseRef = hasDevelop ? 'origin/develop' : 'origin/release';
   }
 
   // Escape hatch: manual or self-scope change forces the full suite.

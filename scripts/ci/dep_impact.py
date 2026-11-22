@@ -106,7 +106,7 @@ def classify_impact(event_name: str, pr_author: str, diff_text: str) -> tuple[bo
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base", default=f"origin/{os.environ.get('GITHUB_BASE_REF', 'main')}")
+    parser.add_argument("--base", default=f"origin/{os.environ.get('GITHUB_BASE_REF', 'develop')}")
     args = parser.parse_args(argv)
 
     event_name = os.environ.get("GITHUB_EVENT_NAME", "")
