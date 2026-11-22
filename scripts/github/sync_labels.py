@@ -98,6 +98,12 @@ def classify(item: dict[str, Any], files: list[str], checks: list[dict[str, Any]
             labels.add("status/ci-failing")
         elif pending:
             labels.add("status/ci-pending")
+    else:
+        configured_labels = {label["name"] for label in config.get("labels", [])}
+        labels.update(
+            label for label in existing_labels & configured_labels
+            if label.startswith(("area/", "risk/"))
+        )
     return labels
 
 
