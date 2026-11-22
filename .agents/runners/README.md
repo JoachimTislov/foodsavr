@@ -61,3 +61,15 @@ Acceptance commands also enforce `network: allowlisted` against the policy's
 
 This boundary lets Codex, Claude, OpenCode, Gemini, Vibe, and Copilot vary in
 native CLI syntax without leaking that syntax into workflow definitions.
+
+## Model-to-work decision routing
+
+`router.json` (validated by `router.schema.json`) maps canonical work types and
+complexity tiers to policy-safe `(provider, model)` preferences. By default,
+`decision_provider.enabled` is `false` and `agentctl` resolves routes locally
+using `LocalWorkClassifier` and `work_routes`. When an external OpenAI-compatible
+decision endpoint is enabled (`engine: "typed-decision"`), `agentctl` uses the
+configured `ROUTER_BASE_URL`, `ROUTER_API_KEY`, and `ROUTER_MODEL` environment
+variables (registered in `scripts/secrets/registry.toml`) with strict
+`route_decision` JSON Schema output and falls back to the local selector on any
+network, policy, or validation error.

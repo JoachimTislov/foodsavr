@@ -873,7 +873,7 @@ class AgentctlTest(unittest.TestCase):
         self.assertEqual(0, code)
         self.assertEqual(args.session_id, result["session"]["session_id"])
 
-    def test_jev_dataclasses_validate_and_roundtrip(self) -> None:
+    def test_route_dataclasses_validate_and_roundtrip(self) -> None:
         module = load_agentctl_module()
         profile = module.WorkProfile(
             work_type=module.WorkType.IMPLEMENTATION,
@@ -913,7 +913,7 @@ class AgentctlTest(unittest.TestCase):
         )
         self.assertEqual(module.ModelCandidate.from_dict(candidate.to_dict()), candidate)
 
-        request = module.JevRouteRequest(
+        request = module.RouteRequest(
             workflow_id="wf-1",
             step_id="step-1",
             work_profile=profile,
@@ -922,9 +922,9 @@ class AgentctlTest(unittest.TestCase):
             available_providers=("codex",),
             available_models=("gpt-6.2-sol",),
         )
-        self.assertEqual(module.JevRouteRequest.from_dict(request.to_dict()), request)
+        self.assertEqual(module.RouteRequest.from_dict(request.to_dict()), request)
 
-        decision = module.JevRouteDecision(
+        decision = module.RouteDecision(
             provider="codex",
             model="gpt-6.2-sol",
             work_type="implementation",
@@ -932,10 +932,10 @@ class AgentctlTest(unittest.TestCase):
             reasoning_effort="high",
             confidence=0.92,
             rationale="Best code specialist fit.",
-            source="jev-local",
+            source="router-local",
         )
         self.assertEqual(
-            module.JevRouteDecision.from_dict(
+            module.RouteDecision.from_dict(
                 decision.to_dict(),
                 allowed_providers={"codex"},
                 allowed_models={"gpt-6.2-sol"},
@@ -943,16 +943,20 @@ class AgentctlTest(unittest.TestCase):
             decision,
         )
         with self.assertRaises(ValueError):
-            module.JevRouteDecision.from_dict(decision.to_dict(), allowed_providers={"claude"})
+            module.RouteDecision.from_dict(decision.to_dict(), allowed_providers={"claude"})
         with self.assertRaises(ValueError):
-            module.JevRouteDecision.from_dict(decision.to_dict(), allowed_models={"claude-sonnet-5-5"})
-        schema = module.JevRouteDecision.json_schema(["codex"], ["gpt-6.2-sol"])
+            module.RouteDecision.from_dict(decision.to_dict(), allowed_models={"claude-sonnet-5-5"})
+        schema = module.RouteDecision.json_schema(["codex"], ["gpt-6.2-sol"])
         self.assertEqual(schema["properties"]["provider"]["enum"], ["codex"])
         self.assertEqual(schema["properties"]["model"]["enum"], ["gpt-6.2-sol"])
 
-    def test_jev_local_classifier_infers_all_work_types(self) -> None:
+    def test_local_work_classifier_infers_all_work_types(self) -> None:
         module = load_agentctl_module()
         router = json.loads((ROOT / ".agents/runners/router.json").read_text())
+        self.assertEqual(router["decision_provider"]["engine"], "typed-decision")
+        self.assertEqual(router["decision_provider"]["base_url_env"], "ROUTER_BASE_URL")
+        self.assertEqual(router["decision_provider"]["api_key_env"], "ROUTER_API_KEY")
+        self.assertEqual(router["decision_provider"]["model_env"], "ROUTER_MODEL")
         cases = [
             ("triage", {"role": "triage-bot", "prompt": "Classify incoming issue"}, "read-only"),
             ("research", {"role": "researcher", "prompt": "Investigate package alternatives", "skills": ["research"]}, "read-only"),
@@ -970,7 +974,7 @@ class AgentctlTest(unittest.TestCase):
                 "objective": step["prompt"],
                 "permissions": {"filesystem": fs, "network": "none", "git": "read-only", "github": "none"},
             }
-            profile = module.infer_work_profile(workflow, step, router)
+            profile = module.LocalWorkClassifier.classify(workflow, step, router)
             self.assertEqual(profile.work_type.value, expected_wt, msg=f"failed for {expected_wt}: {profile}")
 
         override_step = {
@@ -1027,18 +1031,15 @@ class AgentctlTest(unittest.TestCase):
         router = {
             "decision_provider": {
                 "enabled": True,
-                "engine": "jev",
+                "engine": "typed-decision",
                 "structured_output": True,
                 "allow_control_plane_on_none": True,
-                "base_url_env": "TEST_ROUTER_URL",
-                "api_key_env": "TEST_ROUTER_KEY",
-                "model_env": "TEST_ROUTER_MODEL",
                 "timeout_ms": 500,
             }
         }
         specs = json.loads((ROOT / ".agents/runners/providers.json").read_text())["providers"]
         workflow = {
-            "id": "jev-structured",
+            "id": "router-structured",
             "objective": "Audit auth permissions",
             "permissions": {"filesystem": "read-only", "network": "none", "git": "read-only", "github": "none"},
         }
@@ -1071,13 +1072,13 @@ class AgentctlTest(unittest.TestCase):
                             "reasoning_effort": "xhigh",
                             "confidence": 0.96,
                             "rationale": "Security audit needs deep reasoning.",
-                            "source": "jev-remote",
+                            "source": "router-remote",
                         })
                     }
                 }]
             })
 
-        with patch.dict(module.os.environ, {"TEST_ROUTER_URL": "https://jev.example", "TEST_ROUTER_KEY": "secret-key", "TEST_ROUTER_MODEL": "jev-1"}), \
+        with patch.dict(module.os.environ, {"ROUTER_BASE_URL": "https://router.example", "ROUTER_API_KEY": "secret-key", "ROUTER_MODEL": "decision-1"}), \
              patch.object(module.urllib.request, "urlopen", side_effect=fake_urlopen):
             decision, reason = module.external_route_decision(
                 workflow, step, ["codex", "claude"], router, specs=specs,
@@ -1087,7 +1088,13 @@ class AgentctlTest(unittest.TestCase):
         assert decision is not None
         self.assertEqual(decision.provider, "claude")
         self.assertEqual(decision.model, "claude-opus-5-5")
+        self.assertEqual(captured_requests[0]["model"], "decision-1")
+        self.assertEqual(
+            captured_requests[0]["messages"][0]["content"],  # type: ignore[index]
+            "You are a type-safe model-to-work routing decision engine. Return strictly valid JSON matching the schema.",
+        )
         self.assertEqual(captured_requests[0]["response_format"]["type"], "json_schema")  # type: ignore[index]
+        self.assertEqual(captured_requests[0]["response_format"]["json_schema"]["name"], "route_decision")  # type: ignore[index]
         self.assertTrue(captured_requests[0]["response_format"]["json_schema"]["strict"])  # type: ignore[index]
 
         for bad_payload in (
@@ -1096,10 +1103,10 @@ class AgentctlTest(unittest.TestCase):
             123,
             {"choices": [{"message": {"content": "[]"}}]},
             {"provider": "not-safe"},
-            {"provider": "claude", "model": "not-allowed-model", "work_type": "security", "tier": "deep", "reasoning_effort": "high", "confidence": 0.8, "rationale": "x", "source": "jev-remote"},
+            {"provider": "claude", "model": "not-allowed-model", "work_type": "security", "tier": "deep", "reasoning_effort": "high", "confidence": 0.8, "rationale": "x", "source": "router-remote"},
         ):
             with self.subTest(bad_payload=bad_payload):
-                with patch.dict(module.os.environ, {"TEST_ROUTER_URL": "https://jev.example", "TEST_ROUTER_KEY": "secret-key"}), \
+                with patch.dict(module.os.environ, {"ROUTER_BASE_URL": "https://router.example", "ROUTER_API_KEY": "secret-key"}), \
                      patch.object(module.urllib.request, "urlopen", return_value=StructuredResponse(bad_payload)):
                     rejected, reject_reason = module.external_route_decision(
                         workflow, step, ["codex", "claude"], router, specs=specs,

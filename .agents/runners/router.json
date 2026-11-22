@@ -3,14 +3,14 @@
   "id": "provider-router",
   "decision_provider": {
     "enabled": false,
-    "engine": "jev",
+    "engine": "typed-decision",
     "protocol": "openai-compatible",
     "structured_output": true,
     "control_plane_egress": "independent",
     "allow_control_plane_on_none": false,
-    "base_url_env": "JEV_ROUTER_BASE_URL",
-    "api_key_env": "JEV_ROUTER_API_KEY",
-    "model_env": "JEV_ROUTER_MODEL",
+    "base_url_env": "ROUTER_BASE_URL",
+    "api_key_env": "ROUTER_API_KEY",
+    "model_env": "ROUTER_MODEL",
     "timeout_ms": 500
   },
   "fallback": {
