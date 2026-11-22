@@ -47,6 +47,8 @@ Map<String, Object> tfVars(Deployment d) {
   final budget = d.current.budget;
   return {
     'level': d.currentLevel,
+    if (d.current.provider == 'firebase') 'firebase_plan': d.current.plan,
+    'region': d.identity.region,
     'github_repository': d.identity.githubRepository,
     if (fb != null) ...{
       'project_id': fb.projectId,

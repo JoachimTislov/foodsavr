@@ -34,7 +34,11 @@ agent-sessions:
 
 # Original targets
 push: deps preflight
-	@CHANGED=$$(git --no-pager diff --name-only @{upstream}..HEAD); \
+	@if git rev-parse --verify @{upstream} >/dev/null 2>&1; then \
+		CHANGED=$$(git --no-pager diff --name-only @{upstream}..HEAD); \
+	else \
+		CHANGED=$$(git --no-pager diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null || true); \
+	fi; \
 	DI_PATTERN='^lib/(services|interfaces|repositories|di)/|^lib/(service_locator|injection)\.dart$$'; \
 	if echo "$$CHANGED" | grep -qE "$$DI_PATTERN"; then \
 		echo "Upstream DI changes detected, running dependency injection..."; \

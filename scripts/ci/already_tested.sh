@@ -25,11 +25,52 @@ if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ]; then
   skip true "previous head $before green; nothing in scope changed"
 fi
 [ "${GITHUB_EVENT_NAME:-}" = "push" ] || skip false "not a push"
+wf="$1"; shift
 sha="${GITHUB_SHA:?}"
 
-same_sha_ok=$(gh run list --repo "$repo" --workflow "$1" --commit "$sha" --status success --json databaseId --jq length 2>/dev/null || echo 0)
-if [ "${same_sha_ok:-0}" -gt 0 ]; then
-  skip true "workflow $1 already succeeded on commit $sha"
+# Helper: verify at least one matching workflow run executed non-skipped work
+# (GitHub marks a workflow run conclusion=success even when every job was skipped).
+has_non_skipped_run() {
+  local commit_sha="$1"
+  local event_filter="${2:-}"
+  local args=(run list --repo "$repo" --workflow "$wf" --commit "$commit_sha" --status success --json databaseId --jq '.[].databaseId')
+  if [ -n "$event_filter" ]; then
+    args+=(--event "$event_filter")
+  fi
+  local run_ids
+  run_ids=$(gh "${args[@]}" 2>/dev/null || true)
+  local run_id
+  for run_id in $run_ids; do
+    local executed
+    executed=$(gh api "repos/$repo/actions/runs/$run_id/jobs" \
+      --jq '[.jobs[] | select(.conclusion == "success" and (.name | test("already|detect|skip|preflight"; "i") | not))] | length' 2>/dev/null || echo 0)
+    if [ "${executed:-0}" -gt 0 ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+if has_non_skipped_run "$sha"; then
+  skip true "workflow $wf already succeeded with executed jobs on commit $sha"
+fi
+
+# Guard against multi-PR fast-forward batches: if multiple commits were pushed
+# and scope pathspecs are given, only allow PR-head tree reuse when the push
+# contains a single commit or when the exact tree of HEAD was tested.
+if [ -n "${GITHUB_EVENT_PATH:-}" ] && [ -f "${GITHUB_EVENT_PATH}" ]; then
+  before=$(jq -r '.before // empty' "$GITHUB_EVENT_PATH" 2>/dev/null || true)
+  commit_count=$(jq -r '(.commits // []) | length' "$GITHUB_EVENT_PATH" 2>/dev/null || echo 0)
+  if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] && [ "${commit_count:-0}" -gt 1 ] && [ "$#" -gt 0 ]; then
+    if git fetch --no-tags --depth=1 origin "$before" "$sha" 2>/dev/null; then
+      touched=$(git diff --name-only "$before" "$sha" -- "$@" 2>/dev/null || echo "diff-failed")
+      if [ -n "$touched" ]; then
+        skip false "multi-commit push ($commit_count commits) touched in-scope paths"
+      fi
+    else
+      skip false "multi-commit push ($commit_count commits) and cannot inspect before..sha diff"
+    fi
+  fi
 fi
 
 pr=$(gh api "repos/$repo/commits/$sha/pulls" --jq '[.[]|select(.merged_at!=null)][0].number // empty') || skip false "PR lookup failed"
@@ -39,6 +80,7 @@ head=$(gh api "repos/$repo/pulls/$pr" --jq .head.sha)
 git fetch --no-tags --depth=1 origin "$head" 2>/dev/null || skip false "cannot fetch PR head"
 [ "$(git rev-parse "$sha^{tree}")" = "$(git rev-parse "$head^{tree}")" ] || skip false "tree differs from PR head (not up to date)"
 
-ok=$(gh run list --repo "$repo" --workflow "$1" --commit "$head" --event pull_request --status success --json databaseId --jq length)
-[ "${ok:-0}" -gt 0 ] || skip false "no successful PR run of $1 on $head"
-skip true "tree identical to PR #$pr head $head, green $1"
+if ! has_non_skipped_run "$head" pull_request; then
+  skip false "no successful non-skipped PR run of $wf on $head"
+fi
+skip true "tree identical to PR #$pr head $head, green $wf"

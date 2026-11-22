@@ -3,6 +3,12 @@ variable "project_id" {
   type        = string
 }
 
+variable "region" {
+  description = "Default GCP/Firebase region from deploy/instance.yaml."
+  type        = string
+  default     = "europe-north1"
+}
+
 variable "github_repository" {
   description = "owner/repo allowed to deploy (Workload Identity condition)."
   type        = string

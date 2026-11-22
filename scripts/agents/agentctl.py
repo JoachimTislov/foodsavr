@@ -35,6 +35,7 @@ import traceability as tr  # noqa: E402
 import trace_facts as tf  # noqa: E402
 import session_archive as sa  # noqa: E402
 import system_status as ss  # noqa: E402
+import harness_usage as hu  # noqa: E402
 
 
 def configured_path(environment: str, default: Path) -> Path:
@@ -2213,6 +2214,31 @@ def status_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def usage_command(args: argparse.Namespace) -> int:
+    providers = args.provider or list(hu.SUPPORTED_PROVIDERS)
+    ref = hu.utc_now()
+    snapshots = hu.probe_all(providers, timeout=float(args.timeout), now=ref)
+    ranked, meta = hu.rank_providers_by_quota(list(dict.fromkeys(providers)), snapshots, threshold=float(args.threshold), now=ref)
+    if args.json:
+        payload = {
+            "fetched_at": hu.iso_utc(ref),
+            "threshold": float(args.threshold),
+            "ranked": ranked,
+            "skipped": meta["skipped"],
+            "has_live_quota": meta["has_live_quota"],
+            "all_exhausted": meta["all_exhausted"],
+            "providers": {name: snap.to_dict(ref, threshold=float(args.threshold)) for name, snap in snapshots.items()},
+        }
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(hu.render_usage_table(snapshots, now=ref, threshold=float(args.threshold)))
+        if ranked:
+            print(f"\nPreferred order: {', '.join(ranked)}")
+        elif meta["all_exhausted"]:
+            print("\nPreferred order: none (all probed providers exhausted)")
+    return 1 if meta["all_exhausted"] else 0
+
+
 def version_for(spec: dict[str, Any]) -> str | None:
     command = spec.get("command")
     if not command:
@@ -2247,6 +2273,21 @@ def workflow_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _preference_ordered_providers(profile: WorkProfile, safe: list[str], router: dict[str, Any]) -> list[str]:
+    work_routes = router.get("work_routes") or DEFAULT_WORK_ROUTES
+    route_cfg = work_routes.get(profile.work_type.value) or DEFAULT_WORK_ROUTES.get(profile.work_type.value, {})
+    ordered: list[str] = []
+    for pref in route_cfg.get("preferences", []):
+        if isinstance(pref, dict):
+            name = pref.get("provider")
+            if isinstance(name, str) and name in safe and name not in ordered:
+                ordered.append(name)
+    for name in safe:
+        if name not in ordered:
+            ordered.append(name)
+    return ordered
+
+
 def resolve_step_route(
     workflow: dict[str, Any],
     step: dict[str, Any],
@@ -2256,6 +2297,7 @@ def resolve_step_route(
     policy: dict[str, Any] | None = None,
     explicit_provider: str | None = None,
     explicit_model: str | None = None,
+    quota_snapshots: dict[str, hu.HarnessUsageSnapshot] | None = None,
 ) -> tuple[RouteDecision | None, WorkProfile, str]:
     """Resolve provider + model decision for one step using work-profile inference and policy-safe constraints."""
     profile = infer_work_profile(workflow, step, router)
@@ -2275,6 +2317,32 @@ def resolve_step_route(
         )
         return decision, profile, "explicit-provider"
 
+    candidate_pool = list(safe)
+    if quota_snapshots is not None and candidate_pool:
+        pref_ordered = _preference_ordered_providers(profile, candidate_pool, router)
+        eligible, qmeta = hu.rank_providers_by_quota(pref_ordered, quota_snapshots)
+        if qmeta["all_exhausted"]:
+            return None, profile, "all-providers-quota-exhausted"
+        if qmeta["has_live_quota"] and eligible:
+            chosen = eligible[0]
+            requested_model = explicit_model or (step.get("model") if isinstance(step.get("model"), str) else None)
+            chosen_model = _best_model_for_provider(specs.get(chosen, {}), profile, requested_model) or "default"
+            rem = qmeta["headroom"].get(chosen)
+            rem_label = f"{rem:.0f}pct" if isinstance(rem, (int, float)) else "unmetered"
+            skipped_note = f"; skipped exhausted={sorted(qmeta['skipped'])}" if qmeta["skipped"] else ""
+            decision = RouteDecision(
+                provider=chosen,
+                model=chosen_model,
+                work_type=profile.work_type,
+                tier=profile.tier,
+                reasoning_effort=profile.reasoning_effort,
+                confidence=profile.confidence,
+                rationale=f"Selected {chosen}/{chosen_model} by highest live quota headroom ({rem_label}){skipped_note}.",
+                source="quota-headroom",
+            )
+            return decision, profile, f"quota-headroom:{chosen}:{rem_label}"
+        candidate_pool = eligible
+
     dp = router.get("decision_provider", {}) if isinstance(router.get("decision_provider"), dict) else {}
     fb = router.get("fallback", {}) if isinstance(router.get("fallback"), dict) else {}
     strategy = str(fb.get("strategy", "hybrid-deterministic-jev"))
@@ -2286,7 +2354,7 @@ def resolve_step_route(
     )
     if should_consult_remote:
         remote_decision, remote_reason = external_route_decision(
-            workflow, step, safe, router, policy, specs=specs, explicit_model=explicit_model,
+            workflow, step, candidate_pool, router, policy, specs=specs, explicit_model=explicit_model,
         )
         if remote_decision is not None:
             return remote_decision, profile, remote_reason
@@ -2294,7 +2362,7 @@ def resolve_step_route(
         remote_reason = "hybrid-deterministic" if enabled else "deterministic-fallback"
 
     provider_name, model_name, rationale, source = select_local_model_route(
-        profile, safe, specs, router, step, explicit_model=explicit_model,
+        profile, candidate_pool, specs, router, step, explicit_model=explicit_model,
     )
     if provider_name is None:
         return None, profile, "no-available-policy-safe-provider"
@@ -3560,6 +3628,15 @@ def workflow_run(args: argparse.Namespace) -> int:
     }
     if explicit_model:
         result["model"] = explicit_model
+    quota_aware = bool(getattr(args, "quota_aware", False)) or os.environ.get("AGENT_QUOTA_ROUTING", "").strip() == "1"
+    quota_snapshots: dict[str, hu.HarnessUsageSnapshot] | None = None
+    if quota_aware and provider is None:
+        step_providers = [
+            p for s in workflow["steps"] for p in (s.get("providers") or list(specs))
+            if p in hu.SUPPORTED_PROVIDERS
+        ]
+        if step_providers:
+            quota_snapshots = hu.probe_all(list(dict.fromkeys(step_providers)))
     if not args.execute:
         planned_steps = []
         for step in workflow["steps"]:
@@ -3571,6 +3648,7 @@ def workflow_run(args: argparse.Namespace) -> int:
                 workflow, step, safe, specs, router, policy,
                 explicit_provider=step_explicit_provider,
                 explicit_model=explicit_model,
+                quota_snapshots=quota_snapshots,
             )
             selected_model = (
                 decision.model
@@ -3688,7 +3766,8 @@ def workflow_run(args: argparse.Namespace) -> int:
             selected_candidates = available_providers(candidates, specs)
             policy_safe = [name for name in selected_candidates if provider_is_safe(name, workflow, specs)]
             decision, profile, route_reason = resolve_step_route(
-                workflow, step, policy_safe, specs, router, policy, explicit_model=explicit_model,
+                workflow, step, policy_safe, specs, router, policy,
+                explicit_model=explicit_model, quota_snapshots=quota_snapshots,
             )
             selected = decision.provider if decision else None
         else:
@@ -4083,6 +4162,11 @@ def build_parser() -> argparse.ArgumentParser:
     status_parser.add_argument("--offline", action="store_true", help="skip remote GitHub/GCS probes (safe for CI)")
     status_parser.add_argument("--strict", action="store_true", help="exit 1 if any evaluated component is not Ready")
     status_parser.add_argument("--manifest", default=str(SYSTEM), help="path to AgentSystem manifest")
+    usage_parser = commands.add_parser("usage", help="probe direct harness quota limits (Claude, Codex, Antigravity) and rank by headroom")
+    usage_parser.add_argument("--provider", action="append", default=[], choices=list(hu.SUPPORTED_PROVIDERS))
+    usage_parser.add_argument("--threshold", type=float, default=hu.DEFAULT_EXHAUSTION_THRESHOLD, help="used-percent threshold treated as exhausted")
+    usage_parser.add_argument("--timeout", type=float, default=hu.DEFAULT_TIMEOUT_SECONDS, help="per-harness probe timeout in seconds")
+    usage_parser.add_argument("--json", action="store_true")
     commands.add_parser("maintain")
     commands.add_parser("heal")
     workflow = commands.add_parser("workflow")
@@ -4096,6 +4180,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--provider", default="auto")
     run.add_argument("--model", help="override selected provider model ID")
     run.add_argument("--execute", action="store_true")
+    run.add_argument("--quota-aware", action="store_true", help="probe live harness quota limits and pick highest remaining headroom")
     run.add_argument("--capture-raw", action="store_true", help="persist redacted raw provider output; disabled by default policy")
     cancel = workflow_commands.add_parser("cancel")
     cancel.add_argument("run_id")
@@ -4246,6 +4331,8 @@ def main(argv: list[str] | None = None) -> int:
         return doctor(args)
     if args.command == "status":
         return status_command(args)
+    if args.command == "usage":
+        return usage_command(args)
     if args.command == "maintain":
         return maintain(args)
     if args.command == "heal":

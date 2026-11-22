@@ -34,17 +34,22 @@ void main() {
       expect(out, isNot(contains('PROJECT_ID')));
     });
 
-    test('tfvars include level and the budget of paid levels', () {
-      final m = baseManifest();
-      m['environments']['production']['currentLevel'] = 'blaze';
-      final out = renderEnv(
-        Deployment.of(load(m), 'production'),
-        EnvFormat.tfvars,
-      );
-      expect(out, contains('level = "blaze"\n'));
-      expect(out, contains('project_id = "p-prod"\n'));
-      expect(out, contains('monthly_budget_usd = 10\n'));
-    });
+    test(
+      'tfvars include level, firebase_plan, region, and the budget of paid levels',
+      () {
+        final m = baseManifest();
+        m['environments']['production']['currentLevel'] = 'blaze';
+        final out = renderEnv(
+          Deployment.of(load(m), 'production'),
+          EnvFormat.tfvars,
+        );
+        expect(out, contains('level = "blaze"\n'));
+        expect(out, contains('firebase_plan = "blaze"\n'));
+        expect(out, contains('region = "europe-north1"\n'));
+        expect(out, contains('project_id = "p-prod"\n'));
+        expect(out, contains('monthly_budget_usd = 10\n'));
+      },
+    );
 
     test('unknown environment is an argument error', () {
       expect(

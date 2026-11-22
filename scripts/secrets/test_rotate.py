@@ -153,10 +153,36 @@ class PushTest(unittest.TestCase):
                 with self.subTest(value=value), self.assertRaises(rotate.PushError):
                     rotate.push(rotate.Secret("KEY", sinks=["env"]), value, env_path=Path(tmp, ".env"))
 
-    def test_github_sink_sends_value_on_stdin(self):
+    def test_github_sink_sends_value_on_stdin_and_passes_repo(self):
         run = MagicMock()
         rotate.push(rotate.Secret("KEY"), "v", env_path=Path("/nonexistent"), run=run)
         run.assert_called_once_with(["gh", "secret", "set", "KEY"], input="v", text=True, check=True)
+        run.reset_mock()
+        rotate.push(rotate.Secret("KEY"), "v", env_path=Path("/nonexistent"), repo="alice/foodsavr", run=run)
+        run.assert_called_once_with(["gh", "secret", "set", "KEY", "--repo", "alice/foodsavr"], input="v", text=True, check=True)
+
+    def test_sync_file_encodes_base64_without_shell(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            target = home / "secret.txt"
+            target.write_bytes(b"hello\nworld")
+            secret = rotate.Secret("S", generate="sync", sync_file="~/secret.txt", encode="base64")
+            self.assertEqual(rotate.generate(secret, env={"HOME": str(home)}), "aGVsbG8Kd29ybGQ=")
+
+    def test_github_mutation_guard_blocks_agent_env_and_cross_repo_without_tty(self):
+        err_agent = rotate.check_github_mutation_guard(
+            "alice/foodsavr", env={"AGENT_SESSION_ID": "test:1"}, interactive=False, origin_slug="alice/foodsavr",
+        )
+        self.assertIsNotNone(err_agent)
+        err_cross = rotate.check_github_mutation_guard(
+            "upstream/foodsavr", env={}, interactive=False, origin_slug="alice/foodsavr",
+        )
+        self.assertIsNotNone(err_cross)
+        self.assertIsNone(
+            rotate.check_github_mutation_guard(
+                "upstream/foodsavr", env={}, interactive=False, origin_slug="alice/foodsavr", yes=True,
+            )
+        )
 
     def test_partial_failure_reports_updated_sinks(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -172,13 +198,14 @@ class MainTest(unittest.TestCase):
     def test_sync_is_reported_as_dry_run_sync(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, "r.toml")
-            path.write_text('[secrets.S]\ngenerate = "sync"\ncommand = "echo x"\neffort = "low"\n')
+            path.write_text('[secrets.S]\ngenerate = "sync"\nsync_file = "README.md"\nencode = "base64"\neffort = "low"\n')
             out = subprocess.run(
                 [sys.executable, str(Path(__file__).with_name("rotate.py")), "--registry", str(path),
-                 "--low-effort", "--dry-run"],
+                 "--repo", "alice/foodsavr", "--low-effort", "--dry-run"],
                 capture_output=True, text=True, check=True,
             ).stdout
             self.assertIn("would sync S", out)
+            self.assertIn("[alice/foodsavr]", out)
 
     def test_only_sink_filters_registered_sinks_and_rejects_unconfigured_sink(self):
         with tempfile.TemporaryDirectory() as tmp:

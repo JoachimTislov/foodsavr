@@ -212,11 +212,11 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(res_stale.actions, [])
         self.assertIn("stale review (attested for aaaaaaa, head is bbbbbbb)", res_stale.report[0][2])
 
-        # Insufficient tier (fast attested, deep required for workflow change) blocks merge
+        # Insufficient tier (fast attested, deep required for ADR/architecture change) blocks merge
         under_tiered = pr(
             42,
             head="ccccccc",
-            files=[".github/workflows/ci.yml"],
+            files=["specs/source-of-truth/decisions/0009-example.md"],
             reviews=[
                 {
                     "state": "COMMENTED",
@@ -236,7 +236,7 @@ class PlanTest(unittest.TestCase):
         deep_ok = pr(
             43,
             head="ddddddd",
-            files=[".github/workflows/ci.yml"],
+            files=["specs/source-of-truth/decisions/0009-example.md"],
             reviews=[
                 {
                     "state": "COMMENTED",
@@ -399,12 +399,17 @@ class ParseTest(unittest.TestCase):
             "PENDING",
         )
 
-    def test_queue_check_state_ignores_skipped_runs(self):
+    def test_queue_check_state_ignores_skipped_runs_and_untrusted_apps(self):
         self.assertEqual(gate.queue_check_state([
             {"__typename": "CheckRun", "name": gate.QUEUE_CHECK, "status": "COMPLETED", "conclusion": "SKIPPED"},
         ]), (False, False))
         self.assertEqual(gate.queue_check_state([
-            {"__typename": "CheckRun", "name": gate.QUEUE_CHECK, "status": "COMPLETED", "conclusion": "SUCCESS"},
+            {"__typename": "CheckRun", "name": gate.QUEUE_CHECK, "status": "COMPLETED", "conclusion": "SUCCESS",
+             "checkSuite": {"app": {"slug": "evil-app"}}},
+        ]), (False, False))
+        self.assertEqual(gate.queue_check_state([
+            {"__typename": "CheckRun", "name": gate.QUEUE_CHECK, "status": "COMPLETED", "conclusion": "SUCCESS",
+             "checkSuite": {"app": {"slug": "github-actions"}}},
         ]), (True, False))
 
     def test_trusted_bot_set_normalizes_suffix(self):
@@ -412,6 +417,14 @@ class ParseTest(unittest.TestCase):
         self.assertIn("my-agent", bots)
         self.assertIn("dependabot", bots)
         self.assertIn("github-actions", bots)
+
+    def test_security_label_and_sensitive_paths_block_auto_merge(self):
+        self.assertEqual(actions([
+            pr(1, labels=(gate.LABEL, "risk/security")),
+            pr(2, files=["infra/terraform/main.tf"]),
+            pr(3, files=[".github/workflows/ci-checks.yml"]),
+            pr(4, files=[".agents/policies/default.json"]),
+        ]), [])
 
     def test_from_node(self):
         node = {

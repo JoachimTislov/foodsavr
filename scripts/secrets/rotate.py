@@ -42,6 +42,7 @@ Values are never printed or written anywhere except the configured sinks.
 from __future__ import annotations
 
 import argparse
+import base64
 import dataclasses
 import getpass
 import os
@@ -58,11 +59,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 REGISTRY = Path(__file__).with_name("registry.toml")
 NAME_PATTERN = re.compile(r"[A-Z_][A-Z0-9_]*")
+REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+AGENT_ENV_VARS = ("AGENT_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "T3CODE_THREAD_ID", "ANTIGRAVITY_AGENT")
 ALPHABETS = {
     "hex": string.hexdigits[:16],
     "alnum": string.ascii_letters + string.digits,
 }
 GENERATORS = {"random", "command", "sync", "manual"}
+ENCODINGS = {"raw", "base64"}
 SINKS = {"github", "env", "command"}
 
 
@@ -76,6 +80,8 @@ class Secret:
     length: int = 32
     alphabet: str = "urlsafe"
     command: str | None = None
+    sync_file: str | None = None
+    encode: str = "raw"
     sink_command: str | None = None
     hint: str | None = None
     groups: list[str] = field(default_factory=list)
@@ -90,8 +96,12 @@ class Secret:
         unknown = set(self.sinks) - SINKS
         if unknown:
             raise ValueError(f"{self.name}: unknown sinks {sorted(unknown)}")
-        if self.generate in {"command", "sync"} and not self.command:
-            raise ValueError(f"{self.name}: generate={self.generate} needs `command`")
+        if self.generate == "command" and not self.command:
+            raise ValueError(f"{self.name}: generate=command needs `command`")
+        if self.generate == "sync" and not (self.sync_file or self.command):
+            raise ValueError(f"{self.name}: generate=sync needs `sync_file` or `command`")
+        if self.encode not in ENCODINGS:
+            raise ValueError(f"{self.name}: unknown encode {self.encode!r}")
         if "command" in self.sinks and not self.sink_command:
             raise ValueError(f"{self.name}: sink command needs `sink_command`")
         if self.alphabet not in {"urlsafe", *ALPHABETS}:
@@ -106,6 +116,8 @@ FIELD_TYPES = {
     "length": int,
     "alphabet": str,
     "command": str,
+    "sync_file": str,
+    "encode": str,
     "sink_command": str,
     "hint": str,
     "groups": list,
@@ -139,15 +151,32 @@ def load_registry(path: Path = REGISTRY) -> dict[str, Secret]:
     return {name: parse_entry(name, entry) for name, entry in data.get("secrets", {}).items()}
 
 
-def generate(secret: Secret, *, env=os.environ, prompt=getpass.getpass, interactive=None) -> str:
+def _resolve_sync_path(raw: str, *, env=os.environ, root: Path = ROOT) -> Path:
+    home = env.get("HOME") or str(Path.home())
+    if raw.startswith("~/"):
+        return Path(home) / raw[2:]
+    if raw.startswith("$HOME/"):
+        return Path(home) / raw[6:]
+    path = Path(raw)
+    return path if path.is_absolute() else (root / path)
+
+
+def generate(secret: Secret, *, env=os.environ, prompt=getpass.getpass, interactive=None, root: Path = ROOT) -> str:
     if secret.generate == "random":
         if secret.alphabet == "urlsafe":
             return secrets.token_urlsafe(secret.length)[: secret.length]
         alphabet = ALPHABETS[secret.alphabet]
         return "".join(secrets.choice(alphabet) for _ in range(secret.length))
-    if secret.generate in {"command", "sync"}:
+    if secret.generate == "sync" and secret.sync_file:
+        source = _resolve_sync_path(secret.sync_file, env=env, root=root)
+        raw_bytes = source.read_bytes()
+        if secret.encode == "base64":
+            value = base64.b64encode(raw_bytes).decode("ascii")
+        else:
+            value = raw_bytes.decode("utf-8").strip()
+    elif secret.generate in {"command", "sync"}:
         result = subprocess.run(
-            secret.command, shell=True, cwd=ROOT, check=True, capture_output=True, text=True
+            secret.command, shell=True, cwd=root, check=True, capture_output=True, text=True
         )
         value = result.stdout.strip()
     else:
@@ -195,12 +224,51 @@ class PushError(Exception):
         super().__init__(f"sink {sink} failed ({error}){live}; old value still live there and in later sinks")
 
 
-def push(secret: Secret, value: str, *, env_path: Path, run=subprocess.run) -> None:
+def origin_repo_slug(cwd: Path = ROOT) -> str | None:
+    try:
+        out = subprocess.run(
+            ["git", "remote", "get-url", "origin"], cwd=cwd, capture_output=True, text=True, check=False, timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if out.returncode != 0:
+        return None
+    url = out.stdout.strip()
+    match = re.search(r"github\.com[:/]([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?$", url)
+    return match.group(1) if match else None
+
+
+def check_github_mutation_guard(
+    repo: str | None,
+    *,
+    env=os.environ,
+    interactive: bool | None = None,
+    origin_slug: str | None = None,
+    yes: bool = False,
+) -> str | None:
+    """Return an error string if a GitHub secret write should be blocked, else None."""
+    if interactive is None:
+        interactive = sys.stdin.isatty()
+    if any(env.get(var) for var in AGENT_ENV_VARS) and not interactive:
+        return "refusing unattended GitHub secret write from an agent harness environment; run interactively as a human"
+    if repo and origin_slug and repo.casefold() != origin_slug.casefold() and not yes:
+        if not interactive:
+            return f"target --repo {repo!r} differs from origin {origin_slug!r}; re-run interactively or pass --yes"
+        reply = input(f"Target repo {repo} differs from origin {origin_slug}. Continue? [y/N] ").strip()
+        if not reply.lower().startswith("y"):
+            return f"aborted cross-repo secret write to {repo}"
+    return None
+
+
+def push(secret: Secret, value: str, *, env_path: Path, repo: str | None = None, run=subprocess.run) -> None:
     done: list[str] = []
     for sink in secret.sinks:
         try:
             if sink == "github":
-                run(["gh", "secret", "set", secret.name], input=value, text=True, check=True)
+                cmd = ["gh", "secret", "set", secret.name]
+                if repo:
+                    cmd.extend(["--repo", repo])
+                run(cmd, input=value, text=True, check=True)
             elif sink == "env":
                 write_env(secret.name, value, env_path)
             elif sink == "command":
@@ -270,11 +338,16 @@ def main(argv: list[str] | None = None) -> int:
                         help="sinks for unregistered names (repeatable; required for them)")
     parser.add_argument("--only-sink", action="append", default=[], choices=sorted(SINKS - {"command"}),
                         help="restrict selected secrets to a subset of their configured sinks (repeatable)")
+    parser.add_argument("--repo", default=None, help="explicit GitHub owner/repo target for gh secret set")
+    parser.add_argument("--yes", action="store_true", help="skip cross-repo confirmation prompt")
     parser.add_argument("--registry", type=Path, default=REGISTRY)
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
     parser.add_argument("--dry-run", action="store_true", help="show what would rotate")
     parser.add_argument("--list", action="store_true", help="list registry entries")
     args = parser.parse_args(argv)
+
+    if args.repo and not REPO_PATTERN.fullmatch(args.repo):
+        parser.error(f"invalid --repo {args.repo!r}: expected owner/repo")
 
     try:
         registry = load_registry(args.registry)
@@ -299,6 +372,16 @@ def main(argv: list[str] | None = None) -> int:
             filtered.append(dataclasses.replace(secret, sinks=kept))
         selected = filtered
 
+    if not args.dry_run and any("github" in s.sinks for s in selected):
+        guard_error = check_github_mutation_guard(
+            args.repo,
+            origin_slug=origin_repo_slug(),
+            yes=args.yes,
+        )
+        if guard_error:
+            print(f"error: {guard_error}", file=sys.stderr)
+            return 2
+
     manual = [s.name for s in selected if s.effort == "high"]
     if manual and not args.dry_run:
         print(f"High-effort renewals (manual provider steps): {', '.join(manual)}", file=sys.stderr)
@@ -308,10 +391,11 @@ def main(argv: list[str] | None = None) -> int:
         label = f"{secret.name} ({secret.generate} -> {', '.join(secret.sinks)})"
         verb = "sync" if secret.generate == "sync" else "rotate"
         if args.dry_run:
-            print(f"would {verb} {label}")
+            target = f" [{args.repo}]" if args.repo and "github" in secret.sinks else ""
+            print(f"would {verb} {label}{target}")
             continue
         try:
-            push(secret, generate(secret), env_path=args.env_file)
+            push(secret, generate(secret), env_path=args.env_file, repo=args.repo)
             if secret.generate == "sync":
                 print(f"synced {label}; not rotated: change its source to rotate it")
             else:
