@@ -2,11 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "foodsavr://feature-registry",
   "title": "FeatureRegistry",
-  "description": "Spec-ahead (ADR 0008). Catalog of feature modules, plans and limits, bundled in the app so resolution works offline. Instance: registries/feature-modules.yaml. Resolution, in order: the build supports the module, Remote Config has not switched it off, the plan grants its entitlement (or an active trial, or a Plus pick), and the user has not hidden it; a module with a disabled dependency is disabled. No code anchor yet; moves to schemas/ once implemented.",
+  "description": "Spec-ahead. Catalog of feature modules, plans and limits, bundled in the app so resolution works offline; the resolution order is defined in ADR 0008. Instance: registries/feature-modules.yaml. No code anchor yet; moves to schemas/ once implemented.",
   "type": "object",
-  "required": ["version", "modules", "plans"],
+  "required": ["version", "trialDays", "modules", "plans"],
   "properties": {
     "version": { "type": "integer", "minimum": 1 },
+    "trialDays": { "type": "integer", "minimum": 1, "description": "Length of the one-time, no-card, user-started trial of each trialable module" },
     "modules": {
       "type": "array",
       "minItems": 1,
@@ -45,12 +46,12 @@
         },
         "entitlement": { "$ref": "#/$defs/entitlementKey" },
         "userHideable": { "type": "boolean", "description": "The user may hide the module in settings" },
-        "trialable": { "type": "boolean", "description": "One 14-day trial per user, no card, user-started" },
-        "killSwitchable": { "type": "boolean", "default": true, "description": "Remote Config may switch the module off. false only for data portability (export and delete are never switched off); such a module has no remoteConfigKey" },
+        "trialable": { "type": "boolean", "description": "One trial per user of trialDays length" },
+        "killSwitchable": { "type": "boolean", "default": true, "description": "Remote Config may switch the module off. false for modules that give users access to their own data (inventory viewing, export and delete), which are never switched off; such a module has no remoteConfigKey" },
         "remoteConfigKey": {
           "type": "string",
           "pattern": "^module_[a-z0-9_]+$",
-          "description": "Remote Config boolean parameter: kill switch and rollout gate; the bundled default is true. Required unless killSwitchable is false"
+          "description": "Remote Config boolean parameter: kill switch and rollout gate. Bundled default: true for standard modules; for automation and cloud modules false in production until the pre-paid-launch sign-off is recorded (ADR 0009), true in other environments. Required unless killSwitchable is false"
         },
         "status": { "type": "string", "enum": ["built", "spec-ahead"] },
         "issues": { "type": "array", "items": { "type": "string", "pattern": "^#[0-9]+$" } }
@@ -74,7 +75,7 @@
     },
     "plan": {
       "type": "object",
-      "required": ["id", "revenueCatEntitlement", "entitlements", "automationPicks", "limits", "household"],
+      "required": ["id", "revenueCatEntitlement", "entitlements", "automationPicks", "limits", "sharing", "household"],
       "allOf": [
         {
           "if": { "properties": { "automationPicks": { "exclusiveMinimum": 0 } }, "required": ["automationPicks"] },
@@ -101,24 +102,31 @@
         "pickSwapCadence": {
           "type": "string",
           "const": "monthly",
-          "description": "How often picks may be swapped: at most one swap per calendar month, whatever the billing period. Required when automationPicks is above 0"
+          "description": "How often picks may be swapped: at most one swap per month, whatever the billing period (calendar month vs rolling 30 days is an open question in ADR 0008). Required when automationPicks is above 0"
         },
         "limits": {
           "type": "object",
           "required": ["inventories", "itemsPerInventory"],
           "properties": {
             "inventories": { "type": ["integer", "null"], "minimum": 1, "description": "Active (writable) inventories; null = unlimited. Paid plans are unlimited; a hidden fair-use limit against abuse is not modeled here (ADR 0008)" },
-            "itemsPerInventory": { "type": ["integer", "null"], "minimum": 1, "description": "null = unlimited" },
-            "cloudAllowance": { "type": ["integer", "null"], "default": null, "description": "Monthly cloud allowance; size postponed (ADR 0008)" }
+            "itemsPerInventory": { "type": ["integer", "null"], "minimum": 1, "description": "null = unlimited" }
+          },
+          "additionalProperties": false
+        },
+        "sharing": {
+          "type": "object",
+          "description": "Sharing with people outside the user's household",
+          "required": ["inventories", "partners"],
+          "properties": {
+            "inventories": { "type": ["integer", "null"], "minimum": 0, "description": "Inventories the user may share; null = not limited" },
+            "partners": { "type": ["integer", "null"], "minimum": 0, "description": "People a shared inventory may be shared with; null = not limited" }
           },
           "additionalProperties": false
         },
         "household": {
           "type": "object",
-          "required": ["sharedInventories", "sharePartners", "maxMembers", "minorsAllowed"],
+          "required": ["maxMembers", "minorsAllowed"],
           "properties": {
-            "sharedInventories": { "type": ["integer", "null"], "minimum": 0, "description": "Inventories the user may share outside a household; null = not limited" },
-            "sharePartners": { "type": ["integer", "null"], "minimum": 0, "description": "People a shared inventory may be shared with outside a household; null = not limited" },
             "maxMembers": { "type": "integer", "minimum": 1, "description": "Household members including the subscriber; 1 = no household" },
             "minorsAllowed": { "type": "boolean", "description": "An adult may invite members aged 13 to 17" }
           },

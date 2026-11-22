@@ -47,12 +47,7 @@ a ratio above 1 means paying. Budgets alert; they do not cap spend.
 
 ## Legal documents per environment (spec-ahead)
 
-Each environment ships its own legal document set, decided in [ADR 0009](decisions/0009-legal-documents-per-environment.md); the manifest shape is [contracts/legal-documents.schema.json](contracts/legal-documents.schema.json).
-
-- `development`, `test` and `staging` get tester terms. These environments may hold real data with no persistence guarantee, so privacy obligations still apply.
-- `production` gets the full privacy policy, terms of service and subscription terms, in `nb` and `en`.
-- The environment's Firebase Hosting landing page serves the same version the app bundles (#371).
-- Production goes live with paid plans only after the pre-paid-launch legal review; paid-plan prototyping stays in `test` until then.
+Each environment ships its own legal document set (tester terms outside production, full documents in production), decided in [ADR 0009](decisions/0009-legal-documents-per-environment.md); the manifest shape is [contracts/legal-documents.schema.json](contracts/legal-documents.schema.json). The environment's Firebase Hosting landing page serves the same version the app bundles (#371).
 
 Today the app bundles one English document pair for every environment (`assets/legal/`, `lib/constants/legal_docs.dart`), and only `development` and `production` flavors exist.
 

@@ -6,8 +6,12 @@
 # Prices are store and RevenueCat configuration, not app data (ADR 0008).
 # Paid plans are unlimited (limit null); a hidden fair-use limit against abuse is
 # not part of this catalog (ADR 0008). Picks swap monthly (pickSwapCadence).
+# Viewing your own data (inventory) and export/delete (dataPortability) are
+# never kill-switchable. Outside-household sharing on Pro and Family uses the
+# free values until the owner decides otherwise (ADR 0008 open questions).
 
 version: 1
+trialDays: 14
 
 modules:
   # Free for everyone (standard).
@@ -18,7 +22,7 @@ modules:
     entitlement: standard
     userHideable: false
     trialable: false
-    remoteConfigKey: module_inventory
+    killSwitchable: false
     status: built
   - id: barcodeScan
     description: Barcode scanning with Open Food Facts enrichment
@@ -189,9 +193,10 @@ plans:
     limits:
       inventories: 3
       itemsPerInventory: 200
+    sharing:
+      inventories: 1
+      partners: 1
     household:
-      sharedInventories: 1
-      sharePartners: 1
       maxMembers: 1
       minorsAllowed: false
   - id: plus
@@ -202,9 +207,10 @@ plans:
     limits:
       inventories: null
       itemsPerInventory: null
+    sharing:
+      inventories: 1
+      partners: 1
     household:
-      sharedInventories: 1
-      sharePartners: 1
       maxMembers: 1
       minorsAllowed: false
   - id: pro
@@ -214,10 +220,10 @@ plans:
     limits:
       inventories: null
       itemsPerInventory: null
-      cloudAllowance: null
+    sharing:
+      inventories: 1
+      partners: 1
     household:
-      sharedInventories: null
-      sharePartners: null
       maxMembers: 2
       minorsAllowed: false
   - id: family
@@ -227,9 +233,9 @@ plans:
     limits:
       inventories: null
       itemsPerInventory: null
-      cloudAllowance: null
+    sharing:
+      inventories: 1
+      partners: 1
     household:
-      sharedInventories: null
-      sharePartners: null
       maxMembers: 6
       minorsAllowed: true
