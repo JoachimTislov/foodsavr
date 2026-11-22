@@ -41,7 +41,7 @@ dependencies:
   watch_it: ^2.5.0 # MIT
   intl: ^0.20.2 # BSD-3-Clause
   google_sign_in: ^7.2.0 # BSD-3-Clause
-  flutter_facebook_auth: ^7.1.5 # MIT
+  flutter_facebook_auth: ^7.3.3 # MIT
   go_router: ^18.1.4 # BSD-3-Clause
   injectable: ^3.0.0 # MIT
   vector_graphics: ^1.3.1 # BSD-3-Clause
