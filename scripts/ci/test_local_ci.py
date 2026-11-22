@@ -88,6 +88,37 @@ class LocalCiTest(unittest.TestCase):
                 self.assertFalse((ci.ROOT / rel).exists())
             self.assertEqual(analysis.read_text(), "original")
 
+    def test_dart_workspace_preserves_existing_ci_files(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(ci, "ROOT", Path(directory)):
+            (ci.ROOT / "lib").mkdir()
+            (ci.ROOT / "assets").mkdir()
+            options = ci.ROOT / "lib/firebase_options.dart"
+            dotenv = ci.ROOT / "assets/.env"
+            options.write_text("custom options")
+            dotenv.write_text("FOO=bar\n")
+            with ci.dart_workspace():
+                self.assertEqual(options.read_text(), "custom options")
+                self.assertEqual(dotenv.read_text(), "FOO=bar\n")
+            self.assertEqual(options.read_text(), "custom options")
+            self.assertEqual(dotenv.read_text(), "FOO=bar\n")
+
+    def test_flutter_bin_prints_selected_executable(self):
+        import io
+        from contextlib import redirect_stdout
+
+        def fake_dart_env(env):
+            env["PATH"] = "/pinned/flutter/bin:" + env.get("PATH", "")
+
+        stdout = io.StringIO()
+        with patch.object(ci, "dart_environment", side_effect=fake_dart_env), \
+                patch.object(ci.shutil, "which", return_value="/pinned/flutter/bin/flutter") as which, \
+                redirect_stdout(stdout):
+            code = ci.main(["--flutter-bin"])
+        self.assertEqual(code, 0)
+        self.assertEqual(stdout.getvalue().strip(), "/pinned/flutter/bin/flutter")
+        which.assert_called_once()
+        self.assertTrue(which.call_args.kwargs["path"].startswith("/pinned/flutter/bin:"))
+
     def test_pre_push_skips_branch_deletions(self):
         zero = "0" * 40
         self.assertTrue(ci.pushes_only_deletions(f"(delete) {zero} refs/heads/x abc\n"))

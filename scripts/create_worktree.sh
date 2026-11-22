@@ -107,6 +107,7 @@ echo "Fetching dependencies in new worktree..."
 FLUTTER_BIN=$(python3 "$SOURCE_DIR/scripts/ci/local_ci.py" --flutter-bin)
 cd "$TARGET_DIR" || exit 1
 "$FLUTTER_BIN" pub get
+git checkout -- analysis_options.yaml pubspec.lock 2>/dev/null || true
 
 echo "Worktree ready at $TARGET_DIR"
 
