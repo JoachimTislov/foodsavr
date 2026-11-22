@@ -245,3 +245,4 @@
 {"event": "queue: added queue-planner skill (.agents/skills/queue-planner), tracker queue operations, skills-guide on-ramp", "session_id": "claude-code:875823b5-8923-4fd7-b452-e735331a29c8", "timestamp": "2026-11-22T12:51:24+00:00"}
 {"event": "queue: batch 2 planned (L1 #319, L2 #331, L3 #334, L4 #335, L5 #326 part, L6 #349); edges #330<-#331, #354<-#330", "issues": ["#369"], "session_id": "claude-code:875823b5-8923-4fd7-b452-e735331a29c8", "timestamp": "2026-11-22T12:51:24+00:00"}
 {"commits": ["5b665ee88e6393fa7aab15337793d567b8208e28"], "event": "queue: committed queue-planner skill", "session_id": "claude-code:875823b5-8923-4fd7-b452-e735331a29c8", "timestamp": "2026-11-22T12:52:46+00:00"}
+{"event": "queue: opened PR #370 (queue-planner skill)", "prs": ["#370"], "session_id": "claude-code:875823b5-8923-4fd7-b452-e735331a29c8", "timestamp": "2026-11-22T12:54:26+00:00"}
