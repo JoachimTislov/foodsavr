@@ -1,7 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
-import '../constants/preferences_config.dart';
 import '../controllers/list_query.dart';
 import '../controllers/list_query_state.dart';
 import '../controllers/preferences_controller.dart';
@@ -43,6 +42,7 @@ class ProductListView extends StatefulWidget {
 class _ProductListViewState extends State<ProductListView> {
   late final ProductListController _controller;
   late final ListQueryState _query;
+  late final PreferencesController _preferences;
 
   @override
   void initState() {
@@ -53,6 +53,7 @@ class _ProductListViewState extends State<ProductListView> {
       authService: getIt(),
       showGlobalProducts: widget.showGlobalProducts,
     );
+    _preferences = getIt<PreferencesController>();
     _query = ListQueryState(
       widget.showGlobalProducts ? 'global' : 'products.${_controller.userId}',
       linkSort: widget.initialSort,
@@ -72,6 +73,8 @@ class _ProductListViewState extends State<ProductListView> {
       _query.restore(),
       _controller.load(forceRefresh: forceRefresh),
     ]);
+    if (!mounted) return;
+    _controller.setViewMode(_query.viewMode);
     if (_controller.inventoryLoadError != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -151,7 +154,7 @@ class _ProductListViewState extends State<ProductListView> {
         ],
       ),
       body: ListenableBuilder(
-        listenable: Listenable.merge([_controller, _query]),
+        listenable: Listenable.merge([_controller, _query, _preferences]),
         builder: (context, _) => _buildBody(context, theme, colorScheme, title),
       ),
     );
@@ -165,11 +168,9 @@ class _ProductListViewState extends State<ProductListView> {
   ) {
     final products = _controller.queryProducts(
       _query.query,
-      getIt.isRegistered<PreferencesController>()
-          ? getIt<PreferencesController>().expiringSoonDays
-          : PreferencesConfig.defaultExpiringSoonDays,
+      _preferences.expiringSoonDays,
     );
-    final viewMode = _query.viewMode;
+    final viewMode = _controller.viewMode;
     return CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
@@ -207,8 +208,10 @@ class _ProductListViewState extends State<ProductListView> {
                 ),
                 ViewModeToggle(
                   viewMode: viewMode,
-                  onModeChanged: (mode) =>
-                      _query.update(() => _query.viewMode = mode),
+                  onModeChanged: (mode) {
+                    _query.update(() => _query.viewMode = mode);
+                    _controller.setViewMode(mode);
+                  },
                 ),
               ],
             ),
@@ -253,7 +256,7 @@ class _ProductListViewState extends State<ProductListView> {
   }
 
   Widget _buildProductCard(Product product) {
-    switch (_query.viewMode) {
+    switch (_controller.viewMode) {
       case ProductViewMode.compact:
         return ProductCardCompact(
           product: product,
