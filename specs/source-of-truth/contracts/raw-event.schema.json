@@ -25,6 +25,7 @@
     {
       "if": { "properties": { "source": { "const": "userCommand" } }, "required": ["source"] },
       "then": {
+        "required": ["provider"],
         "properties": {
           "provider": { "type": "null" },
           "payload": { "$ref": "#/$defs/userCommandPayload" }
