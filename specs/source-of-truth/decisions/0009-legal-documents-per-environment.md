@@ -32,7 +32,7 @@ The manifest and acceptance shapes are [contracts/legal-documents.schema.json](.
 
 - The operator is the owner as a private person, under Norwegian law and the GDPR.
 - Documents exist in Norwegian Bokmål (`nb`) and English (`en`).
-- The published contact address (operator and data requests) is a new dedicated FoodSavr mailbox, not the owner's personal email. Until the owner provides it, manifests carry the placeholder `legal-contact@placeholder.invalid`, and the review gate fails while it remains.
+- The published contact address (operator and data requests) is a new dedicated FoodSavr mailbox, not the owner's personal email. Until the owner provides it, manifests carry the placeholder `legal-contact@placeholder.invalid`.
 
 ### Age
 
@@ -51,13 +51,14 @@ Production does not go live with paid plans until a legal review gate has passed
 5. Account deletion and export work in production (#354, #352).
 6. The store listing privacy URL and data-safety form match the documents.
 
-Production Remote Config keeps paid modules off until the sign-off is recorded. The sign-off also requires the production legal contact placeholder to be replaced by the dedicated mailbox, and the unverified research items on web sales (VAT before and after MVA registration, Play's rule against steering to web prices) to be re-checked.
+Production Remote Config keeps paid modules off until the sign-off is recorded (also accepted by the owner).
 
 ## Open questions
 
 Not decided by the owner; implementation tickets must not assume an answer.
 
 1. Whether anyone besides the owner reviews the gate checklist (the owner accepted the checklist items but named no other reviewer).
+2. Proposed, not yet accepted, as additional gate items: the production contact placeholder is replaced by the dedicated mailbox; the unverified research items on web sales (VAT before and after MVA registration, Play's rule against steering Android users to web prices) are re-checked.
 
 ## Consequences
 

@@ -24,11 +24,11 @@
     },
     "picks": {
       "type": "object",
-      "description": "Plus only: the chosen automation modules",
+      "description": "Plus only: the chosen automation modules; the count comes from the plan's automationPicks in the feature registry",
       "required": ["modules"],
       "properties": {
-        "modules": { "type": "array", "items": { "type": "string" }, "uniqueItems": true, "maxItems": 2 },
-        "lastSwapAt": { "type": ["string", "null"], "format": "date-time", "default": null, "description": "At most one swap per calendar month, whatever the billing period" }
+        "modules": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "lastSwapAt": { "type": ["string", "null"], "format": "date-time", "default": null, "description": "Enforces the plan's pickSwapCadence (feature registry)" }
       },
       "additionalProperties": false
     },
@@ -41,7 +41,7 @@
         "properties": {
           "module": { "type": "string", "description": "id of a trialable onDevice module" },
           "startedAt": { "type": "string", "format": "date-time" },
-          "endsAt": { "type": "string", "format": "date-time", "description": "startedAt plus 14 days" }
+          "endsAt": { "type": "string", "format": "date-time", "description": "startedAt plus the registry's trialDays" }
         },
         "additionalProperties": false
       }
@@ -81,7 +81,12 @@
   "allOf": [
     {
       "if": { "properties": { "plan": { "const": "free" } }, "required": ["plan"] },
-      "then": { "properties": { "source": { "properties": { "provider": { "const": "none" } } } } }
+      "then": { "properties": { "source": { "properties": { "provider": { "const": "none" } } } } },
+      "else": { "properties": { "source": { "properties": { "provider": { "not": { "const": "none" } } } } } }
+    },
+    {
+      "if": { "properties": { "plan": { "not": { "const": "plus" } } }, "required": ["plan"] },
+      "then": { "properties": { "picks": { "properties": { "modules": { "maxItems": 0 } } } } }
     }
   ],
   "additionalProperties": false

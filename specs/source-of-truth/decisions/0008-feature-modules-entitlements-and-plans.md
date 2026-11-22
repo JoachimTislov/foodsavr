@@ -20,7 +20,7 @@ Every user-facing capability is a **feature module**. A module declares:
 - an `entitlement`: the key the plan table grants;
 - `userHideable`: whether the user may hide it;
 - `trialable`: whether a one-time trial exists;
-- `killSwitchable`: whether Remote Config may switch it off (default true; false for data portability, which has no Remote Config key).
+- `killSwitchable`: whether Remote Config may switch it off (default true; false for modules that give users access to their own data, inventory viewing and data portability, which have no Remote Config key).
 
 A module can be disabled without touching any other module: callers ask the resolver, never a plan or a flag directly. The catalog shape is [contracts/feature-registry.schema.json](../contracts/feature-registry.schema.json); the catalog instance, plans and limits are [registries/feature-modules.yaml](../registries/feature-modules.yaml). The app bundles the catalog, so resolution works offline.
 
@@ -33,7 +33,7 @@ A module is enabled for a user when all of these hold, checked in this order:
 3. the user's plan includes it, or the user has an active trial of it (a Plus user may trial a module they have not picked), or it is one of the user's Plus picks;
 4. the user has not hidden it.
 
-A module whose dependency resolves to disabled is disabled. Export and delete (`dataPortability`) are never kill-switchable and never plan-gated. Remote Config is only for kill switches and rollouts, never for plan gating, because its targeting is client-asserted.
+A module whose dependency resolves to disabled is disabled. Viewing your own data (`inventory`) and export and delete (`dataPortability`) are never kill-switchable and never plan-gated. In production, the bundled Remote Config default for paid (automation and cloud) modules is off until the pre-paid-launch sign-off is recorded ([ADR 0009](0009-legal-documents-per-environment.md)), so an unreachable Remote Config never enables them early; standard modules default on. Remote Config is only for kill switches and rollouts, never for plan gating, because its targeting is client-asserted.
 
 ### Plans and limits
 
@@ -48,7 +48,7 @@ A module whose dependency resolves to disabled is disabled. Export and delete (`
 
 ### Plus picks
 
-A Plus subscriber picks 2 paid on-device modules and may swap them once a month (at most one swap per calendar month), whatever the billing period (monthly or annual).
+A Plus subscriber picks 2 paid on-device modules and may swap them once a month, whatever the billing period (monthly or annual). Whether "a month" is a calendar month or a rolling 30 days is an open question.
 
 ### Trials
 
@@ -110,7 +110,10 @@ The entitlement shape is [contracts/entitlement.schema.json](../contracts/entitl
 
 ## Open questions
 
-None. The owner answered the questions raised after the interview (November 22, 2026); the answers are in the decision text above.
+The owner answered the questions raised after the interview (November 22, 2026); the answers are in the decision text above. Not decided; implementation tickets must not assume an answer:
+
+1. Whether the monthly pick swap counts calendar months or a rolling 30 days.
+2. Whether Pro and Family may share inventories with people outside the household beyond the free values (1 inventory with 1 person). The registry uses the free values until decided.
 
 ## Consequences
 
