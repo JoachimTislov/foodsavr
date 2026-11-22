@@ -12,7 +12,7 @@ metadata:
 3. For code changes, `make check` is green. After two consecutive failures, stop and report (headless: record the blocker in the ledger and the run result).
 4. Write a Conventional Commit subject (`type(scope): summary`, for example `fix(router): handle auth redirect`) and a body giving the one- or two-line reason for the approach.
 5. End the message with trailers:
-   - `Agent-Session: <harness>:<session-id>`, the ID registered with `scripts/agents/agentctl sessions register`. The `prepare-commit-msg` hook (`make hooks`) writes one block and merges further sessions into it, naming each harness once (`Agent-Session:` then `  - t3-code: <id1>, <id2>` and `  - claude-code: <id3>`); never repeat the key. This trailer links the commit to its session: `scripts/agents/agentctl sessions commits <harness>:<session-id>`.
+   - `Agent-Session`, the session ID registered with `scripts/agents/agentctl sessions register`. The `prepare-commit-msg` hook (`make hooks`) writes it once, listing each harness once with its session IDs. It links the commit to its session: `scripts/agents/agentctl sessions commits <harness>:<session-id>`.
    - The co-author trailer your harness requires.
 6. Commit, then log the event in [.agents/ledger.jsonl](../../ledger.jsonl) and add the SHA to the session record (`sessions register --session-id ... --commit <sha>`; records upsert).
 7. Push after each completed task (`make push`), unless the user asked otherwise.
