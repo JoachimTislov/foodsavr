@@ -1,0 +1,20 @@
+name: foodsavr_deploy
+description: >-
+  Deployment levels for a FoodSavr instance: validates the declared manifest
+  (deploy/instance.yaml), plans level transitions, polls usage against the
+  current level's limits (KEDA-style triggers), and emits instance identity for
+  bootstrap scripts. Recommends only; never mutates infrastructure.
+version: 0.1.0
+publish_to: "none"
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  args: ^2.6.0
+  http: ^1.2.0
+  yaml: ^3.1.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.26.0

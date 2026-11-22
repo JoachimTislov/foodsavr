@@ -1,0 +1,83 @@
+# Bring your own Firebase project, free web (Spark).
+#
+# 1. Copy to deploy/instance.yaml and replace every `your-...` value
+#    (Firebase console → Project settings → Your apps → Web app).
+# 2. Run: scripts/infra/bootstrap.sh
+#
+# Staging is optional; delete it or give it its own Firebase project.
+# Full ladder and triggers: deploy/instance.yaml.
+
+version: 1
+
+identity:
+  name: my-foodsavr
+  githubRepository: your-github-user/foodsavr
+  region: europe-north1
+
+capabilities: [auth, documents, hosting, appCheck]
+
+levels:
+  - name: firebase-spark
+    provider: firebase
+    plan: spark
+    status: built
+    paid: false
+    limits:
+      authUsersTotal: 3000
+      firestoreReadsPerDay: 50000
+      firestoreWritesPerDay: 20000
+      firestoreDeletesPerDay: 20000
+      hostingStorageGiB: 10
+    bindings:
+      auth: firebase/auth
+      documents: firebase/firestore
+      hosting: firebase/hosting
+      appCheck: firebase/appCheck
+    requires: [firebaseProject, firebaseWebApp]
+
+triggers:
+  - name: auth-users
+    capability: auth
+    binding: firebase/auth
+    scaler: { type: firebaseAuthUsers }
+    limit: authUsersTotal
+    warn: 0.7
+    promote: 0.9
+  - name: firestore-reads
+    capability: documents
+    binding: firebase/firestore
+    scaler: { type: firestoreDailyOps, op: read }
+    limit: firestoreReadsPerDay
+    warn: 0.6
+    promote: 0.8
+  - name: hosting-storage
+    capability: hosting
+    binding: firebase/hosting
+    scaler: { type: hostingStorage }
+    limit: hostingStorageGiB
+    warn: 0.8
+    promote: 0.95
+
+behavior:
+  pollingInterval: 24h
+  stabilizationPolls: 3
+  minDwell: 30d
+  mode: recommend
+
+environments:
+  development:
+    currentLevel: firebase-spark
+    emulator: true
+  test:
+    currentLevel: firebase-spark
+    emulator: true
+  staging:
+    currentLevel: firebase-spark
+    firebase:
+      projectId: your-project-id-staging
+      webAppId: "1:000000000000:web:0000000000000000000000"
+  production:
+    currentLevel: firebase-spark
+    firebase:
+      projectId: your-project-id
+      webAppId: "1:000000000000:web:0000000000000000000000"

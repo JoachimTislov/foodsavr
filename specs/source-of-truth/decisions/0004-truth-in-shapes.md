@@ -15,6 +15,7 @@ The source of truth is **not limited to text**. Each domain is expressed in the 
 | Domain | Shape | Path |
 |---|---|---|
 | Data model | JSON Schema | `schemas/line-item.schema.json`, `schemas/product.schema.json`, `schemas/collection.schema.json` |
+| Deployment levels (ADR 0005) | JSON Schema + YAML manifest | `schemas/deployment-instance.schema.json`, `deploy/instance.yaml` |
 | Service/integration surface | YAML registry | `registries/services.yaml` |
 | Ingestion pipeline | Mermaid graph + table | inline in `ingestion-pipeline.md` |
 | CI verification loop | Executable invariants | `scripts/ci/select_tests.dart` + `run_tests.dart` (already the truth) |

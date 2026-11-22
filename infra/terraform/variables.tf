@@ -1,21 +1,19 @@
 variable "project_id" {
-  type    = string
-  default = "my-foodsavr-store"
+  description = "Firebase project of the environment (from deploy/instance.yaml via scripts/infra/apply.sh)."
+  type        = string
 }
 
 variable "github_repository" {
-  type    = string
-  default = "JoachimTislov/foodsavr"
+  description = "owner/repo allowed to deploy (Workload Identity condition)."
+  type        = string
 }
 
 variable "web_app_id" {
-  type    = string
-  default = "1:514586238925:web:e562b8b85d97417f83ae84"
+  type = string
 }
 
 variable "web_api_key_id" {
-  type    = string
-  default = "2010adfb-c62e-4376-bf08-58fb4bd61747"
+  type = string
 }
 
 variable "app_check_enforcement" {
@@ -43,4 +41,28 @@ variable "web_api_key_services" {
     "firebasevertexai.googleapis.com", "firestore.googleapis.com", "identitytoolkit.googleapis.com",
     "logging.googleapis.com", "mlkit.googleapis.com", "play.googleapis.com", "securetoken.googleapis.com",
   ]
+}
+
+# Deployment level of this environment (deploy/instance.yaml, ADR 0005).
+variable "level" {
+  description = "Firebase deployment level: firebase-spark (free) or firebase-blaze (pay-as-you-go, budget required)."
+  type        = string
+  default     = "firebase-spark"
+  validation {
+    condition     = contains(["firebase-spark", "firebase-blaze"], var.level)
+    error_message = "Must be firebase-spark or firebase-blaze; other levels are spec-ahead."
+  }
+}
+
+# Linking the billing account to the project stays a manual owner step.
+variable "billing_account" {
+  description = "Billing account id (XXXXXX-XXXXXX-XXXXXX) for the budget; required on firebase-blaze."
+  type        = string
+  default     = ""
+}
+
+variable "monthly_budget_usd" {
+  description = "Monthly budget on firebase-blaze (alerts only; Blaze has no hard cap)."
+  type        = number
+  default     = 0
 }

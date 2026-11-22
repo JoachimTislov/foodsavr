@@ -81,3 +81,6 @@ packages/foodsavr_core/.packages
 infra/terraform/.terraform/
 infra/terraform/*.tfstate*
 infra/terraform/*.tfvars
+
+# Private per-project Terraform state for free instances.
+.deployment-state/

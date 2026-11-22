@@ -1,5 +1,7 @@
-# Firebase / Google Cloud configuration for my-foodsavr-store.
-# Apply with scripts/infra/apply.sh (uses your gcloud login; state in GCS).
+# Firebase / Google Cloud configuration for one environment of the instance
+# declared in deploy/instance.yaml.
+# Apply with scripts/infra/apply.sh (uses your gcloud login; state in GCS,
+# bucket and prefix passed via -backend-config).
 
 terraform {
   required_version = ">= 1.6"
@@ -10,7 +12,6 @@ terraform {
     }
   }
   backend "gcs" {
-    bucket = "my-foodsavr-store-tfstate"
     prefix = "firebase"
   }
 }
@@ -171,6 +172,8 @@ resource "google_project_iam_member" "hosting_deployer" {
     "roles/firebaseauth.admin",                # add preview domains to Auth
     "roles/serviceusage.apiKeysViewer",        # resolve web API key
     "roles/serviceusage.serviceUsageConsumer", # call Firebase APIs
+    "roles/monitoring.viewer",                 # levels poll: Firestore op counts
+    "roles/firebaseauth.viewer",               # levels poll: user count
   ])
   project = var.project_id
   role    = each.key
@@ -194,4 +197,54 @@ output "recaptcha_enterprise_site_key" {
 
 output "deploy_service_account" {
   value = google_service_account.hosting_deployer.email
+}
+
+# ---------------------------------------------------------------------------
+# Paid level guard (ADR 0005): firebase-blaze must have a budget. Budgets only
+# alert (Pub/Sub costAmount messages); they never cap spend.
+# ---------------------------------------------------------------------------
+
+locals {
+  paid_level = var.level == "firebase-blaze"
+}
+
+resource "google_project_service" "billing_budgets" {
+  provider           = google-beta
+  count              = local.paid_level ? 1 : 0
+  service            = "billingbudgets.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_billing_budget" "monthly" {
+  provider        = google-beta
+  count           = local.paid_level ? 1 : 0
+  billing_account = var.billing_account
+  display_name    = "${var.project_id} monthly (${var.level})"
+
+  budget_filter {
+    projects = ["projects/${local.project_number}"]
+  }
+
+  amount {
+    specified_amount {
+      currency_code = "USD"
+      units         = tostring(var.monthly_budget_usd)
+    }
+  }
+
+  dynamic "threshold_rules" {
+    for_each = [0.5, 0.9, 1.0]
+    content {
+      threshold_percent = threshold_rules.value
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.billing_account != "" && var.monthly_budget_usd > 0
+      error_message = "firebase-blaze needs billing_account and monthly_budget_usd > 0 (budget in deploy/instance.yaml)."
+    }
+  }
+
+  depends_on = [google_project_service.billing_budgets]
 }
