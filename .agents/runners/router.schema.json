@@ -11,14 +11,14 @@
       "required": ["enabled", "protocol", "base_url_env", "api_key_env", "model_env", "timeout_ms"],
       "properties": {
         "enabled": {"type": "boolean"},
-        "engine": {"type": "string", "minLength": 1},
+        "engine": {"type": "string", "minLength": 1, "description": "Generic decision engine identifier such as typed-decision or decision-router."},
         "protocol": {"enum": ["openai-compatible"]},
         "structured_output": {"type": "boolean"},
         "control_plane_egress": {"enum": ["independent", "workflow"]},
         "allow_control_plane_on_none": {"type": "boolean"},
-        "base_url_env": {"type": "string", "minLength": 1},
-        "api_key_env": {"type": "string", "minLength": 1},
-        "model_env": {"type": "string", "minLength": 1},
+        "base_url_env": {"type": "string", "minLength": 1, "default": "ROUTER_BASE_URL"},
+        "api_key_env": {"type": "string", "minLength": 1, "default": "ROUTER_API_KEY"},
+        "model_env": {"type": "string", "minLength": 1, "default": "ROUTER_MODEL"},
         "timeout_ms": {"type": "integer", "minimum": 50}
       },
       "additionalProperties": false

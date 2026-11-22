@@ -40,11 +40,12 @@ Provider-specific headless metadata lives in
 
 `.agents/runners/router.json` defines the router boundary. The local
 policy-safe deterministic selector is always available. An optional
-OpenAI-compatible decision provider (for example a Jev deployment) is
-disabled by default and can only be enabled by a runner that supplies its
-endpoint and credential environment variables; the local selector remains the
-fallback. Router requests also obey the workflow network permission and the
-policy `allow_hosts` list; `network: none` never contacts the external router.
+OpenAI-compatible decision provider is disabled by default and can only be
+enabled by a runner that supplies its endpoint and credential environment
+variables (`ROUTER_BASE_URL`, `ROUTER_API_KEY`, `ROUTER_MODEL`); the local
+selector remains the fallback. Router requests also obey the workflow network
+permission and the policy `allow_hosts` list; `network: none` never contacts
+the external router.
 
 `workflow run` is dry-run by default and persists a run artifact. Passing
 `--execute --provider <name>` is an explicit model invocation. Execution
