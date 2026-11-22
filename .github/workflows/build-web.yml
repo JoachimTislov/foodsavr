@@ -5,96 +5,23 @@ on:
     branches: [main]
     paths:
       - "lib/**"
+      - "packages/**"
       - "web/**"
       - "assets/**"
       - "pubspec.yaml"
       - "pubspec.lock"
-      - ".github/workflows/build-web.yml"
-  pull_request:
-    branches: [main]
-    paths:
-      - "lib/**"
-      - "web/**"
-      - "assets/**"
-      - "pubspec.yaml"
-      - "pubspec.lock"
-      - ".github/workflows/build-web.yml"
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  dep-impact:
-    name: Classify dependency bump
-    runs-on: ubuntu-latest
-    outputs:
-      run_android: ${{ steps.classify.outputs.run_android }}
-      run_web: ${{ steps.classify.outputs.run_web }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Classify bumped packages
-        id: classify
-        env:
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-        run: |
-          if [ "${{ github.event_name }}" != "pull_request" ] || [ "$PR_AUTHOR" != "dependabot[bot]" ]; then
-            echo "Not a Dependabot pull request - run everything."
-            echo "run_android=true" >> "$GITHUB_OUTPUT"
-            echo "run_web=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          base="origin/${{ github.base_ref }}"
-          bumped=$(git diff --unified=0 "$base...HEAD" -- pubspec.yaml 'packages/*/pubspec.yaml' \
-            | grep -E '^[+-]  [a-z0-9_]+:' \
-            | sed -E 's/^[+-]  ([a-z0-9_]+):.*/\1/' \
-            | grep -vx 'sdk' \
-            | sort -u)
-
-          if [ -z "$bumped" ]; then
-            echo "No direct pub dependencies changed - run everything."
-            echo "run_android=true" >> "$GITHUB_OUTPUT"
-            echo "run_web=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Packages whose bump only affects the Android build.
-          android_only="google_mlkit_barcode_scanning google_mlkit_text_recognition"
-          # Packages whose bump only affects the web build.
-          web_only=""
-          # Pure Dart packages: covered by analyze + unit tests, no platform build needed.
-          pure="build_runner cupertino_icons crypto easy_localization easy_logger flutter_dotenv \
-          flutter_lints freezed freezed_annotation fuzzywuzzy get_it http injectable \
-          injectable_generator intl json_annotation logger lints meta mocktail openfoodfacts \
-          test vector_graphics vector_graphics_codec vector_graphics_compiler watch_it"
-
-          run_android=false
-          run_web=false
-          for pkg in $bumped; do
-            case " $pure " in
-              *" $pkg "*) echo "$pkg: pure Dart" ;;
-              *" $android_only "*) echo "$pkg: Android only"; run_android=true ;;
-              *" $web_only "*) echo "$pkg: web only"; run_web=true ;;
-              *) echo "$pkg: cross-platform"; run_android=true; run_web=true ;;
-            esac
-          done
-
-          echo "run_android=$run_android" >> "$GITHUB_OUTPUT"
-          echo "run_web=$run_web" >> "$GITHUB_OUTPUT"
-
   build-web:
     name: Build Web
-    needs: dep-impact
-    if: ${{ needs.dep-impact.outputs.run_web == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -103,39 +30,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - name: Set up Flutter app
+        uses: ./.github/actions/setup-flutter-app
         with:
-          flutter-version: 3.47.6
-          channel: stable
-          cache: true
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Write firebase_options.dart
-        run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-
-      - name: Write placeholder firebase_options.dart (fork PRs)
-        run: |
-          cat > lib/firebase_options.dart <<'EOT'
-          // Placeholder generated for fork pull requests; the Firebase options
-          // secret is unavailable in this context.
-          import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
-
-          class DefaultFirebaseOptions {
-            static FirebaseOptions get currentPlatform => throw UnsupportedError(
-                'FirebaseOptions not configured for fork PR builds');
-          }
-          EOT
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
-
-      - name: Create empty .env file
-        run: touch assets/.env
-
-      - name: Build generative code
-        run: dart run build_runner build --delete-conflicting-outputs
+          flutter-version: "3.47.6"
+          firebase-options-b64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
 
       - name: Generate web platform files
         run: flutter create . --platforms web

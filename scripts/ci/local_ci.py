@@ -45,7 +45,8 @@ GROUPS: dict[str, Group] = {
     "agents": Group(
         paths=[
             ".agents/**", "AGENTS.md", "CLAUDE.md", "GEMINI.md", "scripts/agents/**", "scripts/github/**",
-            "scripts/secrets/**", "scripts/ci/local_ci.py", "scripts/ci/test_local_ci.py", ".githooks/**", ".agents/github/**",
+            "scripts/secrets/**", "scripts/ci/local_ci.py", "scripts/ci/test_local_ci.py",
+            "scripts/ci/dep_impact.py", "scripts/ci/test_dep_impact.py", ".githooks/**", ".agents/github/**",
             ".github/workflows/github-labels.yml", ".github/workflows/merge-gate.yml", "specs/**", "docs/**", "doc/**",
             ".github/workflows/agent-system.yml", ".claude/**", ".gemini/**", ".github/agents/**",
             ".github/instructions/**", ".github/copilot-instructions.md", ".github/workflows/agent-implement.yml",
@@ -63,6 +64,7 @@ GROUPS: dict[str, Group] = {
             ["python3", "-m", "unittest", "scripts/github/test_merge_gate.py"],
             ["python3", "-m", "unittest", "scripts/secrets/test_rotate.py"],
             ["python3", "-m", "unittest", "scripts/ci/test_local_ci.py"],
+            ["python3", "-m", "unittest", "scripts/ci/test_dep_impact.py"],
             ["scripts/agents/agentctl", "heal"],
             ["scripts/agents/agentctl", "workflow", "validate", ".agents/workflows/repository-health.json"],
             ["scripts/agents/agentctl", "router", "plan", ".agents/workflows/repository-health.json"],
@@ -85,8 +87,8 @@ GROUPS: dict[str, Group] = {
         ],
     ),
     "dart": Group(
-        paths=["**.dart", "lib/**", "test/**", "assets/translations/**", "pubspec.yaml", "pubspec.lock",
-               "analysis_options.yaml", "android/**", "web/**", "integration_test/**", "test_driver/**"],
+        paths=["**.dart", "lib/**", "packages/**", "test/**", "assets/translations/**", "pubspec.yaml", "pubspec.lock",
+               "analysis_options.yaml", "integration_test/**", "test_driver/**"],
         commands=[
             ["flutter", "pub", "get"],
             ["dart", "format", "--output=none", "--set-exit-if-changed", "."],
@@ -98,7 +100,7 @@ GROUPS: dict[str, Group] = {
             ["dart", "run", "scripts/ci/run_tests.dart"],
         ],
     ),
-    "workflows": Group(paths=[".github/workflows/**"], commands=[["actionlint"]]),
+    "workflows": Group(paths=[".github/workflows/**", ".github/actions/**"], commands=[["actionlint"]]),
 }
 
 
