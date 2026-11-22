@@ -93,6 +93,8 @@ class PreferencesController extends ChangeNotifier {
   Future<void> _update(UserPreferences next) async {
     final userId = _userId;
     if (userId == null || next == _preferences) return;
+    // A load still in flight read the backend before this change; drop it.
+    _generation++;
     _apply(next);
     try {
       await _repository.save(userId, next);
