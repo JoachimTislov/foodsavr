@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import agent_skills  # noqa: E402
 import traceability as tr  # noqa: E402
 import trace_facts as tf  # noqa: E402
+import session_archive as sa  # noqa: E402
 
 
 def configured_path(environment: str, default: Path) -> Path:
@@ -544,9 +545,14 @@ def session_register(args: argparse.Namespace) -> int:
         fields["transcript"] = args.transcript
     if args.started_at:
         fields["started_at"] = args.started_at
-    record = ensure_session(Path(args.index).expanduser(), current_identity(args), args.summary, args.status,
+    identity = current_identity(args)
+    archived = archive_for_end(identity.session_id) if args.status == "completed" and not args.no_archive else None
+    if archived and archived.get("status") == "archived":
+        fields.update(archive_fields(archived))
+    record = ensure_session(Path(args.index).expanduser(), identity, args.summary, args.status,
                             ended_at=now() if args.status == "completed" else None, fields=fields, **refs)
-    print(json.dumps(record, indent=2, sort_keys=True))
+    output = {**record, "archive": {k: v for k, v in archived.items() if k != "manifest"}} if archived else record
+    print(json.dumps(output, indent=2, sort_keys=True))
     return 0
 
 
@@ -690,6 +696,100 @@ def current_identity(args: argparse.Namespace) -> Any:
     return identity
 
 
+# ---- session transcript archive (#278)
+
+def archive_config() -> dict[str, Any] | None:
+    return sa.load_config(configured_path("AGENT_ARCHIVE_CONFIG", ROOT / ".agents/sessions/archive.json"))
+
+
+def make_redactor() -> Any:
+    return sa.Redactor(sa.registry_secrets(ROOT / "scripts/secrets/registry.toml", os.environ, sa.env_files(ROOT)))
+
+
+def archive_fields(result: dict[str, Any]) -> dict[str, Any]:
+    return {"transcript": result["uri"], "transcript_sha256": result["sha256"], "archived_at": now()}
+
+
+def archive_for_end(session_id: str) -> dict[str, Any] | None:
+    """Archive on `sessions register --status completed` when configured. Failures warn and never block."""
+    config = archive_config()
+    if config is None:
+        return None
+    try:
+        return sa.archive(session_id, config, make_redactor())
+    except sa.ArchiveError as error:
+        print(f"warning: session transcript not archived: {error}", file=sys.stderr)
+        return {"status": "failed", "session_id": session_id, "reason": str(error)}
+
+
+def session_archive_command(args: argparse.Namespace, index: Path, root: Path) -> int:
+    config = archive_config()
+    if config is None:
+        raise ValueError("archiving is not configured (.agents/sessions/archive.json or AGENT_SESSION_BUCKET)")
+    session_id = tr.normalize_session_id(args.session, getattr(args, "harness", None)) if args.session else current_identity(args).session_id
+    result = sa.archive(session_id, config, make_redactor(), dry_run=args.dry_run)
+    if result["status"] == "archived":
+        harness = sa.split_session_id(session_id)[0]
+        known = tr.find_record(records(index), session_id)
+        identity = tr.Identity(session_id, harness, (known or {}).get("provider", "unknown"), [], "archive")
+        ensure_session(index, identity, fields=archive_fields(result))
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print(f"{result['status']}: {result.get('uri', result.get('reason'))}")
+        if "sha256" in result:
+            print(f"sha256: {result['sha256']}  bytes: {result['bytes']}  files: {len(result['manifest']['files'])}")
+            print("redactions: " + (", ".join(f"{k}={v}" for k, v in result["redactions"].items()) or "none"))
+    return 0
+
+
+def session_fetch(args: argparse.Namespace, index: Path) -> int:
+    if not args.target:
+        raise ValueError("usage: agentctl sessions fetch <session-id> [--out DIR]")
+    config = archive_config()
+    session_id = tr.normalize_session_id(args.target) if tr.PREFIX_RE.match(args.target) else args.target
+    record = tr.find_record(records(index), session_id)
+    uri = (record or {}).get("transcript")
+    gcloud = sa.Gcloud((config or {}).get("project"))
+    if not uri:
+        if config is None:
+            raise ValueError("no archived transcript recorded and archiving is not configured")
+        harness, native = sa.split_session_id((record or {}).get("session_id") or session_id)
+        prefix = f"gs://{sa.bucket_name(config)}/{sa.object_name(config, harness, native, '')[:-len('.tar.gz')]}"
+        found = [item for item in gcloud.list(prefix) if item.endswith(".tar.gz")]
+        if args.sha:
+            found = [item for item in found if args.sha in item]
+        if len(found) != 1:
+            raise ValueError(f"{len(found)} archived bundles for {session_id}; pass --sha <sha256>" if found else f"no archived transcript for {session_id}")
+        uri = found[0]
+    path = sa.fetch(uri, gcloud, Path(args.out).expanduser() if args.out else None)
+    print(json.dumps({"session_id": session_id, "uri": uri, "path": str(path), "files": sorted(p.name for p in path.iterdir())}, indent=2) if args.json else str(path))
+    return 0
+
+
+def provision_archive_command(args: argparse.Namespace) -> int:
+    config = archive_config()
+    if config is None:
+        raise ValueError("archiving is not configured (.agents/sessions/archive.json or AGENT_SESSION_BUCKET)")
+    commands = sa.provision_commands(config)
+    printable = [" ".join(shlex.quote(part) for part in command) for command in commands]
+    if not args.apply:
+        print("# Owner-only step (ADR 0003): review, then run these or `agentctl sessions provision-archive --apply`.")
+        print("\n".join(printable))
+        return 0
+    gcloud = sa.Gcloud()  # the commands carry --project themselves
+    if not gcloud.available():
+        gcloud.run(["version"])
+    for command, text in zip(commands, printable):
+        result = gcloud.run(command[1:], timeout=120)
+        already = "already exists" in (result.stderr or "").lower() or "409" in (result.stderr or "")
+        status = "exists" if already else ("created" if result.returncode == 0 else "failed")
+        print(f"{status}: {text}")
+        if status == "failed":
+            gcloud.check(result, "provision")
+    return 0
+
+
 def log_command(args: argparse.Namespace) -> int:
     root = Path(args.root).expanduser()
     refs = normalized_refs(args, root)
@@ -778,6 +878,23 @@ def history_coverage(root: Path, sessions: list[dict[str, Any]], ledger: list[di
             "unresolved_sample": unresolved[:5]}
 
 
+def archive_report(sessions: list[dict[str, Any]]) -> dict[str, Any]:
+    """Transcript archive health: config, gcloud availability/auth (cheap, time-bounded), unarchived sessions."""
+    config = archive_config()
+    gcloud = sa.Gcloud((config or {}).get("project"))
+    archivable = [r for r in sessions if str(r.get("session_id", "")).split(":", 1)[0] in sa.ARCHIVABLE]
+    missing = [r["session_id"] for r in archivable if not r.get("transcript")]
+    return {
+        "configured": config is not None,
+        "bucket": f"gs://{sa.bucket_name(config)}/{config['prefix']}" if config else None,
+        "project": (config or {}).get("project"), "location": (config or {}).get("location"),
+        "gcloud_available": gcloud.available(),
+        "gcloud_authenticated": gcloud.authenticated() if gcloud.available() else False,
+        "hint": None if config and gcloud.available() else "install gcloud and run `gcloud auth login`; owner provisions the bucket with `agentctl sessions provision-archive`",
+        "archivable_sessions": len(archivable), "sessions_without_archive": len(missing), "sessions_without_archive_sample": missing[:5],
+    }
+
+
 def traceability_report(root: Path = ROOT, limit: int = 50) -> dict[str, Any]:
     """Gaps that make work un-debuggable: report only, never fail."""
     identity = tr.detect_session()
@@ -797,6 +914,7 @@ def traceability_report(root: Path = ROOT, limit: int = 50) -> dict[str, Any]:
         "main_coverage": history_coverage(root, sessions, ledger, limit),
         "hooks": tr.hooks_status(root),
         "recent_commits_without_session": missing,
+        "archive": archive_report(sessions),
         "sessions_without_refs": [r.get("session_id") for r in sessions if not any(r.get(f) for f in ("issues", "prs", "commits", "sources"))],
         "ledger_entries_without_session": sum(1 for e in ledger if not tr.is_legacy(e) and not e.get("session_id")),
     }
@@ -2337,7 +2455,19 @@ def build_parser() -> argparse.ArgumentParser:
     register.add_argument("--source", action="append", default=[])
     register.add_argument("--commit", action="append", default=[])
     register.add_argument("--transcript")
+    register.add_argument("--no-archive", action="store_true", help="with --status completed: do not archive the transcript")
     register.add_argument("--summary")
+    archive_parser = session_commands.add_parser("archive", help="redact, bundle and upload a session transcript (default: the current session)")
+    archive_parser.add_argument("--session", help="session id (default: detected)")
+    archive_parser.add_argument("--dry-run", action="store_true", help="build and report the bundle; no upload, no gcloud call")
+    archive_parser.add_argument("--json", action="store_true")
+    fetch_parser = session_commands.add_parser("fetch", help="download, verify and extract an archived transcript")
+    fetch_parser.add_argument("target", help="session id")
+    fetch_parser.add_argument("--out", help="extract into this directory instead of the cache")
+    fetch_parser.add_argument("--sha", help="pick this bundle sha256 when several exist")
+    fetch_parser.add_argument("--json", action="store_true")
+    provision_parser = session_commands.add_parser("provision-archive", help="OWNER ONLY (ADR 0003): print or run the gcloud commands that create the archive bucket")
+    provision_parser.add_argument("--apply", action="store_true", help="run the commands (default: print them)")
     session_commit_parser = session_commands.add_parser("commits", help="list commits linked by the Agent-Session trailer")
     session_commit_parser.add_argument("session_id")
     skills = commands.add_parser("skills", help="validate, list, and project the canonical skill catalog")
@@ -2391,6 +2521,12 @@ def main(argv: list[str] | None = None) -> int:
         return session_list(args)
     if args.command == "sessions" and args.session_command == "find":
         return session_find(args)
+    if args.command == "sessions" and args.session_command == "archive":
+        return session_archive_command(args, Path(args.index).expanduser(), Path(args.root).expanduser())
+    if args.command == "sessions" and args.session_command == "fetch":
+        return session_fetch(args, Path(args.index).expanduser())
+    if args.command == "sessions" and args.session_command == "provision-archive":
+        return provision_archive_command(args)
     if args.command == "sessions" and args.session_command == "current":
         return session_current(args)
     if args.command == "sessions" and args.session_command == "register":

@@ -699,6 +699,10 @@ class Tracer:
                 "issues": record.get("issues", []), "prs": record.get("prs", []),
                 "related": record.get("related", []), "registered": bool(record), "via": sorted(via),
                 "inferred": all(v.startswith("inferred") for v in via),
+                "archive": ({"transcript": record["transcript"], "sha256": record.get("transcript_sha256"),
+                             "archived_at": record.get("archived_at"),
+                             "fetch": f"scripts/agents/agentctl sessions fetch {record.get('session_id', session_id)}"}
+                            if record.get("transcript") else None),
                 "locators": [locate(i, record) for i in tuple(dict.fromkeys([record.get("session_id", session_id), *record.get("related", [])]))],
             })
         commits = [{k: c[k] for k in ("sha", "subject", "author", "date", "prs", "issues", "sessions", "via", "equivalents")}
@@ -768,6 +772,8 @@ def render_trace(result: Mapping[str, Any]) -> str:
         for s in result["sessions"]:
             flag = ("" if s["registered"] else " (unregistered)") + (" (INFERRED, not evidence)" if s["inferred"] else "")
             lines.append(f"  {s['session_id']}{flag}  via {', '.join(s['via'])}")
+            if s.get("archive"):
+                lines.append(f"      archive: {s['archive']['transcript']}\n      fetch:   {s['archive']['fetch']}")
             for loc in s.get("locators", []):
                 if loc.get("open"):
                     where = f"  transcript: {loc['transcript']}" if loc.get("transcript") else ""

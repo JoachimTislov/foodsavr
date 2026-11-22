@@ -54,7 +54,7 @@ GROUPS: dict[str, Group] = {
         ],
         commands=[
             ["python3", "-m", "py_compile", "scripts/agents/agentctl.py", "scripts/agents/agent_skills.py",
-             "scripts/agents/traceability.py", "scripts/agents/trace_facts.py",
+             "scripts/agents/traceability.py", "scripts/agents/trace_facts.py", "scripts/agents/session_archive.py",
              "scripts/agents/session_query.py"],
             ["python3", "scripts/agents/check_logs.py"],
             ["python3", "-m", "unittest", "scripts/agents/test_check_logs.py"],

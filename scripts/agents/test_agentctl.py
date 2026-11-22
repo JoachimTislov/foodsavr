@@ -8,6 +8,7 @@ import argparse
 import contextlib
 import importlib.util
 import os
+import re
 import io
 import sqlite3
 import subprocess
@@ -43,6 +44,14 @@ def load_traceability_module():
 
 def load_trace_facts_module():
     spec = importlib.util.spec_from_file_location("trace_facts_under_test", ROOT / "scripts/agents/trace_facts.py")
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_session_archive_module():
+    spec = importlib.util.spec_from_file_location("session_archive_under_test", ROOT / "scripts/agents/session_archive.py")
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
@@ -1445,6 +1454,342 @@ class TraceabilityTest(unittest.TestCase):
         self.assertEqual(report["ledger_entries_without_session"], 1)
         self.assertEqual(len(report["recent_commits_without_session"]), 1)
         self.assertFalse(report["hooks"]["installed"])
+
+
+FAKE_GCLOUD = r'''#!/usr/bin/env python3
+import os, pathlib, shutil, sys
+root = pathlib.Path(os.environ["FAKE_GCS_ROOT"])
+args = sys.argv[1:]
+root.mkdir(parents=True, exist_ok=True)
+with open(root / "calls.log", "a") as log:
+    log.write(" ".join(args) + "\n")
+def local(uri):
+    return root / "objects" / uri[len("gs://"):]
+if args[:1] == ["auth"]:
+    print("tester@example.com" if os.environ.get("FAKE_GCLOUD_AUTH", "1") == "1" else "")
+    sys.exit(0)
+if args[:1] == ["version"]:
+    sys.exit(0)
+if args[:3] == ["storage", "buckets", "create"]:
+    sys.exit(0)
+if args[:2] == ["storage", "cp"]:
+    if os.environ.get("FAKE_GCLOUD_FAIL"):
+        print("ERROR: Reauthentication required. Please run: gcloud auth login", file=sys.stderr)
+        sys.exit(1)
+    clobber, positional, items = True, [], iter(args[2:])
+    for item in items:
+        if item == "--no-clobber":
+            clobber = False
+        elif item == "--project":
+            next(items)
+        else:
+            positional.append(item)
+    source, destination = positional
+    if destination.startswith("gs://"):
+        target = local(destination)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists() and not clobber:
+            sys.exit(0)
+        shutil.copyfile(source, target)
+    else:
+        origin = local(source)
+        if not origin.exists():
+            print("ERROR: 404 object not found", file=sys.stderr)
+            sys.exit(1)
+        shutil.copyfile(origin, destination)
+    sys.exit(0)
+if args[:2] == ["storage", "ls"]:
+    directory = local(args[2])
+    found = sorted(p for p in directory.iterdir() if p.is_file()) if directory.is_dir() else []
+    if not found:
+        print("ERROR: One or more URLs matched no objects.", file=sys.stderr)
+        sys.exit(1)
+    for path in found:
+        print("gs://" + str(path.relative_to(root / "objects")))
+    sys.exit(0)
+print("fake gcloud: unsupported " + " ".join(args), file=sys.stderr)
+sys.exit(2)
+'''
+
+
+def fake_token(prefix: str, length: int = 36) -> str:
+    """Synthetic credential built at runtime so no secret-shaped literal sits in the repo."""
+    return prefix + ("A1b2" * ((length + 3) // 4))[:length]
+
+
+class ArchiveTest(unittest.TestCase):
+    """Session transcript archive (#278): redaction, bundle, transport, commands."""
+
+    def setUp(self) -> None:
+        self.sa = load_session_archive_module()
+        self.tr = load_traceability_module()
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = Path(self._tmp.name)
+        self.home = self.dir / "home"
+        self.gcs = self.dir / "gcs"
+        self.bin = self.dir / "bin"
+        self.bin.mkdir()
+        gcloud = self.bin / "gcloud"
+        gcloud.write_text(FAKE_GCLOUD)
+        gcloud.chmod(0o755)
+        self.config = {"project": "proj", "bucket": "test-bucket", "location": "europe-north1", "prefix": "sessions/"}
+        self.config_file = self.dir / "archive.json"
+        self.config_file.write_text(json.dumps(self.config))
+        self.index = self.dir / "index.jsonl"
+        self.ledger = self.dir / "ledger.jsonl"
+        self.native = "11111111-2222-3333-4444-555555555555"
+        self.session = f"claude-code:{self.native}"
+        self.token = fake_token("ghp_")
+        project = self.home / ".claude/projects/-tmp-slug"
+        (project / self.native / "subagents").mkdir(parents=True)
+        (project / f"{self.native}.jsonl").write_text(
+            json.dumps({"type": "user", "message": {"content": f"use {self.token} please, mail me at dev@example.org"}}) + "\n"
+            + json.dumps({"type": "assistant", "message": {"content": "ok"}}) + "\n")
+        (project / self.native / "subagents/agent-a1.jsonl").write_text(json.dumps({"type": "user", "message": "sub"}) + "\n")
+        (project / self.native / "subagents/agent-a1.meta.json").write_text(json.dumps({"agentType": "Explore"}))
+        self.gcloud = self.sa.Gcloud("proj", executable=str(gcloud))
+        patcher = patch.dict(os.environ, {"FAKE_GCS_ROOT": str(self.gcs)})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def calls(self) -> list[str]:
+        log = self.gcs / "calls.log"
+        return log.read_text().splitlines() if log.exists() else []
+
+    def env(self, **extra: str) -> dict[str, str]:
+        env = clean_env(HOME=str(self.home), PATH=f"{self.bin}:{os.environ['PATH']}", FAKE_GCS_ROOT=str(self.gcs),
+                        AGENT_SESSION_INDEX=str(self.index), AGENT_LEDGER_FILE=str(self.ledger),
+                        AGENT_ARCHIVE_CONFIG=str(self.config_file), AGENT_SESSION_CACHE=str(self.dir / "cache"),
+                        AGENT_KNOWLEDGE_DB=str(self.dir / "k.sqlite3"), CLAUDE_CODE_SESSION_ID=self.native)
+        env.pop("CLAUDE_CONFIG_DIR", None)
+        env.update(extra)
+        return env
+
+    def cli(self, *args: str, check: bool = True, **extra: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run([str(CLI), *args], cwd=ROOT, env=self.env(**extra), check=check, capture_output=True, text=True)
+
+    # -- redaction
+    def test_each_redaction_rule_replaces_its_secret_shape(self) -> None:
+        pem = "-----BEGIN " + "PRIVATE KEY-----\\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\\n-----END PRIVATE KEY-----"
+        cases = {
+            "github-token": [fake_token("ghp_"), fake_token("github_pat_", 30)],
+            "anthropic-key": [fake_token("sk-ant-", 30)],
+            "openai-key": [fake_token("sk-proj-", 30), fake_token("sk-", 30)],
+            "slack-token": [fake_token("xoxb-", 30)],
+            "aws-access-key": ["AKIA" + "A1" * 8],
+            "google-oauth-token": [fake_token("ya29.", 30)],
+            "google-api-key": [fake_token("AIza", 35)],
+            "jwt": [".".join((fake_token("eyJ", 12), fake_token("eyJ", 12), fake_token("", 12)))],
+            "pem-private-key": [pem, pem.replace("\\n", "\n")],
+            "bearer-token": [fake_token("Authorization: Bearer ", 24)],
+            "secret-assignment": [fake_token("MY_API_KEY=", 12), fake_token("DB_PASSWORD=", 12), "CLAUDE_CODE_MESSAGING_TOKEN=" + "9f" * 16],
+            "email": ["dev@example.org"],
+        }
+        for rule, samples in cases.items():
+            for sample in samples:
+                with self.subTest(rule=rule, sample=sample[:12]):
+                    redactor = self.sa.Redactor()
+                    out = redactor.text(f"before {sample} after")
+                    self.assertIn(f"[REDACTED:{rule}]" if rule not in {"secret-assignment", "bearer-token"} else "[REDACTED:", out)
+                    self.assertTrue(redactor.counts[rule] >= 1, redactor.counts)
+                    self.assertTrue(out.startswith("before ") and out.endswith(" after"))
+                    self.assertEqual(redactor.scan(out), [])
+                    secret_part = sample.split("=", 1)[-1].strip("'") if rule == "secret-assignment" else sample.split("Bearer ")[-1] if rule == "bearer-token" else sample
+                    self.assertNotIn(secret_part, out)
+
+    def test_email_exceptions_and_registry_values_from_env_files(self) -> None:
+        redactor = self.sa.Redactor()
+        kept = "noreply@anthropic.com 49699333+dependabot[bot]@users.noreply.github.com git@github.com icon@2x.png"
+        self.assertEqual(redactor.text(kept), kept)
+        env_file = self.dir / ".env"
+        codecov_value = fake_token("", 16)
+        env_file.write_text(f"CODECOV_TOKEN='{codecov_value}'\nFIREBASE_CLI_TOKEN=short\nFACEBOOK_CLIENT_TOKEN=publicvalue123\nUNLISTED=zzzzzzzzzzzz\n")
+        secrets = self.sa.registry_secrets(ROOT / "scripts/secrets/registry.toml", {"FIRESTORE_RULES_B64": "env-supplied-value"}, [env_file])
+        self.assertEqual(secrets, {"CODECOV_TOKEN": codecov_value, "FIRESTORE_RULES_B64": "env-supplied-value"})  # public, short, unlisted ignored
+        redactor = self.sa.Redactor(secrets)
+        out = redactor.text(f"a {codecov_value} b env-supplied-value c publicvalue123 d short")
+        self.assertEqual(out, "a [REDACTED:CODECOV_TOKEN] b [REDACTED:FIRESTORE_RULES_B64] c publicvalue123 d short")
+        self.assertEqual(redactor.scan(out), [])
+
+    def test_env_dump_and_pem_inside_json_strings_stay_valid_jsonl(self) -> None:
+        dump = "PATH=/usr/bin\nCLAUDE_CODE_MESSAGING_TOKEN=" + "ab12" * 8 + "\nHOME=/home/x"
+        pem = "-----BEGIN " + "RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA\n-----END RSA PRIVATE KEY-----"
+        line = json.dumps({"tool_result": {"stdout": dump, "key": pem, "nested": [f"mail dev@example.org"]}})
+        out = self.sa.redact_jsonl(self.sa.Redactor(), "t.jsonl", (line + "\n" + line + "\n").encode()).decode()
+        rows = [json.loads(row) for row in out.splitlines()]  # still valid JSONL
+        self.assertEqual(len(rows), 2)
+        stdout = rows[0]["tool_result"]["stdout"]
+        self.assertIn("CLAUDE_CODE_MESSAGING_TOKEN=[REDACTED:secret-assignment]", stdout)
+        self.assertIn("PATH=/usr/bin", stdout)
+        self.assertNotIn("ab12ab12", out)
+        self.assertEqual(rows[0]["tool_result"]["key"], "[REDACTED:pem-private-key]")
+        self.assertEqual(rows[0]["tool_result"]["nested"], ["mail [REDACTED:email]"])
+
+    def test_redaction_fails_closed_without_leaking_values(self) -> None:
+        leaky = [("leaky", re.compile(r"SECRET\d+"), "SECRET1")]  # replacement still matches: the re-scan must abort
+        with self.assertRaises(self.sa.ArchiveError) as caught:
+            self.sa.redact_jsonl(self.sa.Redactor(patterns=leaky), "t.jsonl", b'{"a":"x"}\n{"a":"SECRET123456"}\n')
+        message = str(caught.exception)
+        self.assertIn("t.jsonl:2", message)
+        self.assertIn("leaky", message)
+        self.assertNotIn("SECRET1", message)
+        with self.assertRaises(self.sa.ArchiveError) as invalid:
+            self.sa.redact_jsonl(self.sa.Redactor(), "t.jsonl", b'{"a":1}\nnot json with ' + fake_token("ghp_").encode() + b"\n")
+        self.assertIn("t.jsonl:2", str(invalid.exception))
+        self.assertNotIn("ghp_", str(invalid.exception))
+
+    # -- bundle
+    def test_bundle_is_deterministic_and_normalized(self) -> None:
+        files = self.sa.find_transcripts(self.session, self.home)
+        self.assertEqual([name for name, _ in files], ["transcript.jsonl", "subagents/agent-a1.jsonl", "subagents/agent-a1.meta.json"])
+        first = self.sa.build_bundle(self.session, files, self.sa.Redactor(), self.config)
+        second = self.sa.build_bundle(self.session, list(reversed(files)), self.sa.Redactor(), self.config)
+        self.assertEqual(first.sha256, second.sha256)
+        self.assertEqual(first.uri, f"gs://test-bucket/sessions/claude-code/{self.native}/{first.sha256}.tar.gz")
+        self.assertEqual(first.data[4:8], b"\x00\x00\x00\x00")  # gzip mtime = 0
+        import io as _io
+        import tarfile as _tar
+        with _tar.open(fileobj=_io.BytesIO(first.data), mode="r:gz") as tar:
+            members = tar.getmembers()
+        self.assertEqual([m.name for m in members], sorted(m.name for m in members))
+        self.assertTrue(all((m.mtime, m.uid, m.gid, m.uname, m.gname) == (0, 0, 0, "", "") for m in members))
+        self.assertEqual(first.manifest["redactions"], {"email": 1, "github-token": 1})
+        self.assertEqual({f["path"] for f in first.manifest["files"]}, {n for n, _ in files})
+
+    # -- archive / fetch
+    def test_archive_uploads_redacted_immutable_bundle_and_fetch_verifies(self) -> None:
+        result = self.sa.archive(self.session, self.config, self.sa.Redactor(), self.gcloud, home=self.home)
+        stored = self.gcs / "objects" / result["uri"][len("gs://"):]
+        self.assertTrue(stored.is_file())
+        self.assertTrue(any("--no-clobber" in call for call in self.calls() if "storage cp" in call))
+        # immutable: an existing object is never overwritten
+        stored.write_bytes(b"pre-existing")
+        self.sa.archive(self.session, self.config, self.sa.Redactor(), self.gcloud, home=self.home)
+        self.assertEqual(stored.read_bytes(), b"pre-existing")
+        stored.write_bytes(self.sa.build_bundle(self.session, self.sa.find_transcripts(self.session, self.home), self.sa.Redactor(), self.config).data)
+        path = self.sa.fetch(result["uri"], self.gcloud, self.dir / "out")
+        text = (path / "transcript.jsonl").read_text()
+        self.assertNotIn(self.token, text)
+        self.assertIn("[REDACTED:github-token]", text)
+        self.assertTrue((path / "subagents/agent-a1.meta.json").is_file())
+        self.assertEqual(json.loads((path / "manifest.json").read_text())["session_id"], self.session)
+
+    def test_fetch_rejects_sha_mismatch_and_unsafe_archives(self) -> None:
+        result = self.sa.archive(self.session, self.config, self.sa.Redactor(), self.gcloud, home=self.home)
+        stored = self.gcs / "objects" / result["uri"][len("gs://"):]
+        stored.write_bytes(stored.read_bytes() + b"tampered")
+        with self.assertRaisesRegex(self.sa.ArchiveError, "sha256 mismatch"):
+            self.sa.fetch(result["uri"], self.gcloud, self.dir / "bad")
+        self.assertFalse((self.dir / "bad/manifest.json").exists())
+        import hashlib as _hash
+        import io as _io
+        import tarfile as _tar
+
+        def crafted(name: str, kind: bytes = _tar.REGTYPE, link: str = "") -> bytes:
+            buffer = _io.BytesIO()
+            with _tar.open(fileobj=buffer, mode="w:gz") as tar:
+                info = _tar.TarInfo(name)
+                info.type, info.linkname = kind, link
+                tar.addfile(info, _io.BytesIO(b"x") if kind == _tar.REGTYPE else None)
+            return buffer.getvalue()
+
+        for label, data in {"dotdot": crafted("../evil"), "absolute": crafted("/etc/evil"), "symlink": crafted("link", _tar.SYMTYPE, "/etc/passwd"),
+                            "hardlink": crafted("hard", _tar.LNKTYPE, "x")}.items():
+            with self.subTest(label):
+                bundle = self.dir / f"{label}.tar.gz"
+                bundle.write_bytes(data)
+                with self.assertRaisesRegex(self.sa.ArchiveError, "unsafe"):
+                    self.sa.extract_bundle(bundle, self.dir / f"extract-{label}")
+                self.assertFalse((self.dir / "evil").exists())
+        sha = _hash.sha256(crafted("../evil")).hexdigest()
+        uri = f"gs://test-bucket/sessions/claude-code/{self.native}/{sha}.tar.gz"
+        target = self.gcs / "objects" / uri[len("gs://"):]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(crafted("../evil"))
+        with self.assertRaisesRegex(self.sa.ArchiveError, "unsafe"):
+            self.sa.fetch(uri, self.gcloud, self.dir / "e2e")
+
+    def test_dry_run_makes_no_gcloud_calls(self) -> None:
+        result = self.sa.archive(self.session, self.config, self.sa.Redactor(), self.gcloud, dry_run=True, home=self.home)
+        self.assertEqual(result["status"], "dry-run")
+        self.assertEqual(self.calls(), [])
+        out = json.loads(self.cli("sessions", "archive", "--dry-run", "--json").stdout)
+        self.assertEqual((out["status"], out["redactions"]), ("dry-run", {"email": 1, "github-token": 1}))
+        self.assertTrue(out["uri"].startswith("gs://test-bucket/sessions/claude-code/"))
+        self.assertEqual(self.calls(), [])
+        self.assertFalse(self.index.exists(), "dry run records nothing")
+
+    def test_session_archive_fetch_commands_and_index_record(self) -> None:
+        archived = json.loads(self.cli("sessions", "archive", "--json").stdout)
+        record = self.tr.fold_records(self.tr.read_jsonl(self.index))[0]
+        self.assertEqual((record["transcript"], record["transcript_sha256"]), (archived["uri"], archived["sha256"]))
+        self.assertIsNotNone(self.tr.parse_time(record["archived_at"]))
+        fetched = self.cli("sessions", "fetch", self.session).stdout.strip()
+        self.assertTrue(fetched.startswith(str(self.dir / "cache/claude-code")) and fetched.endswith(archived["sha256"]))
+        self.assertTrue((Path(fetched) / "transcript.jsonl").is_file())
+        before = len(self.calls())
+        self.assertEqual(self.cli("sessions", "fetch", self.session).stdout.strip(), fetched)  # cached
+        self.assertEqual(len(self.calls()), before)
+        traced = json.loads(self.cli("trace", self.session, "--json", "--root", str(ROOT)).stdout)
+        self.assertEqual(traced["sessions"][0]["archive"]["fetch"], f"scripts/agents/agentctl sessions fetch {self.session}")
+        self.assertIn("fetch:   scripts/agents/agentctl sessions fetch", self.cli("trace", self.session, "--root", str(ROOT)).stdout)
+
+    def test_session_completion_archives_automatically_and_never_blocks(self) -> None:
+        ended = json.loads(self.cli("sessions", "--root", str(ROOT), "register", "--status", "completed", "--summary", "work").stdout)
+        self.assertEqual(ended["archive"]["status"], "archived")
+        record = self.tr.fold_records(self.tr.read_jsonl(self.index))[0]
+        self.assertEqual((record["status"], record["transcript"]), ("completed", ended["archive"]["uri"]))
+        calls = len(self.calls())
+        skipped = json.loads(self.cli("sessions", "--root", str(ROOT), "register", "--status", "completed", "--no-archive").stdout)
+        self.assertNotIn("archive", skipped)
+        self.assertEqual(len(self.calls()), calls)
+        self.index.unlink()
+        failed = self.cli("sessions", "--root", str(ROOT), "register", "--status", "completed", "--summary", "again", FAKE_GCLOUD_FAIL="1")
+        self.assertEqual(failed.returncode, 0)
+        self.assertIn("warning: session transcript not archived", failed.stderr)
+        self.assertIn("gcloud auth login", failed.stderr)
+        self.assertEqual(json.loads(failed.stdout)["archive"]["status"], "failed")
+        self.assertNotIn("transcript", self.tr.fold_records(self.tr.read_jsonl(self.index))[0])
+        nothing = json.loads(self.cli("sessions", "--root", str(ROOT), "register", "--status", "completed", CLAUDE_CODE_SESSION_ID="no-transcript").stdout)
+        self.assertEqual(nothing["archive"]["status"], "skipped")
+
+    def test_unauthenticated_gcloud_gives_actionable_message(self) -> None:
+        result = self.cli("sessions", "archive", check=False, FAKE_GCLOUD_AUTH="0")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("gcloud auth login", result.stderr)
+        with patch.object(self.sa.shutil, "which", return_value=None), self.assertRaisesRegex(self.sa.ArchiveError, "gcloud not found"):
+            self.sa.archive(self.session, self.config, self.sa.Redactor(), self.sa.Gcloud(), home=self.home)
+
+    def test_provision_prints_owner_commands_and_apply_runs_them(self) -> None:
+        printed = self.cli("sessions", "provision-archive").stdout
+        for part in ("gs://test-bucket", "--project=proj", "--location=europe-north1", "--uniform-bucket-level-access", "--public-access-prevention", "Owner-only"):
+            self.assertIn(part, printed)
+        self.assertEqual(self.calls(), [])
+        self.cli("sessions", "provision-archive", "--apply")
+        self.assertTrue(any(call.startswith("storage buckets create gs://test-bucket") for call in self.calls()))
+
+    def test_doctor_archive_report_and_index_transcript_rule(self) -> None:
+        module = load_agentctl_module()
+        self.index.write_text(json.dumps({"session_id": self.session, "started_at": "2026-11-22T00:00:00+00:00"}) + "\n")
+        with patch.dict(module.os.environ, self.env()):
+            report = module.archive_report(self.tr.read_jsonl(self.index))
+        self.assertEqual((report["configured"], report["gcloud_available"], report["gcloud_authenticated"]), (True, True, True))
+        self.assertEqual((report["sessions_without_archive"], report["bucket"]), (1, "gs://test-bucket/sessions/"))
+        spec = importlib.util.spec_from_file_location("check_logs_archive", ROOT / "scripts/agents/check_logs.py")
+        logs = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(logs)
+        root = self.dir / "repo"
+        (root / ".agents/sessions").mkdir(parents=True)
+        index = root / ".agents/sessions/index.jsonl"
+        base = {"session_id": self.session, "started_at": "2026-11-22T00:00:00+00:00"}
+        index.write_text(json.dumps({**base, "transcript": "/home/me/.claude/x.jsonl"}) + "\n")
+        self.assertTrue(any("gs://" in e for e in logs.check(root, [".agents/sessions/index.jsonl"])))
+        index.write_text(json.dumps({**base, "transcript": "gs://b/sessions/claude-code/x/" + "a" * 64 + ".tar.gz"}) + "\n")
+        self.assertEqual(logs.check(root, [".agents/sessions/index.jsonl"]), [])
+        legacy = {"session_id": "01a1", "started_at": "2026-11-20T00:00:00+00:00", "transcript": "/old/local/path"}
+        index.write_text(json.dumps(legacy) + "\n")
+        self.assertEqual(logs.check(root, [".agents/sessions/index.jsonl"]), [])
 
 
 if __name__ == "__main__":

@@ -61,6 +61,8 @@ def traceability_errors(name: str, records: list[dict], sessions: list[dict], is
                 errors.append(f"{where}: session_id {session_id!r} is not registered in {INDEX}")
         elif not tr.SESSION_RE.match(str(record.get("session_id", ""))):
             errors.append(f"{where}: new session records need a canonical <harness>:<id> session_id")
+        if not is_ledger and "transcript" in record and not str(record["transcript"]).startswith("gs://"):
+            errors.append(f"{where}: `transcript` must be an archive gs:// URI (local transcript paths are never committed)")
     return errors
 
 

@@ -1,8 +1,10 @@
 # Agent session index
 
 The session index correlates provider sessions with repository work. It stores
-IDs and references, not transcripts or credentials. A provider adapter may add
-an optional local `transcript` path; that path must remain uncommitted.
+IDs and references, not transcripts or credentials. Transcripts live in the
+private archive bucket (see [Transcript archive](#transcript-archive-278)); an
+index record may carry only the resulting `gs://` URI in `transcript`. Local
+transcript paths are never committed (`check_logs.py` rejects them).
 
 ## Traceability (#271)
 
@@ -54,6 +56,36 @@ scripts/agents/agentctl trace '#300'           # why does this exist? (also SHA,
   `session_id` (`check_logs.py`); older lines are grandfathered.
 - CI runs upload `provenance-<job>` artifacts and job summaries (run, commit,
   PR, sessions). `agentctl doctor` lists traceability gaps.
+
+## Transcript archive (#278)
+
+Config: [archive.json](archive.json) (project, bucket, location, prefix; env
+`AGENT_SESSION_BUCKET` overrides the bucket). No secret is involved: access is
+your own `gcloud auth login`.
+
+```sh
+scripts/agents/agentctl sessions archive [--session ID] [--dry-run] [--json]  # also runs on `sessions register --status completed` (--no-archive skips)
+scripts/agents/agentctl sessions fetch <session-id> [--out DIR]               # ~/.cache/foodsavr/agent-sessions/<harness>/<native>/<sha>/
+scripts/agents/agentctl sessions provision-archive [--apply]                          # OWNER ONLY (ADR 0003): prints, or runs, the gcloud commands
+```
+
+- Bundle: deterministic `tar.gz` of the main transcript, Claude Code subagent
+  files and `manifest.json` (files with sha256/bytes, redaction counts). Object:
+  `sessions/<harness>/<native>/<sha256>.tar.gz`, uploaded `--no-clobber`, so
+  objects are immutable. The index records `transcript`, `transcript_sha256`,
+  `archived_at`; `trace` shows the URI and the `sessions fetch` command.
+- Redaction is per decoded JSON string, deterministic and fail-closed: exact
+  values of non-public secrets from `scripts/secrets/registry.toml` (environment,
+  repo `.env`, main checkout `.env`), known token shapes, PEM keys, `Bearer`,
+  `*TOKEN|SECRET|PASSWORD|API_KEY...=value` assignments and email addresses
+  (`noreply@`, `users.noreply.github.com`, `git@` kept). The output is re-scanned;
+  a surviving hit or an invalid JSON line aborts with rule names and line numbers
+  only. Redaction is best-effort pattern matching: review `--dry-run` counts for
+  sensitive work, and keep the bucket private.
+- `fetch` verifies the sha256 in the object name, rejects absolute/`..`/link
+  members, and checks the manifest before extracting.
+- Archive failures warn and never block `sessions register --status completed`. `agentctl doctor` reports
+  config, gcloud availability/auth, and sessions without an archive.
 
 Register a session manually (providers without detection) with:
 

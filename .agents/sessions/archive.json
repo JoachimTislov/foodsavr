@@ -1,0 +1,6 @@
+{
+  "project": "my-foodsavr-store",
+  "bucket": "my-foodsavr-store-agent-sessions",
+  "location": "europe-north1",
+  "prefix": "sessions/"
+}
