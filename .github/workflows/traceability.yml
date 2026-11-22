@@ -6,7 +6,7 @@ name: Traceability
 
 on:
   pull_request:
-    branches: [develop, main]
+    branches: [develop]
     types: [opened, synchronize, reopened, edited]
 
 concurrency:

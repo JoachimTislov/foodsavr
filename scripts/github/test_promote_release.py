@@ -94,8 +94,27 @@ class PromoteDecisionTest(unittest.TestCase):
             "1234567",
             True,
             [check_run("Detect changed areas"), check_run("Web smoke test", conclusion="SKIPPED")],
+            source_branch="nightly",
+            target_branch="beta",
         )
         self.assertEqual(d.action, "promote")
+
+    def test_develop_promotes_without_duplicate_develop_push_checks_but_blocks_failures(self):
+        d_ok = promote.decide_promotion("abcdef1", "1234567", True, [], source_branch="develop", target_branch="nightly")
+        self.assertEqual(d_ok.action, "promote")
+        d_fail = promote.decide_promotion(
+            "abcdef1",
+            "1234567",
+            True,
+            [check_run("Check & Test", conclusion="FAILURE")],
+            source_branch="develop",
+            target_branch="nightly",
+        )
+        self.assertEqual(d_fail.action, "blocked")
+        d_missing_on_channel = promote.decide_promotion(
+            "abcdef1", "1234567", True, [], source_branch="nightly", target_branch="beta"
+        )
+        self.assertEqual(d_missing_on_channel.action, "pending")
 
 
 class ResolveStepsTest(unittest.TestCase):

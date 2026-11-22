@@ -97,10 +97,18 @@ def decide_promotion(
     ancestor: bool,
     contexts: list[dict[str, Any]],
     *,
-    source_branch: str = "develop",
-    target_branch: str = "release",
+    source_branch: str = "nightly",
+    target_branch: str = "beta",
 ) -> Decision:
-    """Pure promotion gate decision for a candidate source SHA."""
+    """Pure promotion gate decision for a candidate source SHA.
+
+    Checks do not re-run on pushes to ``develop`` (PRs into ``develop`` are
+    ruleset-gated, and pushing to a release branch runs the release-branch CI
+    suite). Therefore ``develop -> <release branch>`` allows fast-forward when
+    no checks have failed or are pending on ``source_sha``, while promotions
+    between release branches (``nightly -> beta -> stable -> release``) require
+    a green rollup and completed ``Detect changed areas`` on ``source_sha``.
+    """
     if source_sha == target_sha:
         return Decision("noop", f"{target_branch} is already at {target_sha[:7]}")
     if not ancestor:
@@ -113,14 +121,17 @@ def decide_promotion(
     rollup = rollup_state(contexts)
     if rollup == "FAILURE":
         return Decision("blocked", f"checks failed on {source_sha[:7]}")
-    if rollup in {None, "PENDING"}:
-        return Decision("pending", f"checks still running or missing on {source_sha[:7]}")
+    if rollup == "PENDING":
+        return Decision("pending", f"checks still running on {source_sha[:7]}")
 
-    queue_ok, queue_running = queue_check_state(contexts)
-    if queue_running:
-        return Decision("pending", f"{QUEUE_CHECK} is still running on {source_sha[:7]}")
-    if not queue_ok:
-        return Decision("pending", f"waiting for {QUEUE_CHECK} on {source_sha[:7]}")
+    if source_branch != "develop":
+        if rollup is None:
+            return Decision("pending", f"checks missing on {source_sha[:7]}")
+        queue_ok, queue_running = queue_check_state(contexts)
+        if queue_running:
+            return Decision("pending", f"{QUEUE_CHECK} is still running on {source_sha[:7]}")
+        if not queue_ok:
+            return Decision("pending", f"waiting for {QUEUE_CHECK} on {source_sha[:7]}")
 
     return Decision(
         "promote",

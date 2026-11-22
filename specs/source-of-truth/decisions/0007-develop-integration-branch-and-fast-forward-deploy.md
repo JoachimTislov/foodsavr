@@ -23,16 +23,17 @@ Two GitHub constraints shape the design:
 - **`stable`**: Biweekly periodic release channel (`0 6 1,15 * *` UTC, 1st & 15th), fast-forwarded from green `beta`.
 - **`release`** (renamed from `main`): Exclusively the production deployment branch. Fast-forwarded from `stable` on the biweekly schedule or manually via `workflow_dispatch` (from `stable`, `beta`, `nightly`, or `develop`).
 
-### Cheap PR checks vs. merge-queue expensive checks
+### Cheap PR checks vs. merge-queue & release-branch checks
 
-- **PR-time (cheap)**: `ci-checks.yml` (matching `scripts/ci/local_ci.py`), `agent-system.yml`, `docs-pages.yml` (`build`), and `dependency-review.yml` run on every PR targeting `develop`.
-- **Queue-time (expensive)**: `validation.yml` (web/Android smoke, Playwright E2E, Android integration, non-fork Firestore rules) runs on `pull_request` only when the PR carries `merge/auto` (and on `push` to `develop` / `release`). `build-android.yml` and `build-web.yml` produce release artifacts on `push` to `develop`, `nightly`, `beta`, `stable`, and `release`.
+- **PR-time (cheap)**: `ci-checks.yml` (matching `scripts/ci/local_ci.py`), `agent-system.yml`, `docs-pages.yml` (`build`), `traceability.yml`, and `dependency-review.yml` run on every PR targeting `develop`.
+- **No duplicate `develop` push runs**: Merging a PR into `develop` does not re-run CI check workflows on `develop`; only `merge-gate.yml` reconciles the next queued PR.
+- **Queue-time & release-branch (expensive)**: `validation.yml` (web/Android smoke, Playwright E2E, Android integration, non-fork Firestore rules) runs on `pull_request` when the PR carries `merge/auto` and on `push` to release branches (`nightly`, `beta`, `stable`, `release`). `build-android.yml` and `build-web.yml` produce release artifacts on `push` to `nightly`, `beta`, `stable`, and `release`.
 - **`merge_gate.py`** targets `develop`, waits for `"Detect changed areas"` (`Validation` entrypoint) to complete with `SUCCESS` on the PR head (in addition to `rollup == "SUCCESS"`), and integrates one PR at a time via `--rebase`.
 
 ### Periodic and manual fast-forward promotions (`develop -> nightly -> beta -> stable -> release`)
 
 - `.github/workflows/promote.yml` runs `scripts/github/promote_release.py` on three cron schedules (`0 4 * * *` daily `develop -> nightly`, `0 5 * * 1` weekly `nightly -> beta`, `0 6 1,15 * *` biweekly `beta -> stable -> release`) and via `workflow_dispatch` (selecting target `channel`, optional `source`, and `dry_run`).
-- Each promotion step verifies the target branch is an ancestor of the source branch (never force-pushes), checks that no checks on the source commit SHA are pending or failed and that `"Detect changed areas"` completed with `SUCCESS`, and fast-forwards `refs/heads/<target>` using `MERGE_GATE_TOKEN`. Advancing `release` triggers deployment workflows (`firebase-hosting.yml`, `build-android.yml` + `build-web.yml` -> `release-gated.yml`, `docs-pages.yml` Pages deploy).
+- Each promotion step verifies the target branch is an ancestor of the source branch (never force-pushes) and blocks on any failed or pending checks. Promoting from `develop` (`develop -> <release branch>`) advances into the release pipeline and triggers release-branch checks; promoting between release branches (`nightly -> beta -> stable -> release`) strictly requires a green check rollup and completed `"Detect changed areas"` (`SUCCESS`) on that exact commit SHA before fast-forwarding `refs/heads/<target>` using `MERGE_GATE_TOKEN`. Advancing `release` triggers deployment workflows (`firebase-hosting.yml`, `build-android.yml` + `build-web.yml` -> `release-gated.yml`, `docs-pages.yml` Pages deploy).
 
 ### Rulesets & rollback
 

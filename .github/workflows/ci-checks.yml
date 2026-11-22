@@ -2,7 +2,7 @@ name: Format, Analyze, Check Localizations and Run Tests
 
 on:
   push:
-    branches: [develop, release]
+    branches: [nightly, beta, stable, release]
     paths:
       - "**.dart"
       - "lib/**"
