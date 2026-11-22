@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only Firebase key discovery and isolated Terraform backend config."""
+"""Read-only Firebase key discovery, worktree-safe state paths, and Terraform config prep."""
 
 import json
 import os
@@ -10,6 +10,32 @@ import sys
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
+
+SAFE_SEGMENT_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]*$')
+
+
+def validate_segment(value, label):
+    if not isinstance(value, str) or not SAFE_SEGMENT_RE.fullmatch(value) or value in {'.', '..'}:
+        raise ValueError(f'{label} must be a safe path segment without separators or traversal.')
+    return value
+
+
+def local_state_path(repo_slug, stack, xdg_state_home=None, home=None):
+    """Return the worktree-safe XDG local Terraform state file path (ADR 0008)."""
+    if not isinstance(repo_slug, str) or repo_slug.count('/') != 1:
+        raise ValueError('Repository slug must be in owner/repo format.')
+    owner, repo = repo_slug.split('/', 1)
+    validate_segment(owner, 'repository owner')
+    validate_segment(repo, 'repository name')
+    validate_segment(stack, 'state stack')
+
+    state_root_env = xdg_state_home if xdg_state_home is not None else os.environ.get('XDG_STATE_HOME', '')
+    if state_root_env:
+        base = Path(state_root_env).expanduser()
+    else:
+        home_dir = Path(home).expanduser() if home is not None else Path.home()
+        base = home_dir / '.local' / 'state'
+    return base / 'foodsavr' / 'terraform' / owner / repo / stack / 'terraform.tfstate'
 
 
 def discover_api_key(project, app, token, opener=urlopen):
@@ -47,19 +73,20 @@ def prepare_config(source, destination, backend, state_path):
         shutil.copy2(lock, destination / lock.name)
     main = destination / 'main.tf'
     text = main.read_text()
+    escaped_state = json.dumps(str(state_path)).replace('${', '$${').replace('%{', '%%{')
     replacement = (
         '  backend "local" {\n'
-        f'    path = {json.dumps(str(state_path)).replace("${", "$${").replace("%{", "%%{")}\n'
+        f'    path = {escaped_state}\n'
         '  }\n'
         if backend == 'local' else '  backend "gcs" {}\n'
     )
     text, count = re.subn(
-        r'(?ms)^  backend "gcs" \{\n.*?^  \}\n',
+        r'(?ms)^  backend "(?:gcs|local)" \{(?:\n.*?^  \}|\})\n',
         lambda _: replacement,
         text,
     )
     if count != 1:
-        raise ValueError('Expected one GCS backend block in Terraform source.')
+        raise ValueError('Expected one GCS or local backend block in Terraform source.')
     main.write_text(text)
 
 
@@ -72,9 +99,11 @@ def main():
             ))
         elif sys.argv[1] == 'config':
             prepare_config(*sys.argv[2:])
+        elif sys.argv[1] == 'state-path':
+            print(local_state_path(sys.argv[2], sys.argv[3]))
         else:
             raise ValueError('Unknown bootstrap helper command.')
-    except (ValueError, OSError, KeyError) as error:
+    except (ValueError, OSError, KeyError, IndexError) as error:
         sys.exit(str(error))
 
 

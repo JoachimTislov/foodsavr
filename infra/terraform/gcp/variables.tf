@@ -10,8 +10,46 @@ variable "region" {
 }
 
 variable "github_repository" {
-  description = "owner/repo allowed to deploy (Workload Identity condition)."
+  description = "owner/repo allowed to authenticate via Workload Identity Federation."
   type        = string
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", var.github_repository))
+    error_message = "github_repository must be in owner/repo format."
+  }
+}
+
+variable "release_topology" {
+  description = "Release branch topology (single, two-stage, full-channels); controls default deploy branch when deploy_branch is unset."
+  type        = string
+  default     = "full-channels"
+  validation {
+    condition     = contains(["single", "two-stage", "full-channels"], var.release_topology)
+    error_message = "release_topology must be single, two-stage, or full-channels."
+  }
+}
+
+variable "deploy_branch" {
+  description = "Optional branch override allowed to impersonate github-deploy-live (defaults to develop in single topology, else release)."
+  type        = string
+  default     = ""
+}
+
+variable "telemetry_branch" {
+  description = "Branch allowed to impersonate github-telemetry-ro for scheduled telemetry and deployment-level polling."
+  type        = string
+  default     = "develop"
+}
+
+variable "github_environment" {
+  description = "GitHub Environment name required in OIDC tokens impersonating github-deploy-live."
+  type        = string
+  default     = "production"
+}
+
+variable "allow_preview_refs" {
+  description = "When true (non-production staging environments only), allows any branch deploying to github_environment to impersonate github-deploy-live."
+  type        = bool
+  default     = false
 }
 
 variable "web_app_id" {

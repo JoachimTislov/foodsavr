@@ -78,9 +78,10 @@ gha-creds-*.json
 packages/foodsavr_core/.dart_tool/
 packages/foodsavr_core/.packages
 .firebase/
-infra/terraform/.terraform/
-infra/terraform/*.tfstate*
-infra/terraform/*.tfvars
+infra/terraform/**/.terraform/
+infra/terraform/**/*.tfstate*
+infra/terraform/**/*.tfvars
+infra/terraform/**/*.tfplan
 
-# Private per-project Terraform state for free instances.
+# Legacy worktree-local Terraform state path (migrated to XDG_STATE_HOME per ADR 0008).
 .deployment-state/
