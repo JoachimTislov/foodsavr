@@ -234,3 +234,4 @@
 {"event": "Opened PR #309 targeting develop", "prs": ["#309"], "session_id": "t3-code:ec55d930-f755-45b0-b46f-5614b2dd9fc7", "timestamp": "2026-11-22T02:39:22+00:00"}
 {"commits": ["bac5c0c3e1af00039acb3a1b5c8651e83aca3a25"], "event": "Retargeted main to develop (hooks.py docs links); rebased onto origin/develop, which already carried the rest", "prs": ["#312"], "session_id": "t3-code:172f01b4-c696-4afc-ae44-78cea1607dc3", "timestamp": "2026-11-22T03:15:03+00:00"}
 {"event": "Retarget docs link rewriter to HEAD (default branch); rebased onto origin/develop", "prs": ["#312"], "session_id": "t3-code:172f01b4-c696-4afc-ae44-78cea1607dc3", "timestamp": "2026-11-22T03:20:43+00:00"}
+{"event": "Compacted Agent-Session trailer into one per-harness block (hook merges sessions, declared_sessions parses it).", "session_id": "t3-code:e189a52e-23e0-45ea-a7cd-5395c2cfa8d9", "timestamp": "2026-11-22T03:40:06+00:00"}
