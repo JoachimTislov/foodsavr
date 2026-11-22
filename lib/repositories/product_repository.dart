@@ -13,11 +13,14 @@ class ProductRepository implements IProductRepository {
 
   @override
   Future<Product> add(Product product) async {
-    await _firestore
-        .collection(_collectionName)
-        .doc(product.id)
-        .set(product.toJson());
-    return product;
+    final docRef = product.id.isEmpty
+        ? _firestore.collection(_collectionName).doc()
+        : _firestore.collection(_collectionName).doc(product.id);
+    final savedProduct = product.id.isEmpty
+        ? product.copyWith(id: docRef.id)
+        : product;
+    await docRef.set(savedProduct.toJson());
+    return savedProduct;
   }
 
   @override

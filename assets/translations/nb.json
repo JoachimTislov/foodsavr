@@ -158,6 +158,7 @@
 		"normal": "Normal",
 		"personal_product": "Personlig produkt",
 		"quantity_units": "{} enheter",
+		"saveError": "Kunne ikke lagre produktet: {error}",
 		"scanBarcode": "Skann strekkode",
 		"scan_expiry": "Skann utløpsdato",
 		"scanExpiryHint": "Hold den trykte utløpsdatoen stille inne i rammen",
