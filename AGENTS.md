@@ -34,6 +34,7 @@ One agent system serves local shells, T3 Code threads, and GitHub runners throug
 - The main working folder is for meta tasks (agents, docs, research); source-code changes go in a worktree (`make worktree name=<issue>`).
 - `make check` (analyze, format, test, locale-check) is green before every commit. After two consecutive failures, stop and ask; headless runs record the blocker and stop.
 - Commit and push after each completed task or tight batch.
+- Never merge to update a branch: no `git merge` of base into a feature branch, no merge commits. Always `git rebase` onto the base and push with `--force-with-lease`.
 
 ## Source of truth & sync rules
 

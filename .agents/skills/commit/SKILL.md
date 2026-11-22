@@ -16,3 +16,4 @@ metadata:
    - The co-author trailer your harness requires.
 6. Commit, then log the event in [.agents/ledger.jsonl](../../ledger.jsonl) and add the SHA to the session record (`sessions register --session-id ... --commit <sha>`; records upsert).
 7. Push after each completed task (`make push`), unless the user asked otherwise.
+8. Never merge to update a branch; rebase onto the base and push with `--force-with-lease`.
