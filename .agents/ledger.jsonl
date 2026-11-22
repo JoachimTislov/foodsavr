@@ -293,3 +293,4 @@
 {"event": "applied owner answers to ADR 0008 and ADR 0009, contracts, registry, research note", "issues": ["#381"], "prs": ["#380"], "session_id": "claude-code:a98970b1-b981-4d3a-9741-d51200e5407d", "timestamp": "2026-11-22T18:25:28+00:00"}
 {"event": "created #400 web checkout with RevenueCat Web Billing as child of 381 blocked by 386", "issues": ["#400", "#381"], "session_id": "claude-code:a98970b1-b981-4d3a-9741-d51200e5407d", "timestamp": "2026-11-22T18:25:28+00:00"}
 {"event": "updated bodies of 381 382 383 384 385 386 387 388 390 391 393 371 394 to match owner answers", "issues": ["#381"], "session_id": "claude-code:a98970b1-b981-4d3a-9741-d51200e5407d", "timestamp": "2026-11-22T18:25:28+00:00"}
+{"event": "committed bd18b0f and pushed to design-feature-entitlements-adr", "prs": ["#380"], "session_id": "claude-code:a98970b1-b981-4d3a-9741-d51200e5407d", "timestamp": "2026-11-22T18:27:01+00:00"}
