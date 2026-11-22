@@ -81,6 +81,7 @@ GROUPS: dict[str, Group] = {
         paths=["doc/**", "specs/source-of-truth/**", "assets/logos/**", "*.md", "mkdocs.yml", "scripts/docs/**",
                ".github/workflows/docs-pages.yml"],
         commands=[
+            ["{python}", "scripts/docs/integration_index.py", "--check"],
             ["{python}", "scripts/docs/prepare.py"],
             ["{python}", "-m", "mkdocs", "build", "--strict"],
             ["{python}", "scripts/docs/check_site.py", "build/docs-site"],

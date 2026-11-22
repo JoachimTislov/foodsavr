@@ -2,6 +2,8 @@
 
 The authoritative service/integration surface is [registries/services.yaml](registries/services.yaml), anchor-checked in CI by `scripts/ci/check_shape_sync.dart`.
 
+Research catalog of candidate integrations (non-authoritative, one file per service): [doc/integrations/](../../doc/integrations/README.md).
+
 ## Built (absorbed from code @ 103a70f)
 
 - **Rema** — implemented client: `lib/features/third_party_integration/clients/rema_client.dart` over `base_client.dart`.
