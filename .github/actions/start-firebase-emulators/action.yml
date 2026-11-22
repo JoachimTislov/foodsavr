@@ -1,0 +1,36 @@
+name: Start Firebase Emulators
+description: Write permissive CI emulator rules/config and start Auth + Firestore emulators.
+
+runs:
+  using: composite
+  steps:
+    - name: Start Firebase Emulators
+      shell: bash
+      run: |
+        cat > firebase.json <<'EOT'
+        {
+          "firestore": {
+            "rules": "firestore.rules"
+          },
+          "emulators": {
+            "auth": { "port": 9099 },
+            "firestore": { "port": 8080 },
+            "ui": { "enabled": true, "port": 4000 }
+          }
+        }
+        EOT
+        cat > firestore.rules <<'EOT'
+        rules_version = '2';
+        service cloud.firestore {
+          match /databases/{database}/documents {
+            match /{document=**} {
+              allow read, write: if true;
+            }
+          }
+        }
+        EOT
+        npx -y firebase-tools@latest emulators:start --project demo-project &
+        for i in $(seq 1 60); do
+          curl -s http://localhost:4000 > /dev/null && break
+          sleep 2
+        done

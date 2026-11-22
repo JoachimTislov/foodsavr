@@ -5,6 +5,7 @@ on:
     branches: [develop, main]
     paths:
       - "lib/**"
+      - "packages/**"
       - "android/**"
       - "assets/**"
       - "pubspec.yaml"
@@ -13,98 +14,18 @@ on:
       - ".github/workflows/release-gated.yml"
       - "scripts/release/**"
       - "scripts/ci/**"
-      - "packages/**"
-  pull_request:
-    branches: [develop]
-    types: [opened, synchronize, reopened, labeled]
-    paths:
-      - "lib/**"
-      - "android/**"
-      - "assets/**"
-      - "pubspec.yaml"
-      - "pubspec.lock"
-      - ".github/workflows/build-android.yml"
-      - ".github/workflows/release-gated.yml"
-      - "scripts/release/**"
-      - "scripts/ci/**"
-      - "packages/**"
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  dep-impact:
-    name: Classify dependency bump
-    if: (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'merge/auto')) && (github.event.action != 'labeled' || github.event.label.name == 'merge/auto')
-    runs-on: ubuntu-latest
-    outputs:
-      run_android: ${{ steps.classify.outputs.run_android }}
-      run_web: ${{ steps.classify.outputs.run_web }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Classify bumped packages
-        id: classify
-        env:
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-        run: |
-          if [ "${{ github.event_name }}" != "pull_request" ] || [ "$PR_AUTHOR" != "dependabot[bot]" ]; then
-            echo "Not a Dependabot pull request - run everything."
-            echo "run_android=true" >> "$GITHUB_OUTPUT"
-            echo "run_web=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          base="origin/${{ github.base_ref }}"
-          bumped=$(git diff --unified=0 "$base...HEAD" -- pubspec.yaml 'packages/*/pubspec.yaml' \
-            | grep -E '^[+-]  [a-z0-9_]+:' \
-            | sed -E 's/^[+-]  ([a-z0-9_]+):.*/\1/' \
-            | grep -vx 'sdk' \
-            | sort -u)
-
-          if [ -z "$bumped" ]; then
-            echo "No direct pub dependencies changed - run everything."
-            echo "run_android=true" >> "$GITHUB_OUTPUT"
-            echo "run_web=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Packages whose bump only affects the Android build.
-          android_only="google_mlkit_barcode_scanning google_mlkit_text_recognition"
-          # Packages whose bump only affects the web build.
-          web_only=""
-          # Pure Dart packages: covered by analyze + unit tests, no platform build needed.
-          pure="build_runner cupertino_icons crypto easy_localization easy_logger flutter_dotenv \
-          flutter_lints freezed freezed_annotation fuzzywuzzy get_it http injectable \
-          injectable_generator intl json_annotation logger lints meta mocktail openfoodfacts \
-          test vector_graphics vector_graphics_codec vector_graphics_compiler watch_it"
-
-          run_android=false
-          run_web=false
-          for pkg in $bumped; do
-            case " $pure " in
-              *" $pkg "*) echo "$pkg: pure Dart" ;;
-              *" $android_only "*) echo "$pkg: Android only"; run_android=true ;;
-              *" $web_only "*) echo "$pkg: web only"; run_web=true ;;
-              *) echo "$pkg: cross-platform"; run_android=true; run_web=true ;;
-            esac
-          done
-
-          echo "run_android=$run_android" >> "$GITHUB_OUTPUT"
-          echo "run_web=$run_web" >> "$GITHUB_OUTPUT"
-
   build-android:
     name: Build Android APK (debug)
-    needs: dep-impact
-    if: ${{ needs.dep-impact.outputs.run_android == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -119,67 +40,13 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - name: Set up Flutter app
+        uses: ./.github/actions/setup-flutter-app
         with:
-          flutter-version: 3.47.6
-          channel: stable
-          cache: true
+          flutter-version: "3.47.6"
+          firebase-options-b64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
+          write-dummy-google-services: "true"
 
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Write firebase_options.dart
-        env:
-          FIREBASE_OPTIONS_B64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
-        run: bash scripts/ci/write_firebase_options.sh
-      - name: Write placeholder firebase_options.dart (fork PRs)
-        run: |
-          cat > lib/firebase_options.dart <<'EOT'
-          // Placeholder generated for fork pull requests; the Firebase options
-          // secret is unavailable in this context.
-          import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
-
-          class DefaultFirebaseOptions {
-            static FirebaseOptions get currentPlatform => throw UnsupportedError(
-              'FirebaseOptions not configured for fork PR builds');
-          }
-          EOT
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
-
-      - name: Create empty .env file
-        run: touch assets/.env
-
-      - name: Write dummy google-services.json (development)
-        run: |
-          mkdir -p android/app/src/development/debug
-          cat > android/app/src/development/debug/google-services.json <<'EOT'
-          {
-            "project_info": {
-              "project_number": "1234567890",
-              "project_id": "demo-project",
-              "storage_bucket": "demo-project.appspot.com"
-            },
-            "client": [
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:1234567890:android:dummyid123456",
-                  "android_client_info": {
-                    "package_name": "com.foodsavr.app.development"
-                  }
-                },
-                "oauth_client": [],
-                "api_key": [
-                  { "current_key": "AIzaSyDummyKeyForDemoOnly" }
-                ],
-                "services": {}
-              }
-            ],
-            "configuration_version": "1"
-          }
-          EOT
-      - name: Build generative code
-        run: dart run build_runner build --delete-conflicting-outputs
       - name: Build development debug APK
         run: flutter build apk --flavor development --debug
 

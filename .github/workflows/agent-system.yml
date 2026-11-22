@@ -3,7 +3,7 @@ name: Agent system validation
 on:
   pull_request:
     branches: [develop]
-    paths:
+    paths: &agent-paths
       - '.agents/**'
       - '.claude/**'
       - '.gemini/**'
@@ -23,6 +23,8 @@ on:
       - 'scripts/secrets/**'
       - 'scripts/ci/local_ci.py'
       - 'scripts/ci/test_local_ci.py'
+      - 'scripts/ci/dep_impact.py'
+      - 'scripts/ci/test_dep_impact.py'
       - '.githooks/**'
       - 'scripts/human/**'
       - '.agents/github/**'
@@ -35,36 +37,7 @@ on:
       - '.github/workflows/agent-system.yml'
   push:
     branches: [develop]
-    paths:
-      - '.agents/**'
-      - '.claude/**'
-      - '.gemini/**'
-      - '.github/agents/**'
-      - '.github/instructions/**'
-      - '.github/copilot-instructions.md'
-      - '.github/workflows/agent-implement.yml'
-      - 'log/**'
-      - 'logs/**'
-      - '**/*.jsonl'
-      - '**/*.log'
-      - 'AGENTS.md'
-      - 'CLAUDE.md'
-      - 'GEMINI.md'
-      - 'scripts/agents/**'
-      - 'scripts/github/**'
-      - 'scripts/secrets/**'
-      - 'scripts/ci/local_ci.py'
-      - 'scripts/ci/test_local_ci.py'
-      - '.githooks/**'
-      - 'scripts/human/**'
-      - '.agents/github/**'
-      - '.github/workflows/github-labels.yml'
-      - '.github/workflows/merge-gate.yml'
-      - '.github/workflows/promote.yml'
-      - 'specs/**'
-      - 'docs/**'
-      - 'doc/**'
-      - '.github/workflows/agent-system.yml'
+    paths: *agent-paths
   schedule:
     - cron: '17 3 * * 1'
   workflow_dispatch:

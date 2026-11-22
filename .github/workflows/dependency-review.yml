@@ -3,6 +3,16 @@ name: Dependency Review
 on:
   pull_request:
     branches: [develop]
+    paths:
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - "packages/*/pubspec.yaml"
+      - "**/package.json"
+      - "**/package-lock.json"
+      - "scripts/docs/requirements.txt"
+      - "android/**/build.gradle*"
+      - "android/gradle/**"
+      - ".github/workflows/dependency-review.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

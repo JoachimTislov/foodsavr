@@ -1,0 +1,116 @@
+name: Setup Flutter App
+description: Install Flutter, configure Firebase/dotenv CI files, and optionally run pub get and build_runner.
+
+inputs:
+  flutter-version:
+    description: Flutter SDK version to install
+    required: false
+    default: "3.47.6"
+  firebase-options-b64:
+    description: Base64-encoded lib/firebase_options.dart (empty uses fork-safe placeholder)
+    required: false
+    default: ""
+  dotenv-content:
+    description: Contents for assets/.env
+    required: false
+    default: ""
+  run-pub-get:
+    description: Whether to run flutter pub get
+    required: false
+    default: "true"
+  run-build-runner:
+    description: Whether to run dart run build_runner build
+    required: false
+    default: "true"
+  write-dummy-google-services:
+    description: Whether to write dummy Android google-services.json files
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: ${{ inputs.flutter-version }}
+        channel: stable
+        cache: true
+
+    - name: Install dependencies
+      if: inputs.run-pub-get == 'true'
+      shell: bash
+      run: flutter pub get
+
+    - name: Write firebase_options.dart
+      shell: bash
+      env:
+        FIREBASE_OPTIONS_B64: ${{ inputs.firebase-options-b64 }}
+      run: |
+        if [ -n "$FIREBASE_OPTIONS_B64" ]; then
+          printf '%s' "$FIREBASE_OPTIONS_B64" | base64 -d > lib/firebase_options.dart
+        else
+          cat > lib/firebase_options.dart <<'EOT'
+        // Placeholder generated when FIREBASE_OPTIONS_B64 is unavailable (e.g. fork PRs).
+        import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
+
+        class DefaultFirebaseOptions {
+          static FirebaseOptions get currentPlatform => throw UnsupportedError(
+            'FirebaseOptions not configured for fork PR builds');
+        }
+        EOT
+        fi
+
+    - name: Write assets/.env
+      shell: bash
+      env:
+        DOTENV_CONTENT: ${{ inputs.dotenv-content }}
+      run: |
+        if [ -n "$DOTENV_CONTENT" ]; then
+          printf '%s\n' "$DOTENV_CONTENT" > assets/.env
+        else
+          : > assets/.env
+        fi
+
+    - name: Write dummy google-services.json
+      if: inputs.write-dummy-google-services == 'true'
+      shell: bash
+      run: |
+        mkdir -p android/app/src/development/debug android/app/src/production/debug
+        cat > android/app/src/development/debug/google-services.json <<'EOT'
+        {
+          "project_info": {
+            "project_number": "1234567890",
+            "project_id": "demo-project",
+            "storage_bucket": "demo-project.appspot.com"
+          },
+          "client": [
+            {
+              "client_info": {
+                "mobilesdk_app_id": "1:1234567890:android:dummyid123456",
+                "android_client_info": {
+                  "package_name": "com.foodsavr.app.development"
+                }
+              },
+              "oauth_client": [],
+              "api_key": [
+                { "current_key": "AIzaSyDummyKeyForDemoOnly" }
+              ],
+              "services": {
+                "appinvite_service": {
+                  "google_api_initializer": []
+                }
+              }
+            }
+          ],
+          "configuration_version": "1"
+        }
+        EOT
+        sed 's/com.foodsavr.app.development/com.foodsavr.app/' \
+          android/app/src/development/debug/google-services.json \
+          > android/app/src/production/debug/google-services.json
+
+    - name: Build generative code
+      if: inputs.run-build-runner == 'true'
+      shell: bash
+      run: dart run build_runner build --delete-conflicting-outputs
