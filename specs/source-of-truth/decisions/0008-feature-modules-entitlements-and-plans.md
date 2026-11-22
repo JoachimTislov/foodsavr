@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (explicit owner intent, 2026-11-22: plans and entitlements interview; the owner confirmed the decision summary). Builds on the automation-runtime decision on #321 (interaction-driven, on-device first, no scheduled or always-on cloud jobs). Spec-ahead: nothing here is implemented yet.
+Accepted (explicit owner intent, 2026-11-22: plans and entitlements interview; the owner confirmed the decision summary). Tracked by Epic #381. Builds on the automation-runtime decision on #321 (interaction-driven, on-device first, no scheduled or always-on cloud jobs). Spec-ahead: nothing here is implemented yet.
 
 ## Context
 
