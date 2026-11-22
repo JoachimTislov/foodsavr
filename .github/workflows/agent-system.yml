@@ -28,6 +28,7 @@ on:
       - 'scripts/ci/test_dep_impact.py'
       - '.githooks/**'
       - 'scripts/human/**'
+      - 'scripts/setup/agent_router.sh'
       - '.agents/github/**'
       - '.github/workflows/github-labels.yml'
       - '.github/workflows/merge-gate.yml'

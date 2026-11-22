@@ -9,12 +9,15 @@
     "control_plane_egress": "independent",
     "allow_control_plane_on_none": false,
     "base_url_env": "ROUTER_BASE_URL",
+    "default_base_url": "https://api.typesafe.ai/v1/systemone",
     "api_key_env": "ROUTER_API_KEY",
     "model_env": "ROUTER_MODEL",
+    "model_required": false,
     "timeout_ms": 500
   },
   "fallback": {
-    "strategy": "first-available-policy-safe",
+    "strategy": "hybrid-deterministic-jev",
+    "deterministic_min_confidence": 0.9,
     "requires_explicit_provider": false
   },
   "decision_fields": [
@@ -55,6 +58,7 @@
       "tier": "fast",
       "reasoning_effort": "low",
       "preferences": [
+        {"provider": "antigravity", "model": "gemini-3.8-flash"},
         {"provider": "gemini", "model": "gemini-3.8-flash"},
         {"provider": "claude", "model": "claude-haiku-5-5"},
         {"provider": "opencode", "model": "opencode/claude-haiku-5-5"},
@@ -67,6 +71,7 @@
       "tier": "balanced",
       "reasoning_effort": "medium",
       "preferences": [
+        {"provider": "antigravity", "model": "gemini-4-neon"},
         {"provider": "gemini", "model": "gemini-4-neon"},
         {"provider": "claude", "model": "claude-sonnet-5-5"},
         {"provider": "opencode", "model": "opencode/claude-haiku-5-5"},
@@ -80,6 +85,7 @@
       "reasoning_effort": "low",
       "preferences": [
         {"provider": "claude", "model": "claude-sonnet-5-5"},
+        {"provider": "antigravity", "model": "gemini-4-neon"},
         {"provider": "gemini", "model": "gemini-4-neon"},
         {"provider": "opencode", "model": "opencode/claude-haiku-5-5"},
         {"provider": "codex", "model": "gpt-6.2-sol"},
@@ -93,6 +99,7 @@
       "preferences": [
         {"provider": "codex", "model": "gpt-6.2-sol"},
         {"provider": "claude", "model": "claude-opus-5-5"},
+        {"provider": "antigravity", "model": "gemini-4-hydrogen"},
         {"provider": "gemini", "model": "gemini-4-hydrogen"},
         {"provider": "claude", "model": "claude-sonnet-5-5"},
         {"provider": "opencode", "model": "opencode/claude-sonnet-5-5"},
@@ -106,6 +113,7 @@
       "preferences": [
         {"provider": "codex", "model": "gpt-6.2-sol"},
         {"provider": "claude", "model": "claude-sonnet-5-5"},
+        {"provider": "antigravity", "model": "gemini-4-neon"},
         {"provider": "gemini", "model": "gemini-4-neon"},
         {"provider": "opencode", "model": "opencode/claude-sonnet-5-5"},
         {"provider": "vibe", "model": "devstral-2"},
@@ -118,6 +126,7 @@
       "preferences": [
         {"provider": "claude", "model": "claude-sonnet-5-5"},
         {"provider": "codex", "model": "gpt-6.2-sol"},
+        {"provider": "antigravity", "model": "gemini-4-hydrogen"},
         {"provider": "gemini", "model": "gemini-4-hydrogen"},
         {"provider": "opencode", "model": "opencode/claude-sonnet-5-5"},
         {"provider": "vibe", "model": "devstral-2"},
@@ -130,6 +139,7 @@
       "preferences": [
         {"provider": "codex", "model": "gpt-6.2-sol"},
         {"provider": "claude", "model": "claude-opus-5-5"},
+        {"provider": "antigravity", "model": "gemini-4-hydrogen"},
         {"provider": "gemini", "model": "gemini-4-hydrogen"},
         {"provider": "claude", "model": "claude-sonnet-5-5"},
         {"provider": "vibe", "model": "devstral-2"},
@@ -142,8 +152,10 @@
       "reasoning_effort": "xhigh",
       "preferences": [
         {"provider": "claude", "model": "claude-opus-5-5"},
+        {"provider": "antigravity", "model": "gemini-4-argon"},
         {"provider": "gemini", "model": "gemini-4-argon"},
         {"provider": "codex", "model": "gpt-6.1-terra"},
+        {"provider": "antigravity", "model": "gemini-4-hydrogen"},
         {"provider": "gemini", "model": "gemini-4-hydrogen"},
         {"provider": "codex", "model": "gpt-6.2-sol"},
         {"provider": "copilot", "model": "gpt-6.2-sol"}
@@ -155,7 +167,9 @@
       "preferences": [
         {"provider": "codex", "model": "gpt-6.1-terra"},
         {"provider": "claude", "model": "claude-opus-5-5"},
+        {"provider": "antigravity", "model": "gemini-4-argon"},
         {"provider": "gemini", "model": "gemini-4-argon"},
+        {"provider": "antigravity", "model": "gemini-4-hydrogen"},
         {"provider": "gemini", "model": "gemini-4-hydrogen"},
         {"provider": "codex", "model": "gpt-6.2-sol"},
         {"provider": "copilot", "model": "gpt-6.2-sol"}

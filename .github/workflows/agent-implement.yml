@@ -86,6 +86,8 @@ jobs:
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           CODEX_AUTH_JSON_B64: ${{ secrets.CODEX_AUTH_JSON_B64 }}
+          ANTIGRAVITY_OAUTH_TOKEN_B64: ${{ secrets.ANTIGRAVITY_OAUTH_TOKEN_B64 }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           installed=0
           if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
@@ -96,8 +98,20 @@ jobs:
             install -d -m 700 "$HOME/.codex"
             umask 077; echo "$CODEX_AUTH_JSON_B64" | base64 -d > "$HOME/.codex/auth.json"; installed=1
           fi
+          if [ -n "$ANTIGRAVITY_OAUTH_TOKEN_B64" ] || [ -n "$GEMINI_API_KEY" ]; then
+            curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- --skip-aliases --skip-path
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+            install -d -m 700 "$HOME/.gemini/antigravity-cli"
+            if [ -n "$ANTIGRAVITY_OAUTH_TOKEN_B64" ]; then
+              umask 077; echo "$ANTIGRAVITY_OAUTH_TOKEN_B64" | base64 -d > "$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
+              printf '{"agentMode":"auto","toolPermission":"proceed-in-sandbox","enableTerminalSandbox":true}\n' > "$HOME/.gemini/antigravity-cli/settings.json"
+            else
+              printf '{"modelProvider":"gemini","agentMode":"auto","toolPermission":"proceed-in-sandbox","enableTerminalSandbox":true}\n' > "$HOME/.gemini/antigravity-cli/settings.json"
+            fi
+            installed=1
+          fi
           if [ "$installed" = 0 ]; then
-            echo "No harness login configured: run scripts/secrets/rotate.py CLAUDE_CODE_OAUTH_TOKEN (or CODEX_AUTH_JSON_B64)."
+            echo "No harness login configured: run scripts/secrets/rotate.py CLAUDE_CODE_OAUTH_TOKEN (or CODEX_AUTH_JSON_B64 / ANTIGRAVITY_OAUTH_TOKEN_B64 / GEMINI_API_KEY)."
             exit 1
           fi
 
@@ -116,11 +130,15 @@ jobs:
       - name: Run implement-issue workflow
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ROUTER_BASE_URL: ${{ secrets.ROUTER_BASE_URL }}
+          ROUTER_API_KEY: ${{ secrets.ROUTER_API_KEY }}
+          ROUTER_MODEL: ${{ secrets.ROUTER_MODEL }}
           AGENT_POLICY_FILE: .agents/policies/agent-implement.json
         run: |
           scripts/agents/agentctl workflow run .agents/state/workflows/implement-issue.json \
             --execute --provider auto > .agents/state/result.json || true
-          rm -f "$HOME/.codex/auth.json"
+          rm -f "$HOME/.codex/auth.json" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
           jq '{status, run_id, session_ids, patch, steps: [.steps[] | {id, status, provider, reason}]}' .agents/state/result.json || true
 
       - name: Apply patch

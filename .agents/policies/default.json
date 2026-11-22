@@ -6,7 +6,7 @@
   "network": "none",
   "git": "read-only",
   "github": "none",
-  "allow_hosts": ["github.com", "api.github.com", "docs.mistral.ai", "sqlite.org"],
+  "allow_hosts": ["github.com", "api.github.com", "api.typesafe.ai", "docs.mistral.ai", "sqlite.org"],
   "require_draft_pr": true,
   "require_session_id": true,
   "require_ledger_event": true,

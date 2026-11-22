@@ -168,7 +168,7 @@ if [ -z "$mode" ]; then
     mode="probe-only"
   elif [ -n "$arg_base_url" ] || [ -n "$arg_model" ]; then
     mode="enable-remote"
-  elif [ -n "${ROUTER_BASE_URL:-}" ] && [ -n "${ROUTER_API_KEY:-}" ] && [ -n "${ROUTER_MODEL:-}" ]; then
+  elif [ -n "${ROUTER_BASE_URL:-}" ] && [ -n "${ROUTER_API_KEY:-}" ]; then
     mode="enable-remote"
   elif [ -t 0 ]; then
     step "Agent Router Setup"
@@ -197,6 +197,41 @@ PY
 
 agentctl_cmd() {
   python3 "$repo_root/scripts/agents/agentctl.py" "$@"
+}
+
+router_default_base_url() {
+  python3 -I - "$active_router_file" "$default_router_file" <<'PY'
+import json, pathlib, sys
+for raw in sys.argv[1:]:
+    p = pathlib.Path(raw)
+    if p.is_file():
+        try:
+            d = json.loads(p.read_text())
+            url = str(d.get("decision_provider", {}).get("default_base_url") or "").strip()
+            if url:
+                print(url)
+                sys.exit(0)
+        except Exception:
+            pass
+print("https://api.typesafe.ai/v1/systemone")
+PY
+}
+
+router_model_required() {
+  python3 -I - "$active_router_file" "$default_router_file" <<'PY'
+import json, pathlib, sys
+for raw in sys.argv[1:]:
+    p = pathlib.Path(raw)
+    if p.is_file():
+        try:
+            d = json.loads(p.read_text())
+            req = bool(d.get("decision_provider", {}).get("model_required", False))
+            print("true" if req else "false")
+            sys.exit(0)
+        except Exception:
+            pass
+print("false")
+PY
 }
 
 run_check() {
@@ -233,6 +268,7 @@ for val in [
     ",".join(d["available_providers"]),
     ",".join(d["policy_safe_providers"]),
     d["effective_mode"],
+    str(bool(dp.get("model_required", False))).lower(),
 ]:
     print(val.replace("\n", " "))
 ')
@@ -243,7 +279,7 @@ for val in [
   local url_set="${fields[8]:-}" url_https="${fields[9]:-}" url_host="${fields[10]:-}"
   local key_set="${fields[11]:-}" model_set="${fields[12]:-}" model_val="${fields[13]:-}"
   local in_allow="${fields[14]:-}" avail_list="${fields[15]:-}" safe_list="${fields[16]:-}"
-  local eff_mode="${fields[17]:-}"
+  local eff_mode="${fields[17]:-}" model_req="${fields[18]:-false}"
 
   ok "Router manifest: $r_file (override=$r_override, engine=${r_engine:-none}, timeout=${r_timeout}ms)"
   if [ "$r_enabled" = true ]; then
@@ -275,10 +311,10 @@ for val in [
 
   if [ "$model_set" = true ]; then
     ok "ROUTER_MODEL is set ($model_val)"
-  elif [ "$r_enabled" = true ]; then
+  elif [ "$r_enabled" = true ] && [ "$model_req" = true ]; then
     miss "ROUTER_MODEL is not set in environment or $env_file"
   else
-    note "ROUTER_MODEL not set (optional while decision_provider.enabled=false)"
+    note "ROUTER_MODEL not set (optional; not required for Jev systemone)"
   fi
 
   step "Policy & allow_hosts alignment"
@@ -400,16 +436,22 @@ print("router={} work_types={} tiers={}".format(d["router"], len(d["matrix"]), l
 
 run_enable_remote() {
   step "Remote decision router credentials"
+  local default_url
+  default_url="$(router_default_base_url)"
+  local model_req
+  model_req="$(router_model_required)"
   local url="${ROUTER_BASE_URL:-}"
   local key="${ROUTER_API_KEY:-}"
   local model="${ROUTER_MODEL:-}"
 
   if [ -z "$url" ]; then
     if [ -t 0 ]; then
-      printf '  ROUTER_BASE_URL (https://...): '
+      printf '  ROUTER_BASE_URL [%s]: ' "$default_url"
       read -r url
+      [ -z "$url" ] && url="$default_url"
     else
-      miss "ROUTER_BASE_URL is required (pass --base-url or set ROUTER_BASE_URL)"
+      url="$default_url"
+      note "ROUTER_BASE_URL defaulted to $url"
     fi
   fi
   if [ -z "$key" ]; then
@@ -421,9 +463,9 @@ run_enable_remote() {
       miss "ROUTER_API_KEY is required (set ROUTER_API_KEY in environment or .env)"
     fi
   fi
-  if [ -z "$model" ]; then
+  if [ -z "$model" ] && [ "$model_req" = true ]; then
     if [ -t 0 ]; then
-      printf '  ROUTER_MODEL (e.g. gpt-6.2-sol or decision model ID): '
+      printf '  ROUTER_MODEL (decision model ID): '
       read -r model
     else
       miss "ROUTER_MODEL is required (pass --model or set ROUTER_MODEL)"
@@ -442,7 +484,7 @@ run_enable_remote() {
   ok "Validated HTTPS endpoint host: $router_host"
   export ROUTER_BASE_URL="$url"
   export ROUTER_API_KEY="$key"
-  export ROUTER_MODEL="$model"
+  [ -n "$model" ] && export ROUTER_MODEL="$model"
 
   step "Persist ROUTER_* credentials via scripts/secrets/rotate.py"
   if [ ! -f "$repo_root/scripts/secrets/rotate.py" ]; then
@@ -455,16 +497,21 @@ run_enable_remote() {
     sink_args+=(--only-sink github)
   fi
 
+  local rotate_names=(ROUTER_BASE_URL ROUTER_API_KEY)
+  if [ -n "$model" ]; then
+    rotate_names+=(ROUTER_MODEL)
+  fi
+
   if (
     export NEW_ROUTER_BASE_URL="$url"
     export NEW_ROUTER_API_KEY="$key"
-    export NEW_ROUTER_MODEL="$model"
-    exec python3 "$repo_root/scripts/secrets/rotate.py" --env-file "$env_file" "${sink_args[@]}" ROUTER_BASE_URL ROUTER_API_KEY ROUTER_MODEL
+    [ -n "$model" ] && export NEW_ROUTER_MODEL="$model"
+    exec python3 "$repo_root/scripts/secrets/rotate.py" --env-file "$env_file" "${sink_args[@]}" "${rotate_names[@]}"
   ) </dev/null; then
     if [ "$push_github" = 1 ]; then
-      ok "Persisted ROUTER_BASE_URL, ROUTER_API_KEY, ROUTER_MODEL to $env_file and GitHub secrets via rotate.py"
+      ok "Persisted ${rotate_names[*]} to $env_file and GitHub secrets via rotate.py"
     else
-      ok "Persisted ROUTER_BASE_URL, ROUTER_API_KEY, ROUTER_MODEL to $env_file via rotate.py"
+      ok "Persisted ${rotate_names[*]} to $env_file via rotate.py"
     fi
   else
     miss "scripts/secrets/rotate.py failed for ROUTER_*"
@@ -509,9 +556,9 @@ run_enable_remote() {
 
 run_probe() {
   step "Live remote decision probe"
-  local url="${ROUTER_BASE_URL:-}"
+  local url="${ROUTER_BASE_URL:-$(router_default_base_url)}"
   local key="${ROUTER_API_KEY:-}"
-  local model="${ROUTER_MODEL:-auto}"
+  local model="${ROUTER_MODEL:-}"
   if [ -z "$url" ]; then
     miss "Cannot probe: ROUTER_BASE_URL is not set"
     return
@@ -538,7 +585,7 @@ from pathlib import Path
 
 repo_root = Path(sys.argv[1])
 base_url = sys.argv[2].rstrip("/")
-model = sys.argv[3]
+model = sys.argv[3].strip()
 
 spec = importlib.util.spec_from_file_location("agentctl", repo_root / "scripts/agents/agentctl.py")
 agentctl = importlib.util.module_from_spec(spec)
@@ -583,8 +630,10 @@ route_request = agentctl.RouteRequest(
     available_providers=tuple(allowed_providers),
     available_models=tuple(available_models),
 )
+req_dict = route_request.to_dict()
 payload = {
-    "model": model,
+    **req_dict,
+    "request": req_dict,
     "messages": [
         {
             "role": "system",
@@ -593,7 +642,7 @@ payload = {
                 "Return strictly valid JSON matching the schema."
             ),
         },
-        {"role": "user", "content": json.dumps(route_request.to_dict(), sort_keys=True)},
+        {"role": "user", "content": json.dumps(req_dict, sort_keys=True)},
     ],
     "response_format": {
         "type": "json_schema",
@@ -603,12 +652,16 @@ payload = {
             "schema": agentctl.RouteDecision.json_schema(allowed_providers, available_models or None),
         },
     },
+    "temperature": 0,
 }
+if model:
+    payload["model"] = model
 api_key_env = router.get("decision_provider", {}).get("api_key_env") or "ROUTER_API_KEY"
 api_key = agentctl.os.environ.get(api_key_env, "")
 timeout_s = min(max(int(router.get("decision_provider", {}).get("timeout_ms", 5000)) / 1000, 1.0), 15.0)
+endpoint = agentctl.resolve_router_endpoint_url(base_url)
 req = urllib.request.Request(
-    f"{base_url}/chat/completions",
+    endpoint,
     data=json.dumps(payload).encode(),
     headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
     method="POST",

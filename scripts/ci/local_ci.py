@@ -55,7 +55,7 @@ GROUPS: dict[str, Group] = {
             "specs/**", "docs/**", "doc/**",
             ".github/workflows/agent-system.yml", ".claude/**", ".gemini/**", ".github/agents/**",
             ".github/instructions/**", ".github/copilot-instructions.md", ".github/workflows/agent-implement.yml",
-            "scripts/human/**", "log/**", "logs/**", "**/*.jsonl", "**/*.log",
+            "scripts/human/**", "scripts/setup/agent_router.sh", "log/**", "logs/**", "**/*.jsonl", "**/*.log",
         ],
         commands=[
             ["python3", "-m", "py_compile", "scripts/agents/agentctl.py", "scripts/agents/agent_skills.py",
@@ -84,7 +84,7 @@ GROUPS: dict[str, Group] = {
              "scripts/agents/agentctl", "router", "plan", ".agents/workflows/implement-issue.json"],
             ["scripts/agents/agentctl", "doctor"],
             *[["scripts/agents/agentctl", "policy", "compile", "--provider", p]
-              for p in ("codex", "claude", "opencode", "gemini", "vibe", "copilot")],
+              for p in ("antigravity", "codex", "claude", "opencode", "gemini", "vibe", "copilot")],
             *[["python3", "-m", "json.tool", f] for f in AGENT_JSON],
         ],
     ),
