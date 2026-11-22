@@ -54,6 +54,10 @@ class PlanTest(unittest.TestCase):
 
     def test_holds_ready_pr_while_up_to_date_pr_validates(self):
         self.assertEqual(actions([pr(2), pr(1, state="BLOCKED", rollup="PENDING")]), [])
+        self.assertEqual(actions([pr(2, files=["lib/a.dart"]), pr(1, state="BLOCKED", rollup="PENDING")]), [])
+
+    def test_out_of_scope_merge_is_not_held(self):
+        self.assertEqual(actions([pr(2, files=["docs/a.md"]), pr(1, state="BLOCKED", rollup="PENDING")]), [("merge", 2)])
 
     def test_stalled_checks_do_not_hold_the_queue(self):
         stalled = pr(2, state="BLOCKED", rollup="PENDING", head_time=NOW - timedelta(hours=2))
