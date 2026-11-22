@@ -99,7 +99,7 @@
       "additionalProperties": false
     },
     "guardianConsent": {
-      "description": "An adult's consent for a member aged 13 to 17 invited to their Family household, recorded when the guardian sends the invite. The guardian withdraws it by removing the member, which sets withdrawnAt and pauses the minor's account.",
+      "description": "An adult's consent for a member aged 13 to 17 invited to their Family household, recorded when the guardian sends the invite. The guardian withdraws it by removing the member, which pauses the minor's account. Records are append-only except withdrawnAt, which is set once (null to a timestamp) on withdrawal and never changed again; a renewed consent is a new record. The current consent for a member is the latest record by consentedAt.",
       "type": "object",
       "required": ["guardianUid", "memberUid", "ageBand", "documentKind", "documentVersion", "consentedAt"],
       "properties": {

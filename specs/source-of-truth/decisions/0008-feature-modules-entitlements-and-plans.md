@@ -114,6 +114,7 @@ The owner answered the questions raised after the interview (November 22, 2026);
 
 1. Whether the monthly pick swap counts calendar months or a rolling 30 days.
 2. Whether Pro and Family may share inventories with people outside the household beyond the free values (1 inventory with 1 person). The registry uses the free values until decided.
+3. How invited household members get a trusted plan copy for cloud modules: RevenueCat writes the trusted copy only for the subscriber's App User ID, so a member's copy must be derived from the subscriber's (for example by trusted server code on Blaze when membership changes) and removed when the subscriber's plan ends. Decide the mechanism before cloud-module gating (#389) and household plans (#388).
 
 ## Consequences
 
