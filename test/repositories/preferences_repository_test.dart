@@ -201,6 +201,47 @@ void main() {
       verify(() => docRef.set(local.toJson(), any())).called(2);
     });
 
+    test(
+      'loading another account preserves a pending preference change',
+      () async {
+        final user2DocRef = _MockDocRef();
+        when(
+          () => firestore.doc('users/user-2/settings/preferences'),
+        ).thenReturn(user2DocRef);
+        when(() => docRef.set(any(), any())).thenThrow(Exception('offline'));
+        const user1Local = UserPreferences(expiringSoonDays: 4);
+        await expectLater(
+          repository.save('user-1', user1Local),
+          throwsException,
+        );
+
+        when(
+          () => user2DocRef.get(),
+        ).thenAnswer((_) async => snapshot({'expiringSoonDays': 8}));
+        expect(
+          await repository.load('user-2'),
+          const UserPreferences(expiringSoonDays: 8),
+        );
+
+        // A's pending marker must survive B's successful cache refresh and cause
+        // a new repository instance to retry A instead of reading stale data.
+        when(
+          () => docRef.get(),
+        ).thenAnswer((_) async => snapshot({'expiringSoonDays': 9}));
+        final restarted = PreferencesRepository(
+          firestore,
+          await createPrefs(),
+          Logger(level: Level.off),
+        );
+        expect(await restarted.load('user-1'), user1Local);
+        expect(restarted.getCached('user-1'), user1Local);
+        expect(
+          restarted.getCached('user-2'),
+          const UserPreferences(expiringSoonDays: 8),
+        );
+      },
+    );
+
     test('the cache never leaks preferences to another account', () async {
       when(() => docRef.set(any(), any())).thenAnswer((_) async {});
       await repository.save(
