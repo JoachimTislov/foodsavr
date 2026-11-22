@@ -7,7 +7,7 @@ FLUTTER_RUN_CMD := flutter run --no-pub $(DOTENV_FLAGS)
 FLUTTER_BUILD_APK_CMD := flutter build apk $(DOTENV_FLAGS)
 CHECK_HASH_CMD := find lib test pubspec.yaml analysis_options.yaml -type f 2>/dev/null | sort | xargs sha256sum | sha256sum | awk '{print $$1}'
 
-# Including --flavor since its required for constructing the apk name. See archive/issues/gradle-build-failed-apk-flavor.md
+# Including --flavor since it is required for constructing the APK name. See doc/implementation/gradle-flavor-troubleshooting.md
 
 run-dev: deps start-firebase-emulators
 	@$(FLUTTER_RUN_CMD) --flavor development
