@@ -239,3 +239,4 @@
 {"timestamp": "2026-11-22T03:57:54.464927+00:00", "session_id": "t3-code:d710fe15", "branch": "t3/pr-pipeline-trigger-optimization", "pr": 316, "event": "PR #316: merge gate holds only in-scope merges; PR runs carry green checks across out-of-scope rebases."}
 {"event": "Opened PR #364 for ADR 0005 inbox-first transition; commented decision and rules proposal on #322", "issues": ["#322"], "prs": ["#364"], "session_id": "claude-code:82f1b2ff-048e-4e74-94d1-e3e20ef8afb2", "timestamp": "2026-11-22T12:29:17+00:00"}
 {"commits": ["53fb6123d7277283803fcba7df14d272b48f4cb3"], "event": "implemented #318: foodsavr_core tests in CI, local CI, make check", "issues": ["#318"], "session_id": "claude-code:d7562556-6518-4994-8bf3-86030e4868a6", "timestamp": "2026-11-22T12:32:19+00:00"}
+{"event": "opened PR", "issues": ["#318"], "prs": ["#366"], "session_id": "claude-code:d7562556-6518-4994-8bf3-86030e4868a6", "timestamp": "2026-11-22T12:34:13+00:00"}
