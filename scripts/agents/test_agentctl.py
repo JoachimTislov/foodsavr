@@ -1198,6 +1198,213 @@ class AgentctlTest(unittest.TestCase):
                         module.ensure_catalog(conn, db)
                 conn.close()
 
+    def test_router_status_and_configure_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp = Path(directory)
+            db = tmp / "knowledge.sqlite3"
+            override = tmp / "router.override.json"
+            policy_out = tmp / "policy.json"
+            env = {
+                **module_env(),
+                "AGENT_LEDGER_FILE": str(tmp / "ledger.jsonl"),
+                "ROUTER_BASE_URL": "",
+                "ROUTER_API_KEY": "",
+                "ROUTER_MODEL": "",
+            }
+            status_res = subprocess.run(
+                [str(CLI), "--database", str(db), "router", "status"],
+                cwd=ROOT,
+                env=env,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            status = json.loads(status_res.stdout)
+            self.assertEqual(status["effective_mode"], "local-deterministic")
+            self.assertFalse(status["remote_ready"])
+            self.assertFalse(status["router_override_active"])
+            self.assertFalse(status["decision_provider"]["enabled"])
+
+            cfg_res = subprocess.run(
+                [
+                    str(CLI), "--database", str(db),
+                    "router", "configure",
+                    "--enable",
+                    "--allow-control-plane-on-none",
+                    "--timeout-ms", "1200",
+                    "--engine", "typed-decision",
+                    "--allow-host", "https://router.example/v1",
+                    "--policy-output", str(policy_out),
+                    "--output", str(override),
+                ],
+                cwd=ROOT,
+                env=env,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            configured = json.loads(cfg_res.stdout)
+            self.assertTrue(configured["valid"])
+            self.assertTrue(configured["written"])
+            self.assertTrue(configured["policy_updated"])
+            self.assertTrue(configured["decision_provider"]["enabled"])
+            self.assertTrue(configured["decision_provider"]["allow_control_plane_on_none"])
+            self.assertEqual(configured["decision_provider"]["timeout_ms"], 1200)
+            self.assertIn("router.example", configured["allow_hosts"])
+            self.assertIn("router.example", json.loads(policy_out.read_text())["allow_hosts"])
+
+            remote_env = {
+                **env,
+                "AGENT_ROUTER_FILE": str(override),
+                "AGENT_POLICY_FILE": str(policy_out),
+                "ROUTER_BASE_URL": "https://router.example/v1",
+                "ROUTER_API_KEY": "super-secret-router-key-9876",
+                "ROUTER_MODEL": "decision-model-1",
+            }
+            remote_status_res = subprocess.run(
+                [str(CLI), "--database", str(db), "router", "status"],
+                cwd=ROOT,
+                env=remote_env,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotIn("super-secret-router-key-9876", remote_status_res.stdout)
+            remote_status = json.loads(remote_status_res.stdout)
+            self.assertEqual(remote_status["effective_mode"], "remote")
+            self.assertTrue(remote_status["remote_ready"])
+            self.assertTrue(remote_status["router_override_active"])
+            self.assertTrue(remote_status["environment"]["ROUTER_API_KEY"]["set"])
+            self.assertEqual(remote_status["environment"]["ROUTER_MODEL"]["value"], "decision-model-1")
+
+            for bad_args in (
+                ["--timeout-ms", "10", "--output", str(override)],
+                ["--fallback-strategy", "bogus", "--output", str(override)],
+                ["--allow-host", "   ", "--output", str(override)],
+            ):
+                bad = subprocess.run(
+                    [str(CLI), "--database", str(db), "router", "configure", *bad_args],
+                    cwd=ROOT,
+                    env=env,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(bad.returncode, 1, bad_args)
+                self.assertFalse(json.loads(bad.stdout)["valid"])
+
+    def test_agent_router_setup_script_modes(self) -> None:
+        script = ROOT / "scripts/setup/agent_router.sh"
+        self.assertTrue(os.access(script, os.X_OK))
+        subprocess.run(["bash", "-n", str(script)], check=True)
+
+        with tempfile.TemporaryDirectory() as directory:
+            tmp = Path(directory)
+            env_file = tmp / ".env"
+            override = tmp / "router.override.json"
+            db = tmp / "knowledge.sqlite3"
+            base_env = {
+                **module_env(),
+                "AGENT_ENV_FILE": str(env_file),
+                "AGENT_KNOWLEDGE_DB": str(db),
+                "AGENT_LEDGER_FILE": str(tmp / "ledger.jsonl"),
+                "ROUTER_BASE_URL": "",
+                "ROUTER_API_KEY": "",
+                "ROUTER_MODEL": "",
+            }
+
+            check_res = subprocess.run(
+                [str(script), "--check"],
+                cwd=ROOT,
+                env=base_env,
+                stdin=subprocess.DEVNULL,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertIn("Router setup checks passed", check_res.stdout)
+
+            local_res = subprocess.run(
+                [str(script), "--local-only", "--override-file", str(override)],
+                cwd=ROOT,
+                env=base_env,
+                stdin=subprocess.DEVNULL,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertIn("Router setup checks passed", local_res.stdout)
+            self.assertFalse(json.loads(override.read_text())["decision_provider"]["enabled"])
+
+            bad_url = subprocess.run(
+                [
+                    str(script),
+                    "--enable-remote",
+                    "--base-url", "http://insecure.example/v1",
+                    "--model", "decision-1",
+                    "--override-file", str(override),
+                ],
+                cwd=ROOT,
+                env={**base_env, "ROUTER_API_KEY": "secret-val"},
+                stdin=subprocess.DEVNULL,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(bad_url.returncode, 1)
+            self.assertFalse(env_file.exists())
+
+            remote_res = subprocess.run(
+                [
+                    str(script),
+                    "--enable-remote",
+                    "--base-url", "https://router.example/v1",
+                    "--model", "decision-1",
+                    "--timeout-ms", "900",
+                    "--override-file", str(override),
+                ],
+                cwd=ROOT,
+                env={**base_env, "ROUTER_API_KEY": "secret-router-test-val"},
+                stdin=subprocess.DEVNULL,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotIn("secret-router-test-val", remote_res.stdout)
+            self.assertTrue(env_file.exists())
+            env_contents = env_file.read_text()
+            self.assertIn("ROUTER_BASE_URL='https://router.example/v1'", env_contents)
+            self.assertIn("ROUTER_MODEL='decision-1'", env_contents)
+            self.assertIn("ROUTER_API_KEY='secret-router-test-val'", env_contents)
+            override_json = json.loads(override.read_text())
+            self.assertTrue(override_json["decision_provider"]["enabled"])
+            self.assertTrue(override_json["decision_provider"]["allow_control_plane_on_none"])
+            self.assertEqual(override_json["decision_provider"]["timeout_ms"], 900)
+
+            recheck_res = subprocess.run(
+                [str(script), "--check"],
+                cwd=ROOT,
+                env={**base_env, "AGENT_ROUTER_FILE": str(override)},
+                stdin=subprocess.DEVNULL,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotIn("secret-router-test-val", recheck_res.stdout)
+            self.assertIn("effective mode: remote", recheck_res.stdout)
+
+            probe_missing_key = subprocess.run(
+                [str(script), "--probe", "--base-url", "https://router.example/v1", "--model", "decision-1"],
+                cwd=ROOT,
+                env={**base_env, "AGENT_ENV_FILE": str(tmp / "empty.env")},
+                stdin=subprocess.DEVNULL,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(probe_missing_key.returncode, 1)
+            self.assertIn("ROUTER_API_KEY is not set", probe_missing_key.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
