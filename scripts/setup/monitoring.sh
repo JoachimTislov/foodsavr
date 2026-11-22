@@ -109,8 +109,14 @@ run_audit() {
   if has_secret CODEX_AUTH_JSON_B64; then
     ok "CODEX_AUTH_JSON_B64 is set"
   fi
-  if ! has_secret CLAUDE_CODE_OAUTH_TOKEN && ! has_secret CODEX_AUTH_JSON_B64; then
-    miss "Runner auth secret missing; run scripts/human/agents/login-claude-runner.sh or scripts/human/agents/sync-codex-runner.sh"
+  if has_secret ANTIGRAVITY_OAUTH_TOKEN_B64; then
+    ok "ANTIGRAVITY_OAUTH_TOKEN_B64 is set"
+  fi
+  if has_secret GEMINI_API_KEY; then
+    ok "GEMINI_API_KEY is set"
+  fi
+  if ! has_secret CLAUDE_CODE_OAUTH_TOKEN && ! has_secret CODEX_AUTH_JSON_B64 && ! has_secret ANTIGRAVITY_OAUTH_TOKEN_B64 && ! has_secret GEMINI_API_KEY; then
+    miss "Runner auth secret missing; run scripts/human/agents/login-claude-runner.sh, scripts/human/agents/sync-codex-runner.sh, or scripts/human/agents/sync-antigravity-runner.sh"
   fi
 
   if has_secret AGENT_APP_ID && has_secret AGENT_APP_PRIVATE_KEY; then

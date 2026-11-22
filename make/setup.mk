@@ -1,4 +1,4 @@
-.PHONY: social-auth-setup social-auth-check router-setup router-check router-matrix monitoring
+.PHONY: social-auth-setup social-auth-check router-setup router-check router-matrix monitoring agent-status
 social-auth-setup:
 	@scripts/setup/social_auth.sh
 
@@ -16,3 +16,6 @@ router-matrix:
 
 monitoring:
 	@scripts/setup/monitoring.sh
+
+agent-status:
+	@scripts/agents/agentctl status

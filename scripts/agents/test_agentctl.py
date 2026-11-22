@@ -245,6 +245,25 @@ class AgentctlTest(unittest.TestCase):
             self.assertTrue(projection["require_draft_pr"])
             self.assertIn("requested-permissions-not-enforced", projection["capability"]["failure_reasons"])
 
+    def test_policy_compile_resolves_permission_modes_for_workspace_write(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            output = io.StringIO()
+            with patch.dict(module.os.environ, {"AGENT_KNOWLEDGE_DB": str(Path(directory) / "db")}), \
+                 patch.object(module, "version_for", return_value="2.1.326 (Claude Code)"), \
+                 patch.object(module.shutil, "which", return_value="/usr/bin/claude"), \
+                 contextlib.redirect_stdout(output):
+                rc = module.policy_compile(argparse.Namespace(
+                    provider="claude",
+                    path=str(ROOT / ".agents/policies/agent-implement.json"),
+                ))
+            self.assertEqual(rc, 0)
+            projection = json.loads(output.getvalue())
+            self.assertEqual(projection["policy_id"], "agent-implement")
+            self.assertTrue(projection["enforced"])
+            self.assertTrue(projection["capability"]["permissions_enforced"])
+            self.assertTrue(projection["capability"]["policy_safe"])
+
     def test_runner_configuration_can_be_overridden_by_trusted_environment(self) -> None:
         module = load_agentctl_module()
         with patch.dict(os.environ, {"AGENT_RUNNERS_FILE": "/tmp/runner-providers.json"}):

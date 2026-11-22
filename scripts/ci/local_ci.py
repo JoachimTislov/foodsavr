@@ -33,6 +33,7 @@ AGENT_JSON = [
     ".agents/runners/router.json", ".agents/runners/router.schema.json",
     ".agents/workflows/schema.json", ".agents/workflows/result.schema.json",
     ".agents/policies/agent-implement.json",
+    ".agents/system.json", ".agents/system.schema.json",
 ]
 
 
@@ -60,7 +61,7 @@ GROUPS: dict[str, Group] = {
         commands=[
             ["python3", "-m", "py_compile", "scripts/agents/agentctl.py", "scripts/agents/agent_skills.py",
              "scripts/agents/traceability.py", "scripts/agents/trace_facts.py", "scripts/agents/session_archive.py",
-             "scripts/agents/session_query.py", "scripts/agents/check_logs.py",
+             "scripts/agents/session_query.py", "scripts/agents/check_logs.py", "scripts/agents/system_status.py",
              "scripts/monitoring/fault_schema.py", "scripts/monitoring/fault_intake.py",
              "scripts/monitoring/verify_and_close.py", "scripts/monitoring/check_healing_patch.py",
              "scripts/monitoring/poll_firebase_telemetry.py", "scripts/github/merge_gate.py", "scripts/github/pr_review.py"],
@@ -68,6 +69,7 @@ GROUPS: dict[str, Group] = {
             ["python3", "-m", "unittest", "scripts/agents/test_check_logs.py"],
             ["python3", "-m", "unittest", "scripts/agents/test_agentctl.py"],
             ["python3", "-m", "unittest", "scripts/agents/test_agent_skills.py"],
+            ["python3", "-m", "unittest", "scripts/agents/test_system_status.py"],
             ["scripts/agents/agentctl", "skills", "check"],
             ["python3", "-m", "unittest", "scripts/github/test_sync_labels.py"],
             ["python3", "-m", "unittest", "scripts/github/test_merge_gate.py"],
@@ -86,6 +88,7 @@ GROUPS: dict[str, Group] = {
             ["scripts/agents/agentctl", "workflow", "validate", ".agents/workflows/integrate-pr.json"],
             ["scripts/agents/agentctl", "router", "plan", ".agents/workflows/integrate-pr.json"],
             ["scripts/agents/agentctl", "doctor"],
+            ["scripts/agents/agentctl", "status", "--offline", "-o", "json"],
             *[["scripts/agents/agentctl", "policy", "compile", "--provider", p]
               for p in ("antigravity", "codex", "claude", "opencode", "gemini", "vibe", "copilot")],
             *[["python3", "-m", "json.tool", f] for f in AGENT_JSON],

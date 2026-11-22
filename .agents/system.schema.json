@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FoodSavr AgentSystem Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": {
+      "const": "agents.foodsavr.dev/v1alpha1"
+    },
+    "kind": {
+      "const": "AgentSystem"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "defaultBranch"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "defaultBranch": { "type": "string", "minLength": 1 }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "controlPlane",
+        "ciRunners",
+        "router",
+        "governance",
+        "observability",
+        "delivery"
+      ],
+      "properties": {
+        "controlPlane": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["minPolicySafeProviders", "requiredHooksPath", "skillsSync", "logsFormat"],
+          "properties": {
+            "minPolicySafeProviders": { "type": "integer", "minimum": 1 },
+            "requiredHooksPath": { "type": "string", "minLength": 1 },
+            "skillsSync": { "type": "boolean" },
+            "logsFormat": { "const": "jsonl" }
+          }
+        },
+        "ciRunners": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["providerAuthSecretsAnyOf", "agentAppSecretsAllOf", "mergeGateSecretsAllOf"],
+          "properties": {
+            "providerAuthSecretsAnyOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "agentAppSecretsAllOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "mergeGateSecretsAllOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "mergeGateWorkflow": { "type": "string", "minLength": 1 }
+          }
+        },
+        "router": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode"],
+          "properties": {
+            "mode": { "enum": ["local-deterministic", "remote"] }
+          }
+        },
+        "governance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requiredStatusChecks"],
+          "properties": {
+            "requiredStatusChecks": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "disallowDuplicateRequiredChecks": { "type": "boolean" },
+            "traceabilityWorkflow": { "type": "string", "minLength": 1 }
+          }
+        },
+        "observability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["autoHealVar", "telemetryPollVar", "wifVarsAllOf", "webMonitorWorkflow", "transcriptArchive"],
+          "properties": {
+            "autoHealVar": { "type": "string", "minLength": 1 },
+            "telemetryPollVar": { "type": "string", "minLength": 1 },
+            "wifVarsAllOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "webMonitorWorkflow": { "type": "string", "minLength": 1 },
+            "transcriptArchive": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["configFile", "verifyBucket"],
+              "properties": {
+                "configFile": { "type": "string", "minLength": 1 },
+                "verifyBucket": { "type": "boolean" }
+              }
+            }
+          }
+        },
+        "delivery": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requiredBranches", "promoteWorkflow"],
+          "properties": {
+            "requiredBranches": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "promoteWorkflow": { "type": "string", "minLength": 1 },
+            "detectOrphanedWorkflows": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}
