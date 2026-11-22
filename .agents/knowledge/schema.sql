@@ -70,6 +70,33 @@ CREATE TABLE IF NOT EXISTS workflow_run_events (
 CREATE INDEX IF NOT EXISTS workflow_runs_status ON workflow_runs(status);
 CREATE INDEX IF NOT EXISTS workflow_run_events_type ON workflow_run_events(event_type);
 
+CREATE TABLE IF NOT EXISTS git_commits (
+  sha TEXT PRIMARY KEY,
+  author TEXT NOT NULL,
+  email TEXT NOT NULL,
+  authored_at TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  message TEXT NOT NULL
+);
+
+-- commit/session/PR/issue/run/rebase-equivalence edges used by `agentctl trace` (#271)
+CREATE TABLE IF NOT EXISTS trace_edges (
+  src_type TEXT NOT NULL,
+  src_id TEXT NOT NULL,
+  dst_type TEXT NOT NULL,
+  dst_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  via TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY(src_type, src_id, dst_type, dst_id, kind)
+);
+
+CREATE INDEX IF NOT EXISTS trace_edges_dst ON trace_edges(dst_type, dst_id, kind);
+
+CREATE TABLE IF NOT EXISTS trace_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS document_search USING fts5(
   title,
   content,

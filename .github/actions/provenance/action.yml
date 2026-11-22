@@ -1,0 +1,42 @@
+name: Agent provenance
+description: >-
+  Record which commit, PR and agent sessions produced this workflow run, as a
+  job summary and an uploaded artifact. Never fails the job and never writes
+  to the repository. Requires an earlier actions/checkout step.
+
+inputs:
+  sha:
+    description: Commit that this run builds or releases (defaults to github.sha).
+    default: ''
+  pr:
+    description: Pull request number, when known.
+    default: ''
+  triggering-run:
+    description: Run id of the workflow that triggered this one (workflow_run).
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve provenance
+      shell: bash
+      continue-on-error: true
+      env:
+        INPUT_SHA: ${{ inputs.sha }}
+        INPUT_PR: ${{ inputs.pr }}
+        INPUT_TRIGGERING_RUN: ${{ inputs.triggering-run }}
+      run: |
+        mkdir -p "$RUNNER_TEMP/provenance"
+        scripts/agents/agentctl provenance \
+          ${INPUT_SHA:+--sha "$INPUT_SHA"} \
+          ${INPUT_PR:+--pr "$INPUT_PR"} \
+          ${INPUT_TRIGGERING_RUN:+--triggering-run "$INPUT_TRIGGERING_RUN"} \
+          --out "$RUNNER_TEMP/provenance/provenance.json" \
+          --summary "$GITHUB_STEP_SUMMARY" >/dev/null
+    - name: Upload provenance
+      uses: actions/upload-artifact@v4
+      continue-on-error: true
+      with:
+        name: ${{ format('provenance-{0}', github.job) }}
+        path: ${{ runner.temp }}/provenance/provenance.json
+        if-no-files-found: ignore

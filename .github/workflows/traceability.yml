@@ -1,0 +1,36 @@
+name: Traceability
+
+# Every PR needs an owner: an `Agent-Session:` trailer on each commit, or an
+# `Agent-Session:` line in the PR body (`none (human)` declares a human author).
+# Dependabot and other bots are exempt. See .agents/sessions/README.md.
+
+on:
+  pull_request:
+    branches: [develop, main]
+    types: [opened, synchronize, reopened, edited]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  agent-session:
+    name: Agent session declared
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check commits and PR body
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          scripts/agents/agentctl check-pr --base "$BASE_SHA" --head "$HEAD_SHA"

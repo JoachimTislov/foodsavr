@@ -40,6 +40,12 @@ jobs:
     env:
       HAS_FIREBASE_SECRETS: ${{ secrets.FIREBASE_CLI_TOKEN != '' && secrets.FIREBASE_APP_ID_ANDROID != '' }}
     steps:
+      - name: Checkout released commit (provenance)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
       - name: Download web build artifact from triggering run
         uses: dawidd6/action-download-artifact@v11
         with:
@@ -54,3 +60,10 @@ jobs:
         with:
           name: release-web-candidate
           path: artifacts/web
+
+      - name: Record provenance
+        if: ${{ !cancelled() && hashFiles('.github/actions/provenance/action.yml') != '' }}
+        uses: ./.github/actions/provenance
+        with:
+          sha: ${{ github.event.workflow_run.head_sha }}
+          triggering-run: ${{ github.event.workflow_run.id }}
