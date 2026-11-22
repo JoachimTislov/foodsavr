@@ -260,7 +260,10 @@
 		"scanHint": "Hold kvitteringen stille inne i rammen",
 		"progress": "Gjenkjent: {percent}% · {items} varer",
 		"addItems": "Legg varer til lageret",
-		"ingestError": "Kunne ikke legge til kvitteringsvarer: {error}"
+		"ingestError": "Kunne ikke legge til kvitteringsvarer: {error}",
+		"targetInventory": "Legg til i lager",
+		"added": "La til {count} varer",
+		"alreadyAdded": "Denne kvitteringen er allerede lagt til"
 	},
 	"pwa": {
 		"banner": {

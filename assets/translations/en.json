@@ -260,7 +260,10 @@
 		"scanHint": "Hold the receipt steady inside the frame",
 		"progress": "Recognized: {percent}% · {items} items",
 		"addItems": "Add items to inventory",
-		"ingestError": "Failed to add receipt items: {error}"
+		"ingestError": "Failed to add receipt items: {error}",
+		"targetInventory": "Add to inventory",
+		"added": "Added {count} items",
+		"alreadyAdded": "This receipt was already added"
 	},
 	"pwa": {
 		"banner": {
