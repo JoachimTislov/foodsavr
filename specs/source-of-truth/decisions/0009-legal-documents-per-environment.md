@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (explicit owner intent, 2026-11-22: plans and entitlements interview; the owner confirmed the decision summary). Spec-ahead: today the app bundles one English privacy notice and one terms of service for every environment (`assets/legal/`, `lib/constants/legal_docs.dart`).
+Accepted (explicit owner intent, 2026-11-22: plans and entitlements interview; the owner confirmed the decision summary). Tracked by Epic #381. Spec-ahead: today the app bundles one English privacy notice and one terms of service for every environment (`assets/legal/`, `lib/constants/legal_docs.dart`).
 
 ## Context
 
