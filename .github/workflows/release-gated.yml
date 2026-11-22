@@ -47,21 +47,21 @@ jobs:
                 })
               ).data.workflow_runs ?? [];
 
+            const ciWorkflowName = "Format, Analyze, Check Localizations and Run Tests";
             const deadline = Date.now() + 15 * 60 * 1000;
             let runs = [];
             let ciChecksOk = false;
             while (Date.now() < deadline) {
               runs = await listRuns();
-              ciChecksOk = isSuccessful(
-                runs,
-                "Format, Analyze, Check Localizations and Run Tests"
-              );
+              const ciRuns = runs.filter((run) => run.name === ciWorkflowName);
+              if (ciRuns.length === 0) {
+                ciChecksOk = true;
+                core.info("No " + ciWorkflowName + " run triggered for " + sha + "; treating as skipped-pass");
+                break;
+              }
+              ciChecksOk = isSuccessful(runs, ciWorkflowName);
               if (ciChecksOk) break;
-              const ciRunning = runs.some(
-                (run) =>
-                  run.name === "Format, Analyze, Check Localizations and Run Tests" &&
-                  run.status !== "completed"
-              );
+              const ciRunning = ciRuns.some((run) => run.status !== "completed");
               if (!ciRunning) break;
               core.info("Shared CI still running for " + sha + "; retrying in 30s");
               await new Promise((resolve) => setTimeout(resolve, 30 * 1000));

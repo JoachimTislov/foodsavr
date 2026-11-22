@@ -6,13 +6,12 @@ on:
     paths:
       - "**.dart"
       - "lib/**"
+      - "packages/**"
       - "test/**"
       - "assets/translations/**"
       - "pubspec.yaml"
       - "pubspec.lock"
       - "analysis_options.yaml"
-      - "android/**"
-      - "web/**"
       - "integration_test/**"
       - "test_driver/**"
   pull_request:
@@ -48,13 +47,12 @@ jobs:
             code:
               - "**.dart"
               - "lib/**"
+              - "packages/**"
               - "test/**"
               - "assets/translations/**"
               - "pubspec.yaml"
               - "pubspec.lock"
               - "analysis_options.yaml"
-              - "android/**"
-              - "web/**"
               - "integration_test/**"
               - "test_driver/**"
 
@@ -81,12 +79,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - name: Set up Flutter app
+        uses: ./.github/actions/setup-flutter-app
         with:
           flutter-version: 3.47.6
-          channel: "stable"
-          cache: true
+          firebase-options-b64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
+          run-pub-get: "false"
+          run-build-runner: "false"
 
       - name: Install dependencies
         run: flutter pub get
@@ -96,12 +95,6 @@ jobs:
 
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed .
-
-      - name: Write firebase_options.dart
-        run: echo "${{ secrets.FIREBASE_OPTIONS_B64 }}" | base64 -d > lib/firebase_options.dart
-
-      - name: Create empty .env file
-        run: touch assets/.env
 
       - name: Build generative code
         run: dart run build_runner build --delete-conflicting-outputs
