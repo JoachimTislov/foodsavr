@@ -814,7 +814,7 @@ class ModelCandidate:
 
 
 @dataclass(frozen=True)
-class JevRouteRequest:
+class RouteRequest:
     workflow_id: str
     step_id: str
     work_profile: WorkProfile
@@ -864,15 +864,15 @@ class JevRouteRequest:
         return payload
 
     @classmethod
-    def from_dict(cls, data: Any) -> JevRouteRequest:
+    def from_dict(cls, data: Any) -> RouteRequest:
         if not isinstance(data, dict):
-            raise ValueError("JevRouteRequest payload must be an object")
+            raise ValueError("RouteRequest payload must be an object")
         required = ("workflow_id", "step_id", "work_profile", "capabilities", "candidates", "available_providers")
         missing = [field for field in required if field not in data]
         if missing:
-            raise ValueError(f"JevRouteRequest missing fields: {', '.join(missing)}")
+            raise ValueError(f"RouteRequest missing fields: {', '.join(missing)}")
         if not isinstance(data["candidates"], (list, tuple)):
-            raise ValueError("JevRouteRequest.candidates must be an array")
+            raise ValueError("RouteRequest.candidates must be an array")
         return cls(
             workflow_id=data["workflow_id"],
             step_id=data["step_id"],
@@ -904,7 +904,7 @@ class JevRouteRequest:
 
 
 @dataclass(frozen=True)
-class JevRouteDecision:
+class RouteDecision:
     provider: str
     model: str
     work_type: WorkType
@@ -944,13 +944,13 @@ class JevRouteDecision:
         *,
         allowed_providers: set[str] | tuple[str, ...] | list[str] | None = None,
         allowed_models: set[str] | tuple[str, ...] | list[str] | None = None,
-    ) -> JevRouteDecision:
+    ) -> RouteDecision:
         if not isinstance(data, dict):
-            raise ValueError("JevRouteDecision payload must be an object")
+            raise ValueError("RouteDecision payload must be an object")
         required = ("provider", "model", "work_type", "tier", "reasoning_effort", "confidence", "rationale", "source")
         missing = [field for field in required if field not in data]
         if missing:
-            raise ValueError(f"JevRouteDecision missing fields: {', '.join(missing)}")
+            raise ValueError(f"RouteDecision missing fields: {', '.join(missing)}")
         decision = cls(
             provider=data["provider"],
             model=data["model"],
@@ -977,20 +977,20 @@ class JevRouteDecision:
         default_profile: WorkProfile | None = None,
         default_models: dict[str, str] | None = None,
         allow_minimal: bool = False,
-    ) -> JevRouteDecision:
+    ) -> RouteDecision:
         if isinstance(payload, str):
             cleaned = payload.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
             payload = json.loads(cleaned)
         if not isinstance(payload, dict):
-            raise ValueError("Jev decision response must be a JSON object")
+            raise ValueError("Router decision response must be a JSON object")
         candidate_obj: Any = payload
         if "provider" not in payload and "choices" in payload:
             choices = payload.get("choices")
             if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
-                raise ValueError("Jev response choices[0] must be an object")
+                raise ValueError("Router response choices[0] must be an object")
             message = choices[0].get("message")
             if not isinstance(message, dict):
-                raise ValueError("Jev response choices[0].message must be an object")
+                raise ValueError("Router response choices[0].message must be an object")
             content = message.get("content")
             if isinstance(content, dict):
                 candidate_obj = content
@@ -998,9 +998,9 @@ class JevRouteDecision:
                 cleaned = content.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
                 candidate_obj = json.loads(cleaned)
             else:
-                raise ValueError("Jev response message content must be JSON string or object")
+                raise ValueError("Router response message content must be JSON string or object")
         if not isinstance(candidate_obj, dict):
-            raise ValueError("Jev decision content must decode to a JSON object")
+            raise ValueError("Router decision content must decode to a JSON object")
         if allow_minimal and isinstance(candidate_obj.get("provider"), str) and candidate_obj["provider"].strip():
             provider_name = candidate_obj["provider"]
             merged = dict(candidate_obj)
@@ -1011,8 +1011,8 @@ class JevRouteDecision:
                 merged.setdefault("tier", default_profile.tier.value)
                 merged.setdefault("reasoning_effort", default_profile.reasoning_effort)
                 merged.setdefault("confidence", default_profile.confidence)
-            merged.setdefault("rationale", "Selected by Jev decision provider.")
-            merged.setdefault("source", "jev-remote")
+            merged.setdefault("rationale", "Selected by external decision provider.")
+            merged.setdefault("source", "router-remote")
             candidate_obj = merged
         return cls.from_dict(
             candidate_obj,
@@ -1049,8 +1049,8 @@ class JevRouteDecision:
         }
 
 
-class JevLocalClassifier:
-    """Deterministic type-safe work-profile classifier for local/offline Jev routing."""
+class LocalWorkClassifier:
+    """Deterministic type-safe work-profile classifier for local/offline routing."""
 
     ROLE_KEYWORDS: dict[WorkType, tuple[str, ...]] = {
         WorkType.SECURITY: ("security", "vuln", "vulnerability", "cve", "secret", "redact", "auth", "sandbox", "permission"),
@@ -1175,7 +1175,7 @@ def infer_work_profile(
     router: dict[str, Any] | None = None,
 ) -> WorkProfile:
     """Infer a strongly-typed WorkProfile from workflow/step signals before remote routing."""
-    return JevLocalClassifier.classify(workflow, step, router)
+    return LocalWorkClassifier.classify(workflow, step, router)
 
 
 def build_model_candidates(
@@ -1258,7 +1258,7 @@ def select_local_model_route(
     explicit_provider: str | None = None,
     explicit_model: str | None = None,
 ) -> tuple[str | None, str | None, str, str]:
-    """Select the best policy-safe (provider, model) using the Jev work-type matrix."""
+    """Select the best policy-safe (provider, model) using the configured work-type matrix."""
     requested_model = explicit_model or (step.get("model") if isinstance(step.get("model"), str) else None)
     if explicit_provider is not None:
         spec = specs.get(explicit_provider, {})
@@ -1270,7 +1270,7 @@ def select_local_model_route(
             "explicit-provider",
         )
     if not safe:
-        return None, None, "No available policy-safe provider satisfies the workflow policy.", "jev-unavailable"
+        return None, None, "No available policy-safe provider satisfies the workflow policy.", "router-unavailable"
     if requested_model:
         for provider in safe:
             models = specs.get(provider, {}).get("models", {})
@@ -1279,13 +1279,13 @@ def select_local_model_route(
                     provider,
                     requested_model,
                     f"Matched requested model {requested_model} on policy-safe provider {provider}.",
-                    "jev-local",
+                    "router-local",
                 )
         return (
             safe[0],
             requested_model,
             f"Applied requested model {requested_model} on policy-safe fallback provider {safe[0]}.",
-            "jev-local",
+            "router-local",
         )
     work_routes = router.get("work_routes") or DEFAULT_WORK_ROUTES
     route_cfg = work_routes.get(profile.work_type.value) or DEFAULT_WORK_ROUTES.get(profile.work_type.value, {})
@@ -1308,7 +1308,7 @@ def select_local_model_route(
             pref_provider,
             pref_model,
             f"Matched work_routes[{profile.work_type.value}] preference {pref_provider}/{pref_model} (tier={profile.tier.value}).",
-            "jev-local",
+            "router-local",
         )
     fallback_provider = safe[0]
     fallback_model = _best_model_for_provider(specs.get(fallback_provider, {}), profile, None)
@@ -1316,7 +1316,7 @@ def select_local_model_route(
         fallback_provider,
         fallback_model,
         f"Selected fallback policy-safe provider {fallback_provider} for work_type={profile.work_type.value}.",
-        "jev-policy-fallback",
+        "router-policy-fallback",
     )
 
 
@@ -1707,14 +1707,14 @@ def resolve_step_route(
     policy: dict[str, Any] | None = None,
     explicit_provider: str | None = None,
     explicit_model: str | None = None,
-) -> tuple[JevRouteDecision | None, WorkProfile, str]:
-    """Resolve provider + model decision for one step using Jev inference and policy-safe constraints."""
+) -> tuple[RouteDecision | None, WorkProfile, str]:
+    """Resolve provider + model decision for one step using work-profile inference and policy-safe constraints."""
     profile = infer_work_profile(workflow, step, router)
     if explicit_provider is not None:
         provider_name, model_name, rationale, source = select_local_model_route(
             profile, safe, specs, router, step, explicit_provider=explicit_provider, explicit_model=explicit_model,
         )
-        decision = JevRouteDecision(
+        decision = RouteDecision(
             provider=provider_name or explicit_provider,
             model=model_name or "default",
             work_type=profile.work_type,
@@ -1737,7 +1737,7 @@ def resolve_step_route(
     )
     if provider_name is None:
         return None, profile, "no-available-policy-safe-provider"
-    decision = JevRouteDecision(
+    decision = RouteDecision(
         provider=provider_name,
         model=model_name or "default",
         work_type=profile.work_type,
@@ -1859,7 +1859,7 @@ def router_plan(args: argparse.Namespace) -> int:
             "reasoning_effort": decision.reasoning_effort if decision else profile.reasoning_effort,
             "confidence": decision.confidence if decision else profile.confidence,
             "rationale": decision.rationale if decision else "No available policy-safe provider.",
-            "decision_source": decision.source if decision else "jev-unavailable",
+            "decision_source": decision.source if decision else "router-unavailable",
             "work_profile": profile.to_dict(),
             "reason": reason if selected else "no-available-policy-safe-provider",
         })
@@ -2556,13 +2556,13 @@ def external_route_decision(
     policy: dict[str, Any] | None = None,
     specs: dict[str, dict[str, Any]] | None = None,
     explicit_model: str | None = None,
-) -> tuple[JevRouteDecision | None, str]:
+) -> tuple[RouteDecision | None, str]:
     decision = router.get("decision_provider", {})
     if not decision.get("enabled"):
         return None, "deterministic-fallback"
-    base_url = os.environ.get(decision.get("base_url_env", "JEV_ROUTER_BASE_URL"), "")
-    api_key = os.environ.get(decision.get("api_key_env", "JEV_ROUTER_API_KEY"), "")
-    model = os.environ.get(decision.get("model_env", "JEV_ROUTER_MODEL"), "auto")
+    base_url = os.environ.get(decision.get("base_url_env") or "ROUTER_BASE_URL", "")
+    api_key = os.environ.get(decision.get("api_key_env") or "ROUTER_API_KEY", "")
+    model = os.environ.get(decision.get("model_env") or "ROUTER_MODEL", "auto")
     if not base_url or not api_key or not base_url.startswith("https://"):
         return None, "external-router-not-configured-or-not-https"
     network = workflow.get("permissions", {}).get("network", "none")
@@ -2587,7 +2587,7 @@ def external_route_decision(
         provider: (_best_model_for_provider(provider_catalog.get(provider, {}), profile, requested_model) or "default")
         for provider in safe
     }
-    jev_request = JevRouteRequest(
+    route_request = RouteRequest(
         workflow_id=workflow["id"],
         step_id=step["id"],
         work_profile=profile,
@@ -2603,13 +2603,13 @@ def external_route_decision(
             {
                 "role": "system",
                 "content": (
-                    "You are Jev, a type-safe model-to-work routing engine. "
+                    "You are a type-safe model-to-work routing decision engine. "
                     "Return strictly valid JSON matching the schema."
                 ),
             },
             {
                 "role": "user",
-                "content": json.dumps(jev_request.to_dict(), sort_keys=True),
+                "content": json.dumps(route_request.to_dict(), sort_keys=True),
             },
         ],
     }
@@ -2617,9 +2617,9 @@ def external_route_decision(
         payload["response_format"] = {
             "type": "json_schema",
             "json_schema": {
-                "name": "jev_route_decision",
+                "name": "route_decision",
                 "strict": True,
-                "schema": JevRouteDecision.json_schema(safe, available_models or None),
+                "schema": RouteDecision.json_schema(safe, available_models or None),
             },
         }
     request = urllib.request.Request(
@@ -2635,7 +2635,7 @@ def external_route_decision(
     except (OSError, ValueError, KeyError, IndexError, urllib.error.URLError):
         return None, "external-router-failed-using-fallback"
     try:
-        parsed = JevRouteDecision.from_payload(
+        parsed = RouteDecision.from_payload(
             body,
             allowed_providers=set(safe),
             allowed_models=set(available_models) if available_models else None,
@@ -2867,7 +2867,7 @@ def workflow_run(args: argparse.Namespace) -> int:
                 break
             continue
         selected: str | None = provider
-        decision: JevRouteDecision | None = None
+        decision: RouteDecision | None = None
         if selected is None:
             selected_candidates = available_providers(candidates, specs)
             policy_safe = [name for name in selected_candidates if provider_is_safe(name, workflow, specs)]
