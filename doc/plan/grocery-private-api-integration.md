@@ -10,7 +10,7 @@ Since no official B2B APIs exist for these grocery chains, the integration relie
 3. We retrieve OAuth/Bearer tokens and periodically poll the internal APIs for new digital receipts and transaction rows.
 4. The retrieved data is normalized into a unified receipt format (EAN, Name, Price, Quantity).
 
-*Note: This operates in a gray area regarding the grocery chains' Terms of Service (ToS), which typically forbid commercial scraping. Explicit GDPR-compliant user consent is the primary legal defense for retrieving personal data on their behalf.*
+*Note: This operates in a gray area regarding the grocery chains' Terms of Service (ToS), which typically forbid commercial scraping. Explicit GDPR-compliant user consent is the primary legal defense for retrieving personal data on their behalf. See [Private grocery APIs: legal and operational risk notes](../research/private-api-legal-and-risk.md) for details.*
 
 ---
 

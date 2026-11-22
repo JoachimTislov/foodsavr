@@ -35,7 +35,7 @@ unnecessary cloud costs and ensure a consistent environment.
     Access the Emulator UI at `http://localhost:8081`.
 
 3.  **Run the application:**
-    This project uses Android **product flavors** (`development` and `production`) to safely isolate environments. If you attempt to build or run the app without specifying a flavor, the build will fail (see [Issue: Gradle build failed to produce an .apk file](archive/issues/gradle-build-failed-apk-flavor.md)).
+    This project uses Android **product flavors** (`development` and `production`) to safely isolate environments. If you attempt to build or run the app without specifying a flavor, the build will fail (see [Gradle flavor troubleshooting](gradle-flavor-troubleshooting.md)).
 
     **Recommended (Using Make):**
     The easiest way to run the app is using the provided `Makefile`, which automatically handles flavors, environment variables, and starts the Firebase emulators if they aren't already running. Runs the default / first device available
