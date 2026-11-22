@@ -1,0 +1,19 @@
+name: PR base is current
+
+on:
+  pull_request:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+jobs:
+  base:
+    name: Branch contains latest base
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: python3 scripts/ci/check_pr_base.py "${{ github.base_ref }}"
