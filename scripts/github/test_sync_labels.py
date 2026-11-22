@@ -2,7 +2,10 @@
 import importlib.util
 import json
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -23,7 +26,12 @@ class LabelRulesTest(unittest.TestCase):
 
     def test_bug_pr_gets_type_area_risk_and_ci_labels(self):
         labels = self.module.classify(
-            {"number": 1, "title": "Fix auth regression", "body": "", "draft": False, "is_pull_request": True},
+            {
+                "number": 1,
+                "title": "Fix auth regression",
+                "is_pull_request": True,
+                "labels": [{"name": "area/web"}],
+            },
             [".github/workflows/agent-system.yml", "lib/auth.dart"],
             [{"status": "completed", "conclusion": "success"}],
             [],
@@ -31,7 +39,37 @@ class LabelRulesTest(unittest.TestCase):
         )
         self.assertTrue({"type/bug", "area/ci", "risk/security"} <= labels)
         self.assertNotIn("area/app", labels)
+        self.assertNotIn("area/web", labels)
         self.assertFalse(any(label.startswith("status/") for label in labels))
+
+    def test_issue_keeps_manual_area_and_risk_labels_across_syncs(self):
+        expected = {"area/web", "area/agents", "risk/security", "area/ci", "type/task"}
+        labels = {"area/web", "area/agents", "risk/security", "ci"}
+
+        def github_api(command, **kwargs):
+            if "PUT" in command:
+                labels.clear()
+                labels.update(json.loads(kwargs["input"])["labels"])
+
+        def fetch_issue(repo, endpoint):
+            self.assertEqual(endpoint, "issues/2")
+            return {
+                "number": 2,
+                "title": "Investigate startup",
+                "labels": [{"name": label} for label in labels],
+            }
+
+        with (
+            patch.object(self.module, "gh_json", side_effect=fetch_issue),
+            patch.object(self.module.subprocess, "run", side_effect=github_api),
+            redirect_stdout(StringIO()),
+        ):
+            for _ in range(2):
+                self.assertEqual(
+                    self.module.main(["--repo", "owner/repo", "--number", "2", "--apply"]),
+                    0,
+                )
+                self.assertEqual(labels, expected)
 
     def test_issue_defaults_to_task_and_preserves_human_labels_in_sync_diff(self):
         labels = self.module.classify(
