@@ -213,10 +213,7 @@ jobs:
           arch: x86_64
           target: google_apis
           script: |
-            set -e
-            if [ "$RUN_ANDROID_SMOKE" = "true" ]; then
-              bash scripts/ci/android_smoke.sh
-            fi
+            [ "$RUN_ANDROID_SMOKE" != "true" ] || bash scripts/ci/android_smoke.sh
             adb reverse tcp:8080 tcp:8080
             adb reverse tcp:9099 tcp:9099
             flutter test integration_test --flavor development --no-pub
