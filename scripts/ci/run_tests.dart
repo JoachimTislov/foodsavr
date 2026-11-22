@@ -11,6 +11,10 @@ bool get forceAll => Platform.environment['FORCE_ALL'] == 'true';
 const hashDir = '.test-hashes';
 const corePackageDir = 'packages/foodsavr_core';
 const testRoots = <String>['test', '$corePackageDir/test'];
+const corePackageInputs = <String>[
+  '$corePackageDir/pubspec.yaml',
+  '$corePackageDir/analysis_options.yaml',
+];
 
 Set<String> transitiveDeps(String entry) {
   final seen = <String>{};
@@ -61,6 +65,13 @@ Set<String> transitiveDeps(String entry) {
 
 Future<String> hashOf(String test) async {
   final deps = transitiveDeps(test).toList()..sort();
+  // Package tests also depend on the package manifest and lints, which select
+  // them (select_tests.dart) and must therefore invalidate cached-green runs.
+  if (test.startsWith('$corePackageDir/')) {
+    for (final input in corePackageInputs) {
+      if (File(input).existsSync()) deps.add(input);
+    }
+  }
   final sink = StringBuffer();
   for (final dep in deps) {
     sink.write(dep);
