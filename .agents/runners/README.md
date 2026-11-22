@@ -73,3 +73,20 @@ configured `ROUTER_BASE_URL`, `ROUTER_API_KEY`, and `ROUTER_MODEL` environment
 variables (registered in `scripts/secrets/registry.toml`) with strict
 `route_decision` JSON Schema output and falls back to the local selector on any
 network, policy, or validation error.
+
+Setup, diagnostics, and overrides:
+
+- `scripts/setup/agent_router.sh --check` (or `make router-check`): non-mutating
+  audit of `ROUTER_*` environment/`.env` state, active router manifest, policy
+  `allow_hosts` alignment, `agentctl doctor`, and local `router decide`.
+- `scripts/setup/agent_router.sh --local-only` (or `make router-setup`):
+  configures/verifies deterministic local mode and checks `agentctl heal` +
+  `make router-matrix` (`scripts/agents/agentctl router matrix`).
+- `scripts/setup/agent_router.sh --enable-remote [--override-file <path> | --in-place] [--github] [--allow-host] [--probe]`:
+  validates `ROUTER_BASE_URL`, `ROUTER_API_KEY`, and `ROUTER_MODEL`, persists them
+  exclusively through `scripts/secrets/rotate.py`, writes an untracked override
+  file (default `.agents/state/router.override.json` for `AGENT_ROUTER_FILE`),
+  and optionally runs a live strict `route_decision` probe.
+- `scripts/agents/agentctl router status` and `scripts/agents/agentctl router configure`:
+  inspect readiness/credentials (without printing secret values) and update or
+  emit validated router and policy allowlist configurations.
