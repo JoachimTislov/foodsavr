@@ -115,6 +115,20 @@ class PromoteDecisionTest(unittest.TestCase):
             "abcdef1", "1234567", True, [], source_branch="nightly", target_branch="beta"
         )
         self.assertEqual(d_missing_on_channel.action, "pending")
+        d_direct_release_missing = promote.decide_promotion(
+            "abcdef1", "1234567", True, [], source_branch="develop", target_branch="release"
+        )
+        self.assertEqual(d_direct_release_missing.action, "pending")
+        d_spoofed_app = promote.decide_promotion(
+            "abcdef1",
+            "1234567",
+            True,
+            [{"__typename": "CheckRun", "name": "Detect changed areas", "status": "COMPLETED", "conclusion": "SUCCESS",
+              "checkSuite": {"app": {"slug": "spoofed-app"}}}],
+            source_branch="nightly",
+            target_branch="beta",
+        )
+        self.assertEqual(d_spoofed_app.action, "pending")
 
 
 class ResolveStepsTest(unittest.TestCase):

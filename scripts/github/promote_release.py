@@ -51,7 +51,7 @@ query($owner: String!, $name: String!, $sha: GitObjectID!) {
           contexts(first: 100) {
             nodes {
               __typename
-              ... on CheckRun { name status conclusion checkSuite { workflowRun { workflow { name } } } }
+              ... on CheckRun { name status conclusion checkSuite { app { slug } workflowRun { workflow { name } } } }
               ... on StatusContext { context state }
             }
           }
@@ -103,11 +103,12 @@ def decide_promotion(
     """Pure promotion gate decision for a candidate source SHA.
 
     Checks do not re-run on pushes to ``develop`` (PRs into ``develop`` are
-    ruleset-gated, and pushing to a release branch runs the release-branch CI
-    suite). Therefore ``develop -> <release branch>`` allows fast-forward when
-    no checks have failed or are pending on ``source_sha``, while promotions
-    between release branches (``nightly -> beta -> stable -> release``) require
-    a green rollup and completed ``Detect changed areas`` on ``source_sha``.
+    ruleset-gated, and pushing to ``nightly`` runs the release-branch CI
+    suite). Therefore only ``develop -> nightly`` allows fast-forward when no
+    checks have failed or are pending on ``source_sha``. All other promotions
+    (including ``nightly -> beta -> stable -> release`` and any direct
+    ``develop -> release`` bypass) require a green rollup and completed
+    ``Detect changed areas`` on ``source_sha``.
     """
     if source_sha == target_sha:
         return Decision("noop", f"{target_branch} is already at {target_sha[:7]}")
@@ -124,7 +125,7 @@ def decide_promotion(
     if rollup == "PENDING":
         return Decision("pending", f"checks still running on {source_sha[:7]}")
 
-    if source_branch != "develop":
+    if not (source_branch == "develop" and target_branch == "nightly"):
         if rollup is None:
             return Decision("pending", f"checks missing on {source_sha[:7]}")
         queue_ok, queue_running = queue_check_state(contexts)

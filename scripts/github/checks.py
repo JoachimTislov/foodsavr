@@ -39,9 +39,23 @@ def rollup_state(contexts: list[dict[str, Any]]) -> str | None:
     return "FAILURE" if "FAILURE" in states else "PENDING" if "PENDING" in states else "SUCCESS"
 
 
+TRUSTED_CHECK_APPS = {"github-actions"}
+
+
+def _is_trusted_queue_check(context: dict[str, Any]) -> bool:
+    if context.get("__typename") != "CheckRun" or context.get("name") != QUEUE_CHECK:
+        return False
+    app = (context.get("checkSuite") or {}).get("app")
+    if isinstance(app, dict):
+        slug = app.get("slug")
+        if slug not in TRUSTED_CHECK_APPS:
+            return False
+    return True
+
+
 def queue_check_state(contexts: list[dict[str, Any]]) -> tuple[bool, bool]:
     """Return (completed_success, running) for the merge-queue Validation entrypoint."""
-    runs = [c for c in contexts if c.get("__typename") == "CheckRun" and c.get("name") == QUEUE_CHECK]
+    runs = [c for c in contexts if _is_trusted_queue_check(c)]
     ok = any(c.get("status") == "COMPLETED" and c.get("conclusion") == "SUCCESS" for c in runs)
     running = any(c.get("status") != "COMPLETED" for c in runs)
     return ok, running

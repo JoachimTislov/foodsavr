@@ -47,6 +47,15 @@ REFUSAL = re.compile(r"can't rebase|cannot rebase|edited by someone other than D
 # Paths whose change invalidates running PR checks (mirrors the workflow scopes).
 SCOPE = ("lib/", "packages/", "web/", "assets/", "android/", "test/", "integration_test/", "test_driver/",
          "pubspec.", "analysis_options.yaml", ".github/")
+SECURITY_LABEL = "risk/security"
+SECURITY_PATHS = (
+    "infra/terraform/",
+    ".github/workflows/",
+    ".agents/policies/",
+    ".agents/runners/",
+    "firestore.rules",
+    "firestore-rules/",
+)
 STALL_AFTER = timedelta(minutes=60)
 QUEUE_START_GRACE = timedelta(minutes=10)
 REBASE_WAIT = timedelta(minutes=30)
@@ -76,7 +85,7 @@ query($owner: String!, $name: String!, $cursor: String) {
         }
         commits(last: 1) { nodes { commit { committedDate statusCheckRollup { contexts(first: 100) { nodes {
           __typename
-          ... on CheckRun { name status conclusion checkSuite { workflowRun { workflow { name } } } }
+          ... on CheckRun { name status conclusion checkSuite { app { slug } workflowRun { workflow { name } } } }
           ... on StatusContext { context state }
         } } } } } }
         timelineItems(itemTypes: [LABELED_EVENT, UNLABELED_EVENT], last: 50) {
@@ -335,6 +344,10 @@ def blocker(
     if not is_trusted_author(pr, owner=owner, trusted_bots=trusted_bots):
         role = "bot" if pr.bot else f"association {pr.author_association}"
         return f"author {pr.author or 'unknown'} ({role}) is not trusted for auto-merge"
+    if SECURITY_LABEL in pr.labels:
+        return f"{SECURITY_LABEL} PRs require human merge"
+    if pr.files is not None and any(f == p or f.startswith(p) for f in pr.files for p in SECURITY_PATHS):
+        return "touches security-sensitive paths; requires human merge"
     if ONE_WAY.search(pr.body):
         return "PR body declares a one-way door"
     if pr.merge_state == "DIRTY":

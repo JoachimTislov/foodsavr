@@ -220,32 +220,131 @@ finish() {
 run_wizard() {
 [[ -t 0 && -t 1 ]] || { echo "scripts/human: interactive only; run it yourself in a terminal" >&2; exit 2; }
 
+set_repo_secret() {
+  local name="$1" value="$2"
+  local root
+  root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  if ( export "NEW_$name=$value"; exec python3 "$root/scripts/secrets/rotate.py" --repo "$REPO_SLUG" "$name" ) >/dev/null 2>&1; then
+    WRITTEN_SECRET+=("$name")
+    printf '  %s✓ set%s secret %s (%s)\n' "$GREEN" "$RESET" "$name" "$REPO_SLUG"
+    return 0
+  fi
+  SKIPPED+=("secret $name (store it later: scripts/secrets/rotate.py --repo $REPO_SLUG $name)")
+  warn "skipped secret $name: rotate.py could not store it; set it later"
+  return 1
+}
+
+local ROLE="agent"
+local REPO_OVERRIDE=""
+local MANUAL_URL=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --role)
+      ROLE="${2:-}"
+      shift 2
+      ;;
+    --repo)
+      REPO_OVERRIDE="${2:-}"
+      shift 2
+      ;;
+    --manual-url)
+      MANUAL_URL=1
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: $0 [--role agent|release-gate] [--repo owner/repo] [--manual-url]"
+      return 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      return 2
+      ;;
+  esac
+done
+
+case "$ROLE" in
+  agent)
+    APP_TITLE="Agent GitHub App (untrusted PR author)"
+    ID_SECRET="AGENT_APP_ID"
+    KEY_SECRET="AGENT_APP_PRIVATE_KEY"
+    PERMS_DESC="Contents, Issues, Pull requests = read & write; Metadata = read; NO Checks or Workflows permission"
+    ;;
+  release-gate)
+    APP_TITLE="Release-Gate GitHub App (trusted integrator/promoter)"
+    ID_SECRET="RELEASE_GATE_APP_ID"
+    KEY_SECRET="RELEASE_GATE_APP_PRIVATE_KEY"
+    PERMS_DESC="Contents, Issues, Pull requests, Workflows = read & write; Metadata = read"
+    ;;
+  *)
+    echo "Invalid --role '$ROLE' (expected 'agent' or 'release-gate')" >&2
+    return 2
+    ;;
+esac
+
 TOTAL_STAGES=2
-REPO_SLUG="$(git remote get-url origin 2>/dev/null | sed -E 's#(git@github.com:|https://github.com/)##; s#\.git$##')"
-REPO_SLUG="${REPO_SLUG:-JoachimTislov/foodsavr}"
+if [[ -n "$REPO_OVERRIDE" ]]; then
+  REPO_SLUG="$REPO_OVERRIDE"
+else
+  REPO_SLUG="$(git remote get-url origin 2>/dev/null | sed -E 's#(git@github.com:|https://github.com/)##; s#\.git$##')"
+  REPO_SLUG="${REPO_SLUG:-JoachimTislov/foodsavr}"
+fi
+REPO_OWNER="${REPO_SLUG%%/*}"
 REPO_NAME="${REPO_SLUG#*/}"
+# GitHub App names are globally unique across all of GitHub and capped at 34 chars.
+APP_DEFAULT_NAME="$(python3 - "$REPO_OWNER" "$REPO_NAME" "$ROLE" <<'PY'
+import re, sys
+raw = f"{sys.argv[1]}-{sys.argv[2]}-{sys.argv[3]}".lower()
+clean = re.sub(r"[^a-z0-9-]+", "-", raw).strip("-")
+print(clean[:34].rstrip("-"))
+PY
+)"
 WORK="$(mktemp -d)"
+chmod 700 "$WORK"
 SERVER_PID=""
 trap 'rm -rf "$WORK"; [[ -n "$SERVER_PID" ]] && kill "$SERVER_PID" 2>/dev/null; true' EXIT
 
-banner "Agent GitHub App"
+banner "${APP_TITLE} (${REPO_SLUG})"
 
-stage "Create the App (one click)"
-say "A local page sends GitHub a prefilled App definition: Contents, Issues,"
-say "Pull requests, Checks = read and write; Metadata = read; no Workflows"
-say "permission (agent patches cannot change CI); no webhook; private to you."
-STATE="$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')"
-PORT="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
-python3 - "$PORT" "$STATE" "$REPO_SLUG" "$REPO_NAME" "$WORK" <<'PY' &
+stage "Create the App (${APP_DEFAULT_NAME})"
+say "Permissions: ${PERMS_DESC}."
+say "Target repository: ${REPO_SLUG}"
+
+if (( MANUAL_URL )); then
+  say "Manual mode (--manual-url): use this when running over SSH or inside a container"
+  say "where your browser cannot reach http://127.0.0.1 on this machine."
+  open_url "https://github.com/settings/apps/new"
+  step "Name the App '${APP_DEFAULT_NAME}', set Homepage URL to 'https://github.com/${REPO_SLUG}', disable Webhook."
+  step "Grant permissions: ${PERMS_DESC}."
+  step "Click 'Create GitHub App', note the App ID and Slug, then click 'Generate a private key'."
+  ask MANUAL_APP_ID "App ID:"
+  ask AGENT_APP_SLUG "App Slug (from https://github.com/apps/<slug>):"
+  ask MANUAL_PEM_PATH "Path to downloaded .pem private key file:"
+  [[ -f "$MANUAL_PEM_PATH" ]] || { warn "PEM file not found: $MANUAL_PEM_PATH"; exit 1; }
+  set_repo_secret "$ID_SECRET" "$MANUAL_APP_ID" || true
+  if set_repo_secret "$KEY_SECRET" "$(cat "$MANUAL_PEM_PATH")"; then
+    note "Uploaded private key; you can now remove $MANUAL_PEM_PATH."
+  else
+    warn "Private key preserved at $MANUAL_PEM_PATH. Retry with:"
+    note "  NEW_${KEY_SECRET}=\"\$(cat '${MANUAL_PEM_PATH}')\" scripts/secrets/rotate.py --repo '${REPO_SLUG}' ${KEY_SECRET}"
+  fi
+else
+  STATE="$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')"
+  PORT="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
+  python3 - "$PORT" "$STATE" "$REPO_SLUG" "$APP_DEFAULT_NAME" "$ROLE" "$WORK" <<'PY' &
 import html, http.server, json, sys, urllib.parse
 
-port, state, repo, name, work = int(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
+port, state, repo, app_name, role, work = int(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6]
+if role == "release-gate":
+    perms = {"contents": "write", "issues": "write", "pull_requests": "write", "workflows": "write", "metadata": "read"}
+else:
+    # Untrusted PR author App: intentionally omits checks:write and workflows:write (ADR 0008).
+    perms = {"contents": "write", "issues": "write", "pull_requests": "write", "metadata": "read"}
 manifest = {
-    "name": f"{name}-agent",
+    "name": app_name,
     "url": f"https://github.com/{repo}",
     "redirect_url": f"http://127.0.0.1:{port}/callback",
     "public": False,
-    "default_permissions": {"contents": "write", "issues": "write", "pull_requests": "write", "checks": "write", "metadata": "read"},
+    "default_permissions": perms,
     "default_events": [],
 }
 page = (
@@ -280,15 +379,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 http.server.HTTPServer(("127.0.0.1", port), Handler).serve_forever()
 PY
-SERVER_PID=$!
-open_url "http://127.0.0.1:${PORT}/"
-step "GitHub shows the App form. Rename it if the name is taken, then click 'Create GitHub App'."
-say "Waiting for GitHub to send you back (up to 10 minutes)..."
-for _ in $(seq 600); do [[ -s "$WORK/code" ]] && break; sleep 1; done
-kill "$SERVER_PID" 2>/dev/null || true
-SERVER_PID=""
-[[ -s "$WORK/code" ]] || { warn "No confirmation from GitHub; re-run the wizard."; exit 1; }
-python3 - "$WORK" <<'PY'
+  SERVER_PID=$!
+  open_url "http://127.0.0.1:${PORT}/"
+  step "GitHub shows the App form. Rename it if the name is taken, then click 'Create GitHub App'."
+  note "If you are on SSH/headless and localhost is unreachable, cancel (Ctrl-C) and re-run with --manual-url."
+  say "Waiting for GitHub to send you back (up to 10 minutes)..."
+  for _ in $(seq 600); do [[ -s "$WORK/code" ]] && break; sleep 1; done
+  kill "$SERVER_PID" 2>/dev/null || true
+  SERVER_PID=""
+  [[ -s "$WORK/code" ]] || { warn "No confirmation from GitHub; re-run the wizard (or pass --manual-url)."; exit 1; }
+  python3 - "$WORK" <<'PY'
 import json, os, sys, urllib.request
 
 work = sys.argv[1]
@@ -306,18 +406,42 @@ descriptor = os.open(f"{work}/pem", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600
 os.write(descriptor, data["pem"].encode())
 os.close(descriptor)
 PY
-AGENT_APP_SLUG="$(cat "$WORK/slug")"
-set_secret AGENT_APP_ID "$(cat "$WORK/id")"
-set_secret AGENT_APP_PRIVATE_KEY "$(cat "$WORK/pem")"
-set_var AGENT_APP_SLUG "$AGENT_APP_SLUG"
-rm -f "$WORK/pem"
+  AGENT_APP_SLUG="$(cat "$WORK/slug")"
+  set_repo_secret "$ID_SECRET" "$(cat "$WORK/id")" || true
+  if [[ "$ROLE" == "agent" ]]; then
+    if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+      if gh variable set --repo "$REPO_SLUG" AGENT_APP_SLUG --body "$AGENT_APP_SLUG" >/dev/null 2>&1; then
+        WRITTEN_VAR+=("AGENT_APP_SLUG")
+        printf '  %s✓ set%s GitHub variable AGENT_APP_SLUG (%s)\n' "$GREEN" "$RESET" "$REPO_SLUG"
+      else
+        SKIPPED+=("GitHub variable AGENT_APP_SLUG")
+        warn "skipped GitHub variable AGENT_APP_SLUG; set it later"
+      fi
+    else
+      SKIPPED+=("GitHub variable AGENT_APP_SLUG")
+      warn "skipped GitHub variable AGENT_APP_SLUG, gh not ready; set it later"
+    fi
+  fi
+  if set_repo_secret "$KEY_SECRET" "$(cat "$WORK/pem")"; then
+    rm -f "$WORK/pem"
+  else
+    # Never lose the single-shot manifest private key on transient upload failure.
+    RECOVERY_PEM="$(mktemp "${TMPDIR:-/tmp}/foodsavr-${ROLE}-app-XXXXXX.pem")"
+    chmod 600 "$RECOVERY_PEM"
+    cp "$WORK/pem" "$RECOVERY_PEM"
+    rm -f "$WORK/pem"
+    warn "Saved private key to ${RECOVERY_PEM} (mode 0600) because upload failed."
+    note "Retry upload, then delete it:"
+    note "  NEW_${KEY_SECRET}=\"\$(cat '${RECOVERY_PEM}')\" scripts/secrets/rotate.py --repo '${REPO_SLUG}' ${KEY_SECRET} && rm -f '${RECOVERY_PEM}'"
+  fi
+fi
 
-stage "Install the App on ${REPO_NAME}"
+stage "Install the App on ${REPO_SLUG}"
 open_url "https://github.com/apps/${AGENT_APP_SLUG}/installations/new"
 step "Choose your account, then 'Only select repositories' and pick ${REPO_NAME}. Click Install."
 pause "Installed?"
-say "Agent runs now publish as ${AGENT_APP_SLUG}[bot], and their PRs run CI."
-note "Rotate later: App settings > Private keys > Generate, then scripts/secrets/rotate.py AGENT_APP_PRIVATE_KEY."
+say "App ${AGENT_APP_SLUG}[bot] (${ROLE}) is configured for ${REPO_SLUG}."
+note "Rotate later: App settings > Private keys > Generate, then scripts/secrets/rotate.py --repo ${REPO_SLUG} ${KEY_SECRET}."
 
 finish
 }

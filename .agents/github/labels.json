@@ -43,6 +43,6 @@
     {"label": "area/app", "patterns": ["lib/"]}
   ],
   "risk_rules": [
-    {"label": "risk/security", "patterns": ["firestore.rules", "firestore-rules/", ".github/workflows/", ".agents/policies/", ".agents/runners/"]}
+    {"label": "risk/security", "patterns": ["firestore.rules", "firestore-rules/", ".github/workflows/", ".agents/policies/", ".agents/runners/", "infra/terraform/"]}
   ]
 }
