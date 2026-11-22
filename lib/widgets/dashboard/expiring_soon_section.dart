@@ -28,7 +28,9 @@ class ExpiringSoonSection extends StatelessWidget {
               ),
             ),
             TextButton(
-              onPressed: () => context.push('/dashboard/product-list'),
+              onPressed: () => context.push(
+                '/dashboard/product-list?sort=expiry&status=expiring',
+              ),
               child: Text('common.viewAll'.tr()),
             ),
           ],

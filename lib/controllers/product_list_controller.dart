@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'list_query.dart';
+
 import '../interfaces/i_auth_service.dart';
 import '../models/collection_model.dart';
 import '../models/product_model.dart';
@@ -30,6 +32,8 @@ class ProductListController extends ChangeNotifier {
        _authService = authService,
        _showGlobalProducts = showGlobalProducts;
 
+  List<Collection> collections = const [];
+  Map<String, Set<String>> _collectionProductIds = const {};
   List<Product> _products = const [];
   Map<String, List<String>> _productInventories = const {};
   ProductViewMode _viewMode = ProductViewMode.normal;
@@ -40,6 +44,14 @@ class ProductListController extends ChangeNotifier {
   Object? inventoryLoadError;
 
   List<Product> get products => _products;
+  List<Product> queryProducts(ListQuery query, int expiringSoonDays) =>
+      query.apply(
+        _products,
+        now: DateTime.now(),
+        expiringSoonDays: expiringSoonDays,
+        collectionProductIds: _collectionProductIds,
+      );
+
   Map<String, List<String>> get productInventories => _productInventories;
   ProductViewMode get viewMode => _viewMode;
 
@@ -62,6 +74,8 @@ class ProductListController extends ChangeNotifier {
     if (!_showGlobalProducts && userId == null) {
       if (_disposed) return;
       _products = const [];
+      collections = const [];
+      _collectionProductIds = const {};
       _productInventories = const {};
       inventoryLoadError = null;
       notifyListeners();
@@ -85,7 +99,11 @@ class ProductListController extends ChangeNotifier {
     final results = await Future.wait([productsFuture, collectionsFuture]);
     if (_disposed) return;
     final products = results[0] as List<Product>;
-    final collections = results[1] as List<Collection>;
+    collections = results[1] as List<Collection>;
+    _collectionProductIds = {
+      for (final collection in collections)
+        collection.id: collection.productIds.toSet(),
+    };
 
     _products = products;
     inventoryLoadError = inventoryError;

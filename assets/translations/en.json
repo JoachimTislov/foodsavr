@@ -115,6 +115,18 @@
 		"title": "Dashboard",
 		"transfer": "Transfer"
 	},
+	"listQuery": {
+		"search": "Search products",
+		"category": "Category",
+		"anyCategory": "All categories",
+		"collection": "Collection",
+		"anyCollection": "All collections",
+		"sort": "Sort products",
+		"original": "Default order",
+		"expiry": "Soonest expiry",
+		"name": "Name",
+		"noMatches": "No matching products"
+	},
 	"generated": {
 		"100_42": "1.0.0 (42)"
 	},

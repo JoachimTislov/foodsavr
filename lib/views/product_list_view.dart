@@ -1,7 +1,12 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
+import '../constants/preferences_config.dart';
+import '../controllers/list_query.dart';
+import '../controllers/list_query_state.dart';
+import '../controllers/preferences_controller.dart';
 import '../controllers/product_list_controller.dart';
+import '../widgets/inventory/list_query_controls.dart';
 import '../models/product_model.dart';
 import '../service_locator.dart';
 import '../services/collection_service.dart';
@@ -21,7 +26,15 @@ import 'receipt_scan_view.dart';
 class ProductListView extends StatefulWidget {
   final bool showGlobalProducts;
 
-  const ProductListView({super.key, this.showGlobalProducts = false});
+  final ListSort? initialSort;
+  final ProductStatus? initialStatus;
+
+  const ProductListView({
+    super.key,
+    this.showGlobalProducts = false,
+    this.initialSort,
+    this.initialStatus,
+  });
 
   @override
   State<ProductListView> createState() => _ProductListViewState();
@@ -29,6 +42,7 @@ class ProductListView extends StatefulWidget {
 
 class _ProductListViewState extends State<ProductListView> {
   late final ProductListController _controller;
+  late final ListQueryState _query;
 
   @override
   void initState() {
@@ -39,16 +53,25 @@ class _ProductListViewState extends State<ProductListView> {
       authService: getIt(),
       showGlobalProducts: widget.showGlobalProducts,
     );
+    _query = ListQueryState(
+      widget.showGlobalProducts ? 'global' : 'products.${_controller.userId}',
+      linkSort: widget.initialSort,
+      linkStatus: widget.initialStatus,
+    );
   }
 
   @override
   void dispose() {
+    _query.dispose();
     _controller.dispose();
     super.dispose();
   }
 
   Future<void> _fetchProducts({bool forceRefresh = false}) async {
-    await _controller.load(forceRefresh: forceRefresh);
+    await Future.wait([
+      _query.restore(),
+      _controller.load(forceRefresh: forceRefresh),
+    ]);
     if (_controller.inventoryLoadError != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -128,7 +151,7 @@ class _ProductListViewState extends State<ProductListView> {
         ],
       ),
       body: ListenableBuilder(
-        listenable: _controller,
+        listenable: Listenable.merge([_controller, _query]),
         builder: (context, _) => _buildBody(context, theme, colorScheme, title),
       ),
     );
@@ -140,8 +163,13 @@ class _ProductListViewState extends State<ProductListView> {
     ColorScheme colorScheme,
     String title,
   ) {
-    final products = _controller.products;
-    final viewMode = _controller.viewMode;
+    final products = _controller.queryProducts(
+      _query.query,
+      getIt.isRegistered<PreferencesController>()
+          ? getIt<PreferencesController>().expiringSoonDays
+          : PreferencesConfig.defaultExpiringSoonDays,
+    );
+    final viewMode = _query.viewMode;
     return CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
@@ -179,10 +207,18 @@ class _ProductListViewState extends State<ProductListView> {
                 ),
                 ViewModeToggle(
                   viewMode: viewMode,
-                  onModeChanged: _controller.setViewMode,
+                  onModeChanged: (mode) =>
+                      _query.update(() => _query.viewMode = mode),
                 ),
               ],
             ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: ListQueryControls(
+            state: _query,
+            products: _controller.products,
+            collections: _controller.collections,
           ),
         ),
         if (products.isEmpty)
@@ -190,8 +226,12 @@ class _ProductListViewState extends State<ProductListView> {
             hasScrollBody: false,
             child: EmptyStateWidget(
               icon: Icons.inventory_2_outlined,
-              title: 'product.noProductsFound'.tr(),
-              subtitle: 'product.addFirst'.tr(),
+              title: _controller.products.isEmpty
+                  ? 'product.noProductsFound'.tr()
+                  : 'listQuery.noMatches'.tr(),
+              subtitle: _controller.products.isEmpty
+                  ? 'product.addFirst'.tr()
+                  : null,
             ),
           )
         else
@@ -213,7 +253,7 @@ class _ProductListViewState extends State<ProductListView> {
   }
 
   Widget _buildProductCard(Product product) {
-    switch (_controller.viewMode) {
+    switch (_query.viewMode) {
       case ProductViewMode.compact:
         return ProductCardCompact(
           product: product,

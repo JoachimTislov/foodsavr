@@ -115,6 +115,18 @@
 		"title": "Dashbord",
 		"transfer": "Overføring"
 	},
+	"listQuery": {
+		"search": "Søk etter produkter",
+		"category": "Kategori",
+		"anyCategory": "Alle kategorier",
+		"collection": "Samling",
+		"anyCollection": "Alle samlinger",
+		"sort": "Sorter produkter",
+		"original": "Standardrekkefølge",
+		"expiry": "Tidligste utløp",
+		"name": "Navn",
+		"noMatches": "Ingen produkter samsvarer"
+	},
 	"generated": {
 		"100_42": "1.0.0 (42)"
 	},

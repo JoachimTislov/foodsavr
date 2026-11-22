@@ -15,6 +15,9 @@ import 'package:foodsavr/views/splash_view.dart';
 import 'package:foodsavr/views/transfer_management_view.dart';
 import 'package:go_router/go_router.dart';
 
+import '../controllers/list_query.dart';
+import '../models/product_model.dart';
+
 part 'routes.g.dart';
 
 @TypedGoRoute<LandingPageRoute>(
@@ -130,8 +133,16 @@ class DashboardRoute extends GoRouteData with $DashboardRoute {
 class ProductListRoute extends GoRouteData with $ProductListRoute {
   const ProductListRoute();
   @override
-  Widget build(BuildContext context, GoRouterState state) =>
-      const ProductListView();
+  Widget build(BuildContext context, GoRouterState state) => ProductListView(
+    key: ValueKey(state.uri.query),
+    initialSort: ListSort.values.asNameMap()[state.uri.queryParameters['sort']],
+    initialStatus: switch (state.uri.queryParameters['status']) {
+      'expiring' => ProductStatus.expiringSoon,
+      'expired' => ProductStatus.expired,
+      'fresh' => ProductStatus.fresh,
+      _ => null,
+    },
+  );
 }
 
 class GlobalProductsRoute extends GoRouteData with $GlobalProductsRoute {
