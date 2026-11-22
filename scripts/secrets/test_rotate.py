@@ -180,6 +180,33 @@ class MainTest(unittest.TestCase):
             ).stdout
             self.assertIn("would sync S", out)
 
+    def test_only_sink_filters_registered_sinks_and_rejects_unconfigured_sink(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "r.toml")
+            env_path = Path(tmp, ".env")
+            path.write_text('[secrets.ROUTER_MODEL]\npublic = true\nsinks = ["env", "github"]\n')
+            proc = subprocess.run(
+                [sys.executable, str(Path(__file__).with_name("rotate.py")), "--registry", str(path),
+                 "--env-file", str(env_path), "--only-sink", "env", "ROUTER_MODEL"],
+                env={**os.environ, "NEW_ROUTER_MODEL": "gpt-6.2-sol"},
+                capture_output=True, text=True, check=True,
+            )
+            self.assertIn("rotated ROUTER_MODEL (manual -> env)", proc.stdout)
+            self.assertEqual(env_path.read_text(), "ROUTER_MODEL='gpt-6.2-sol'\n")
+            bad = subprocess.run(
+                [sys.executable, str(Path(__file__).with_name("rotate.py")), "--registry", str(path),
+                 "--only-sink", "github", "--registry", str(path)],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(bad.returncode, 0)
+            path.write_text('[secrets.LOCAL_ONLY]\nsinks = ["env"]\n')
+            rejected = subprocess.run(
+                [sys.executable, str(Path(__file__).with_name("rotate.py")), "--registry", str(path),
+                 "--only-sink", "github", "LOCAL_ONLY"],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(rejected.returncode, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

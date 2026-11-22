@@ -268,6 +268,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="rotate every non-public member of a group after a leak (repeatable)")
     parser.add_argument("--sink", action="append", default=[], choices=sorted(SINKS - {"command"}),
                         help="sinks for unregistered names (repeatable; required for them)")
+    parser.add_argument("--only-sink", action="append", default=[], choices=sorted(SINKS - {"command"}),
+                        help="restrict selected secrets to a subset of their configured sinks (repeatable)")
     parser.add_argument("--registry", type=Path, default=REGISTRY)
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
     parser.add_argument("--dry-run", action="store_true", help="show what would rotate")
@@ -287,6 +289,15 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(str(error))
     if not selected:
         parser.error("name at least one secret, group, or pass --low-effort")
+    if args.only_sink:
+        allowed = set(args.only_sink)
+        filtered = []
+        for secret in selected:
+            kept = [sink for sink in secret.sinks if sink in allowed]
+            if not kept:
+                parser.error(f"{secret.name}: none of {sorted(allowed)} in configured sinks {secret.sinks}")
+            filtered.append(dataclasses.replace(secret, sinks=kept))
+        selected = filtered
 
     manual = [s.name for s in selected if s.effort == "high"]
     if manual and not args.dry_run:

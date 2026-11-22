@@ -1334,30 +1334,182 @@ def load_json(path: Path) -> dict[str, Any]:
     return value
 
 
+PERMISSION_VALUES = {
+    "filesystem": {"read-only", "workspace-write"},
+    "network": {"none", "allowlisted", "full"},
+    "git": {"read-only", "branch-write", "push"},
+    "github": {"none", "read-only", "write"},
+}
+
+
+def validate_policy_config(policy: dict[str, Any], source: Any = POLICY) -> list[str]:
+    errors: list[str] = []
+    allowed_fields = {
+        "schema_version", "id", "description", "filesystem", "network", "git", "github",
+        "allow_hosts", "require_draft_pr", "require_session_id", "require_ledger_event",
+        "require_acceptance", "allow_raw_artifacts",
+    }
+    for field in sorted(set(policy) - allowed_fields):
+        errors.append(f"{source}: unknown field {field}")
+    for field in ("schema_version", "id", *PERMISSION_VALUES):
+        if field not in policy:
+            errors.append(f"{source}: missing {field}")
+    if policy.get("schema_version") != 1:
+        errors.append(f"{source}: schema_version must be 1")
+    if "id" in policy and (not isinstance(policy["id"], str) or not policy["id"].strip()):
+        errors.append(f"{source}: id must be a non-empty string")
+    if "description" in policy and not isinstance(policy["description"], str):
+        errors.append(f"{source}: description must be a string")
+    for field, allowed in PERMISSION_VALUES.items():
+        if field in policy and policy[field] not in allowed:
+            errors.append(f"{source}: invalid {field}: {policy[field]}")
+    if "allow_hosts" in policy:
+        hosts = policy["allow_hosts"]
+        if not isinstance(hosts, list) or not all(isinstance(item, str) and item.strip() for item in hosts):
+            errors.append(f"{source}: allow_hosts must be an array of non-empty strings")
+    for field in ("require_draft_pr", "require_session_id", "require_ledger_event", "require_acceptance", "allow_raw_artifacts"):
+        if field in policy and not isinstance(policy[field], bool):
+            errors.append(f"{source}: {field} must be boolean")
+    return errors
+
+
+def validate_router_config(router: dict[str, Any], source: Any = ROUTER) -> list[str]:
+    errors: list[str] = []
+    valid_work_types = {item.value for item in WorkType}
+    valid_tiers = {item.value for item in ComplexityTier}
+    allowed_root = {"schema_version", "id", "decision_provider", "fallback", "decision_fields", "model_tiers", "work_routes"}
+    for field in sorted(set(router) - allowed_root):
+        errors.append(f"{source}: unknown field {field}")
+    for field in ("schema_version", "id", "decision_provider", "fallback", "work_routes"):
+        if field not in router:
+            errors.append(f"{source}: missing {field}")
+    if router.get("schema_version") != 1:
+        errors.append(f"{source}: schema_version must be 1")
+    if "id" in router and (not isinstance(router["id"], str) or not router["id"].strip()):
+        errors.append(f"{source}: id must be a non-empty string")
+
+    dp = router.get("decision_provider")
+    if not isinstance(dp, dict):
+        if "decision_provider" in router:
+            errors.append(f"{source}: decision_provider must be an object")
+    else:
+        allowed_dp = {
+            "enabled", "engine", "protocol", "structured_output", "control_plane_egress",
+            "allow_control_plane_on_none", "base_url_env", "api_key_env", "model_env", "timeout_ms",
+        }
+        for field in sorted(set(dp) - allowed_dp):
+            errors.append(f"{source}: decision_provider unknown field {field}")
+        for field in ("enabled", "protocol", "base_url_env", "api_key_env", "model_env", "timeout_ms"):
+            if field not in dp:
+                errors.append(f"{source}: decision_provider missing {field}")
+        if "enabled" in dp and not isinstance(dp["enabled"], bool):
+            errors.append(f"{source}: decision_provider.enabled must be boolean")
+        if "engine" in dp and (not isinstance(dp["engine"], str) or not dp["engine"].strip()):
+            errors.append(f"{source}: decision_provider.engine must be a non-empty string")
+        if "protocol" in dp and dp["protocol"] != "openai-compatible":
+            errors.append(f"{source}: decision_provider.protocol must be 'openai-compatible'")
+        for bool_field in ("structured_output", "allow_control_plane_on_none"):
+            if bool_field in dp and not isinstance(dp[bool_field], bool):
+                errors.append(f"{source}: decision_provider.{bool_field} must be boolean")
+        if "control_plane_egress" in dp and dp["control_plane_egress"] not in {"independent", "workflow"}:
+            errors.append(f"{source}: decision_provider.control_plane_egress is invalid")
+        for env_field in ("base_url_env", "api_key_env", "model_env"):
+            if env_field in dp and (not isinstance(dp[env_field], str) or not dp[env_field].strip()):
+                errors.append(f"{source}: decision_provider.{env_field} must be a non-empty string")
+        if "timeout_ms" in dp:
+            timeout_ms = dp["timeout_ms"]
+            if not isinstance(timeout_ms, int) or isinstance(timeout_ms, bool) or timeout_ms < 50:
+                errors.append(f"{source}: decision_provider.timeout_ms must be an integer >= 50")
+
+    fb = router.get("fallback")
+    if not isinstance(fb, dict):
+        if "fallback" in router:
+            errors.append(f"{source}: fallback must be an object")
+    else:
+        for field in sorted(set(fb) - {"strategy", "requires_explicit_provider"}):
+            errors.append(f"{source}: fallback unknown field {field}")
+        for field in ("strategy", "requires_explicit_provider"):
+            if field not in fb:
+                errors.append(f"{source}: fallback missing {field}")
+        if "strategy" in fb and fb["strategy"] != "first-available-policy-safe":
+            errors.append(f"{source}: fallback.strategy must be 'first-available-policy-safe'")
+        if "requires_explicit_provider" in fb and not isinstance(fb["requires_explicit_provider"], bool):
+            errors.append(f"{source}: fallback.requires_explicit_provider must be boolean")
+
+    if "decision_fields" in router:
+        fields = router["decision_fields"]
+        if not isinstance(fields, list) or not all(isinstance(item, str) and item.strip() for item in fields):
+            errors.append(f"{source}: decision_fields must be an array of non-empty strings")
+
+    if "model_tiers" in router:
+        tiers = router["model_tiers"]
+        if not isinstance(tiers, dict):
+            errors.append(f"{source}: model_tiers must be an object")
+        else:
+            for tier_name, tier_cfg in tiers.items():
+                if tier_name not in valid_tiers:
+                    errors.append(f"{source}: model_tiers contains unknown tier {tier_name}")
+                    continue
+                if not isinstance(tier_cfg, dict):
+                    errors.append(f"{source}: model_tiers.{tier_name} must be an object")
+                    continue
+                for extra in sorted(set(tier_cfg) - {"description", "default_reasoning_effort", "models"}):
+                    errors.append(f"{source}: model_tiers.{tier_name} unknown field {extra}")
+                for req in ("description", "default_reasoning_effort", "models"):
+                    if req not in tier_cfg:
+                        errors.append(f"{source}: model_tiers.{tier_name} missing {req}")
+                if "description" in tier_cfg and (not isinstance(tier_cfg["description"], str) or not tier_cfg["description"].strip()):
+                    errors.append(f"{source}: model_tiers.{tier_name}.description must be a non-empty string")
+                if "default_reasoning_effort" in tier_cfg and tier_cfg["default_reasoning_effort"] not in REASONING_EFFORTS:
+                    errors.append(f"{source}: model_tiers.{tier_name}.default_reasoning_effort is invalid")
+                if "models" in tier_cfg and (not isinstance(tier_cfg["models"], list) or not all(isinstance(m, str) and m.strip() for m in tier_cfg["models"])):
+                    errors.append(f"{source}: model_tiers.{tier_name}.models must be an array of non-empty strings")
+
+    if "work_routes" in router:
+        work_routes = router["work_routes"]
+        if not isinstance(work_routes, dict):
+            errors.append(f"{source}: work_routes must be an object")
+        else:
+            for missing_wt in sorted(valid_work_types - set(work_routes)):
+                errors.append(f"{source}: work_routes missing required work_type {missing_wt}")
+            for work_type, route in work_routes.items():
+                if work_type not in valid_work_types:
+                    errors.append(f"{source}: work_routes has unknown work_type {work_type}")
+                    continue
+                if not isinstance(route, dict):
+                    errors.append(f"{source}: work_routes.{work_type} must be an object")
+                    continue
+                for extra in sorted(set(route) - {"tier", "reasoning_effort", "preferences"}):
+                    errors.append(f"{source}: work_routes.{work_type} unknown field {extra}")
+                if route.get("tier") not in valid_tiers:
+                    errors.append(f"{source}: work_routes.{work_type}.tier is invalid")
+                if route.get("reasoning_effort") not in REASONING_EFFORTS:
+                    errors.append(f"{source}: work_routes.{work_type}.reasoning_effort is invalid")
+                prefs = route.get("preferences")
+                if not isinstance(prefs, list) or not prefs:
+                    errors.append(f"{source}: work_routes.{work_type}.preferences must be a non-empty array")
+                else:
+                    for pref in prefs:
+                        if (
+                            not isinstance(pref, dict)
+                            or set(pref) - {"provider", "model"}
+                            or not isinstance(pref.get("provider"), str)
+                            or not pref["provider"].strip()
+                            or not isinstance(pref.get("model"), str)
+                            or not pref["model"].strip()
+                        ):
+                            errors.append(f"{source}: work_routes.{work_type}.preferences entries must contain provider and model")
+    return errors
+
+
 def validate_declarative_manifests() -> list[str]:
     """Validate the provider-neutral manifests before derived state is rebuilt."""
     errors: list[str] = []
-    permission_values = {
-        "filesystem": {"read-only", "workspace-write"},
-        "network": {"none", "allowlisted", "full"},
-        "git": {"read-only", "branch-write", "push"},
-        "github": {"none", "read-only", "write"},
-    }
+    permission_values = PERMISSION_VALUES
     valid_work_types = {item.value for item in WorkType}
     valid_tiers = {item.value for item in ComplexityTier}
     try:
-        policy = load_json(POLICY)
-        for field in ("schema_version", "id", *permission_values):
-            if field not in policy:
-                errors.append(f"{POLICY}: missing {field}")
-        if policy.get("schema_version") != 1:
-            errors.append(f"{POLICY}: schema_version must be 1")
-        for field, allowed in permission_values.items():
-            if field in policy and policy[field] not in allowed:
-                errors.append(f"{POLICY}: invalid {field}: {policy[field]}")
-        for field in ("require_draft_pr", "require_session_id", "require_ledger_event", "require_acceptance", "allow_raw_artifacts"):
-            if field in policy and not isinstance(policy[field], bool):
-                errors.append(f"{POLICY}: {field} must be boolean")
+        errors.extend(validate_policy_config(load_json(POLICY), POLICY))
     except ValueError as error:
         errors.append(str(error))
 
@@ -1438,42 +1590,7 @@ def validate_declarative_manifests() -> list[str]:
         errors.append(str(error))
 
     try:
-        router = load_json(ROUTER)
-        for field in ("schema_version", "id", "decision_provider", "fallback"):
-            if field not in router:
-                errors.append(f"{ROUTER}: missing {field}")
-        if router.get("schema_version") != 1:
-            errors.append(f"{ROUTER}: schema_version must be 1")
-        if not isinstance(router.get("decision_provider"), dict) or not isinstance(router.get("fallback"), dict):
-            errors.append(f"{ROUTER}: decision_provider and fallback must be objects")
-        if "model_tiers" in router:
-            if not isinstance(router["model_tiers"], dict):
-                errors.append(f"{ROUTER}: model_tiers must be an object")
-            elif any(tier not in valid_tiers for tier in router["model_tiers"]):
-                errors.append(f"{ROUTER}: model_tiers contains unknown tier")
-        if "work_routes" in router:
-            work_routes = router["work_routes"]
-            if not isinstance(work_routes, dict):
-                errors.append(f"{ROUTER}: work_routes must be an object")
-            else:
-                for work_type, route in work_routes.items():
-                    if work_type not in valid_work_types:
-                        errors.append(f"{ROUTER}: work_routes has unknown work_type {work_type}")
-                        continue
-                    if not isinstance(route, dict):
-                        errors.append(f"{ROUTER}: work_routes.{work_type} must be an object")
-                        continue
-                    if route.get("tier") not in valid_tiers:
-                        errors.append(f"{ROUTER}: work_routes.{work_type}.tier is invalid")
-                    if route.get("reasoning_effort") not in REASONING_EFFORTS:
-                        errors.append(f"{ROUTER}: work_routes.{work_type}.reasoning_effort is invalid")
-                    prefs = route.get("preferences")
-                    if not isinstance(prefs, list) or not prefs:
-                        errors.append(f"{ROUTER}: work_routes.{work_type}.preferences must be a non-empty array")
-                    else:
-                        for pref in prefs:
-                            if not isinstance(pref, dict) or not isinstance(pref.get("provider"), str) or not isinstance(pref.get("model"), str):
-                                errors.append(f"{ROUTER}: work_routes.{work_type}.preferences entries must contain provider and model")
+        errors.extend(validate_router_config(load_json(ROUTER), ROUTER))
     except ValueError as error:
         errors.append(str(error))
 
@@ -2030,6 +2147,221 @@ def router_decide(args: argparse.Namespace) -> int:
         "candidates": [item.to_dict() for item in model_candidates],
     }
     print(json.dumps(output, indent=2, sort_keys=True))
+    return 0
+
+
+def _host_in_allowlist(host: str | None, allow_hosts: list[Any]) -> bool:
+    if not host:
+        return False
+    normalized = host.casefold()
+    allowed = {
+        value.casefold().lstrip(".")
+        for value in allow_hosts
+        if isinstance(value, str) and value.strip()
+    }
+    return normalized in allowed or any(normalized.endswith(f".{entry}") for entry in allowed)
+
+
+def _normalize_allow_host(raw: str) -> str:
+    candidate = raw.strip()
+    if not candidate:
+        raise ValueError("allow-host must not be empty")
+    parsed = urllib.parse.urlparse(candidate if "://" in candidate else f"https://{candidate}")
+    if not parsed.hostname or any(ch.isspace() for ch in parsed.hostname):
+        raise ValueError(f"invalid allow-host value: {raw!r}")
+    return parsed.hostname.casefold()
+
+
+def write_json_ordered(path: Path, value: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(path)
+
+
+def router_status(args: argparse.Namespace) -> int:
+    router = load_json(ROUTER)
+    policy = load_json(POLICY)
+    specs = provider_specs()
+    dp = router.get("decision_provider", {}) if isinstance(router.get("decision_provider"), dict) else {}
+    base_url_env = str(dp.get("base_url_env") or "ROUTER_BASE_URL")
+    api_key_env = str(dp.get("api_key_env") or "ROUTER_API_KEY")
+    model_env = str(dp.get("model_env") or "ROUTER_MODEL")
+    base_url = os.environ.get(base_url_env, "")
+    api_key = os.environ.get(api_key_env, "")
+    model = os.environ.get(model_env, "")
+    parsed_url = urllib.parse.urlparse(base_url) if base_url else None
+    url_host = parsed_url.hostname if parsed_url else None
+    is_https = bool(parsed_url and parsed_url.scheme == "https" and url_host)
+    allow_hosts = [item for item in policy.get("allow_hosts", []) if isinstance(item, str) and item.strip()]
+    host_allowed = _host_in_allowlist(url_host, allow_hosts)
+    enabled = bool(dp.get("enabled", False))
+    allow_control_plane_on_none = bool(dp.get("allow_control_plane_on_none", False))
+    policy_network = str(policy.get("network", "none"))
+
+    blockers: list[str] = []
+    if not enabled:
+        blockers.append("decision_provider.enabled is false")
+    if not base_url:
+        blockers.append(f"{base_url_env} is not set")
+    elif not is_https:
+        blockers.append(f"{base_url_env} must use https:// with a valid hostname")
+    if not api_key:
+        blockers.append(f"{api_key_env} is not set")
+    if policy_network == "none" and not allow_control_plane_on_none:
+        blockers.append("policy network=none and allow_control_plane_on_none=false")
+    if policy_network == "allowlisted" and not host_allowed:
+        blockers.append(f"router host {url_host or '<unset>'} is not in policy.allow_hosts")
+
+    permissions = {field: policy.get(field, "none") for field in ("filesystem", "network", "git", "github")}
+    providers_summary: dict[str, Any] = {}
+    available: list[str] = []
+    policy_safe: list[str] = []
+    for provider, spec in specs.items():
+        report = capability_report(provider, effective_spec(spec, permissions), permissions)
+        if report["available"]:
+            available.append(provider)
+        if report["policy_safe"]:
+            policy_safe.append(provider)
+        providers_summary[provider] = {
+            "available": report["available"],
+            "policy_safe": report["policy_safe"],
+            "version": report["version"],
+            "default_model": spec.get("default_model"),
+            "models": sorted(spec.get("models", {}).keys()) if isinstance(spec.get("models"), dict) else [],
+        }
+
+    default_router_path = (ROOT / ".agents/runners/router.json").resolve()
+    try:
+        override_active = Path(ROUTER).resolve() != default_router_path
+    except OSError:
+        override_active = str(ROUTER) != str(default_router_path)
+
+    status_payload = {
+        "router_file": str(ROUTER),
+        "router_id": router.get("id"),
+        "router_override_active": override_active,
+        "policy_file": str(POLICY),
+        "policy_id": policy.get("id"),
+        "policy_network": policy_network,
+        "effective_mode": "remote" if not blockers else "local-deterministic",
+        "remote_ready": not blockers,
+        "remote_blockers": blockers,
+        "decision_provider": {
+            "enabled": enabled,
+            "engine": dp.get("engine"),
+            "protocol": dp.get("protocol"),
+            "structured_output": bool(dp.get("structured_output", True)),
+            "control_plane_egress": dp.get("control_plane_egress"),
+            "allow_control_plane_on_none": allow_control_plane_on_none,
+            "timeout_ms": dp.get("timeout_ms"),
+            "base_url_env": base_url_env,
+            "api_key_env": api_key_env,
+            "model_env": model_env,
+        },
+        "fallback": router.get("fallback", {}),
+        "environment": {
+            base_url_env: {"set": bool(base_url), "https": is_https, "host": url_host},
+            api_key_env: {"set": bool(api_key)},
+            model_env: {"set": bool(model), "value": model or None},
+        },
+        "host_allowlist": {
+            "host": url_host,
+            "allow_hosts": allow_hosts,
+            "in_allow_hosts": host_allowed,
+        },
+        "available_providers": available,
+        "policy_safe_providers": policy_safe,
+        "providers": providers_summary,
+    }
+    print(json.dumps(status_payload, indent=2, sort_keys=True))
+    return 0
+
+
+def router_configure(args: argparse.Namespace) -> int:
+    source_path = Path(args.input).expanduser() if getattr(args, "input", None) else Path(ROUTER)
+    output_path = Path(args.output).expanduser() if getattr(args, "output", None) else Path(ROUTER)
+    router = json.loads(json.dumps(load_json(source_path)))
+    dp = router.setdefault("decision_provider", {})
+    fb = router.setdefault("fallback", {})
+    if not isinstance(dp, dict) or not isinstance(fb, dict):
+        print(json.dumps({"valid": False, "errors": [f"{source_path}: decision_provider and fallback must be objects"]}, indent=2))
+        return 1
+
+    router_mutated = bool(getattr(args, "output", None))
+    if getattr(args, "enable", False):
+        dp["enabled"] = True
+        router_mutated = True
+    elif getattr(args, "disable", False):
+        dp["enabled"] = False
+        router_mutated = True
+    if getattr(args, "allow_control_plane_on_none", False):
+        dp["allow_control_plane_on_none"] = True
+        router_mutated = True
+    elif getattr(args, "no_allow_control_plane_on_none", False):
+        dp["allow_control_plane_on_none"] = False
+        router_mutated = True
+    if getattr(args, "timeout_ms", None) is not None:
+        dp["timeout_ms"] = args.timeout_ms
+        router_mutated = True
+    if getattr(args, "engine", None) is not None:
+        dp["engine"] = args.engine
+        router_mutated = True
+    if getattr(args, "fallback_strategy", None) is not None:
+        fb["strategy"] = args.fallback_strategy
+        router_mutated = True
+
+    router_errors = validate_router_config(router, output_path)
+    if router_errors:
+        print(json.dumps({"valid": False, "errors": router_errors}, indent=2))
+        return 1
+
+    policy = json.loads(json.dumps(load_json(POLICY)))
+    existing_hosts = [item for item in policy.get("allow_hosts", []) if isinstance(item, str) and item.strip()]
+    updated_hosts = list(existing_hosts)
+    seen_hosts = {item.casefold() for item in updated_hosts}
+    for raw_host in getattr(args, "allow_host", []) or []:
+        try:
+            normalized = _normalize_allow_host(raw_host)
+        except ValueError as exc:
+            print(json.dumps({"valid": False, "errors": [str(exc)]}, indent=2))
+            return 1
+        if normalized not in seen_hosts:
+            updated_hosts.append(normalized)
+            seen_hosts.add(normalized)
+
+    policy_target: Path | None = None
+    if getattr(args, "policy_output", None):
+        policy_target = Path(args.policy_output).expanduser()
+    elif getattr(args, "update_policy", False):
+        policy_target = Path(POLICY)
+
+    policy_updated = False
+    if policy_target is not None:
+        policy["allow_hosts"] = updated_hosts
+        policy_errors_list = validate_policy_config(policy, policy_target)
+        if policy_errors_list:
+            print(json.dumps({"valid": False, "errors": policy_errors_list}, indent=2))
+            return 1
+        write_json_ordered(policy_target, policy)
+        policy_updated = True
+
+    if router_mutated:
+        write_json_ordered(output_path, router)
+
+    result: dict[str, Any] = {
+        "valid": True,
+        "written": router_mutated,
+        "output": str(output_path),
+        "router_id": router["id"],
+        "decision_provider": router["decision_provider"],
+        "fallback": router["fallback"],
+        "allow_hosts": updated_hosts,
+        "policy_updated": policy_updated,
+    }
+    if policy_target is not None:
+        result["policy_output"] = str(policy_target)
+    print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 
 
@@ -3281,6 +3613,22 @@ def build_parser() -> argparse.ArgumentParser:
     router_matrix_parser.add_argument("--workflow")
     router_matrix_parser.add_argument("--work-type", choices=[wt.value for wt in WorkType])
     router_matrix_parser.add_argument("--tier", choices=[tier.value for tier in ComplexityTier])
+    router_commands.add_parser("status", help="summarize active router config, env readiness, allowlist alignment, and safe providers")
+    router_configure_parser = router_commands.add_parser("configure", help="configure and validate router manifest and optional policy allowlist")
+    enable_group = router_configure_parser.add_mutually_exclusive_group()
+    enable_group.add_argument("--enable", action="store_true", help="enable remote decision_provider")
+    enable_group.add_argument("--disable", action="store_true", help="disable remote decision_provider (local deterministic mode)")
+    cp_group = router_configure_parser.add_mutually_exclusive_group()
+    cp_group.add_argument("--allow-control-plane-on-none", action="store_true", help="allow remote decision_provider when workflow network=none")
+    cp_group.add_argument("--no-allow-control-plane-on-none", action="store_true", help="disallow remote decision_provider when workflow network=none")
+    router_configure_parser.add_argument("--timeout-ms", type=int, help="decision_provider timeout in milliseconds (>= 50)")
+    router_configure_parser.add_argument("--engine", help="decision_provider engine identifier (e.g. typed-decision)")
+    router_configure_parser.add_argument("--fallback-strategy", help="fallback strategy (e.g. first-available-policy-safe)")
+    router_configure_parser.add_argument("--allow-host", action="append", default=[], help="hostname or URL host to add to policy allow_hosts")
+    router_configure_parser.add_argument("--update-policy", action="store_true", help="write --allow-host updates to active policy file")
+    router_configure_parser.add_argument("--policy-output", help="write --allow-host updates to a custom policy file path")
+    router_configure_parser.add_argument("--input", help="source router manifest path (defaults to active ROUTER)")
+    router_configure_parser.add_argument("--output", help="destination router manifest path (defaults to active ROUTER)")
     policy = commands.add_parser("policy")
     policy_commands = policy.add_subparsers(dest="policy_command", required=True)
     compile_policy = policy_commands.add_parser("compile")
@@ -3348,6 +3696,10 @@ def main(argv: list[str] | None = None) -> int:
         return router_decide(args)
     if args.command == "router" and args.router_command == "matrix":
         return router_matrix(args)
+    if args.command == "router" and args.router_command == "status":
+        return router_status(args)
+    if args.command == "router" and args.router_command == "configure":
+        return router_configure(args)
     if args.command == "policy" and args.policy_command == "compile":
         return policy_compile(args)
     if args.command == "sessions" and args.session_command == "list":
