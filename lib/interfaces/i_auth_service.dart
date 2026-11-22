@@ -19,6 +19,7 @@ abstract class IAuthService {
     required String newEmail,
   });
   Future<void> signOut();
+  Future<void> deleteAccount();
   Stream<User?> get authStateChanges;
   User? get currentUser;
   String? getUserId();
