@@ -30,9 +30,11 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import agent_skills  # noqa: E402
+import check_logs  # noqa: E402
 import traceability as tr  # noqa: E402
 import trace_facts as tf  # noqa: E402
 import session_archive as sa  # noqa: E402
+import system_status as ss  # noqa: E402
 
 
 def configured_path(environment: str, default: Path) -> Path:
@@ -48,6 +50,7 @@ RUNNERS = configured_path("AGENT_RUNNERS_FILE", ROOT / ".agents/runners/provider
 POLICY = configured_path("AGENT_POLICY_FILE", ROOT / ".agents/policies/default.json")
 ROUTER = configured_path("AGENT_ROUTER_FILE", ROOT / ".agents/runners/router.json")
 LABELS = configured_path("AGENT_LABELS_FILE", ROOT / ".agents/github/labels.json")
+SYSTEM = configured_path("AGENT_SYSTEM_FILE", ROOT / ".agents/system.json")
 TEXT_SUFFIXES = {".md", ".markdown", ".yaml", ".yml", ".json", ".jsonl", ".toml"}
 EXCLUDED_PARTS = {".git", ".dart_tool", "build", "state"}
 URL_RE = re.compile(r"https?://[^\s)\]>]+")
@@ -872,8 +875,8 @@ def provenance_command(args: argparse.Namespace) -> int:
 
 
 def history_coverage(root: Path, sessions: list[dict[str, Any]], ledger: list[dict[str, Any]], limit: int = 50) -> dict[str, Any]:
-    """How many of the last `limit` commits on main resolve to a session (trailer, recorded SHA, or rebase equivalence)."""
-    ref = next((r for r in ("origin/main", "main", "HEAD") if tr.run_git(root, "rev-parse", "--verify", "--quiet", r)), "HEAD")
+    """How many of the last `limit` commits on the default branch resolve to a session (trailer, recorded SHA, or rebase equivalence)."""
+    ref = next((r for r in ("origin/develop", "develop", "origin/main", "main", "HEAD") if tr.run_git(root, "rev-parse", "--verify", "--quiet", r)), "HEAD")
     equivalence = tf.Equivalence(root, sessions, ledger, equivalence_cache(), deadline=time.monotonic() + 20)
     counts = {"trailer": 0, "recorded-sha": 0, "rebase-equivalent": 0, "bot": 0, "unresolved": 0}
     unresolved = []
@@ -1969,6 +1972,11 @@ def validate_declarative_manifests() -> list[str]:
                 errors.append(f"{LABELS}: every managed label must use a managed prefix")
     except ValueError as error:
         errors.append(str(error))
+
+    try:
+        errors.extend(ss.validate_system_manifest(load_json(SYSTEM), SYSTEM))
+    except ValueError as error:
+        errors.append(str(error))
     return errors
 
 
@@ -2137,6 +2145,71 @@ def doctor(args: argparse.Namespace) -> int:
         for provider, spec in runner_specs.items()
     }
     print(json.dumps({"runner": str(ROOT), "providers": result, "traceability": traceability_report()}, indent=2, sort_keys=True))
+    return 0
+
+
+def _local_system_snapshot() -> ss.LocalSnapshot:
+    manifest_errors = validate_declarative_manifests()
+    catalog = agent_skills.discover(ROOT)
+    skills_errors = agent_skills.validation_errors(ROOT, catalog) + agent_skills.context_errors(ROOT) + agent_skills.drift(ROOT, catalog)
+    try:
+        tracked = subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT, text=True).split("\0")
+        log_errors = check_logs.check(ROOT, [p for p in tracked if p])
+    except (OSError, subprocess.CalledProcessError) as error:
+        log_errors = [f"git ls-files failed: {error}"]
+    hooks = tr.hooks_status(ROOT)
+    runner_specs = load_json(RUNNERS).get("providers", {})
+    ro_policy = load_json(POLICY)
+    ro_perms = {field: ro_policy.get(field, "none") for field in ("filesystem", "network", "git", "github")}
+    rw_path = ROOT / ".agents/policies/agent-implement.json"
+    rw_policy = load_json(rw_path) if rw_path.exists() else {"filesystem": "workspace-write", "network": "none", "git": "read-only", "github": "none"}
+    rw_perms = {field: rw_policy.get(field, "none") for field in ("filesystem", "network", "git", "github")}
+    providers_ro = {p: capability_report(p, effective_spec(spec, ro_perms), ro_perms) for p, spec in runner_specs.items()}
+    providers_rw = {p: capability_report(p, effective_spec(spec, rw_perms), rw_perms) for p, spec in runner_specs.items()}
+    sessions = records(INDEX)
+    return ss.LocalSnapshot(
+        manifest_errors=manifest_errors,
+        skills_errors=skills_errors,
+        log_errors=log_errors,
+        hooks_installed=bool(hooks.get("installed")),
+        hooks_path=hooks.get("core.hooksPath"),
+        providers_read_only=providers_ro,
+        providers_write=providers_rw,
+        router_status=_router_status_payload(),
+        archive_report=archive_report(sessions),
+    )
+
+
+def status_command(args: argparse.Namespace) -> int:
+    manifest_path = Path(args.manifest).expanduser() if getattr(args, "manifest", None) else SYSTEM
+    manifest = load_json(manifest_path)
+    errors = ss.validate_system_manifest(manifest, manifest_path)
+    if errors:
+        print(json.dumps({"valid": False, "errors": errors}, indent=2))
+        return 1
+    report = ss.observe_agent_system(ROOT, manifest, _local_system_snapshot(), offline=bool(args.offline))
+    ns = getattr(args, "namespace", None)
+    if args.output == "json":
+        payload = report
+        if ns:
+            filtered = [c for c in report["status"]["components"] if c["namespace"] == ns]
+            payload = {
+                **report,
+                "status": {
+                    **report["status"],
+                    "components": filtered,
+                    "conditions": [c for c in report["status"]["conditions"] if any(f["conditionType"] == c["type"] for f in filtered)],
+                },
+            }
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(ss.render_table(report, wide=(args.output == "wide"), namespace=ns))
+    if args.strict:
+        comps = report["status"]["components"]
+        if ns:
+            comps = [c for c in comps if c["namespace"] == ns]
+        checked = [c for c in comps if not args.offline or c["status"] != "Unknown"]
+        return 0 if all(c["status"] == "Ready" for c in checked) else 1
     return 0
 
 
@@ -2562,7 +2635,7 @@ def resolve_router_endpoint_url(base_url: str) -> str:
     return cleaned
 
 
-def router_status(args: argparse.Namespace) -> int:
+def _router_status_payload() -> dict[str, Any]:
     router = load_json(ROUTER)
     policy = load_json(POLICY)
     specs = provider_specs()
@@ -2664,7 +2737,11 @@ def router_status(args: argparse.Namespace) -> int:
         "policy_safe_providers": policy_safe,
         "providers": providers_summary,
     }
-    print(json.dumps(status_payload, indent=2, sort_keys=True))
+    return status_payload
+
+
+def router_status(args: argparse.Namespace) -> int:
+    print(json.dumps(_router_status_payload(), indent=2, sort_keys=True))
     return 0
 
 
@@ -3880,7 +3957,7 @@ def policy_compile(args: argparse.Namespace) -> int:
         print(json.dumps({"valid": False, "errors": [f"unknown provider: {args.provider}"]}, indent=2))
         return 1
     permissions = {field: policy[field] for field in ("filesystem", "network", "git", "github")}
-    capability = capability_report(args.provider, spec, permissions)
+    capability = capability_report(args.provider, effective_spec(spec, permissions), permissions)
     projection = {
         "provider": args.provider,
         "policy_id": policy["id"],
@@ -4000,6 +4077,12 @@ def build_parser() -> argparse.ArgumentParser:
     run_show = run_commands.add_parser("show")
     run_show.add_argument("run_id")
     commands.add_parser("doctor")
+    status_parser = commands.add_parser("status", help="observe AgentSystem desired vs live state (Kubernetes-style)")
+    status_parser.add_argument("-o", "--output", choices=["table", "wide", "json"], default="table")
+    status_parser.add_argument("-n", "--namespace", choices=list(ss.VALID_NAMESPACES))
+    status_parser.add_argument("--offline", action="store_true", help="skip remote GitHub/GCS probes (safe for CI)")
+    status_parser.add_argument("--strict", action="store_true", help="exit 1 if any evaluated component is not Ready")
+    status_parser.add_argument("--manifest", default=str(SYSTEM), help="path to AgentSystem manifest")
     commands.add_parser("maintain")
     commands.add_parser("heal")
     workflow = commands.add_parser("workflow")
@@ -4161,6 +4244,8 @@ def main(argv: list[str] | None = None) -> int:
         return runs(args)
     if args.command == "doctor":
         return doctor(args)
+    if args.command == "status":
+        return status_command(args)
     if args.command == "maintain":
         return maintain(args)
     if args.command == "heal":

@@ -1,0 +1,68 @@
+{
+  "apiVersion": "agents.foodsavr.dev/v1alpha1",
+  "kind": "AgentSystem",
+  "metadata": {
+    "name": "foodsavr",
+    "defaultBranch": "develop"
+  },
+  "spec": {
+    "controlPlane": {
+      "minPolicySafeProviders": 1,
+      "requiredHooksPath": ".githooks",
+      "skillsSync": true,
+      "logsFormat": "jsonl"
+    },
+    "ciRunners": {
+      "providerAuthSecretsAnyOf": [
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "CODEX_AUTH_JSON_B64",
+        "ANTIGRAVITY_OAUTH_TOKEN_B64",
+        "GEMINI_API_KEY"
+      ],
+      "agentAppSecretsAllOf": [
+        "AGENT_APP_ID",
+        "AGENT_APP_PRIVATE_KEY"
+      ],
+      "mergeGateSecretsAllOf": [
+        "MERGE_GATE_TOKEN"
+      ],
+      "mergeGateWorkflow": "merge-gate.yml"
+    },
+    "router": {
+      "mode": "local-deterministic"
+    },
+    "governance": {
+      "requiredStatusChecks": [
+        "Decide whether to run CI",
+        "Check & Test",
+        "Agent session declared"
+      ],
+      "disallowDuplicateRequiredChecks": true,
+      "traceabilityWorkflow": "traceability.yml"
+    },
+    "observability": {
+      "autoHealVar": "AUTO_HEAL_ENABLED",
+      "telemetryPollVar": "TELEMETRY_POLL_ENABLED",
+      "wifVarsAllOf": [
+        "GCP_WORKLOAD_IDENTITY_PROVIDER",
+        "GCP_DEPLOY_SERVICE_ACCOUNT"
+      ],
+      "webMonitorWorkflow": "web-monitor.yml",
+      "transcriptArchive": {
+        "configFile": ".agents/sessions/archive.json",
+        "verifyBucket": true
+      }
+    },
+    "delivery": {
+      "requiredBranches": [
+        "develop",
+        "nightly",
+        "beta",
+        "stable",
+        "release"
+      ],
+      "promoteWorkflow": "promote.yml",
+      "detectOrphanedWorkflows": true
+    }
+  }
+}

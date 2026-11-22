@@ -20,6 +20,7 @@ One agent system serves local shells, T3 Code threads, and GitHub runners throug
 - Every agent commit carries an `Agent-Session: <harness>:<id>` trailer; `scripts/agents/agentctl sessions commits <harness>:<id>` lists a session's changes. Commit with the `commit` skill.
 - `make hooks` also installs a `prepare-commit-msg` hook that adds that trailer from the auto-detected session (`sessions register` needs no identity flags then; `sessions register --status completed` ends the session and archives its redacted transcript; `sessions fetch <id>` retrieves it)
 - Log events with `scripts/agents/agentctl log`; `trace <commit|#N|path:line|run|session>` explains why something exists; `check-pr` is the CI gate for trailers ([details](.agents/sessions/README.md#traceability-271)).
+- Check overall agent-system health against [.agents/system.json](.agents/system.json) with `scripts/agents/agentctl status` (or `make agent-status`; `--offline` in CI, `-o json|wide`, `-n <namespace>`).
 - Before resuming from an ambiguous prior session, run `scripts/agents/agentctl context "..."`.
 
 ## Skills

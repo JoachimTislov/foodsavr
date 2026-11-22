@@ -190,6 +190,39 @@ class TestMonitoringEntrypoint(unittest.TestCase):
             self.assertIn("Monitoring and healing loop setup checks passed.", res.stdout)
             self.assertNotIn("Monitoring shell", res.stdout)
 
+    def test_non_interactive_accepts_antigravity_and_gemini_secrets(self) -> None:
+        for secret_name in ("ANTIGRAVITY_OAUTH_TOKEN_B64", "GEMINI_API_KEY"):
+            with self.subTest(secret=secret_name), tempfile.TemporaryDirectory() as tmpdir:
+                tmp = Path(tmpdir)
+                state_file = tmp / "state.json"
+                state_file.write_text(
+                    json.dumps(
+                        {
+                            "secrets": [
+                                secret_name,
+                                "AGENT_APP_ID",
+                                "AGENT_APP_PRIVATE_KEY",
+                            ],
+                            "variables": {
+                                "FIREBASE_PLAN": "spark",
+                                "AUTO_HEAL_ENABLED": "true",
+                            },
+                        }
+                    )
+                )
+                fake_gh = _make_fake_gh(tmp, state_file)
+                res = subprocess.run(
+                    [str(SCRIPT)],
+                    cwd=ROOT,
+                    env=_human_env(fake_gh),
+                    stdin=subprocess.DEVNULL,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+                self.assertIn("Monitoring and healing loop setup checks passed.", res.stdout)
+
     def test_agent_and_ci_envs_never_trigger_interactive_shell_even_on_pty(self) -> None:
         for env_key in ("ANTIGRAVITY_AGENT", "CLAUDECODE", "CODEX_CI", "CI"):
             with self.subTest(env_key=env_key), tempfile.TemporaryDirectory() as tmpdir:
