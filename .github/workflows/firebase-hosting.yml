@@ -174,6 +174,9 @@ jobs:
         if: ${{ env.HAS_DEPLOY_CONFIG == 'true' }}
         env:
           RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars[format('RECAPTCHA_ENTERPRISE_SITE_KEY{0}', needs.resolve.outputs.suffix)] }}
+          FIREBASE_PLAN: ${{ vars.FIREBASE_PLAN }}
+          ERROR_REPORTER: ${{ vars.ERROR_REPORTER }}
+          ERROR_COLLECTOR_ENDPOINT: ${{ vars.ERROR_COLLECTOR_ENDPOINT }}
         run: |
           flutter pub get
           dart run build_runner build --delete-conflicting-outputs
@@ -184,7 +187,17 @@ jobs:
           else
             echo "::warning::RECAPTCHA_ENTERPRISE_SITE_KEY is missing; App Check uses a placeholder key."
           fi
-          flutter build web --release "${defines[@]}"
+          if [ -n "$ERROR_REPORTER" ]; then
+            defines+=("--dart-define=ERROR_REPORTER=$ERROR_REPORTER")
+          fi
+          if [ -n "$ERROR_COLLECTOR_ENDPOINT" ]; then
+            defines+=("--dart-define=ERROR_COLLECTOR_ENDPOINT=$ERROR_COLLECTOR_ENDPOINT")
+          fi
+          build_flags=(--release)
+          if [ "$FIREBASE_PLAN" = "blaze" ]; then
+            build_flags+=(--source-maps)
+          fi
+          flutter build web "${build_flags[@]}" "${defines[@]}"
 
       - name: Check Hosting storage budget
         id: budget
@@ -228,3 +241,8 @@ jobs:
         run: |
           npx -y "$FIREBASE_TOOLS" deploy --only hosting --project "$PROJECT_ID" --non-interactive
           echo "Live ($FLAVOR): https://$SITE_ID.web.app" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload web source maps (Blaze)
+        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' && env.TARGET == 'live' && vars.FIREBASE_PLAN == 'blaze' }}
+        run: |
+          npx -y "$FIREBASE_TOOLS" crashlytics:sourcemap:upload --app "$WEB_APP_ID" --clean build/web

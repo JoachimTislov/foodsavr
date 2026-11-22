@@ -29,11 +29,8 @@ data "google_project" "this" {
 locals {
   project_number = data.google_project.this.number
   live_domains   = ["${var.project_id}.web.app", "${var.project_id}.firebaseapp.com"]
-}
-
-resource "google_project_service" "apis" {
-  provider = google-beta
-  for_each = toset([
+  is_blaze       = var.firebase_plan == "blaze"
+  base_apis = [
     "apikeys.googleapis.com",
     "recaptchaenterprise.googleapis.com",
     "firebaseappcheck.googleapis.com",
@@ -41,7 +38,20 @@ resource "google_project_service" "apis" {
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
     "sts.googleapis.com",
-  ])
+  ]
+  blaze_apis = local.is_blaze ? [
+    "firebasetelemetry.googleapis.com",
+    "firebasetelemetryadmin.googleapis.com",
+  ] : []
+  web_api_key_services = distinct(concat(
+    var.web_api_key_services,
+    local.is_blaze ? ["firebasetelemetry.googleapis.com"] : [],
+  ))
+}
+
+resource "google_project_service" "apis" {
+  provider           = google-beta
+  for_each           = toset(concat(local.base_apis, local.blaze_apis))
   service            = each.key
   disable_on_destroy = false
 }
@@ -86,7 +96,7 @@ resource "google_apikeys_key" "web" {
     }
 
     dynamic "api_targets" {
-      for_each = var.web_api_key_services
+      for_each = local.web_api_key_services
       content {
         service = api_targets.value
       }
@@ -166,15 +176,16 @@ resource "google_service_account" "hosting_deployer" {
 
 resource "google_project_iam_member" "hosting_deployer" {
   provider = google-beta
-  for_each = toset([
+  for_each = toset(concat([
     "roles/firebasehosting.admin",             # deploy live + preview channels
     "roles/firebase.viewer",                   # read web SDK config at build time
     "roles/firebaseauth.admin",                # add preview domains to Auth
     "roles/serviceusage.apiKeysViewer",        # resolve web API key
     "roles/serviceusage.serviceUsageConsumer", # call Firebase APIs
+    "roles/datastore.viewer",                  # Spark-safe read-only Firestore runtime_errors polling
     "roles/monitoring.viewer",                 # levels poll: Firestore op counts
     "roles/firebaseauth.viewer",               # levels poll: user count
-  ])
+  ], local.is_blaze ? ["roles/logging.viewer"] : []))
   project = var.project_id
   role    = each.key
   member  = "serviceAccount:${google_service_account.hosting_deployer.email}"
@@ -197,6 +208,10 @@ output "recaptcha_enterprise_site_key" {
 
 output "deploy_service_account" {
   value = google_service_account.hosting_deployer.email
+}
+
+output "firebase_plan" {
+  value = var.firebase_plan
 }
 
 # ---------------------------------------------------------------------------

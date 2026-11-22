@@ -25,4 +25,17 @@ class Config {
 
   static const String testUserEmail = 'bob@example.com';
   static const String testUserPassword = 'password123';
+
+  /// Pluggable error reporting adapter (`none`, `spark-firestore`,
+  /// `crashlytics-web`, or `external`). Always disabled when [useEmulators].
+  static const String errorReporter = String.fromEnvironment(
+    'ERROR_REPORTER',
+    defaultValue: 'none',
+  );
+
+  /// Optional HTTP endpoint for `ERROR_REPORTER=external` collectors.
+  static const String errorCollectorEndpoint = String.fromEnvironment(
+    'ERROR_COLLECTOR_ENDPOINT',
+    defaultValue: '',
+  );
 }

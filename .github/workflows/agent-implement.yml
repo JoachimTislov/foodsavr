@@ -15,6 +15,11 @@ on:
       issue:
         description: Issue number to implement
         required: true
+      healing_mode:
+        description: Enforce bounded two-way-door healing path guardrails
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: agent-implement-${{ github.event.issue.number || inputs.issue }}
@@ -26,14 +31,19 @@ permissions:
 env:
   ISSUE: ${{ github.event.issue.number || inputs.issue }}
   BRANCH: agent/issue-${{ github.event.issue.number || inputs.issue }}
+  HEALING_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.healing_mode == true }}
 
 jobs:
   implement:
-    # Only the repository owner can start a run (labelling needs triage access).
+    # Owner can trigger any issue; automated healing_mode dispatch from monitoring
+    # workflows is restricted to bot actors on issues carrying a healing fingerprint.
     if: >-
       (github.event_name == 'workflow_dispatch' ||
        github.event.label.name == 'triage/ready-for-agent') &&
-      github.actor == github.repository_owner
+      (github.actor == github.repository_owner ||
+       (github.event_name == 'workflow_dispatch' &&
+        inputs.healing_mode == true &&
+        endsWith(github.actor, '[bot]')))
     runs-on: ubuntu-latest
     timeout-minutes: 75
     permissions:
@@ -52,6 +62,13 @@ jobs:
           [[ "$ISSUE" =~ ^[0-9]+$ ]] || { echo "issue must be a number"; exit 1; }
           if gh api "repos/${GITHUB_REPOSITORY}/branches/${BRANCH}" >/dev/null 2>&1; then
             echo "Branch ${BRANCH} already exists; resolve or delete it first."; exit 1
+          fi
+          if [ "$HEALING_MODE" = "true" ]; then
+            body="$(gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json body --jq .body)"
+            if ! printf '%s' "$body" | grep -q '<!-- healing-fingerprint:'; then
+              echo "healing_mode requires an issue with a healing-fingerprint marker."
+              exit 1
+            fi
           fi
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -150,6 +167,9 @@ jobs:
         if: steps.patch.outputs.changed == 'true'
         run: |
           git add --update
+          if [ "$HEALING_MODE" = "true" ]; then
+            python3 scripts/monitoring/check_healing_patch.py --git-cached
+          fi
           git diff --cached --binary > .agents/state/final.patch
 
       - name: Upload run artifacts
@@ -210,17 +230,21 @@ jobs:
           name: agent-implement-${{ env.ISSUE }}
           path: ${{ runner.temp }}/agent
 
-      - name: Commit, push, and open draft PR
+      - name: Commit, push, and open PR
         if: needs.implement.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
           APP_SLUG: ${{ steps.app.outputs.app-slug }}
           SESSION: ${{ needs.implement.outputs.session }}
           VERIFY: ${{ needs.implement.outputs.verify }}
+          AUTO_HEAL_MERGE: ${{ vars.AUTO_HEAL_MERGE }}
           ARTIFACTS: ${{ runner.temp }}/agent
         run: |
           title="$(gh issue view "$ISSUE" --json title --jq .title)"
           git apply --index "$ARTIFACTS/final.patch"
+          if [ "$HEALING_MODE" = "true" ]; then
+            python3 scripts/monitoring/check_healing_patch.py --git-cached
+          fi
           if [ -n "$APP_SLUG" ]; then
             bot="${APP_SLUG}[bot]"
             bot_id="$(gh api "/users/${bot}" --jq .id)"
@@ -235,6 +259,12 @@ jobs:
           git -c core.hooksPath=/dev/null commit --no-verify -m "feat: implement #${ISSUE}" -m "${title}" \
             -m "Closes #${ISSUE}" -m "Agent-Session: ${SESSION}"
           git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
+          ready_auto_heal=false
+          door_note="Draft until reviewed."
+          if [ "$HEALING_MODE" = "true" ] && [ "$AUTO_HEAL_MERGE" = "true" ] && [ "$VERIFY" = "passed" ] && [ -n "$APP_SLUG" ]; then
+            ready_auto_heal=true
+            door_note="Verified two-way-door healing fix labeled merge/auto."
+          fi
           {
             echo "### What does this PR do?"
             echo
@@ -249,7 +279,7 @@ jobs:
             echo
             echo "## Merge Danger"
             echo
-            echo "**Door:** two-way. Draft until reviewed. ${ci_note}"
+            echo "**Door:** two-way. ${door_note} ${ci_note}"
             echo
             echo "### AI Contribution & Experience Disclosure"
             echo
@@ -257,8 +287,14 @@ jobs:
             echo "*   **Model-Used:** provider session \`${SESSION}\`"
             echo "*   **Summary of AI-generated content:** the full diff"
           } > "$RUNNER_TEMP/pr-body.md"
-          gh pr create --draft --base "${GITHUB_REF_NAME}" --head "$BRANCH" \
-            --title "feat: implement #${ISSUE}" --body-file "$RUNNER_TEMP/pr-body.md"
+          if [ "$ready_auto_heal" = "true" ]; then
+            pr_url="$(gh pr create --base "${GITHUB_REF_NAME}" --head "$BRANCH" \
+              --title "feat: implement #${ISSUE}" --body-file "$RUNNER_TEMP/pr-body.md")"
+            gh pr edit "$pr_url" --add-label "merge/auto"
+          else
+            gh pr create --draft --base "${GITHUB_REF_NAME}" --head "$BRANCH" \
+              --title "feat: implement #${ISSUE}" --body-file "$RUNNER_TEMP/pr-body.md"
+          fi
 
       - name: Report to the issue
         if: always()
