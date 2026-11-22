@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "foodsavr://raw-event",
   "title": "RawEvent",
-  "description": "Spec-ahead (ADR 0005). Unordered, idempotent inbox entry: raw input from a source or a user command, before the foodsavr_core pipeline. Firestore: owners/{ownerId}/rawEvents/{id}. No code anchor yet; moves to schemas/ once implemented.",
+  "description": "Spec-ahead (ADR 0005; client writes start in its transition phase). Unordered, idempotent inbox entry: raw input from a source or a user command, before the foodsavr_core pipeline. Firestore: owners/{ownerId}/rawEvents/{id}. No code anchor yet; moves to schemas/ once implemented.",
   "type": "object",
   "required": ["id", "ownerId", "source", "externalId", "occurredAt", "payload", "schemaVersion"],
   "properties": {
@@ -13,13 +13,42 @@
       "enum": ["receipt", "loyaltyApi", "order", "barcode", "freeText", "userCommand"],
       "description": "Input class; extends LineItem IngestionSource with order and userCommand"
     },
-    "provider": { "type": ["string", "null"], "default": null, "description": "e.g. rema, coop, trumf, pizzabakeren; null for app-local input" },
-    "externalId": { "type": "string", "description": "Source-assigned ID (transaction ID, receipt hash, client UUID for commands)" },
+    "provider": { "type": ["string", "null"], "default": null, "description": "e.g. rema, coop, trumf, pizzabakeren; null for app-local input (written as app in the id)" },
+    "externalId": { "type": "string", "description": "Source-assigned ID (transaction ID, receipt hash, client UUID generated once per user action for commands)" },
     "occurredAt": { "type": "string", "format": "date-time", "description": "When it happened at the source" },
-    "receivedAt": { "type": ["string", "null"], "format": "date-time", "default": null, "description": "Server timestamp on write" },
+    "receivedAt": { "type": ["string", "null"], "format": "date-time", "default": null, "description": "Server timestamp on write; the client sets it with the server-timestamp sentinel" },
     "payload": { "type": "object", "description": "Source-specific raw data, opaque to everything but its adapter" },
     "schemaVersion": { "type": "integer", "minimum": 1 },
-    "processedSeq": { "type": ["integer", "null"], "default": null, "description": "seq of the domain event produced from it; set by the worker" }
+    "processedSeq": { "type": ["integer", "null"], "default": null, "description": "seq of the domain event produced from it; set by the worker, always null on client create" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "source": { "const": "userCommand" } }, "required": ["source"] },
+      "then": {
+        "properties": {
+          "provider": { "type": "null" },
+          "payload": { "$ref": "#/$defs/userCommandPayload" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "userCommandPayload": {
+      "description": "First user command types (transition phase): the user ate or threw away part of a product",
+      "type": "object",
+      "required": ["type", "productId", "quantity"],
+      "properties": {
+        "type": { "type": "string", "enum": ["consumed", "discarded"], "description": "Becomes the domain event of the same type" },
+        "productId": { "type": "string", "description": "products document the command applied to" },
+        "quantity": { "type": "integer", "minimum": 1, "description": "Units consumed or discarded" },
+        "expirationDate": { "type": ["string", "null"], "format": "date-time", "default": null, "description": "Expiry entry the units came from; null for the non-expiring pool" },
+        "productName": { "type": ["string", "null"], "default": null, "description": "Snapshot so history survives deleting the product" },
+        "barcode": { "type": ["string", "null"], "default": null },
+        "category": { "type": ["string", "null"], "default": null },
+        "reason": { "type": ["string", "null"], "default": null, "description": "Free text; discarded only" }
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": false
 }
