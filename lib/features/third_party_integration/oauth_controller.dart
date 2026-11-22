@@ -6,6 +6,7 @@ import 'package:logger/logger.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'interfaces/i_oauth_service.dart';
+import 'oauth_util.dart';
 
 @injectable
 class OAuthController extends ChangeNotifier {
@@ -16,30 +17,37 @@ class OAuthController extends ChangeNotifier {
 
   List<Connection> connections = [];
   Provider? activeProvider;
-  String? errorMessage;
+  bool connectionFailed = false;
 
   WebViewController get webview => _oauthService.webViewController;
 
   Future<void> loadConnections() async {
-    errorMessage = null;
+    connectionFailed = false;
     connections = await _oauthService.getConnections();
     notifyListeners();
+  }
+
+  void cancelConnection() {
+    final provider = activeProvider;
+    if (provider != null) _oauthService.cancelAuthorization(provider);
   }
 
   Future<void> connect(Provider provider) async {
     if (activeProvider != null) return;
 
     activeProvider = provider;
-    errorMessage = null;
+    connectionFailed = false;
     notifyListeners();
 
     try {
       await _oauthService.authorize(provider);
       await _oauthService.fetchUserProfile(provider);
       await loadConnections();
-    } catch (error, stackTrace) {
-      errorMessage = 'Failed to connect grocery provider';
-      _logger.e(errorMessage, error: error, stackTrace: stackTrace);
+    } on OAuthAuthorizationCancelled {
+      return;
+    } catch (_) {
+      connectionFailed = true;
+      _logger.e('Failed to connect grocery provider');
     } finally {
       activeProvider = null;
       notifyListeners();

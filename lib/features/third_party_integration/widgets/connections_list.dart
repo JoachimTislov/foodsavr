@@ -102,11 +102,11 @@ class OAuthConnectionsList extends StatelessWidget {
                           : null,
                     ),
                   ],
-                  if (controller.errorMessage != null)
+                  if (controller.connectionFailed)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       child: Text(
-                        controller.errorMessage!,
+                        'settings.integrations.connectionFailed'.tr(),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: colorScheme.error,
                         ),

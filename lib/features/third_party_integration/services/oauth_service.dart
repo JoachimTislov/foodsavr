@@ -17,9 +17,8 @@ import '../../../services/secure_storage_service.dart';
 class OAuthService implements IOAuthService {
   final Logger _logger;
   final SecureStorage _secureStorage;
-  late Provider provider;
-  late OAuthUtil _util;
-  Completer<void>? _authCompleter;
+  ({Provider provider, OAuthUtil util, Completer<void> result})? _attempt;
+  bool _exchanging = false;
 
   @override
   late WebViewController webViewController;
@@ -32,109 +31,118 @@ class OAuthService implements IOAuthService {
           ..setJavaScriptMode(JavaScriptMode.unrestricted)
           ..setNavigationDelegate(
             NavigationDelegate(
-              onProgress: (int progress) {
-                _logger.d('WebView is loading (progress : $progress%)');
-              },
-              onPageStarted: (String url) {
-                _logger.d('Page started loading: $url');
-              },
-              onPageFinished: (String url) {
-                _logger.d('Page finished loading: $url');
-              },
-              onWebResourceError: (WebResourceError error) {
-                _logger.d('''
-						Page resource error:
-						  code: ${error.errorCode}
-						  description: ${error.description}
-						  errorType: ${error.errorType}
-						  isForMainFrame: ${error.isForMainFrame}
-						''');
-                if (error.isForMainFrame != null && error.isForMainFrame!) {
-                  _authCompleter?.completeError(
-                    Exception('Failed to load auth page: ${error.description}'),
-                  );
+              onWebResourceError: (error) {
+                final result = _attempt?.result;
+                if (error.isForMainFrame == true &&
+                    !_exchanging &&
+                    result != null &&
+                    !result.isCompleted) {
+                  result.completeError(const OAuthAuthorizationException());
                 }
-              },
-              onHttpError: (HttpResponseError error) {
-                _logger.d(
-                  'Error occurred on page: ${error.response?.statusCode}',
-                );
-              },
-              onUrlChange: (UrlChange change) {
-                _logger.d('url change to ${change.url}');
-              },
-              onHttpAuthRequest: (HttpAuthRequest request) {
-                _logger.d('WebView HTTP auth request: ${request.host}');
-                // openDialog(request);
               },
               onNavigationRequest: (request) async {
-                _logger.d('WebView navigation request: ${request.url}');
-                if (request.url.startsWith(_util.env('REDIRECT_URL'))) {
-                  final code = Uri.parse(request.url).queryParameters['code'];
-                  if (code != null && code.isNotEmpty) {
-                    _logger.d(
-                      'Detected authorization code in WebView URL: $code',
-                    );
-                    try {
-                      await _fetchToken(code);
-                      _authCompleter?.complete();
-                    } catch (e, s) {
-                      _logger.e(
-                        'Error fetching token',
-                        error: e,
-                        stackTrace: s,
-                      );
-                      _authCompleter?.completeError(e);
-                    }
-                    return NavigationDecision.prevent;
-                  }
+                final attempt = _attempt;
+                final uri = Uri.tryParse(request.url);
+                if (attempt == null) return NavigationDecision.prevent;
+                if (uri == null || !attempt.util.matchesRedirect(uri)) {
+                  return NavigationDecision.navigate;
                 }
-                return NavigationDecision.navigate;
+                if (!request.isMainFrame ||
+                    _exchanging ||
+                    attempt.result.isCompleted) {
+                  return NavigationDecision.prevent;
+                }
+
+                _exchanging = true;
+                try {
+                  final code = attempt.util.authorizationCode(uri);
+                  await _fetchToken(attempt.provider, attempt.util, code);
+                  attempt.result.complete();
+                } catch (_) {
+                  attempt.result.completeError(
+                    const OAuthAuthorizationException(),
+                  );
+                }
+                return NavigationDecision.prevent;
               },
             ),
           );
   }
 
-  /// fetchToken exchanges code for token
-  /// throws HTTP [error]
-  Future<void> _fetchToken(String code) async {
-    final Response response = await post(
-      Uri.parse(_util.env('TOKEN_URL')),
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: _util.tokenBody(code),
+  Future<void> _fetchToken(
+    Provider provider,
+    OAuthUtil util,
+    String code,
+  ) async {
+    final response = await post(
+      Uri.parse(util.env('TOKEN_URL')),
+      body: util.tokenBody(code),
     );
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-
-      // values will rarely be used separately
-      final accessToken = data['access_token'] as String?;
-      final refreshToken = data['refresh_token'] as String?;
-      if (accessToken != null && refreshToken != null) {
-        _logger.i('[SUCCESS]: fetched accessToken');
-        await save(
-          provider,
-          accessToken: accessToken,
-          refreshToken: refreshToken,
-          accessTokenExpiration: data['expires_in'],
-        );
-      } else {
-        throw Exception('accessToken or refreshToken is null');
-      }
-    } else {
-      _logger.e(
-        'Failed to fetch token: ${response.statusCode} ${response.body}',
-      );
+    if (response.statusCode != 200) {
+      throw const OAuthAuthorizationException();
     }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final accessToken = data['access_token'];
+    final refreshToken = data['refresh_token'];
+    if (accessToken is! String ||
+        accessToken.isEmpty ||
+        refreshToken is! String ||
+        refreshToken.isEmpty) {
+      throw const OAuthAuthorizationException();
+    }
+
+    await save(
+      provider,
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      accessTokenExpiration: _expiration(data['expires_in']),
+    );
+  }
+
+  DateTime? _expiration(Object? value) {
+    if (value == null) return null;
+    final seconds = int.tryParse(value.toString());
+    if (seconds == null || seconds < 0) {
+      throw const OAuthAuthorizationException();
+    }
+    return DateTime.now().toUtc().add(Duration(seconds: seconds));
   }
 
   @override
   Future<void> authorize(Provider provider) async {
-    this.provider = provider;
-    _util = OAuthUtil(provider);
-    _authCompleter = Completer<void>();
-    await webViewController.loadRequest(_util.authUri());
-    return _authCompleter!.future;
+    if (_attempt != null) throw const OAuthAuthorizationException();
+
+    final util = OAuthUtil(provider);
+    final uri = util.authUri();
+    final result = Completer<void>();
+    _attempt = (provider: provider, util: util, result: result);
+
+    try {
+      unawaited(
+        webViewController.loadRequest(uri).catchError((Object _) {
+          if (!result.isCompleted && !_exchanging) {
+            result.completeError(const OAuthAuthorizationException());
+          }
+        }),
+      );
+      await result.future;
+    } finally {
+      _attempt = null;
+      _exchanging = false;
+    }
+  }
+
+  @override
+  void cancelAuthorization(Provider provider) {
+    final attempt = _attempt;
+    if (attempt != null &&
+        attempt.provider == provider &&
+        !_exchanging &&
+        !attempt.result.isCompleted) {
+      attempt.result.completeError(const OAuthAuthorizationCancelled());
+    }
   }
 
   @override
@@ -167,8 +175,8 @@ class OAuthService implements IOAuthService {
         return null;
       }
       return OAuthToken(access: access, refresh: refresh, id: id, exp: exp);
-    } catch (e) {
-      _logger.e('Failed to read OAuthToken for ${provider.name}, $e');
+    } catch (_) {
+      _logger.e('Failed to read OAuthToken for ${provider.name}');
       return null;
     }
   }
@@ -215,7 +223,7 @@ class OAuthService implements IOAuthService {
   }
 
   Future<void> refreshToken(Provider provider) async {
-    _util = OAuthUtil(provider);
+    final util = OAuthUtil(provider);
     final connections = await getConnections();
     final connection = connections.firstWhere((c) => c.provider == provider);
     final refreshToken = connection.refreshToken;
@@ -226,13 +234,13 @@ class OAuthService implements IOAuthService {
     }
 
     final body = {
-      ..._util.baseParams,
+      ...util.baseParams,
       'grant_type': 'refresh_token',
       'refresh_token': refreshToken,
     };
 
     final response = await post(
-      Uri.parse(_util.env('TOKEN_URL')),
+      Uri.parse(util.env('TOKEN_URL')),
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: body,
     );
@@ -247,15 +255,13 @@ class OAuthService implements IOAuthService {
           accessToken: newAccessToken,
           refreshToken: data['refresh_token'] ?? refreshToken,
           idToken: data['id_token'],
-          accessTokenExpiration: data['expires_in'],
+          accessTokenExpiration: _expiration(data['expires_in']),
         );
       } else {
         throw Exception('Refreshed access token is null');
       }
     } else {
-      _logger.e(
-        'Failed to refresh token: ${response.statusCode} ${response.body}',
-      );
+      _logger.e('Failed to refresh token: ${response.statusCode}');
       throw Exception('Failed to refresh token: ${response.statusCode}');
     }
   }

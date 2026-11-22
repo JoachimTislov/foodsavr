@@ -23,10 +23,24 @@ class _WebViewState extends State<WebView> {
   void initState() {
     super.initState();
     _controller.connect(widget.provider).whenComplete(() {
-      if (mounted && context.canPop()) {
+      if (!mounted) return;
+      if (_controller.connectionFailed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('settings.integrations.connectionFailed'.tr()),
+          ),
+        );
+      }
+      if (ModalRoute.of(context)?.isCurrent == true && context.canPop()) {
         context.pop();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _controller.cancelConnection();
+    super.dispose();
   }
 
   @override

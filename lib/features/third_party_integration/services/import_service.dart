@@ -12,17 +12,16 @@ import 'package:http/http.dart' as http;
 @LazySingleton(as: IImportService)
 class ImportService implements IImportService {
   final IAuthService _authService;
-  final Logger _logger;
   final RemaClient _remaClient;
   final CoopClient _coopClient;
 
   ImportService(
     this._authService,
-    this._logger,
+    Logger logger,
     SecureStorage storage,
     http.Client client,
-  ) : _remaClient = RemaClient(_logger, storage, client),
-      _coopClient = CoopClient(_logger, storage, client);
+  ) : _remaClient = RemaClient(logger, storage, client),
+      _coopClient = CoopClient(logger, storage, client);
 
   @override
   Future<void> getReceiptById(String id) {
@@ -43,10 +42,8 @@ class ImportService implements IImportService {
       switch (provider) {
         case Provider.rema:
           products.addAll(await _remaClient.getProducts(userId));
-          _logger.i('Rema products: $products');
         case Provider.coop:
           products.addAll(await _coopClient.getProducts());
-          _logger.i('Coop products: $products');
         case Provider.trumf:
         // later
       }
