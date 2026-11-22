@@ -7,6 +7,7 @@
  * Outputs structured JSON suitable for fault_intake.py and verify_and_close.py.
  */
 
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -73,12 +74,18 @@ async function runProbe(opts) {
   let rootMounted = false;
   let title = '';
   let earlyErrors = [];
+  let phase = 'navigation';
+  let firstPageErrorPhase = null;
+  let mainBundleResponse;
+  const target = new URL(opts.url);
 
+  let mainBundleSha256 = null;
   try {
     const context = await browser.newContext();
     const page = await context.newPage();
 
     page.on('pageerror', (err) => {
+      firstPageErrorPhase ??= phase;
       pageErrors.push({
         name: err?.name || 'PageError',
         message: err?.message || String(err),
@@ -105,6 +112,14 @@ async function runProbe(opts) {
       }
     });
 
+    page.on('requestfinished', (req) => {
+      const url = new URL(req.url());
+      if (req.resourceType() === 'script' &&
+          url.origin === target.origin && url.pathname === '/main.dart.js') {
+        mainBundleResponse = req.response().catch(() => null);
+      }
+    });
+
     page.on('requestfailed', (req) => {
       if (req.isNavigationRequest()) {
         requestFailures.push({
@@ -116,6 +131,7 @@ async function runProbe(opts) {
     });
 
     await page.goto(opts.url, { waitUntil: 'domcontentloaded', timeout: opts.timeoutMs });
+    phase = 'mount';
     title = await page.title().catch(() => '');
 
     try {
@@ -128,6 +144,7 @@ async function runProbe(opts) {
       rootMounted = false;
     }
 
+    phase = rootMounted ? 'after_mount' : 'after_mount_timeout';
     if (opts.settleMs > 0) {
       await page.waitForTimeout(opts.settleMs);
     }
@@ -138,6 +155,18 @@ async function runProbe(opts) {
         return Array.isArray(list) ? list.slice(0, 20) : [];
       })
       .catch(() => []);
+    page.removeAllListeners('pageerror');
+    page.removeAllListeners('console');
+    page.removeAllListeners('response');
+    page.removeAllListeners('requestfailed');
+    page.removeAllListeners('requestfinished');
+    const bundle = await mainBundleResponse;
+    if (bundle?.ok()) {
+      const body = await bundle.body().catch(() => null);
+      if (body) {
+        mainBundleSha256 = createHash('sha256').update(body).digest('hex');
+      }
+    }
   } finally {
     await browser.close();
   }
@@ -158,6 +187,10 @@ async function runProbe(opts) {
     ok,
     root_mounted: rootMounted,
     title,
+    diagnostics: {
+      main_bundle_sha256: mainBundleSha256,
+      first_page_error_phase: firstPageErrorPhase,
+    },
     raw_findings: {
       page_errors: pageErrors,
       console_errors: consoleErrors,
