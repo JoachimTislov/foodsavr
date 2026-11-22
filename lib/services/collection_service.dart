@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import 'package:foodsavr/interfaces/i_validator.dart';
@@ -175,62 +176,35 @@ class CollectionService {
     }
   }
 
-  /// Create initial collections for a new user idempotently.
+  /// Fill gaps in a user's initial collections without replacing existing types.
   Future<void> createInitialCollections(String userId) async {
-    final redactedUserId = _redactUserId(userId);
-    _logger.i('Creating initial collections for new user: $redactedUserId');
+    final existing = await _collectionRepository.getCollections(
+      userId,
+      serverOnly: true,
+    );
+    final existingTypes = existing.map((collection) => collection.type).toSet();
 
-    try {
-      final existingCollections = await getCollectionsForUser(userId);
-      final existingTypes = existingCollections.map((c) => c.type).toSet();
-
-      final collectionsToCreate = <Collection>[];
-
-      if (!existingTypes.contains(CollectionType.inventory)) {
-        _logger.i('Inventory collection not found, preparing to create one.');
-        final inventory = Collection(
-          id: '', // Let repository generate ID
-          name: 'Inventory',
+    // Stable IDs let concurrent sessions converge on one document per type.
+    final missing = [
+      if (!existingTypes.contains(CollectionType.inventory))
+        Collection(
+          id: 'initial-inventory-$userId',
+          name: 'collection.type_inventory'.tr(),
           userId: userId,
           type: CollectionType.inventory,
           productIds: const [],
-        );
-        collectionsToCreate.add(inventory);
-      } else {
-        _logger.i('Inventory collection already exists, skipping creation.');
-      }
-
-      if (!existingTypes.contains(CollectionType.shoppingList)) {
-        _logger.i(
-          'Shopping list collection not found, preparing to create one.',
-        );
-        final shoppingList = Collection(
-          id: '', // Let repository generate ID
-          name: 'Shopping List',
+        ),
+      if (!existingTypes.contains(CollectionType.shoppingList))
+        Collection(
+          id: 'initial-shopping-list-$userId',
+          name: 'collection.defaultShoppingListName'.tr(),
           userId: userId,
           type: CollectionType.shoppingList,
           productIds: const [],
-        );
-        collectionsToCreate.add(shoppingList);
-      } else {
-        _logger.i(
-          'Shopping list collection already exists, skipping creation.',
-        );
-      }
-
-      if (collectionsToCreate.isNotEmpty) {
-        await _collectionRepository.addCollectionsInBatch(collectionsToCreate);
-        _logger.i('Successfully created initial collections for new user.');
-      } else {
-        _logger.i('All initial collections already exist for user.');
-      }
-    } catch (e, s) {
-      _logger.e(
-        'Error creating initial collections for user $redactedUserId',
-        error: e,
-        stackTrace: s,
-      );
-      rethrow;
+        ),
+    ];
+    if (missing.isNotEmpty) {
+      await _collectionRepository.addCollectionsInBatch(missing);
     }
   }
 
