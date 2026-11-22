@@ -10,13 +10,12 @@ class OAuthUtil {
 
   OAuthUtil(this._provider);
 
-  static final String codeVerifier = _generateCodeVerifier();
-  static final String codeChallenge = _generateCodeChallenge(codeVerifier);
+  final String _codeVerifier = _generateCodeVerifier();
+  final String _state = _generateCodeVerifier();
 
   String? get userInfoEndpoint => env('USER_INFO');
   String? get discoveryUrl => env('DISCOVERY_URL');
   // Map<String, String> get additionalParameters => load('ADDITIONAL_PARAMETERS').split(pattern);
-  String get randomValue => _generateCodeVerifier().substring(0, 16);
 
   String _key(String key) {
     return '${_provider.name.toUpperCase()}_$key';
@@ -37,12 +36,35 @@ class OAuthUtil {
       ...baseParams,
       'response_type': 'code',
       'code_challenge_method': 'S256',
-      'code_challenge': codeChallenge,
+      'code_challenge': _generateCodeChallenge(_codeVerifier),
       'scope': env('SCOPES'),
-      'state': randomValue,
+      'state': _state,
       'audience': _maybeEnv('AUDIENCE'),
     };
     return Uri.parse(env('AUTHORIZATION_URL')).replace(queryParameters: params);
+  }
+
+  bool matchesRedirect(Uri uri) {
+    final redirect = Uri.parse(env('REDIRECT_URL'));
+    return uri.scheme == redirect.scheme &&
+        uri.authority == redirect.authority &&
+        uri.path == redirect.path;
+  }
+
+  String authorizationCode(Uri uri) {
+    final states = uri.queryParametersAll['state'];
+    final codes = uri.queryParametersAll['code'];
+    if (!matchesRedirect(uri) ||
+        states == null ||
+        states.length != 1 ||
+        states.single != _state ||
+        codes == null ||
+        codes.length != 1 ||
+        codes.single.isEmpty ||
+        uri.queryParameters.containsKey('error')) {
+      throw const OAuthAuthorizationException();
+    }
+    return codes.single;
   }
 
   Map<String, String> tokenBody(String code) {
@@ -50,7 +72,7 @@ class OAuthUtil {
       ...baseParams,
       'grant_type': 'authorization_code',
       'code': code,
-      'code_verifier': codeVerifier,
+      'code_verifier': _codeVerifier,
     };
   }
 
@@ -67,4 +89,12 @@ class OAuthUtil {
     final digest = sha256.convert(bytes);
     return base64UrlEncode(digest.bytes).replaceAll('=', '');
   }
+}
+
+class OAuthAuthorizationException implements Exception {
+  const OAuthAuthorizationException();
+}
+
+class OAuthAuthorizationCancelled implements Exception {
+  const OAuthAuthorizationCancelled();
 }

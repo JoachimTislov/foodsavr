@@ -209,6 +209,7 @@
 		"about": "Om",
 		"account": "Konto",
 		"integrations": {
+			"connectionFailed": "Kunne ikke koble til dagligvareleverandøren.",
 			"actions": {
 				"connect": "Koble til",
 				"connecting": "Kobler til",

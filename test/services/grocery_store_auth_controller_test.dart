@@ -25,14 +25,14 @@ void main() {
     when(() => authService.webViewController).thenReturn(webViewController);
   });
 
-  test('connect stores readable error message on failure', () async {
+  test('connect sets a localized error on failure', () async {
     final exception = Exception('Provider configuration is missing.');
     when(() => authService.authorize(Provider.coop)).thenThrow(exception);
 
     await controller.connect(Provider.coop);
 
     expect(controller.activeProvider, isNull);
-    expect(controller.errorMessage, 'Failed to connect grocery provider');
+    expect(controller.connectionFailed, isTrue);
     verify(() => authService.authorize(Provider.coop)).called(1);
     verifyNever(() => authService.getConnections());
   });
@@ -60,7 +60,7 @@ void main() {
     await controller.connect(provider);
 
     expect(controller.connections, connections);
-    expect(controller.errorMessage, isNull);
+    expect(controller.connectionFailed, isFalse);
     expect(controller.activeProvider, isNull);
     verify(() => authService.authorize(provider)).called(1);
     verify(() => authService.fetchUserProfile(provider)).called(1);

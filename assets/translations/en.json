@@ -209,6 +209,7 @@
 		"about": "About",
 		"account": "Account",
 		"integrations": {
+			"connectionFailed": "Could not connect to the grocery provider.",
 			"actions": {
 				"connect": "Connect",
 				"connecting": "Connecting to",

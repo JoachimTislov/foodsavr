@@ -50,7 +50,6 @@ final class RemaClient extends Client {
   Future<TransactionDetails> _getTransactionDetails(int id) async {
     Map<String, dynamic> data = await fetch('REMA_TRANSACTIONS', '/rows/$id');
     final details = TransactionDetails.fromJson(data);
-    super.logger.i(details);
     return details;
   }
 
@@ -59,7 +58,6 @@ final class RemaClient extends Client {
     final transactions = data
         .map((json) => TransactionHead.fromJson(json))
         .toList();
-    super.logger.i(transactions);
     return transactions;
   }
 }
