@@ -1,0 +1,233 @@
+# Feature module catalog, plans and limits (ADR 0008).
+# Shape: specs/source-of-truth/contracts/feature-registry.schema.json
+# Spec-ahead: no code reads this yet. The app will bundle this table so
+# resolution works offline; Remote Config only switches modules off.
+# Dependencies are technical starting points; adjust them in implementation.
+# Prices are store and RevenueCat configuration, not app data (ADR 0008).
+# Paid-plan limits of null (unlimited) are an open question in ADR 0008.
+
+version: 1
+
+modules:
+  # Free for everyone (standard).
+  - id: inventory
+    description: Inventories, products, expiry dates, transfers
+    dependencies: []
+    costClass: onDevice
+    entitlement: standard
+    userHideable: false
+    trialable: false
+    remoteConfigKey: module_inventory
+    status: built
+  - id: barcodeScan
+    description: Barcode scanning with Open Food Facts enrichment
+    dependencies: [inventory]
+    costClass: onDevice
+    entitlement: standard
+    userHideable: true
+    trialable: false
+    remoteConfigKey: module_barcode_scan
+    status: built
+  - id: receiptScan
+    description: On-device receipt scanning with per-item confirmation; photos deleted after a successful scan
+    dependencies: [inventory]
+    costClass: onDevice
+    entitlement: standard
+    userHideable: true
+    trialable: false
+    remoteConfigKey: module_receipt_scan
+    status: built
+    issues: ["#192", "#193"]
+  - id: expiryTracking
+    description: Expiry dates, expiry OCR, expiring-soon state
+    dependencies: [inventory]
+    costClass: onDevice
+    entitlement: standard
+    userHideable: false
+    trialable: false
+    remoteConfigKey: module_expiry_tracking
+    status: built
+  - id: reminders
+    description: Default and custom expiry reminders as local notifications
+    dependencies: [expiryTracking]
+    costClass: onDevice
+    entitlement: standard
+    userHideable: true
+    trialable: false
+    remoteConfigKey: module_reminders
+    status: spec-ahead
+    issues: ["#198"]
+  - id: basicInsights
+    description: Expiring soon, monthly used vs thrown away
+    dependencies: [inventory]
+    costClass: onDevice
+    entitlement: standard
+    userHideable: true
+    trialable: false
+    remoteConfigKey: module_basic_insights
+    status: spec-ahead
+    issues: ["#343"]
+  - id: mealSuggestions
+    description: Meal suggestions from inventory
+    dependencies: [inventory]
+    costClass: onDevice
+    entitlement: standard
+    userHideable: true
+    trialable: false
+    remoteConfigKey: module_meal_suggestions
+    status: spec-ahead
+  - id: bulkActions
+    description: Multi-select bulk actions with undo
+    dependencies: [inventory]
+    costClass: onDevice
+    entitlement: standard
+    userHideable: false
+    trialable: false
+    remoteConfigKey: module_bulk_actions
+    status: spec-ahead
+    issues: ["#350"]
+  - id: dataPortability
+    description: Export and delete your own data; never plan-gated
+    dependencies: []
+    costClass: onDevice
+    entitlement: standard
+    userHideable: false
+    trialable: false
+    remoteConfigKey: module_data_portability
+    status: spec-ahead
+    issues: ["#352", "#354"]
+  - id: sharing
+    description: Share inventories; plan household limits set how many and with whom
+    dependencies: [inventory]
+    costClass: onDevice
+    entitlement: standard
+    userHideable: true
+    trialable: false
+    remoteConfigKey: module_sharing
+    status: spec-ahead
+    issues: ["#197"]
+
+  # Paid on-device automation (Plus picks 2; Pro and Family get all; one 14-day trial each).
+  - id: rules
+    description: User rules "when X, if Y, do Z" from a fixed vocabulary
+    dependencies: [inventory]
+    costClass: onDevice
+    entitlement: automation
+    userHideable: true
+    trialable: true
+    remoteConfigKey: module_rules
+    status: spec-ahead
+    issues: ["#323", "#340"]
+  - id: autoShoppingList
+    description: Shopping list kept up to date from inventory and consumption
+    dependencies: [inventory]
+    costClass: onDevice
+    entitlement: automation
+    userHideable: true
+    trialable: true
+    remoteConfigKey: module_auto_shopping_list
+    status: spec-ahead
+    issues: ["#195", "#338"]
+  - id: smartExpiry
+    description: Learned shelf life and auto-filled expiry dates
+    dependencies: [expiryTracking]
+    costClass: onDevice
+    entitlement: automation
+    userHideable: true
+    trialable: true
+    remoteConfigKey: module_smart_expiry
+    status: spec-ahead
+    issues: ["#288"]
+  - id: advancedInsights
+    description: Waste and spend trends, per-store spend, forecasts
+    dependencies: [basicInsights]
+    costClass: onDevice
+    entitlement: automation
+    userHideable: true
+    trialable: true
+    remoteConfigKey: module_advanced_insights
+    status: spec-ahead
+    issues: ["#344"]
+  - id: autoAcceptIngestion
+    description: High-confidence ingested items added without per-item confirmation
+    dependencies: [receiptScan]
+    costClass: onDevice
+    entitlement: automation
+    userHideable: true
+    trialable: true
+    remoteConfigKey: module_auto_accept_ingestion
+    status: spec-ahead
+    issues: ["#193", "#341"]
+
+  # Cloud modules (Pro and Family only; launch with the Blaze move; not trialable).
+  - id: storePurchaseSync
+    description: Sync connected store purchases into inventory
+    dependencies: [inventory]
+    costClass: cloud
+    entitlement: cloud
+    userHideable: true
+    trialable: false
+    remoteConfigKey: module_store_purchase_sync
+    status: spec-ahead
+    issues: ["#253", "#332"]
+  - id: cloudReceiptReading
+    description: Server-side receipt reading
+    dependencies: [receiptScan]
+    costClass: cloud
+    entitlement: cloud
+    userHideable: true
+    trialable: false
+    remoteConfigKey: module_cloud_receipt_reading
+    status: spec-ahead
+
+plans:
+  - id: free
+    revenueCatEntitlement: null
+    entitlements: [standard]
+    automationPicks: 0
+    limits:
+      inventories: 3
+      itemsPerInventory: 200
+    household:
+      sharedInventories: 1
+      sharePartners: 1
+      maxMembers: 1
+      minorsAllowed: false
+  - id: plus
+    revenueCatEntitlement: plus
+    entitlements: [standard]
+    automationPicks: 2
+    limits:
+      inventories: null
+      itemsPerInventory: null
+    household:
+      sharedInventories: 1
+      sharePartners: 1
+      maxMembers: 1
+      minorsAllowed: false
+  - id: pro
+    revenueCatEntitlement: pro
+    entitlements: [standard, automation, cloud]
+    automationPicks: 0
+    limits:
+      inventories: null
+      itemsPerInventory: null
+      cloudAllowance: null
+    household:
+      sharedInventories: null
+      sharePartners: null
+      maxMembers: 2
+      minorsAllowed: false
+  - id: family
+    revenueCatEntitlement: family
+    entitlements: [standard, automation, cloud]
+    automationPicks: 0
+    limits:
+      inventories: null
+      itemsPerInventory: null
+      cloudAllowance: null
+    household:
+      sharedInventories: null
+      sharePartners: null
+      maxMembers: 6
+      minorsAllowed: true

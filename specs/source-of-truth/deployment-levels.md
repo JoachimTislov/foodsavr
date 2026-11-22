@@ -45,6 +45,17 @@ a ratio above 1 means paying. Budgets alert; they do not cap spend.
   `FLAVOR` and honors its configured GitHub Environment approval gates.
 - `.github/workflows/deployment-level.yml` — polls each cloud environment.
 
+## Legal documents per environment (spec-ahead)
+
+Each environment ships its own legal document set, decided in [ADR 0009](decisions/0009-legal-documents-per-environment.md); the manifest shape is [contracts/legal-documents.schema.json](contracts/legal-documents.schema.json).
+
+- `development`, `test` and `staging` get tester terms. These environments may hold real data with no persistence guarantee, so privacy obligations still apply.
+- `production` gets the full privacy policy, terms of service and subscription terms, in `nb` and `en`.
+- The environment's Firebase Hosting landing page serves the same version the app bundles (#371).
+- Production goes live with paid plans only after the pre-paid-launch legal review; paid-plan prototyping stays in `test` until then.
+
+Today the app bundles one English document pair for every environment (`assets/legal/`, `lib/constants/legal_docs.dart`), and only `development` and `production` flavors exist.
+
 ## Provider research (2026-11)
 
 Recorded as manifest limits/notes. Known conflicts, kept conservative: Identity Platform active-user caps (Spark DAU vs Blaze MAU); Hosting transfer (per-day on the pricing page vs per-month on the quotas page). Cloud Storage is unavailable on Spark since 2026-02-03; Spark has no Functions or Firestore export/PITR/TTL. Supabase Free pauses after a week of inactivity, has no static hosting (pair with Firebase Hosting or Cloudflare Pages) and no App Check equivalent. Usage APIs: Identity Toolkit `accounts:batchGet` (paginated count), Cloud Monitoring `timeSeries.list` (`firestore.googleapis.com/document/*_ops_count`), Hosting `sites/{site}/versions`, Supabase Management API `analytics/endpoints/usage.api-counts` (phase 2). Migration gotchas: Firebase scrypt hashes import into GoTrue; 28-char Firebase UIDs need a UUID mapping; Firestore export needs Blaze; App Check is lost off Firebase.

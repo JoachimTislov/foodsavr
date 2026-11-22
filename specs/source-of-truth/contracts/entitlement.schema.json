@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "foodsavr://entitlement",
+  "title": "EntitlementState",
+  "description": "Spec-ahead (ADR 0008). A user's plan state as the resolver sees it. RevenueCat is the source of truth for the paid plan (App User ID = Firebase UID); the app reads it from RevenueCat customer info and never trusts a client-written plan for cloud modules. Picks, trials, the active-inventory selection and hidden modules are app data and are client-enforced for on-device modules. With Blaze, RevenueCat's Firebase integration writes a trusted copy of `plan` and `source` (document plus custom claim) that clients cannot write; cloud modules check only that copy. No code anchor yet; moves to schemas/ once implemented.",
+  "type": "object",
+  "required": ["uid", "plan", "source", "picks", "trials", "schemaVersion"],
+  "properties": {
+    "uid": { "type": "string", "description": "Firebase UID, equal to the RevenueCat App User ID" },
+    "plan": { "type": "string", "enum": ["free", "plus", "pro", "family"], "description": "free when RevenueCat reports no active entitlement" },
+    "source": {
+      "type": "object",
+      "required": ["provider"],
+      "properties": {
+        "provider": { "type": "string", "enum": ["none", "revenueCat", "household"], "description": "household: the plan comes from membership in another user's Pro or Family household" },
+        "store": { "type": ["string", "null"], "enum": ["playStore", "appStore", "web", null], "default": null, "description": "Where the plan was bought: playStore first; web (RevenueCat Web Billing with Stripe) and appStore later" },
+        "revenueCatEntitlement": { "type": ["string", "null"], "default": null },
+        "periodStart": { "type": ["string", "null"], "format": "date-time", "default": null },
+        "periodEnd": { "type": ["string", "null"], "format": "date-time", "default": null, "description": "End of the current billing period (RevenueCat expiration date)" },
+        "willRenew": { "type": ["boolean", "null"], "default": null }
+      },
+      "additionalProperties": false
+    },
+    "picks": {
+      "type": "object",
+      "description": "Plus only: the chosen automation modules",
+      "required": ["modules"],
+      "properties": {
+        "modules": { "type": "array", "items": { "type": "string" }, "uniqueItems": true, "maxItems": 2 },
+        "lastSwapAt": { "type": ["string", "null"], "format": "date-time", "default": null, "description": "At most one swap per billing period (source.periodStart to source.periodEnd)" }
+      },
+      "additionalProperties": false
+    },
+    "trials": {
+      "type": "array",
+      "description": "One record per trialed module; each trialable module can be trialed once per user",
+      "items": {
+        "type": "object",
+        "required": ["module", "startedAt", "endsAt"],
+        "properties": {
+          "module": { "type": "string", "description": "id of a trialable onDevice module" },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "endsAt": { "type": "string", "format": "date-time", "description": "startedAt plus 14 days" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "activeInventoryIds": {
+      "type": ["array", "null"],
+      "items": { "type": "string" },
+      "default": null,
+      "description": "After a downgrade over the inventory limit: the inventories the user picked as active; the others are read-only. null = not over the limit"
+    },
+    "household": {
+      "type": ["object", "null"],
+      "default": null,
+      "required": ["householdId", "role", "canPurchase", "canConnectStores"],
+      "properties": {
+        "householdId": { "type": "string", "description": "Group id (#197)" },
+        "role": { "type": "string", "enum": ["subscriber", "adult", "minor"], "description": "subscriber holds the plan; minor is an invited member aged 13 to 17 (Family only)" },
+        "invitedBy": { "type": ["string", "null"], "default": null, "description": "UID of the consenting adult; required for minors" },
+        "canPurchase": { "type": "boolean" },
+        "canConnectStores": { "type": "boolean" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "role": { "const": "minor" } }, "required": ["role"] },
+          "then": {
+            "required": ["invitedBy"],
+            "properties": { "invitedBy": { "type": "string" }, "canPurchase": { "const": false }, "canConnectStores": { "const": false } }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "hiddenModules": { "type": "array", "items": { "type": "string" }, "uniqueItems": true, "default": [], "description": "Modules the user hid (preferences, #324)" },
+    "updatedAt": { "type": ["string", "null"], "format": "date-time", "default": null },
+    "schemaVersion": { "type": "integer", "minimum": 1 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "plan": { "const": "free" } }, "required": ["plan"] },
+      "then": { "properties": { "source": { "properties": { "provider": { "const": "none" } } } } }
+    }
+  ],
+  "additionalProperties": false
+}
