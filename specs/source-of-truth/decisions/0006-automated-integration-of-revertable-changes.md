@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (explicit owner intent, 2026-11-21: "reliable automated integration of revertable changes"; "quick feedback loop, pro-actively running the required commands locally")
+Accepted (explicit owner intent, 2026-11-21: "reliable automated integration of revertable changes"; "quick feedback loop, pro-actively running the required commands locally"). Amended by [ADR 0007](0007-develop-integration-branch-and-fast-forward-deploy.md): integration targets `develop`, expensive checks are gated in the `merge/auto` queue, and `main` is updated via scheduled/manual fast-forward promotion.
 
 ## Context
 

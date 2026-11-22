@@ -1,0 +1,57 @@
+name: Promote develop to main
+
+# Scheduled (daily) and manual fast-forward promotion of green develop -> main
+# (ADR 0007). Never creates merge commits and never force-pushes. Pushing with
+# MERGE_GATE_TOKEN triggers main deployment workflows (Firebase Hosting,
+# Release (Gated), Documentation Pages).
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Preview promotion without pushing to main"
+        type: boolean
+        default: false
+
+concurrency:
+  group: promote-develop-to-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: Fast-forward main to green develop
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch develop and main
+        run: git fetch --no-tags origin develop main
+
+      - name: Promote develop -> main (fast-forward only)
+        env:
+          # Must not be GITHUB_TOKEN for --apply: its pushes trigger no deployment workflows.
+          GH_TOKEN: ${{ inputs.dry_run && (secrets.MERGE_GATE_TOKEN || github.token) || secrets.MERGE_GATE_TOKEN }}
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python3 scripts/github/promote_main.py --repo "${{ github.repository }}"
+          else
+            if [ -z "$GH_TOKEN" ]; then
+              echo "::error::MERGE_GATE_TOKEN is not set; run scripts/secrets/rotate.py MERGE_GATE_TOKEN"
+              exit 1
+            fi
+            strict=""
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              strict="--strict-pending"
+            fi
+            python3 scripts/github/promote_main.py --repo "${{ github.repository }}" --apply $strict
+          fi

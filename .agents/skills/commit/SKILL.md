@@ -7,7 +7,7 @@ metadata:
 
 # Commit
 
-1. Confirm the branch is not `main` (`git branch --show-current`). Source-code changes belong in a worktree branch (`make worktree name=<issue>`); the main working folder is reserved for meta tasks (agents, docs, research).
+1. Confirm the branch is neither `develop` nor `main` (`git branch --show-current`). Source-code changes belong in a worktree branch (`make worktree name=<issue>`); the primary checkout is reserved for meta tasks (agents, docs, research).
 2. Review `git status` and `git diff`; stage only the task's files. Formatting and lint fixes go in the same commit as the change they follow.
 3. For code changes, `make check` is green. After two consecutive failures, stop and report (headless: record the blocker in the ledger and the run result).
 4. Write a Conventional Commit subject (`type(scope): summary`, for example `fix(router): handle auth redirect`) and a body giving the one- or two-line reason for the approach.

@@ -17,6 +17,7 @@ NOW = datetime(2026, 11, 21, 12, 0, tzinfo=timezone.utc)
 
 def pr(number, state="CLEAN", rollup="SUCCESS", labels=(gate.LABEL,), **kw):
     kw.setdefault("head_time", NOW - timedelta(minutes=5))
+    kw.setdefault("queue_ok", gate.LABEL in labels)
     return gate.PR(number=number, node_id=f"N{number}", title=kw.pop("title", "feat: x"), head=f"{number:07d}",
                    merge_state=state, rollup=rollup, labels=set(labels), **kw)
 
@@ -38,6 +39,12 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(actions([pr(1, state="UNSTABLE", rollup="FAILURE")]), [])
         self.assertEqual(actions([pr(1, state="UNSTABLE")]), [("merge", 1)])
         self.assertEqual(actions([pr(1, rollup="PENDING", state="BLOCKED")]), [])
+
+    def test_waits_for_queue_validation_before_merging(self):
+        waiting = pr(1, queue_ok=False, head_time=NOW - timedelta(hours=2), labeled_at=NOW - timedelta(minutes=2))
+        self.assertEqual(actions([waiting, pr(2, state="BEHIND")]), [])
+        timed_out = pr(1, queue_ok=False, head_time=NOW - timedelta(hours=2), labeled_at=NOW - timedelta(minutes=20))
+        self.assertEqual(actions([timed_out, pr(2, state="BEHIND")]), [("update", 2)])
 
     def test_updates_one_behind_pr_when_nothing_in_flight(self):
         self.assertEqual(actions([pr(2, state="BEHIND"), pr(1, state="BEHIND")]), [("update", 1)])
@@ -98,6 +105,14 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(gate.rollup_state([run("COMPLETED", "CANCELLED"), run("QUEUED")]), "FAILURE")
         self.assertEqual(gate.rollup_state([run("COMPLETED", "NEUTRAL"), {"__typename": "StatusContext", "state": "EXPECTED"}]), "PENDING")
 
+    def test_queue_check_state_ignores_skipped_runs(self):
+        self.assertEqual(gate.queue_check_state([
+            {"__typename": "CheckRun", "name": gate.QUEUE_CHECK, "status": "COMPLETED", "conclusion": "SKIPPED"},
+        ]), (False, False))
+        self.assertEqual(gate.queue_check_state([
+            {"__typename": "CheckRun", "name": gate.QUEUE_CHECK, "status": "COMPLETED", "conclusion": "SUCCESS"},
+        ]), (True, False))
+
     def test_from_node(self):
         node = {
             "id": "N", "number": 9, "title": "t", "body": None, "isDraft": False, "isCrossRepository": False,
@@ -106,18 +121,23 @@ class ParseTest(unittest.TestCase):
             "reviewThreads": {"nodes": [{"isResolved": False, "isOutdated": True}, {"isResolved": False, "isOutdated": False}]},
             "commits": {"nodes": [{"commit": {"committedDate": "2026-11-21T10:00:00Z", "statusCheckRollup": {"contexts": {"nodes": [
                 {"__typename": "CheckRun", "name": "Check & Test", "status": "COMPLETED", "conclusion": "SKIPPED"},
+                {"__typename": "CheckRun", "name": gate.QUEUE_CHECK, "status": "COMPLETED", "conclusion": "SUCCESS"},
                 {"__typename": "CheckRun", "name": "sync", "status": "IN_PROGRESS", "conclusion": None,
                  "checkSuite": {"workflowRun": {"workflow": {"name": "Synchronize GitHub labels"}}}},
                 {"__typename": "StatusContext", "context": "x", "state": "SUCCESS"}]}}}}]},
-            "timelineItems": {"nodes": [{"label": {"name": "other"}}]},
+            "timelineItems": {"nodes": [
+                {"__typename": "LabeledEvent", "createdAt": "2026-11-21T10:30:00Z", "label": {"name": gate.LABEL}},
+                {"__typename": "UnlabeledEvent", "label": {"name": "other"}},
+            ]},
             "comments": {"nodes": [
                 {"body": "@dependabot rebase", "createdAt": "2026-11-21T11:00:00Z", "author": {"login": "owner"}},
                 {"body": "Looks like this PR has been edited by someone other than Dependabot.",
                  "createdAt": "2026-11-21T11:00:05Z", "author": {"login": "dependabot"}}]},
         }
         p = gate.from_node(node)
-        self.assertEqual((p.open_threads, p.label_removed, p.dependabot, p.rollup, p.rebase_refused),
-                         (1, False, True, "SUCCESS", True))
+        self.assertEqual((p.open_threads, p.label_removed, p.dependabot, p.rollup, p.queue_ok, p.rebase_refused),
+                         (1, False, True, "SUCCESS", True, True))
+        self.assertEqual(p.labeled_at, datetime(2026, 11, 21, 10, 30, tzinfo=timezone.utc))
         self.assertEqual(p.rebase_requested, datetime(2026, 11, 21, 11, 0, tzinfo=timezone.utc))
 
 

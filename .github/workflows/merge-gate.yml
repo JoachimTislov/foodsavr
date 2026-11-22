@@ -1,6 +1,6 @@
 name: Merge gate
 
-# Integrates PRs labeled merge/auto into main, one at a time (ADR 0006).
+# Integrates PRs labeled merge/auto into develop, one at a time (ADR 0006, ADR 0007).
 # Level-triggered: each run reconciles the whole queue, so any event is enough.
 on:
   workflow_run:
@@ -16,7 +16,7 @@ on:
   pull_request_target:
     types: [labeled]
   push:
-    branches: [main]
+    branches: [develop]
   schedule:
     - cron: '*/30 * * * *'
   workflow_dispatch:
@@ -26,7 +26,7 @@ permissions:
 
 jobs:
   # Label events (attached to the PR) and Dependabot-triggered CI (no repository
-  # secrets) only dispatch a gate run on main; no PR code is checked out.
+  # secrets) only dispatch a gate run on develop; no PR code is checked out.
   dispatch:
     name: Request gate run
     if: >
@@ -47,7 +47,7 @@ jobs:
     name: Integrate ready PRs
     # Dependabot-triggered events get no repository secrets; `dispatch` covers them.
     if: github.event_name != 'pull_request_target' && github.actor != 'dependabot[bot]'
-    # No concurrency group: cancelled queued runs would mark main red. The
+    # No concurrency group: cancelled queued runs would mark develop red. The
     # script serializes instead (older runs finish first, superseded ones exit).
     permissions:
       contents: read

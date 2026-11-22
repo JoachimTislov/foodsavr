@@ -2,7 +2,7 @@ name: Documentation Pages
 
 on:
   push:
-    branches: [main]
+    branches: [develop, main]
     paths: &docs-paths
       - 'doc/**'
       - 'specs/source-of-truth/**'
@@ -13,7 +13,7 @@ on:
       - 'scripts/ci/local_ci.py'
       - '.github/workflows/docs-pages.yml'
   pull_request:
-    branches: [main]
+    branches: [develop]
     paths: *docs-paths
   workflow_dispatch:
 

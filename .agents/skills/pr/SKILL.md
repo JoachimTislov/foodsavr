@@ -12,7 +12,7 @@ metadata:
 
 ## Open the PR
 
-1. Commit pending work with the `commit` skill. Never push `main`: check `git branch --show-current` first.
+1. Commit pending work with the `commit` skill. Never push `develop` or `main`: check `git branch --show-current` first.
 2. Push with `make push` (it runs `make check`).
 3. Write the body below to a temporary file; create the PR as a draft unless asked otherwise: `gh pr create --draft --title "type(scope): summary" --body-file <file>`. The title is a Conventional Commit subject.
 4. Apply the host's PR-linking rules, and log the PR in the ledger and the session record (`sessions register ... --pr '#N'`).

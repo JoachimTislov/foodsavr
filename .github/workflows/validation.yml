@@ -2,9 +2,10 @@ name: Validation
 
 on:
   push:
-    branches: [main]
+    branches: [develop]
   pull_request:
-    branches: [main]
+    branches: [develop]
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
 
 concurrency:
@@ -14,6 +15,7 @@ concurrency:
 jobs:
   changes:
     name: Detect changed areas
+    if: (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'merge/auto')) && (github.event.action != 'labeled' || github.event.label.name == 'merge/auto')
     permissions:
       contents: read
       actions: read
@@ -25,7 +27,7 @@ jobs:
       android: ${{ steps.tested.outputs.skip != 'true' && steps.filter.outputs.android || 'false' }}
       integration: ${{ steps.tested.outputs.skip != 'true' && steps.filter.outputs.integration || 'false' }}
       e2e: ${{ steps.tested.outputs.skip != 'true' && steps.filter.outputs.e2e || 'false' }}
-      rules: ${{ steps.filter.outputs.rules }}
+      rules: ${{ steps.tested.outputs.skip != 'true' && steps.filter.outputs.rules || 'false' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -244,7 +246,7 @@ jobs:
   firestore-rules:
     name: Firestore security rules
     needs: changes
-    if: ${{ needs.changes.outputs.rules == 'true' && github.event_name != 'pull_request' }}
+    if: ${{ needs.changes.outputs.rules == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

@@ -2,6 +2,7 @@ name: Agent system validation
 
 on:
   pull_request:
+    branches: [develop]
     paths:
       - '.agents/**'
       - '.claude/**'
@@ -27,12 +28,13 @@ on:
       - '.agents/github/**'
       - '.github/workflows/github-labels.yml'
       - '.github/workflows/merge-gate.yml'
+      - '.github/workflows/promote.yml'
       - 'specs/**'
       - 'docs/**'
       - 'doc/**'
       - '.github/workflows/agent-system.yml'
   push:
-    branches: [main]
+    branches: [develop]
     paths:
       - '.agents/**'
       - '.claude/**'
@@ -58,6 +60,7 @@ on:
       - '.agents/github/**'
       - '.github/workflows/github-labels.yml'
       - '.github/workflows/merge-gate.yml'
+      - '.github/workflows/promote.yml'
       - 'specs/**'
       - 'docs/**'
       - 'doc/**'

@@ -1,6 +1,6 @@
 ---
 name: issue-agent
-description: Handles extending a raw issue, making it ready for development by adding extensive planning and important details, and checking out to a feature branch from main.
+description: Handles extending a raw issue, making it ready for development by adding extensive planning and important details, and checking out to a feature branch from develop.
 tools: [run_shell_command, write_file, read_file]
 ---
 
@@ -21,8 +21,8 @@ When asked to work on an issue or extend it, perform the following steps sequent
    - Write the expanded plan to a temporary file (e.g., `/tmp/issue_body.md`).
    - Use `run_shell_command` with `gh issue edit <issue_number> --body-file /tmp/issue_body.md` to enrich the issue on GitHub.
    - Clean up the temporary file.
-4. **Checkout Branch from Main:**
-   - Run `git checkout main`
-   - Run `git pull origin main` (if applicable)
+4. **Checkout Branch from Develop:**
+   - Run `git checkout develop`
+   - Run `git pull origin develop` (if applicable)
    - Run `git checkout -b issue<ID>-<short-description>`
 5. **Report Status:** Notify the user that the issue has been expanded and the branch is ready for implementation.
