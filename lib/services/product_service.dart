@@ -3,6 +3,7 @@ import 'package:logger/logger.dart';
 import 'package:openfoodfacts/openfoodfacts.dart' as off;
 import 'package:foodsavr/interfaces/i_validator.dart';
 
+import '../constants/preferences_config.dart';
 import '../models/product_model.dart';
 import '../interfaces/i_product_repository.dart';
 import '../utils/shelf_life.dart';
@@ -251,10 +252,18 @@ class ProductService {
     }
   }
 
-  /// Returns products for [userId] that are expiring soon (within 6 days) or today.
-  Future<List<Product>> getExpiringSoon(String? userId) async {
+  /// Returns products for [userId] that expire today or within
+  /// [expiringSoonDays] days.
+  Future<List<Product>> getExpiringSoon(
+    String? userId, {
+    int expiringSoonDays = PreferencesConfig.defaultExpiringSoonDays,
+  }) async {
     final products = await getProducts(userId);
-    return products.where((p) => p.isExpiringSoon || p.isExpiringToday).toList()
+    return products
+        .where(
+          (p) => p.isExpiringSoonWithin(expiringSoonDays) || p.isExpiringToday,
+        )
+        .toList()
       ..sort(
         (a, b) =>
             (a.daysUntilExpiration ?? 0).compareTo(b.daysUntilExpiration ?? 0),

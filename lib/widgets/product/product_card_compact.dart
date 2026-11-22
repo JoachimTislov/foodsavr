@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:watch_it/watch_it.dart';
 
+import '../../controllers/preferences_controller.dart';
 import '../../models/product_model.dart';
 
-class ProductCardCompact extends StatelessWidget {
+class ProductCardCompact extends WatchingWidget {
   final Product product;
   final VoidCallback? onTap;
 
@@ -13,7 +15,10 @@ class ProductCardCompact extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final status = product.status;
+    final expiringSoonDays = watchPropertyValue(
+      (PreferencesController c) => c.expiringSoonDays,
+    );
+    final status = product.statusWithin(expiringSoonDays);
     final statusColor = status == ProductStatus.fresh
         ? null
         : status.getColor(colorScheme);

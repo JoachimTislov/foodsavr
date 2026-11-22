@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/controllers/dashboard_controller.dart';
+import 'package:foodsavr/controllers/preferences_controller.dart';
 import 'package:foodsavr/controllers/user_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/interfaces/i_collection_repository.dart'; // Explicitly import ICollectionRepository
@@ -28,6 +29,8 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
+
+import 'helpers/in_memory_preferences_repository.dart';
 
 class _MockShelfLifeService extends Mock implements ShelfLifeService {}
 
@@ -219,6 +222,12 @@ void main() {
           authService,
           getIt<ProductService>(),
           getIt<CollectionService>(),
+          PreferencesController(
+            authService,
+            InMemoryPreferencesRepository(),
+            getIt<CollectionService>(),
+            Logger(level: Level.off),
+          ),
         ),
       );
     });

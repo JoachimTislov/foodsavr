@@ -234,7 +234,16 @@
 			"light": "Light",
 			"system": "System"
 		},
-		"title": "Settings"
+		"title": "Settings",
+		"behavior": {
+			"title": "Behavior",
+			"expiringSoonWindow": "Expiring soon window",
+			"expiringSoonWindowHelp": "Products expiring within this many days are shown as expiring soon.",
+			"defaultInventory": "Default inventory",
+			"defaultInventoryHelp": "New products are added here when no inventory is chosen.",
+			"firstInventory": "First inventory",
+			"noInventories": "No inventories yet"
+		}
 	},
 	"transfer": {
 		"fromLocation": "From Location",

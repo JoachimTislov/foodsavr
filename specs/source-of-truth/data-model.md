@@ -2,7 +2,7 @@
 
 ## Built (absorbed from code @ 103a70f)
 
-- Firestore collections: `products`, `collections`.
+- Firestore collections: `products`, `collections`, and `users/{uid}/settings/preferences` (per-account `UserPreferences`: `expiringSoonDays`, `defaultInventoryId`; user-authored CRUD per ADR 0005, cached locally, written with merge so a group (#197) can later hold shared defaults overridden per key).
 - Domain models in `lib/models/` — plain data classes with `toJson`/`fromJson`, registered via DI repositories (`i_product_repository`, `i_collection_repository`, …).
 - `foodsavr_core` defines the universal `LineItem` (`packages/foodsavr_core/lib/src/line_item.dart`) — the canonical normalized format for any food input.
 

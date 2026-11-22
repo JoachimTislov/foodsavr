@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
+import '../controllers/preferences_controller.dart';
 import '../models/product_model.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
@@ -35,8 +36,14 @@ class ProductFormView extends StatelessWidget {
     Product? product,
     Product? prefill,
     String? collectionId,
-  }) {
+  }) async {
     assert(product == null || prefill == null);
+    // A new product without a target goes to the default inventory.
+    if (product == null && collectionId == null) {
+      collectionId = await getIt<PreferencesController>()
+          .resolveDefaultInventoryId();
+      if (!context.mounted) return null;
+    }
     return showDialog<bool>(
       context: context,
       barrierDismissible: true,
@@ -298,7 +305,9 @@ class _ProductFormContentState extends State<_ProductFormContent> {
   Future<void> _addExpiry() async {
     final date = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().add(const Duration(days: 7)),
+      initialDate: DateTime.now().add(
+        Duration(days: getIt<PreferencesController>().expiringSoonDays + 1),
+      ),
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now().add(const Duration(days: 365 * 10)),
     );

@@ -5,7 +5,7 @@ Built vs spec'd vs unbuilt, per domain. The sync loop (#213) claims un-synced do
 | Domain | State | Built | Spec-ahead |
 |---|---|---|---|
 | architecture | synced | layered Flutter/Firebase app, controller layer, DI | universal pipeline → agent → MCP server; hybrid event log + CRUD with Dart worker (ADR 0005) |
-| data-model | synced | `products`, `collections`, models, LineItem in foodsavr_core | lists, meal plans, recipes, groups, offline sync; inbox (transition phase: client writes first, #322), domain events, projections (ADR 0005) |
+| data-model | synced | `products`, `collections`, `users/{uid}/settings/preferences`, models, LineItem in foodsavr_core | lists, meal plans, recipes, groups, offline sync; inbox (transition phase: client writes first, #322), domain events, projections (ADR 0005) |
 | ingestion-pipeline | synced | receipt/barcode/expiry services, pipeline skeleton (#202) | unify paths through pipeline (#192), confirmation UI (#193) |
 | integrations | synced | Rema client, receipts, ML Kit, OFF enrichment | Coop (#194), Trumf/Storebox, orders, recipes, free text |
 | mcp-server | synced | foodsavr_core skeleton | MCP server + Go API (#171) |

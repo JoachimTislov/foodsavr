@@ -1,9 +1,11 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:watch_it/watch_it.dart';
 
+import '../../controllers/preferences_controller.dart';
 import '../../models/product_model.dart';
 
-class ProductSelectItem extends StatelessWidget {
+class ProductSelectItem extends WatchingWidget {
   final Product product;
   final bool isSelected;
   final VoidCallback onToggle;
@@ -19,7 +21,12 @@ class ProductSelectItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final statusColor = product.status.getColor(colorScheme);
+    final expiringSoonDays = watchPropertyValue(
+      (PreferencesController c) => c.expiringSoonDays,
+    );
+    final statusColor = product
+        .statusWithin(expiringSoonDays)
+        .getColor(colorScheme);
 
     return InkWell(
       onTap: onToggle,

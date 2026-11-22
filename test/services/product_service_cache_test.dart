@@ -117,6 +117,34 @@ void main() {
     Logger(),
   );
 
+  group('getExpiringSoon', () {
+    final products = [
+      _expiringIn('today', 0),
+      _expiringIn('in3', 3),
+      _expiringIn('in10', 10),
+      _expiringIn('in20', 20),
+    ];
+
+    test('uses a 6 day window by default', () async {
+      final service = makeService(_CountingProductRepository(products));
+
+      final result = await service.getExpiringSoon('user-1');
+
+      expect(result.map((p) => p.id), ['today', 'in3']);
+    });
+
+    test('honors a custom window', () async {
+      final service = makeService(_CountingProductRepository(products));
+
+      final result = await service.getExpiringSoon(
+        'user-1',
+        expiringSoonDays: 14,
+      );
+
+      expect(result.map((p) => p.id), ['today', 'in3', 'in10']);
+    });
+  });
+
   test('getProducts caches per user within TTL', () async {
     final repository = _CountingProductRepository([_product('p1')]);
     final service = makeService(repository);
@@ -173,5 +201,21 @@ void main() {
       await service.getProducts('user-1');
       expect(repository.getProductsCalls, 2);
     },
+  );
+}
+
+Product _expiringIn(String id, int days) {
+  final now = DateTime.now();
+  return Product(
+    id: id,
+    name: 'Product $id',
+    description: '',
+    userId: 'user-1',
+    expiries: [
+      ExpiryEntry(
+        quantity: 1,
+        expirationDate: DateTime(now.year, now.month, now.day + days),
+      ),
+    ],
   );
 }

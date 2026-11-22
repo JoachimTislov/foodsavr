@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:watch_it/watch_it.dart';
 
+import '../../controllers/preferences_controller.dart';
 import '../../models/product_model.dart';
 
-class ExpiringItemCard extends StatelessWidget {
+class ExpiringItemCard extends WatchingWidget {
   final Product product;
   final VoidCallback? onTap;
 
@@ -11,7 +13,12 @@ class ExpiringItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final timeColor = product.status.getColor(colorScheme);
+    final expiringSoonDays = watchPropertyValue(
+      (PreferencesController c) => c.expiringSoonDays,
+    );
+    final timeColor = product
+        .statusWithin(expiringSoonDays)
+        .getColor(colorScheme);
 
     return MouseRegion(
       cursor: onTap != null

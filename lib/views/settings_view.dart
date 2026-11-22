@@ -2,11 +2,17 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:watch_it/watch_it.dart';
 
 import '../constants/legal_docs.dart';
+import '../constants/preferences_config.dart';
+import '../controllers/preferences_controller.dart';
 import '../controllers/pwa_install_controller.dart';
 import '../interfaces/i_auth_service.dart';
+import '../models/collection_model.dart';
 import '../service_locator.dart';
+import '../services/collection_service.dart';
+import '../utils/collection_types.dart';
 import '../utils/theme_notifier.dart';
 import '../features/third_party_integration/widgets/connections_list.dart';
 import '../widgets/common/pwa_install_banner.dart';
@@ -118,6 +124,8 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
               ],
             ),
+            const SizedBox(height: 24),
+            const _BehaviorSection(),
             const SizedBox(height: 24),
             OAuthConnectionsList(),
             const SizedBox(height: 24),
@@ -271,6 +279,174 @@ class _SettingsViewState extends State<SettingsView> {
                 Navigator.pop(context);
               },
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Account-synced behavior preferences (see [PreferencesController]).
+class _BehaviorSection extends WatchingStatefulWidget {
+  const _BehaviorSection();
+
+  @override
+  State<_BehaviorSection> createState() => _BehaviorSectionState();
+}
+
+class _BehaviorSectionState extends State<_BehaviorSection> {
+  List<Collection> _inventories = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInventories();
+  }
+
+  Future<void> _loadInventories() async {
+    try {
+      final inventories = await getIt<CollectionService>()
+          .getCollectionsForUser(
+            getIt<IAuthService>().getUserId(),
+            type: CollectionType.inventory,
+          );
+      if (mounted) setState(() => _inventories = inventories);
+    } catch (_) {
+      // The default inventory then shows as the first-inventory fallback.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final preferences = watchIt<PreferencesController>();
+    final defaultInventory = _inventories
+        .where((c) => c.id == preferences.defaultInventoryId)
+        .firstOrNull;
+    final valueStyle = textTheme.bodyMedium?.copyWith(
+      color: colorScheme.primary,
+      fontWeight: FontWeight.bold,
+    );
+
+    return _SettingsSection(
+      title: 'settings.behavior.title'.tr(),
+      children: [
+        _SettingsTile(
+          icon: Icons.hourglass_bottom_outlined,
+          title: 'settings.behavior.expiringSoonWindow'.tr(),
+          subtitle: 'settings.behavior.expiringSoonWindowHelp'.tr(),
+          trailing: Text(
+            'product.status_days'.tr(
+              namedArgs: {'days': '${preferences.expiringSoonDays}'},
+            ),
+            style: valueStyle,
+          ),
+          onTap: () => _showExpiringSoonDialog(context, preferences),
+        ),
+        _SettingsTile(
+          icon: Icons.inventory_2_outlined,
+          title: 'settings.behavior.defaultInventory'.tr(),
+          subtitle: 'settings.behavior.defaultInventoryHelp'.tr(),
+          trailing: Text(
+            defaultInventory?.name ?? 'settings.behavior.firstInventory'.tr(),
+            style: valueStyle,
+          ),
+          onTap: () => _showInventorySelector(context, preferences),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showExpiringSoonDialog(
+    BuildContext context,
+    PreferencesController preferences,
+  ) {
+    var days = preferences.expiringSoonDays;
+    return showDialog<void>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('settings.behavior.expiringSoonWindow'.tr()),
+          content: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.remove),
+                onPressed: days > PreferencesConfig.minExpiringSoonDays
+                    ? () => setDialogState(() => days--)
+                    : null,
+              ),
+              Text(
+                'product.status_days'.tr(namedArgs: {'days': '$days'}),
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              IconButton(
+                icon: const Icon(Icons.add),
+                onPressed: days < PreferencesConfig.maxExpiringSoonDays
+                    ? () => setDialogState(() => days++)
+                    : null,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('common.cancel'.tr()),
+            ),
+            FilledButton(
+              onPressed: () {
+                preferences.setExpiringSoonDays(days);
+                Navigator.of(context).pop();
+              },
+              child: Text('common.save'.tr()),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showInventorySelector(
+    BuildContext context,
+    PreferencesController preferences,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text('settings.behavior.firstInventory'.tr()),
+              trailing: preferences.defaultInventoryId == null
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                preferences.setDefaultInventoryId(null);
+                Navigator.pop(context);
+              },
+            ),
+            if (_inventories.isEmpty)
+              ListTile(
+                enabled: false,
+                title: Text('settings.behavior.noInventories'.tr()),
+              ),
+            for (final inventory in _inventories)
+              ListTile(
+                title: Text(inventory.name),
+                trailing: preferences.defaultInventoryId == inventory.id
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  preferences.setDefaultInventoryId(inventory.id);
+                  Navigator.pop(context);
+                },
+              ),
           ],
         ),
       ),
