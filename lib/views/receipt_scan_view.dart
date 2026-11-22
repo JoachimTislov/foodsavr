@@ -9,15 +9,22 @@ import 'package:go_router/go_router.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:receipt_recognition/receipt_recognition.dart';
 
+import '../controllers/preferences_controller.dart';
+import '../models/collection_model.dart';
 import '../service_locator.dart';
+import '../services/collection_service.dart';
 import '../services/receipt_ingestion_service.dart';
+import '../utils/collection_types.dart';
 
 /// Camera view that scans a supermarket receipt, then ingests the
-/// recognized line items as products.
+/// recognized line items as products in a chosen inventory.
 class ReceiptScanView extends StatefulWidget {
-  const ReceiptScanView({super.key, required this.userId});
+  const ReceiptScanView({super.key, required this.userId, this.collectionId});
 
   final String userId;
+
+  /// Inventory the scan was started from; null picks the default inventory.
+  final String? collectionId;
 
   @override
   State<ReceiptScanView> createState() => _ReceiptScanViewState();
@@ -33,6 +40,8 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
   bool _isIngesting = false;
   bool _disposed = false;
   String? _errorMessage;
+  List<Collection> _inventories = const [];
+  String? _targetId;
 
   @override
   void initState() {
@@ -46,6 +55,26 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
       },
     );
     _initializeCamera();
+    _loadInventories();
+  }
+
+  Future<void> _loadInventories() async {
+    try {
+      final inventories = await getIt<CollectionService>()
+          .getCollectionsForUser(widget.userId, type: CollectionType.inventory);
+      final target =
+          widget.collectionId ??
+          await getIt<PreferencesController>().resolveDefaultInventoryId(
+            userId: widget.userId,
+          );
+      if (!mounted) return;
+      setState(() {
+        _inventories = inventories;
+        _targetId = inventories.any((c) => c.id == target) ? target : null;
+      });
+    } catch (_) {
+      // The service falls back to the default inventory when none is picked.
+    }
   }
 
   @override
@@ -82,6 +111,35 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
         fit: StackFit.expand,
         children: [
           CameraPreview(_cameraController!),
+          if (_inventories.isNotEmpty)
+            Positioned(
+              top: 16,
+              left: 24,
+              right: 24,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: DropdownButton<String>(
+                  isExpanded: true,
+                  underline: const SizedBox.shrink(),
+                  hint: Text('receipt.targetInventory'.tr()),
+                  value: _targetId,
+                  items: [
+                    for (final inventory in _inventories)
+                      DropdownMenuItem(
+                        value: inventory.id,
+                        child: Text(inventory.name),
+                      ),
+                  ],
+                  onChanged: _isIngesting
+                      ? null
+                      : (id) => setState(() => _targetId = id),
+                ),
+              ),
+            ),
           Positioned(
             bottom: 160,
             left: 24,
@@ -145,11 +203,34 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
   Future<void> _ingest(RecognizedReceipt receipt) async {
     setState(() => _isIngesting = true);
     final ingestion = getIt<ReceiptIngestionService>();
+    final messenger = ScaffoldMessenger.of(context);
     try {
-      await ingestion.ingestReceipt(receipt, widget.userId);
+      final result = await ingestion.ingestReceiptDetailed(
+        receipt,
+        widget.userId,
+        collectionId: _targetId,
+      );
+      if (!result.alreadyAdded &&
+          result.savedProducts.isEmpty &&
+          receipt.positions.isNotEmpty) {
+        throw StateError(
+          'Failed to save all ${receipt.positions.length} receipt items',
+        );
+      }
       if (!mounted) return;
       HapticFeedback.vibrate();
-      context.pop(true);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            result.alreadyAdded
+                ? 'receipt.alreadyAdded'.tr()
+                : 'receipt.added'.tr(
+                    namedArgs: {'count': '${result.savedProducts.length}'},
+                  ),
+          ),
+        ),
+      );
+      context.pop(!result.alreadyAdded);
     } catch (e) {
       if (!mounted) return;
       setState(() {
