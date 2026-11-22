@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../constants/preferences_config.dart';
+
 part 'product_model.freezed.dart';
 part 'product_model.g.dart';
 
@@ -158,10 +160,14 @@ abstract class Product with _$Product {
   }
 
   // Helper method to check if any quantity is expiring soon (within 1–6 days)
-  bool get isExpiringSoon {
+  bool get isExpiringSoon =>
+      isExpiringSoonWithin(PreferencesConfig.defaultExpiringSoonDays);
+
+  /// Whether any quantity expires within 1 to [days] days (today excluded).
+  bool isExpiringSoonWithin(int days) {
     return expiries.any((e) {
-      final days = e.daysUntilExpiration;
-      return days > 0 && days <= 6;
+      final remaining = e.daysUntilExpiration;
+      return remaining > 0 && remaining <= days;
     });
   }
 
@@ -174,9 +180,15 @@ abstract class Product with _$Product {
   }
 
   // Get product status based on expiration
-  ProductStatus get status {
+  ProductStatus get status =>
+      statusWithin(PreferencesConfig.defaultExpiringSoonDays);
+
+  /// Status using an expiring-soon window of [expiringSoonDays] days.
+  ProductStatus statusWithin(int expiringSoonDays) {
     if (isExpired) return ProductStatus.expired;
-    if (isExpiringToday || isExpiringSoon) return ProductStatus.expiringSoon;
+    if (isExpiringToday || isExpiringSoonWithin(expiringSoonDays)) {
+      return ProductStatus.expiringSoon;
+    }
     return ProductStatus.fresh;
   }
 

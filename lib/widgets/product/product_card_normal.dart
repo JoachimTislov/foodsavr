@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:watch_it/watch_it.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../constants/product_categories.dart';
+import '../../controllers/preferences_controller.dart';
 import '../../models/product_model.dart';
 
-class ProductCardNormal extends StatelessWidget {
+class ProductCardNormal extends WatchingWidget {
   final Product product;
   final VoidCallback? onTap;
 
@@ -14,6 +16,9 @@ class ProductCardNormal extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final expiringSoonDays = watchPropertyValue(
+      (PreferencesController c) => c.expiringSoonDays,
+    );
 
     // Determine status color and message
     Color? statusColor;
@@ -29,7 +34,7 @@ class ProductCardNormal extends StatelessWidget {
       statusColor = colorScheme.tertiary;
       statusMessage = 'product.status_today'.tr();
       statusIcon = Icons.warning_amber_rounded;
-    } else if (product.isExpiringSoon) {
+    } else if (product.isExpiringSoonWithin(expiringSoonDays)) {
       statusColor = colorScheme.tertiary;
       statusMessage = 'product.status_days_left'.tr(
         namedArgs: {'days': daysLeft.toString()},

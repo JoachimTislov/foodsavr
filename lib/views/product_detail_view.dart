@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'product_form_view.dart';
 import '../constants/product_categories.dart';
+import '../controllers/preferences_controller.dart';
 import '../models/product_model.dart';
 import '../widgets/product/product_details_card.dart';
 import '../service_locator.dart';
@@ -76,7 +77,9 @@ class _ProductDetailViewState extends State<ProductDetailView> {
     final colorScheme = theme.colorScheme;
 
     // Get status from product model
-    final status = product.status;
+    final status = product.statusWithin(
+      getIt<PreferencesController>().expiringSoonDays,
+    );
     final statusColor = status.getColor(colorScheme);
     final statusMessage = status.getMessage();
     final statusIcon = status.getIcon();

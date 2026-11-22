@@ -24,3 +24,16 @@ The `users` collection contains several subcollections for managing user-specifi
 *   **Recipes:** [recipes.md](./recipes.md)
 *   **Meals:** [meals.md](./meals.md)
 *   **Meal Plans:** [meal-plans.md](./meal-plans.md)
+
+## Preferences
+
+Per-account behavior preferences live in a settings document, separate from the profile fields above:
+
+`/users/{userId}/settings/preferences`
+
+```
+  - expiringSoonDays: 6        (1-30; products expiring within this window are "expiring soon")
+  - defaultInventoryId: null   (inventory for new products; null means the first inventory)
+```
+
+Missing keys fall back to defaults; clients write with merge so unknown keys survive.

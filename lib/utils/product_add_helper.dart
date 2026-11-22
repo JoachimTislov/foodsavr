@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../controllers/preferences_controller.dart';
 import '../interfaces/i_auth_service.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
@@ -24,6 +25,10 @@ class ProductAddHelper {
     if (scannedBarcode == 'MANUAL_ENTRY') {
       return await ProductFormView.show(context, collectionId: collectionId);
     }
+
+    collectionId ??= await getIt<PreferencesController>()
+        .resolveDefaultInventoryId();
+    if (!context.mounted) return false;
 
     final authService = getIt<IAuthService>();
     final productService = getIt<ProductService>();

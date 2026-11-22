@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:watch_it/watch_it.dart';
 import 'package:easy_localization/easy_localization.dart';
 
+import '../../controllers/preferences_controller.dart';
 import '../../models/product_model.dart';
 
-class ProductCardDetails extends StatelessWidget {
+class ProductCardDetails extends WatchingWidget {
   final Product product;
   final VoidCallback? onTap;
   final List<String>? inventoryNames;
@@ -23,7 +25,11 @@ class ProductCardDetails extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final status = product.status;
+
+    final expiringSoonDays = watchPropertyValue(
+      (PreferencesController c) => c.expiringSoonDays,
+    );
+    final status = product.statusWithin(expiringSoonDays);
     final statusColor = status.getColor(colorScheme);
     final statusIcon = status.getIcon();
     final friendlyStatus = product.getFriendlyStatus();

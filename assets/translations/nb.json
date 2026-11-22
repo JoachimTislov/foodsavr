@@ -234,7 +234,16 @@
 			"light": "Lys",
 			"system": "System"
 		},
-		"title": "Innstillinger"
+		"title": "Innstillinger",
+		"behavior": {
+			"title": "Atferd",
+			"expiringSoonWindow": "Utløper snart-vindu",
+			"expiringSoonWindowHelp": "Varer som utløper innen så mange dager vises som at de utløper snart.",
+			"defaultInventory": "Standardlager",
+			"defaultInventoryHelp": "Nye varer legges til her når ingen lager er valgt.",
+			"firstInventory": "Første lager",
+			"noInventories": "Ingen lagre ennå"
+		}
 	},
 	"transfer": {
 		"fromLocation": "Fra sted",

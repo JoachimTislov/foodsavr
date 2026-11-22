@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:foodsavr/constants/preferences_config.dart';
 import 'package:foodsavr/controllers/pwa_install_controller.dart';
 import 'package:foodsavr/injection.dart';
 import 'package:foodsavr/utils/theme_notifier.dart';
@@ -43,6 +44,7 @@ abstract class RegisterModule {
           allowList: {
             ThemeNotifier.kThemeModeKey,
             PwaInstallController.kDismissedKey,
+            PreferencesConfig.cacheKey,
           },
         ),
       );

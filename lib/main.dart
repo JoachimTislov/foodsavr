@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:foodsavr/controllers/preferences_controller.dart';
 import 'package:foodsavr/controllers/user_controller.dart';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
@@ -132,6 +133,9 @@ void main() async {
   const enLocale = Locale('en');
   const nbLocale = Locale('nb');
   await EasyLocalization.ensureInitialized();
+
+  // Start syncing the signed-in user's preferences from app start.
+  getIt<PreferencesController>();
 
   runApp(
     EasyLocalization(

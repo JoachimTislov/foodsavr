@@ -6,7 +6,10 @@ import 'package:foodsavr/features/third_party_integration/models/provider_model.
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/features/third_party_integration/interfaces/i_oauth_service.dart';
 import 'package:foodsavr/service_locator.dart';
+import 'package:foodsavr/controllers/preferences_controller.dart';
 import 'package:foodsavr/controllers/pwa_install_controller.dart';
+import 'package:foodsavr/models/collection_model.dart';
+import 'package:foodsavr/utils/collection_types.dart';
 import 'package:foodsavr/controllers/user_controller.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/features/third_party_integration/oauth_controller.dart';
@@ -17,6 +20,8 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
+
+import '../helpers/in_memory_preferences_repository.dart';
 
 class _MockAuthService extends Mock implements IAuthService {}
 
@@ -91,6 +96,9 @@ void main() async {
 
   group('SettingsView Widget Tests', () {
     late _MockAuthService mockAuthService;
+    late _MockCollectionService mockCollectionService;
+    late InMemoryPreferencesRepository preferencesRepository;
+    late PreferencesController preferencesController;
 
     setUp(() async {
       await getIt.reset();
@@ -114,7 +122,38 @@ void main() async {
       when(() => mockAuthService.currentUser).thenReturn(null);
       getIt.registerLazySingleton<IAuthService>(() => mockAuthService);
 
-      getIt.registerSingleton<CollectionService>(_MockCollectionService());
+      mockCollectionService = _MockCollectionService();
+      when(
+        () => mockCollectionService.getCollectionsForUser(
+          'user-1',
+          type: CollectionType.inventory,
+        ),
+      ).thenAnswer(
+        (_) async => const [
+          Collection(
+            id: 'inv-1',
+            name: 'Fridge',
+            productIds: [],
+            userId: 'user-1',
+          ),
+          Collection(
+            id: 'inv-2',
+            name: 'Pantry',
+            productIds: [],
+            userId: 'user-1',
+          ),
+        ],
+      );
+      getIt.registerSingleton<CollectionService>(mockCollectionService);
+      when(() => mockAuthService.getUserId()).thenReturn('user-1');
+      preferencesRepository = InMemoryPreferencesRepository();
+      preferencesController = PreferencesController(
+        mockAuthService,
+        preferencesRepository,
+        mockCollectionService,
+        getIt<Logger>(),
+      );
+      getIt.registerSingleton<PreferencesController>(preferencesController);
       final mockAuthController = _MockAuthController();
       when(() => mockAuthController.isLoading).thenReturn(false);
       when(() => mockAuthController.errorMessage).thenReturn(null);
@@ -524,6 +563,87 @@ void main() async {
         await tester.pumpAndSettle();
 
         expect(find.text('App Installed'), findsOneWidget);
+      });
+    });
+
+    testWidgets('behavior section shows defaults and saves a new window', (
+      tester,
+    ) async {
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            child: const _TestWrapper(child: SettingsView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('BEHAVIOR'), findsOneWidget);
+        expect(find.text('6 days'), findsOneWidget);
+        expect(find.text('First inventory'), findsOneWidget);
+
+        await tester.tap(find.text('Expiring soon window'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(Icons.remove));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+
+        expect(preferencesController.expiringSoonDays, 5);
+        expect(find.text('5 days'), findsOneWidget);
+        expect(preferencesRepository.saved.last.$2.expiringSoonDays, 5);
+      });
+    });
+
+    testWidgets('behavior section chooses and clears the default inventory', (
+      tester,
+    ) async {
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            child: const _TestWrapper(child: SettingsView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Default inventory'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Pantry'));
+        await tester.pumpAndSettle();
+
+        expect(preferencesController.defaultInventoryId, 'inv-2');
+        expect(find.text('Pantry'), findsOneWidget);
+
+        await tester.tap(find.text('Default inventory'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('First inventory'));
+        await tester.pumpAndSettle();
+
+        expect(preferencesController.defaultInventoryId, isNull);
+        expect(find.text('First inventory'), findsOneWidget);
+      });
+    });
+
+    testWidgets('behavior section is translated', (tester) async {
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            startLocale: const Locale('nb'),
+            child: const _TestWrapper(child: SettingsView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('ATFERD'), findsOneWidget);
+        expect(find.text('Standardlager'), findsOneWidget);
       });
     });
   });

@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/controllers/dashboard_controller.dart';
+import 'package:foodsavr/controllers/preferences_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/utils/collection_types.dart';
 import 'package:foodsavr/views/dashboard_view.dart';
+import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../helpers/in_memory_preferences_repository.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,7 +37,11 @@ void main() {
 
   setUp(() async {
     await getIt.reset();
-    getIt.registerSingleton<IAuthService>(MockAuthService());
+    final authService = MockAuthService();
+    when(
+      () => authService.authStateChanges,
+    ).thenAnswer((_) => const Stream.empty());
+    getIt.registerSingleton<IAuthService>(authService);
     getIt.registerSingleton<ProductService>(MockProductService());
     getIt.registerSingleton<CollectionService>(MockCollectionService());
     getIt.registerSingleton<DashboardController>(
@@ -41,6 +49,12 @@ void main() {
         getIt<IAuthService>(),
         getIt<ProductService>(),
         getIt<CollectionService>(),
+        PreferencesController(
+          getIt<IAuthService>(),
+          InMemoryPreferencesRepository(),
+          getIt<CollectionService>(),
+          Logger(level: Level.off),
+        ),
       ),
     );
   });
@@ -55,7 +69,7 @@ void main() {
       // Initial state: user_1 is logged in
       when(() => authService.getUserId()).thenReturn('user_1');
       when(
-        () => productService.getExpiringSoon('user_1'),
+        () => productService.getExpiringSoon('user_1', expiringSoonDays: 6),
       ).thenAnswer((_) async => []);
       when(
         () => collectionService.getCollectionsForUser(
@@ -66,7 +80,7 @@ void main() {
 
       // Also need to stub user_2 to prevent MissingStubError during the second fetch
       when(
-        () => productService.getExpiringSoon('user_2'),
+        () => productService.getExpiringSoon('user_2', expiringSoonDays: 6),
       ).thenAnswer((_) async => []);
       when(
         () => collectionService.getCollectionsForUser(
@@ -85,7 +99,9 @@ void main() {
 
       // Initial fetch should use 'user_1'
       await tester.pumpAndSettle();
-      verify(() => productService.getExpiringSoon('user_1')).called(1);
+      verify(
+        () => productService.getExpiringSoon('user_1', expiringSoonDays: 6),
+      ).called(1);
       verify(
         () => collectionService.getCollectionsForUser(
           'user_1',
@@ -107,7 +123,9 @@ void main() {
       // Verify it fetched with 'user_2'.
       // If the view cached `_userId` in `initState`, it will incorrectly use 'user_1'
       // and this verification will fail, proving the architectural flaw.
-      verify(() => productService.getExpiringSoon('user_2')).called(1);
+      verify(
+        () => productService.getExpiringSoon('user_2', expiringSoonDays: 6),
+      ).called(1);
       verify(
         () => collectionService.getCollectionsForUser(
           'user_2',
