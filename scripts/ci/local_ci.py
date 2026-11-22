@@ -88,7 +88,9 @@ GROUPS: dict[str, Group] = {
         ],
     ),
     "dart": Group(
-        paths=["**.dart", "lib/**", "test/**", "assets/translations/**", "pubspec.yaml", "pubspec.lock",
+        paths=["**.dart", "lib/**", "test/**", "assets/**", "packages/**",
+               ".github/workflows/build-android.yml", ".github/workflows/release-gated.yml",
+               "scripts/release/**", "scripts/ci/**", "pubspec.yaml", "pubspec.lock",
                "analysis_options.yaml", "android/**", "web/**", "integration_test/**", "test_driver/**"],
         commands=[
             ["flutter", "pub", "get"],
