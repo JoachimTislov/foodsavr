@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
@@ -37,8 +39,16 @@ class AuthService implements IAuthService {
        _collectionService = collectionService,
        _logger = logger;
 
+  Future<void>? _pendingSignIn;
+
   @override
-  Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
+  Stream<User?> get authStateChanges =>
+      _firebaseAuth.authStateChanges().asyncMap((user) async {
+        final pendingSignIn = _pendingSignIn;
+        if (user == null || pendingSignIn == null) return user;
+        await pendingSignIn;
+        return _firebaseAuth.currentUser;
+      });
 
   @override
   /// Signs in a user with email and password.
@@ -57,9 +67,11 @@ class AuthService implements IAuthService {
         await _firebaseAuth.setPersistence(Persistence.SESSION);
       }
     }
-    return _firebaseAuth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
+    return _authenticate(
+      () => _firebaseAuth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      ),
     );
   }
 
@@ -78,30 +90,44 @@ class AuthService implements IAuthService {
         email: email,
         password: password,
       );
-      return currentUser!.linkWithCredential(credential);
+      return _authenticate(() => currentUser!.linkWithCredential(credential));
     }
-    final newUser = await _firebaseAuth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
+    return _authenticate(
+      () => _firebaseAuth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      ),
     );
+  }
 
-    if (newUser.user != null) {
-      try {
-        await retry(
-          () => _collectionService.createInitialCollections(newUser.user!.uid),
-          logger: _logger,
-          operationName: 'CreateInitialCollections',
-        );
-      } catch (e, s) {
-        _logger.e(
-          'Failed to create initial collections for user ${newUser.user!.uid} after multiple retries. The user account was created, but seeding failed.',
-          error: e,
-          stackTrace: s,
-        );
-        // Do not rethrow; allow signup to succeed.
+  Future<UserCredential> _authenticate(
+    Future<UserCredential> Function() authenticate,
+  ) async {
+    final completion = Completer<void>();
+    _pendingSignIn = completion.future;
+    try {
+      final credential = await authenticate();
+      final uid = credential.user?.uid;
+      if (uid != null) {
+        try {
+          await retry(
+            () => _collectionService.createInitialCollections(uid),
+            logger: _logger,
+            operationName: 'CreateInitialCollections',
+          );
+        } catch (error, stackTrace) {
+          _logger.e(
+            'Signed in successfully but could not provision initial collections.',
+            error: error,
+            stackTrace: stackTrace,
+          );
+        }
       }
+      return credential;
+    } finally {
+      completion.complete();
+      if (identical(_pendingSignIn, completion.future)) _pendingSignIn = null;
     }
-    return newUser;
   }
 
   Future<void>? _googleSignInInitialization;
@@ -137,7 +163,7 @@ class AuthService implements IAuthService {
       idToken: googleAuth.idToken,
     );
 
-    return _firebaseAuth.signInWithCredential(credential);
+    return _authenticate(() => _firebaseAuth.signInWithCredential(credential));
   }
 
   Future<void> _initializeGoogleSignIn() async {
@@ -174,12 +200,14 @@ class AuthService implements IAuthService {
         FacebookAuthProvider.credential(accessToken.tokenString);
 
     // Once signed in, return the UserCredential
-    return _firebaseAuth.signInWithCredential(facebookAuthCredential);
+    return _authenticate(
+      () => _firebaseAuth.signInWithCredential(facebookAuthCredential),
+    );
   }
 
   Future<UserCredential> _signInWithPopup(AuthProvider provider) async {
     try {
-      return await _firebaseAuth.signInWithPopup(provider);
+      return await _authenticate(() => _firebaseAuth.signInWithPopup(provider));
     } on FirebaseAuthException catch (e) {
       if (e.code == 'popup-closed-by-user' ||
           e.code == 'cancelled-popup-request') {
@@ -194,7 +222,7 @@ class AuthService implements IAuthService {
 
   @override
   Future<UserCredential> signInAsGuest() {
-    return _firebaseAuth.signInAnonymously();
+    return _authenticate(_firebaseAuth.signInAnonymously);
   }
 
   @override

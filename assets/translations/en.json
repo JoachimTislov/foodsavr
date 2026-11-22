@@ -72,6 +72,7 @@
 		"items_count": "{count} items",
 		"loadError": "Error loading collections",
 		"noProducts": "No products",
+		"defaultShoppingListName": "Shopping List",
 		"type_inventory": "Inventory",
 		"type_shopping": "Shopping"
 	},

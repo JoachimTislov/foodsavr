@@ -72,6 +72,7 @@
 		"items_count": "{count} varer",
 		"loadError": "Feil ved lasting av lister",
 		"noProducts": "Ingen produkter",
+		"defaultShoppingListName": "Handleliste",
 		"type_inventory": "Beholdning",
 		"type_shopping": "Handleliste"
 	},

@@ -1,14 +1,24 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foodsavr/interfaces/i_collection_repository.dart';
+import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/services/collection_service.dart';
+import 'package:foodsavr/utils/collection_types.dart';
+import 'package:foodsavr/validation/validators/collection_model_validator.dart';
 import 'package:foodsavr/services/firebase_auth_service.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late MockFirebaseFirestore mockFirestore;
   late MockFirebaseAuth mockFirebaseAuth;
   late MockGoogleSignIn mockGoogleSignIn;
@@ -105,6 +115,150 @@ void main() {
             'ERROR_ABORTED_BY_USER',
           ),
         ),
+      );
+    });
+  });
+
+  group('initial collections', () {
+    const uid = 'test-user';
+    const email = 'test@example.com';
+    const password = 'password123';
+    late CollectionService collections;
+    late AuthService service;
+    late Map<String, Collection> stored;
+
+    setUp(() {
+      final repository = MockCollectionRepository();
+      stored = {};
+      when(
+        () => repository.getCollections(
+          uid,
+          serverOnly: any(named: 'serverOnly'),
+        ),
+      ).thenAnswer((_) async => stored.values.toList());
+      when(() => repository.addCollectionsInBatch(any())).thenAnswer((
+        call,
+      ) async {
+        final batch = call.positionalArguments.single as List<Collection>;
+        for (final collection in batch) {
+          stored[collection.id] = collection;
+        }
+      });
+      collections = CollectionService(
+        repository,
+        CollectionModelValidator(),
+        mockLogger,
+      );
+      service = AuthService(
+        mockFirebaseAuth,
+        googleSignIn: mockGoogleSignIn,
+        facebookAuth: mockFacebookAuth,
+        supportsPersistence: false,
+        isWeb: true,
+        firestore: mockFirestore,
+        collectionService: collections,
+        logger: mockLogger,
+      );
+      final user = MockUser();
+      when(() => user.uid).thenReturn(uid);
+      when(() => user.isAnonymous).thenReturn(true);
+      when(() => mockFirebaseAuth.currentUser).thenReturn(user);
+      when(() => mockUserCredential.user).thenReturn(user);
+      when(
+        () => mockFirebaseAuth.signInWithPopup(any()),
+      ).thenAnswer((_) async => mockUserCredential);
+      when(
+        () => mockFirebaseAuth.signInAnonymously(),
+      ).thenAnswer((_) async => mockUserCredential);
+      when(
+        () => user.linkWithCredential(any()),
+      ).thenAnswer((_) async => mockUserCredential);
+      when(
+        () => mockFirebaseAuth.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        ),
+      ).thenAnswer((_) async => mockUserCredential);
+    });
+
+    Future<void> loadNorwegian(WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({});
+      await EasyLocalization.ensureInitialized();
+      await tester.pumpWidget(
+        EasyLocalization(
+          supportedLocales: const [Locale('nb')],
+          startLocale: const Locale('nb'),
+          path: 'assets/translations',
+          saveLocale: false,
+          child: Builder(
+            builder: (context) => MaterialApp(
+              locale: context.locale,
+              supportedLocales: context.supportedLocales,
+              localizationsDelegates: context.localizationDelegates,
+              home: const SizedBox.shrink(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    for (final provider in ['Google', 'Facebook', 'guest', 'guest-to-email']) {
+      testWidgets(
+        '$provider provisions one Norwegian inventory and shopping list',
+        (tester) async {
+          await loadNorwegian(tester);
+          final signIn = switch (provider) {
+            'Google' => service.signInWithGoogle,
+            'Facebook' => service.signInWithFacebook,
+            'guest' => service.signInAsGuest,
+            _ => () => service.signUp(email: email, password: password),
+          };
+          Future<void> expectDefaults() async {
+            final result = await collections.getCollectionsForUser(uid);
+            expect(
+              result.map((collection) => (collection.type, collection.name)),
+              unorderedEquals([
+                (CollectionType.inventory, 'Beholdning'),
+                (CollectionType.shoppingList, 'Handleliste'),
+              ]),
+            );
+          }
+
+          await signIn();
+          await expectDefaults();
+          await (provider == 'guest-to-email'
+              ? service.signIn(email: email, password: password)
+              : signIn());
+          await expectDefaults();
+        },
+      );
+    }
+
+    testWidgets('fills a missing type and preserves the existing inventory', (
+      tester,
+    ) async {
+      await loadNorwegian(tester);
+      const inventory = Collection(
+        id: 'custom',
+        userId: uid,
+        name: 'Pantry',
+        type: CollectionType.inventory,
+        productIds: ['rice'],
+      );
+      stored[inventory.id] = inventory;
+
+      await service.signUp(email: email, password: password);
+
+      final result = await collections.getCollectionsForUser(uid);
+      expect(result, hasLength(2));
+      expect(
+        result.singleWhere((c) => c.type == CollectionType.inventory),
+        inventory,
+      );
+      expect(
+        result.singleWhere((c) => c.type == CollectionType.shoppingList).name,
+        'Handleliste',
       );
     });
   });
@@ -435,6 +589,40 @@ void main() {
       verify(() => mockFirebaseAuth.signOut()).called(1);
     });
 
+    test('auth stream waits for guest collection provisioning', () async {
+      final user = MockUser();
+      final provisioning = Completer<void>();
+      final started = Completer<void>();
+      when(() => user.uid).thenReturn('guest');
+      when(() => mockFirebaseAuth.currentUser).thenReturn(user);
+      when(() => mockUserCredential.user).thenReturn(user);
+      when(
+        () => mockFirebaseAuth.authStateChanges(),
+      ).thenAnswer((_) => Stream.value(user));
+      when(
+        () => mockFirebaseAuth.signInAnonymously(),
+      ).thenAnswer((_) async => mockUserCredential);
+      when(
+        () => mockCollectionService.createInitialCollections('guest'),
+      ).thenAnswer((_) {
+        started.complete();
+        return provisioning.future;
+      });
+
+      final signIn = authService.signInAsGuest();
+      var emitted = false;
+      final authEvent = authService.authStateChanges.first.then((value) {
+        emitted = true;
+        return value;
+      });
+      await started.future;
+      expect(emitted, isFalse);
+
+      provisioning.complete();
+      expect(await authEvent, user);
+      await signIn;
+    });
+
     test('signInAsGuest calls signInAnonymously', () async {
       when(
         () => mockFirebaseAuth.signInAnonymously(),
@@ -480,3 +668,5 @@ class MockUserCredential extends Mock implements UserCredential {}
 class MockCollectionService extends Mock implements CollectionService {}
 
 class MockLogger extends Mock implements Logger {}
+
+class MockCollectionRepository extends Mock implements ICollectionRepository {}
