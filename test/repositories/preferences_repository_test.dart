@@ -162,6 +162,45 @@ void main() {
       expect(repository.getCached('user-1'), saved);
     });
 
+    test('a change whose sync failed survives a later backend load', () async {
+      const local = UserPreferences(expiringSoonDays: 4);
+      when(() => docRef.set(any(), any())).thenThrow(
+        FirebaseException(plugin: 'cloud_firestore', code: 'permission-denied'),
+      );
+      await expectLater(
+        repository.save('user-1', local),
+        throwsA(isA<FirebaseException>()),
+      );
+      when(
+        () => docRef.get(),
+      ).thenAnswer((_) async => snapshot({'expiringSoonDays': 9}));
+
+      expect(await repository.load('user-1'), local);
+      expect(repository.getCached('user-1'), local);
+    });
+
+    test('a pending change is synced on the next load', () async {
+      const local = UserPreferences(expiringSoonDays: 4);
+      var fail = true;
+      when(() => docRef.set(any(), any())).thenAnswer((_) async {
+        if (fail) throw Exception('offline');
+      });
+      await expectLater(repository.save('user-1', local), throwsException);
+      fail = false;
+      when(
+        () => docRef.get(),
+      ).thenAnswer((_) async => snapshot({'expiringSoonDays': 9}));
+
+      expect(await repository.load('user-1'), local);
+      await Future<void>.delayed(Duration.zero);
+      // Synced now, so the next load reads the backend again.
+      expect(
+        await repository.load('user-1'),
+        const UserPreferences(expiringSoonDays: 9),
+      );
+      verify(() => docRef.set(local.toJson(), any())).called(2);
+    });
+
     test('the cache never leaks preferences to another account', () async {
       when(() => docRef.set(any(), any())).thenAnswer((_) async {});
       await repository.save(
