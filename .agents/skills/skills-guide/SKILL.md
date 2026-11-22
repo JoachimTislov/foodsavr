@@ -28,6 +28,7 @@ Keep steps 1–3 in one unbroken context window until `/to-tickets`; compact at 
 
 - **Raw issues piling up** → **`/triage`** produces `triage/ready-for-agent` issues that `implement` (or a runner) picks up. Tickets from `/to-tickets` are already agent-ready.
 - **Something broken** → **`diagnosing-bugs`**: a tight red loop first, then the fix with a regression test.
+- **Many ready issues, several agents** → **`queue-planner`** plans a batch of parallel lanes with disjoint file footprints and an integration order.
 - **A huge, foggy effort** → **`/wayfinder`** charts decision tickets until the way is clear, then hands off at `/to-spec`.
 
 ## Codebase health

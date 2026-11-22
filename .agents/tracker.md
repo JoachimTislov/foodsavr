@@ -1,6 +1,6 @@
 # Issue tracker and domain docs
 
-Repository configuration read by the tracker-aware skills (`issue-creator`, `to-spec`, `to-tickets`, `triage`, `wayfinder`, `implement`, `code-review`). It replaces per-skill setup.
+Repository configuration read by the tracker-aware skills (`issue-creator`, `to-spec`, `to-tickets`, `triage`, `wayfinder`, `queue-planner`, `implement`, `code-review`). It replaces per-skill setup.
 
 ## Issue tracker
 
@@ -21,6 +21,10 @@ Used by `wayfinder`. The **map** is one issue labelled `wayfinder:map`; its tick
 - **Frontier**: the map's open sub-issues with no open blocker and no assignee; first in map order wins.
 - **Claim**: `gh issue edit <n> --add-assignee @me`, the session's first write.
 - **Resolve**: comment the answer, close the ticket, then append a gist and link to the map's Decisions-so-far.
+
+## Queue operations
+
+Used by `queue-planner`. A **batch** is one issue titled `Queue: batch N - <theme>` and labelled `queue:batch` (unmanaged, created on first use); its body holds the lanes table, integration order, owner actions, and deferred issues. Lane issues keep their epic parents and are linked from the table, never re-parented. The open `queue:batch` issue is the current batch; its closing retro feeds the next.
 
 ## Labels
 
