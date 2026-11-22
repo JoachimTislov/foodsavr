@@ -312,3 +312,4 @@
 {"event": "Implemented localized, idempotent initial collection provisioning across sign-in paths", "issues": ["#334"], "session_id": "codex:01a203b8-de3a-73f2-a7b4-39567e996706", "timestamp": "2026-11-22T14:50:09+00:00"}
 {"commits": ["86717ce340369376edf99692949924230107c12a"], "event": "Committed and pushed localized initial collection provisioning after repository checks", "issues": ["#334"], "session_id": "codex:01a203b8-de3a-73f2-a7b4-39567e996706", "timestamp": "2026-11-22T17:20:30+00:00"}
 {"commits": ["86717ce340369376edf99692949924230107c12a"], "event": "Opened and linked draft PR", "issues": ["#334"], "prs": ["#375"], "session_id": "codex:01a203b8-de3a-73f2-a7b4-39567e996706", "timestamp": "2026-11-22T17:20:30+00:00"}
+{"event": "Implemented Norwegian expiry hints and month/year parsing with parser regression tests", "issues": ["#335"], "session_id": "codex:01a203b8-db16-76e2-84cf-d2f435e72104", "timestamp": "2026-11-22T14:48:05+00:00"}

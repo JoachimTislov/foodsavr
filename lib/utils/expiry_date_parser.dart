@@ -3,6 +3,7 @@
 /// Supports common printed formats on packaging:
 /// - ISO:        2026-03-14, 2026.03.14, 2026/03/14
 /// - European:   14.03.2026, 14/03/2026, 14-03-26, 14.03.26
+/// - Month/year: 03/2027, 03.27, MAR 2027, MAI 2027 (last day of month)
 /// - With words: EXP 14.03.2026, BEST BEFORE 14/03/2026, BB 14-03-2026
 class ExpiryDateParser {
   static final _isoPattern = RegExp(
@@ -11,82 +12,98 @@ class ExpiryDateParser {
   static final _europeanPattern = RegExp(
     r'\b(\d{1,2})[-./](\d{1,2})[-./](\d{2,4})\b',
   );
+  // Exclude components of full dates, including invalid calendar dates.
+  static final _numericMonthYearPattern = RegExp(
+    r'(?<!\d[-./])\b(\d{1,2})[./](\d{4}|\d{2})\b(?![-./]\d)',
+  );
+  static const _monthNumbers = {
+    'JAN': 1,
+    'FEB': 2,
+    'MAR': 3,
+    'APR': 4,
+    'MAY': 5,
+    'MAI': 5,
+    'JUN': 6,
+    'JUL': 7,
+    'AUG': 8,
+    'SEP': 9,
+    'OCT': 10,
+    'OKT': 10,
+    'NOV': 11,
+    'DEC': 12,
+    'DES': 12,
+  };
+  static final _namedMonthYearPattern = RegExp(
+    r'\b(' + _monthNumbers.keys.join('|') + r')\.?\s+(\d{4})\b(?![-./]\d)',
+    caseSensitive: false,
+  );
   static final _expiryHintPattern = RegExp(
-    r'(?:\bexp|best\s*before|\bbb\b|use\s*by|\bminst)\b',
+    r'\b(?:exp|best\s*before|bb|use\s*by|minst|'
+    r'best\s+før|holdbar\s+til|siste\s+forbruksdag|'
+    r'bäst\s+före|bedst\s+før)\b',
     caseSensitive: false,
   );
 
   /// Returns the most plausible expiry date found in [text], or null.
   ///
-  /// Lines containing expiry hints (EXP, BEST BEFORE, ...) are preferred.
-  /// Dates in the past are ignored; dates more than ten years ahead are
-  /// ignored as misreads.
+  /// Prefers the first plausible date following an expiry hint on its line.
+  /// Dates before today or in calendar years ten or more years ahead are ignored.
   static DateTime? findExpiryDate(String text) {
-    if (text.isEmpty) return null;
-    final candidates = <DateTime>[];
-    DateTime? hinted;
-    final lines = text.split(RegExp(r'[\n\r]+'));
-    for (final line in lines) {
-      final dates = _parseDates(line);
-      candidates.addAll(dates);
-      final expDate = _dateAfterExpiryHint(line, dates);
-      if (expDate != null && _isPlausible(expDate)) return expDate;
-      hinted ??= expDate;
+    DateTime? fallback;
+    for (final line in text.split(RegExp(r'[\n\r]+'))) {
+      final dates = _parseDates(
+        line,
+      ).where((candidate) => _isPlausible(candidate.date));
+      final hint = _expiryHintPattern.firstMatch(line);
+      ({int start, DateTime date})? hinted;
+      for (final candidate in dates) {
+        fallback ??= candidate.date;
+        if (hint != null &&
+            candidate.start >= hint.end &&
+            (hinted == null || candidate.start < hinted.start)) {
+          hinted = candidate;
+        }
+      }
+      if (hinted != null) return hinted.date;
     }
-    if (hinted != null && _isPlausible(hinted)) return hinted;
-    for (final candidate in candidates) {
-      if (_isPlausible(candidate)) return candidate;
-    }
-    return null;
+    return fallback;
   }
 
-  static List<DateTime> _parseDates(String line) {
-    final dates = <DateTime>[];
+  static List<({int start, DateTime date})> _parseDates(String line) {
+    final dates = <({int start, DateTime date})>[];
     for (final match in _isoPattern.allMatches(line)) {
       final date = _build(
         int.parse(match.group(1)!),
         int.parse(match.group(2)!),
         int.parse(match.group(3)!),
       );
-      if (date != null) dates.add(date);
+      if (date != null) dates.add((start: match.start, date: date));
     }
     for (final match in _europeanPattern.allMatches(line)) {
-      final day = int.parse(match.group(1)!);
-      final month = int.parse(match.group(2)!);
-      var year = int.parse(match.group(3)!);
-      if (year < 100) year += 2000;
-      final date = _build(year, month, day);
-      if (date != null) dates.add(date);
+      final date = _build(
+        _parseYear(match.group(3)!),
+        int.parse(match.group(2)!),
+        int.parse(match.group(1)!),
+      );
+      if (date != null) dates.add((start: match.start, date: date));
+    }
+    for (final match in _numericMonthYearPattern.allMatches(line)) {
+      final month = int.parse(match.group(1)!);
+      if (month < 1 || month > 12) continue;
+      final year = _parseYear(match.group(2)!);
+      dates.add((start: match.start, date: DateTime(year, month + 1, 0)));
+    }
+    for (final match in _namedMonthYearPattern.allMatches(line)) {
+      final month = _monthNumbers[match.group(1)!.toUpperCase()]!;
+      final year = int.parse(match.group(2)!);
+      dates.add((start: match.start, date: DateTime(year, month + 1, 0)));
     }
     return dates;
   }
 
-  static DateTime? _dateAfterExpiryHint(String line, List<DateTime> dates) {
-    if (dates.isEmpty) return null;
-    for (final hint in _expiryHintPattern.allMatches(line)) {
-      final hintEnd = hint.end;
-      for (final match in _isoPattern.allMatches(line)) {
-        if (match.start >= hintEnd) {
-          final date = _build(
-            int.parse(match.group(1)!),
-            int.parse(match.group(2)!),
-            int.parse(match.group(3)!),
-          );
-          if (date != null) return date;
-        }
-      }
-      for (final match in _europeanPattern.allMatches(line)) {
-        if (match.start >= hintEnd) {
-          final day = int.parse(match.group(1)!);
-          final month = int.parse(match.group(2)!);
-          var year = int.parse(match.group(3)!);
-          if (year < 100) year += 2000;
-          final date = _build(year, month, day);
-          if (date != null) return date;
-        }
-      }
-    }
-    return null;
+  static int _parseYear(String value) {
+    final year = int.parse(value);
+    return year < 100 ? year + 2000 : year;
   }
 
   static bool _isPlausible(DateTime date) {

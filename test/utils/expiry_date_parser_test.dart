@@ -82,6 +82,58 @@ void main() {
     expect(date, DateTime(year, 6, 15));
   });
 
+  test('recognizes Norwegian expiry hints on labels with competing dates', () {
+    final year = futureYear();
+    final yy = (year % 100).toString().padLeft(2, '0');
+    expect(
+      ExpiryDateParser.findExpiryDate(
+        'PROD $year-01-01 Best før 12.03.$year LOT $year-06-01',
+      ),
+      DateTime(year, 3, 12),
+    );
+    expect(
+      ExpiryDateParser.findExpiryDate(
+        'PROD 01.01.$year Siste forbruksdag: 05.12.$yy',
+      ),
+      DateTime(year, 12, 5),
+    );
+  });
+
+  test('parses numeric and named month/year dates at month end', () {
+    final year = futureYear();
+    final yy = (year % 100).toString().padLeft(2, '0');
+    for (final input in ['03/$year', '03.$yy', 'MAR $year']) {
+      expect(ExpiryDateParser.findExpiryDate(input), DateTime(year, 3, 31));
+    }
+    expect(ExpiryDateParser.findExpiryDate('MAI $year'), DateTime(year, 5, 31));
+    final leapYear = ((now.year ~/ 4) + 1) * 4;
+    expect(
+      ExpiryDateParser.findExpiryDate('02/$leapYear'),
+      DateTime(leapYear, 2, 29),
+    );
+  });
+
+  test('prefers a hinted month/year over a production date', () {
+    final year = futureYear();
+    expect(
+      ExpiryDateParser.findExpiryDate(
+        'PROD 01.01.$year Holdbar til: MAI $year',
+      ),
+      DateTime(year, 5, 31),
+    );
+  });
+
+  test('rejects invalid or implausible month/year dates', () {
+    for (final input in [
+      '13/${futureYear()}',
+      '31.02.${futureYear()}',
+      '02/2020',
+      'EXP MAI ${now.year + 20}',
+    ]) {
+      expect(ExpiryDateParser.findExpiryDate(input), isNull, reason: input);
+    }
+  });
+
   test('returns null for text without dates', () {
     expect(ExpiryDateParser.findExpiryDate('No dates here'), isNull);
     expect(ExpiryDateParser.findExpiryDate(''), isNull);
