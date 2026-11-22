@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foodsavr/controllers/preferences_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/models/product_model.dart';
@@ -21,6 +22,9 @@ class _MockAuthService extends Mock implements IAuthService {}
 class _MockCollectionService extends Mock implements CollectionService {}
 
 class _MockShelfLifeService extends Mock implements ShelfLifeService {}
+
+class _MockPreferencesController extends Mock
+    implements PreferencesController {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -64,6 +68,14 @@ void main() {
     getIt.registerSingleton<ProductService>(productService);
     getIt.registerSingleton<CollectionService>(collectionService);
     getIt.registerSingleton<IAuthService>(auth);
+    // No default inventory: a new product without a collection stays
+    // standalone, as before preferences existed.
+    final preferences = _MockPreferencesController();
+    when(
+      () => preferences.resolveDefaultInventoryId(),
+    ).thenAnswer((_) async => null);
+    when(() => preferences.expiringSoonDays).thenReturn(6);
+    getIt.registerSingleton<PreferencesController>(preferences);
   });
 
   setUpAll(() {
