@@ -1,6 +1,8 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
+import '../controllers/list_query_state.dart';
+import '../controllers/preferences_controller.dart';
 import '../models/collection_model.dart';
 import '../models/product_model.dart';
 import '../utils/collection_types.dart';
@@ -12,7 +14,12 @@ import '../widgets/collection/collection_header.dart';
 import '../widgets/common/retry_scaffold.dart';
 import '../widgets/common/empty_state_widget.dart';
 import 'add_product_to_collection_view.dart';
+import '../widgets/inventory/list_query_controls.dart';
+import '../widgets/product/product_card_compact.dart';
+import '../widgets/product/product_card_details.dart';
 import '../widgets/product/product_card_normal.dart';
+import '../widgets/product/view_mode_toggle.dart';
+import '../utils/view_mode_helper.dart';
 import 'product_detail_view.dart';
 import 'collection_form_view.dart';
 
@@ -30,6 +37,8 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
   late final ProductService _productService;
   late final CollectionService _collectionService;
   late Collection _currentCollection;
+  late final ListQueryState _query;
+  late final PreferencesController _preferences;
 
   @override
   void initState() {
@@ -37,6 +46,16 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     _productService = getIt<ProductService>();
     _collectionService = getIt<CollectionService>();
     _currentCollection = widget.collection;
+    _preferences = getIt<PreferencesController>();
+    _query = ListQueryState(
+      'collection.${widget.collection.userId}.${widget.collection.id}',
+    );
+  }
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchProducts() async {
@@ -59,6 +78,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
   }
 
   Future<void> _refreshCollectionAndProducts() async {
+    await _query.restore();
     final updated = await _collectionService.getCollection(
       _currentCollection.id,
     );
@@ -142,52 +162,90 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         },
         child: const Icon(Icons.add),
       ),
-      body: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(
-            child: CollectionHeader(
-              collection: _currentCollection,
-              onBack: Navigator.of(context).canPop()
-                  ? () => Navigator.of(context).pop()
-                  : null,
-              onEdit: () async {
-                final result = await CollectionFormView.show(
-                  context,
-                  type: _currentCollection.type,
-                  collection: _currentCollection,
-                );
-                if (result == true) {
-                  await _refreshCollectionAndProducts();
-                }
-              },
-              onDelete: () => _deleteCollection(),
+      body: ListenableBuilder(
+        listenable: Listenable.merge([_query, _preferences]),
+        builder: (context, _) => _buildCollection(context),
+      ),
+    );
+  }
+
+  Widget _buildCollection(BuildContext context) {
+    final products = _query.query.apply(
+      _products,
+      now: DateTime.now(),
+      expiringSoonDays: _preferences.expiringSoonDays,
+    );
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverToBoxAdapter(
+          child: CollectionHeader(
+            collection: _currentCollection,
+            onBack: Navigator.of(context).canPop()
+                ? () => Navigator.of(context).pop()
+                : null,
+            onEdit: () async {
+              final result = await CollectionFormView.show(
+                context,
+                type: _currentCollection.type,
+                collection: _currentCollection,
+              );
+              if (result == true) {
+                await _refreshCollectionAndProducts();
+              }
+            },
+            onDelete: () => _deleteCollection(),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: ViewModeToggle(
+              viewMode: _query.viewMode,
+              onModeChanged: (mode) =>
+                  _query.update(() => _query.viewMode = mode),
             ),
           ),
-          if (_products.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: EmptyStateWidget(
-                icon: Icons.inventory_2_outlined,
-                title: 'collection.noProducts'.tr(),
-              ),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.only(bottom: 80),
-              sliver: SliverList.builder(
-                itemCount: _products.length,
-                itemBuilder: (context, index) {
-                  final product = _products[index];
-                  return ProductCardNormal(
-                    product: product,
-                    onTap: () => _navigateToProductDetail(product),
-                  );
-                },
-              ),
+        ),
+        SliverToBoxAdapter(
+          child: ListQueryControls(state: _query, products: _products),
+        ),
+        if (products.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: EmptyStateWidget(
+              icon: Icons.inventory_2_outlined,
+              title: _products.isEmpty
+                  ? 'collection.noProducts'.tr()
+                  : 'listQuery.noMatches'.tr(),
             ),
-        ],
-      ),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.only(bottom: 80),
+            sliver: SliverList.builder(
+              itemCount: products.length,
+              itemBuilder: (context, index) {
+                final product = products[index];
+                void open() => _navigateToProductDetail(product);
+                return switch (_query.viewMode) {
+                  ProductViewMode.compact => ProductCardCompact(
+                    product: product,
+                    onTap: open,
+                  ),
+                  ProductViewMode.normal => ProductCardNormal(
+                    product: product,
+                    onTap: open,
+                  ),
+                  ProductViewMode.details => ProductCardDetails(
+                    product: product,
+                    onTap: open,
+                  ),
+                };
+              },
+            ),
+          ),
+      ],
     );
   }
 
