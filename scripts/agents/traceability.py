@@ -42,6 +42,8 @@ NATIVE_RE = re.compile(r"^[A-Za-z0-9._/@+:=-]{1,200}$")
 PREFIX_RE = re.compile(r"^[a-z][a-z0-9-]*:")
 HUMAN_RE = re.compile(r"^(?:none\s*\(human\)|human)$", re.I)
 TRAILER_RE = re.compile(rf"^[ \t>*-]*{TRAILER}:[ \t]*(.+?)[ \t]*$", re.I | re.M)
+BLOCK_RE = re.compile(rf"^[ \t>*-]*{TRAILER}:[ \t]*\n((?:[ \t]+-[ \t]+[a-z][a-z0-9-]*:[^\n]*(?:\n|$))+)", re.I | re.M)
+BLOCK_ITEM_RE = re.compile(r"^[ \t]+-[ \t]+([a-z][a-z0-9-]*):[ \t]*(.*?)[ \t]*$")
 PR_URL_RE = re.compile(r"^https?://github\.com/([^/]+/[^/]+)/pull/(\d+)/?$")
 ISSUE_URL_RE = re.compile(r"^https?://github\.com/([^/]+/[^/]+)/issues/(\d+)/?$")
 RUN_URL_RE = re.compile(r"^https?://github\.com/([^/]+/[^/]+)/actions/runs/(\d+)")
@@ -223,7 +225,23 @@ def declared_sessions(text: str) -> list[str]:
             result.append(HUMAN)
         elif SESSION_RE.match(value):
             result.append(value)
+    for block in BLOCK_RE.findall(text or ""):
+        for line in block.splitlines():
+            item = BLOCK_ITEM_RE.match(line)
+            for native in (item[2].split(",") if item else []):
+                value = f"{item[1]}:{native.strip()}"
+                if SESSION_RE.match(value):
+                    result.append(value)
     return unique(result)
+
+
+def render_session_block(session_ids: list[str]) -> str:
+    """One `Agent-Session:` block naming each harness once: `  - <harness>: <id>, <id>`."""
+    groups: dict[str, list[str]] = {}
+    for session_id in session_ids:
+        harness, _, native = session_id.partition(":")
+        groups.setdefault(harness, []).append(native)
+    return "\n".join([f"{TRAILER}:", *(f"  - {h}: {', '.join(unique(n))}" for h, n in groups.items())])
 
 
 REFS = ["--branches", "--remotes", "--tags"]
@@ -283,13 +301,18 @@ def prepare_commit_msg(root: Path, message_file: str, source: str = "", env: Map
         if identity is None or source in {"merge"}:
             return False
         path = Path(message_file)
-        if identity.session_id in declared_sessions(path.read_text(encoding="utf-8", errors="replace")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        declared = [v for v in declared_sessions(text) if v != HUMAN]
+        if identity.session_id in declared:
             return False
-        result = subprocess.run(
-            ["git", "-C", str(root), "interpret-trailers", "--in-place", "--if-exists", "addIfDifferent",
-             "--trailer", f"{TRAILER}: {identity.session_id}", str(path.resolve())],
-            capture_output=True, text=True, timeout=15, stdin=subprocess.DEVNULL, check=False)
-        return result.returncode == 0
+        lines = strip_trailers(text, keep_rest=True).split("\n")
+        cut = next((i for i, line in enumerate(lines) if line.startswith("#")), len(lines))
+        body, rest = "\n".join(lines[:cut]).rstrip("\n"), "\n".join(lines[cut:])
+        last = body.rsplit("\n\n", 1)[-1]
+        in_trailers = bool(re.match(r"^[A-Za-z][A-Za-z-]*:", last)) and "\n\n" in body
+        block = render_session_block([*declared, identity.session_id])
+        path.write_text(f"{body}{chr(10) if in_trailers else chr(10) * 2}{block}\n" + (f"\n{rest}" if rest else ""), encoding="utf-8")
+        return True
     except Exception:  # a hook must never block a commit
         return False
 
@@ -719,8 +742,19 @@ class Tracer:
                 "gaps": self.gaps, "notes": self.notes, "engine": getattr(self.facts, "engine", "direct")}
 
 
-def strip_trailers(message: str) -> str:
-    return "\n".join(line for line in message.splitlines() if not TRAILER_RE.match(line)).strip()
+def strip_trailers(message: str, keep_rest: bool = False) -> str:
+    """Drop `Agent-Session` lines and block items; `keep_rest` preserves surrounding whitespace."""
+    kept, in_block = [], False
+    for line in message.split("\n"):
+        if TRAILER_RE.match(line) or re.match(rf"^[ \t>*-]*{TRAILER}:[ \t]*$", line, re.I):
+            in_block = True
+        elif in_block and BLOCK_ITEM_RE.match(line):
+            pass
+        else:
+            in_block = False
+            kept.append(line)
+    out = "\n".join(kept)
+    return out if keep_rest else out.strip()
 
 
 def trace(root: Path, ref: str, sessions: list[dict[str, Any]], ledger: list[dict[str, Any]], online: bool = False,

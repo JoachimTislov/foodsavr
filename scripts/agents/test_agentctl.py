@@ -1747,6 +1747,18 @@ class TraceabilityTest(unittest.TestCase):
         self.assertEqual(text.count("Agent-Session"), message.read_text().count("Agent-Session"))
         self.assertFalse(self.tr.prepare_commit_msg(self.repo, str(self.dir / "missing"), "", {"CLAUDE_CODE_SESSION_ID": "s1"}))
 
+    def test_prepare_commit_msg_merges_sessions_into_one_block_per_harness(self) -> None:
+        message = self.dir / "msg"
+        message.write_text("feat: x\n\nbody\n\nAgent-Session: claude-code:a\n\n# Please enter\n")
+        for env in ({"CLAUDE_CODE_SESSION_ID": "b"}, {"CODEX_THREAD_ID": "c"}):
+            self.assertTrue(self.tr.prepare_commit_msg(self.repo, str(message), "", env))
+        text = message.read_text()
+        self.assertEqual(text.count("Agent-Session"), 1)
+        self.assertIn("  - claude-code: a, b\n  - codex: c\n", text)
+        self.assertEqual(self.tr.declared_sessions(text), ["claude-code:a", "claude-code:b", "codex:c"])
+        self.assertNotIn("Agent-Session", self.tr.strip_trailers(text))
+        self.assertNotIn("claude-code: a", self.tr.strip_trailers(text))
+
     def test_tracked_hook_adds_trailer_and_never_blocks_humans(self) -> None:
         (self.repo / "scripts").mkdir()
         (self.repo / "scripts/agents").symlink_to(ROOT / "scripts/agents")
