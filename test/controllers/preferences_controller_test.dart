@@ -19,6 +19,17 @@ class _MockCollectionService extends Mock implements CollectionService {}
 
 class _MockUser extends Mock implements User {}
 
+/// Returns the backend value as of the start of the load, like a Firestore
+/// read issued before a concurrent write.
+class _SnapshotPreferencesRepository extends InMemoryPreferencesRepository {
+  @override
+  Future<UserPreferences> load(String userId) async {
+    final snapshot = remote[userId];
+    await loadGate?.future;
+    return snapshot ?? const UserPreferences();
+  }
+}
+
 Collection _inventory(String id) =>
     Collection(id: id, name: id, productIds: const [], userId: 'user-1');
 
@@ -155,6 +166,24 @@ void main() {
 
       expect(controller.expiringSoonDays, 6);
     });
+
+    test(
+      'a load started before a local change does not overwrite it',
+      () async {
+        repository = _SnapshotPreferencesRepository();
+        repository.remote['user-1'] = const UserPreferences(
+          expiringSoonDays: 9,
+        );
+        repository.loadGate = Completer<void>();
+        controller = create();
+
+        await controller.setExpiringSoonDays(3);
+        repository.loadGate!.complete();
+        await settle();
+
+        expect(controller.expiringSoonDays, 3);
+      },
+    );
 
     group('resolveDefaultInventoryId', () {
       setUp(() {
