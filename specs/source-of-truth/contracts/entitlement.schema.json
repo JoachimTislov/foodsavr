@@ -13,11 +13,12 @@
       "required": ["provider"],
       "properties": {
         "provider": { "type": "string", "enum": ["none", "revenueCat", "household"], "description": "household: the plan comes from membership in another user's Pro or Family household" },
-        "store": { "type": ["string", "null"], "enum": ["playStore", "appStore", "web", null], "default": null, "description": "Where the plan was bought: playStore first; web (RevenueCat Web Billing with Stripe) and appStore later" },
+        "store": { "type": ["string", "null"], "enum": ["playStore", "appStore", "web", null], "default": null, "description": "Where the plan was bought: playStore (Play Billing), web (RevenueCat Web Billing with Stripe), appStore (later). One RevenueCat customer record spans all of them" },
         "revenueCatEntitlement": { "type": ["string", "null"], "default": null },
         "periodStart": { "type": ["string", "null"], "format": "date-time", "default": null },
         "periodEnd": { "type": ["string", "null"], "format": "date-time", "default": null, "description": "End of the current billing period (RevenueCat expiration date)" },
-        "willRenew": { "type": ["boolean", "null"], "default": null }
+        "willRenew": { "type": ["boolean", "null"], "default": null },
+        "gracePeriodEndsAt": { "type": ["string", "null"], "format": "date-time", "default": null, "description": "Set while a payment failed and the 7-day grace period runs; the plan stays active until then" }
       },
       "additionalProperties": false
     },
@@ -27,13 +28,13 @@
       "required": ["modules"],
       "properties": {
         "modules": { "type": "array", "items": { "type": "string" }, "uniqueItems": true, "maxItems": 2 },
-        "lastSwapAt": { "type": ["string", "null"], "format": "date-time", "default": null, "description": "At most one swap per billing period (source.periodStart to source.periodEnd)" }
+        "lastSwapAt": { "type": ["string", "null"], "format": "date-time", "default": null, "description": "At most one swap per calendar month, whatever the billing period" }
       },
       "additionalProperties": false
     },
     "trials": {
       "type": "array",
-      "description": "One record per trialed module; each trialable module can be trialed once per user",
+      "description": "One record per trialed module; each trialable module can be trialed once per user. A Plus user may trial a module they have not picked",
       "items": {
         "type": "object",
         "required": ["module", "startedAt", "endsAt"],

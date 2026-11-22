@@ -6,6 +6,8 @@ Repo context used: `deploy/instance.yaml` (region `europe-north1`, Spark limits)
 
 Confidence markers: **[V]** official source confirms it. **[P]** partly verified (official page plus conflicting third-party pages, or an official snippet only). **[U]** unverified (third-party only, or from memory). FX assumption: 1 USD ≈ 10.5 NOK **[U]**; I did not check the late-2026 rate.
 
+**Update 2026-11-22 (owner decision, [ADR 0008](../../specs/source-of-truth/decisions/0008-feature-modules-entitlements-and-plans.md)).** Web billing now uses RevenueCat Web Billing (Stripe) from day one, with RevenueCat as the single customer record across Play Billing, web and later the App Store. This supersedes the "Android first, web later" reading of sections 2d and 6 below. The research below is unchanged and keeps its original markers: RevenueCat Flutter web purchase support stays **[P]** and unverified (see "Not verified / open items"), so the web billing ticket proves it before building on it. The statement that Play policy forbids steering Android users to web prices stays **[U]** and is re-checked at the pre-paid-launch review. The owner registers for MVA once sales pass NOK 50,000 in 12 months (threshold **[P]**); EU VAT on web sales to EU consumers stays **[U]**.
+
 ---
 
 ## 1. Feature flags and remote config
@@ -204,7 +206,8 @@ Use annual-first pricing to reduce the impact of fixed per-transaction fees.
 - Gemini current model names and prices; the December 2026 increase; EEA free-tier data handling.
 - AI Logic App Check requirement from 2026-11-02 (single snippet).
 - Remote Config real-time on Flutter web (docs conflict); whether user-property conditions need the Analytics SDK.
-- RevenueCat Flutter web: current support for purchase and restore, and `purchases_ui_flutter` on web.
+- RevenueCat Flutter web: current support for purchase and restore, and `purchases_ui_flutter` on web. Now on the critical path: web checkout through RevenueCat Web Billing ships with the first paid release (owner decision, 2026-11-22), so the web billing ticket proves it first.
+- Whether selling on web from day one before MVA registration (below NOK 50,000 in 12 months) and the EU VAT position for EU consumers hold; confirm at the pre-paid-launch review.
 - Google Play fees after 2026-06-30 (new vs existing installs; external offers fee schedule). Check the Play Console fee table.
 - Apple: whether EU terms apply to Norway, and whether Apple remits Norwegian VAT.
 - Vipps Recurring official price; Stripe Norway 2026 card rates; Stripe Tax and Managed Payments rates.
