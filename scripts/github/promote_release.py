@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Promote release channels by fast-forward only once source CI is green.
 
-Channel chain (ADR 0007):
-  develop -> nightly (daily)
-  nightly -> beta    (weekly, Mondays)
-  beta    -> stable -> release (biweekly, 1st & 15th)
+Topologies (ADR 0007, ADR 0008, configured via ``RELEASE_TOPOLOGY``):
+  - ``single``:        ``develop`` only (promotions cleanly no-op).
+  - ``two-stage``:     ``develop -> release`` (biweekly schedule or manual).
+  - ``full-channels``: ``develop -> nightly -> beta -> stable -> release``.
 
 Dry run by default; ``--apply`` pushes each verified source commit to
 ``refs/heads/<target>`` using ``GH_TOKEN`` (never creating merge commits and
@@ -26,11 +26,19 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from checks import QUEUE_CHECK, queue_check_state, rollup_state  # noqa: E402
 
+TOPOLOGIES = ("single", "two-stage", "full-channels")
+
 CHANNELS: dict[str, str] = {
     "nightly": "develop",
     "beta": "nightly",
     "stable": "beta",
     "release": "stable",
+}
+
+TOPOLOGY_CHANNELS: dict[str, dict[str, str]] = {
+    "single": {},
+    "two-stage": {"release": "develop"},
+    "full-channels": CHANNELS,
 }
 
 SCHEDULE_PROMOTIONS: dict[str, list[tuple[str, str]]] = {
@@ -40,6 +48,16 @@ SCHEDULE_PROMOTIONS: dict[str, list[tuple[str, str]]] = {
     "0 5 * * 1": [("nightly", "beta")],
     # Biweekly stable + production release cut (1st & 15th): beta -> stable -> release
     "0 6 1,15 * *": [("beta", "stable"), ("stable", "release")],
+}
+
+TOPOLOGY_SCHEDULE_PROMOTIONS: dict[str, dict[str, list[tuple[str, str]]]] = {
+    "single": {cron: [] for cron in SCHEDULE_PROMOTIONS},
+    "two-stage": {
+        "0 4 * * *": [],
+        "0 5 * * 1": [],
+        "0 6 1,15 * *": [("develop", "release")],
+    },
+    "full-channels": SCHEDULE_PROMOTIONS,
 }
 
 COMMIT_ROLLUP_QUERY = """
@@ -74,18 +92,29 @@ def resolve_steps(
     schedule: str | None = None,
     target_branch: str | None = None,
     source_branch: str | None = None,
+    topology: str = "full-channels",
 ) -> list[tuple[str, str]]:
     """Resolve ordered (source_branch, target_branch) promotion steps."""
+    if topology not in TOPOLOGIES:
+        raise ValueError(f"Unsupported topology: {topology!r} (expected one of {list(TOPOLOGIES)})")
+
+    if topology == "single":
+        return []
+
     if schedule:
-        steps = SCHEDULE_PROMOTIONS.get(schedule.strip())
-        if not steps:
+        steps = TOPOLOGY_SCHEDULE_PROMOTIONS[topology].get(schedule.strip())
+        if steps is None:
             raise ValueError(f"Unsupported schedule cron: {schedule!r}")
         return list(steps)
 
+    channels = TOPOLOGY_CHANNELS[topology]
     target = target_branch or "release"
-    if target not in CHANNELS:
-        raise ValueError(f"Unsupported target channel: {target!r} (expected one of {sorted(CHANNELS)})")
-    source = CHANNELS[target] if not source_branch or source_branch == "default" else source_branch
+    if target not in channels:
+        raise ValueError(
+            f"Unsupported target channel {target!r} for topology {topology!r} "
+            f"(expected one of {sorted(channels)})"
+        )
+    source = channels[target] if not source_branch or source_branch == "default" else source_branch
     if source == target:
         raise ValueError(f"Source and target branch cannot be identical: {source!r}")
     return [(source, target)]
@@ -199,6 +228,12 @@ def fast_forward_branch(repo: str, source_sha: str, target_branch: str, token: s
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY"))
+    parser.add_argument(
+        "--topology",
+        default=os.environ.get("RELEASE_TOPOLOGY") or "full-channels",
+        choices=list(TOPOLOGIES),
+        help="Release topology (single, two-stage, full-channels)",
+    )
     parser.add_argument("--schedule", default=None, help="GitHub Actions schedule cron expression")
     parser.add_argument("--target-branch", default=None, choices=sorted(CHANNELS))
     parser.add_argument("--source-branch", default=None)
@@ -214,13 +249,23 @@ def main(argv: list[str] | None = None) -> int:
             schedule=args.schedule,
             target_branch=args.target_branch,
             source_branch=args.source_branch,
+            topology=args.topology,
         )
     except ValueError as exc:
         parser.error(str(exc))
 
+    if not steps:
+        msg = f"No promotion steps for topology '{args.topology}' (clean no-op)."
+        print(msg)
+        summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+        if summary_path:
+            with open(summary_path, "a", encoding="utf-8") as handle:
+                handle.write(f"## Promote release channels\n\n- **Topology:** `{args.topology}`\n- **Result:** {msg}\n")
+        return 0
+
     token = os.environ.get("GH_TOKEN", "")
     if args.apply and not token:
-        print("GH_TOKEN (MERGE_GATE_TOKEN) is required with --apply", file=sys.stderr)
+        print("GH_TOKEN (Release-Gate App token or MERGE_GATE_TOKEN) is required with --apply", file=sys.stderr)
         return 1
 
     effective_shas: dict[str, str] = {}
@@ -260,14 +305,16 @@ def main(argv: list[str] | None = None) -> int:
             section += f"- **Result:** fast-forwarded `{target_branch}` to `{source_sha}`\n"
         elif decision.action == "promote":
             effective_shas[target_branch] = source_sha
-            section += "- **Result:** dry run (no push)\n"
+            section += "- **Result:** dry-run (not pushed)\n"
         sections.append(section)
+        print(f"{source_branch} -> {target_branch}: {decision.action}: {decision.detail}")
+        if decision.action in {"blocked", "pending"}:
+            break
 
-    summary = "\n".join(sections)
-    print(summary)
-    if os.environ.get("GITHUB_STEP_SUMMARY"):
-        with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
-            handle.write(summary)
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary_path:
+        with open(summary_path, "a", encoding="utf-8") as handle:
+            handle.write("\n".join(sections) + "\n")
 
     if any(d.action == "blocked" for d in decisions):
         return 1
@@ -277,4 +324,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

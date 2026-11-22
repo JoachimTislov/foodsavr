@@ -43,6 +43,10 @@ defaults:
 jobs:
   check:
     name: Validate manifests and test levels CLI
+    if: >-
+      github.event_name != 'schedule' ||
+      github.repository == 'JoachimTislov/foodsavr' ||
+      vars.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -84,34 +88,34 @@ jobs:
     env:
       ENV_NAME: ${{ matrix.env.name }}
       WIF_PROVIDER: ${{ vars[format('GCP_WORKLOAD_IDENTITY_PROVIDER{0}', matrix.env.varSuffix)] }}
-      DEPLOY_SA: ${{ vars[format('GCP_DEPLOY_SERVICE_ACCOUNT{0}', matrix.env.varSuffix)] }}
+      TELEMETRY_SA: ${{ vars[format('GCP_TELEMETRY_SERVICE_ACCOUNT{0}', matrix.env.varSuffix)] || vars[format('GCP_DEPLOY_SERVICE_ACCOUNT{0}', matrix.env.varSuffix)] }}
     steps:
-      - name: Skip without deploy configuration
-        if: ${{ env.WIF_PROVIDER == '' || env.DEPLOY_SA == '' }}
+      - name: Skip without telemetry WIF configuration
+        if: ${{ env.WIF_PROVIDER == '' || env.TELEMETRY_SA == '' }}
         working-directory: .
         run: |
           echo "::warning::Workload Identity variables missing for $ENV_NAME; run ENV=$ENV_NAME scripts/infra/apply.sh. Skipping poll."
           echo "Poll skipped for $ENV_NAME: no Workload Identity variables." >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/checkout@v6
-        if: ${{ env.WIF_PROVIDER != '' && env.DEPLOY_SA != '' }}
+        if: ${{ env.WIF_PROVIDER != '' && env.TELEMETRY_SA != '' }}
         with:
           persist-credentials: false
 
       - uses: dart-lang/setup-dart@v1
-        if: ${{ env.WIF_PROVIDER != '' && env.DEPLOY_SA != '' }}
+        if: ${{ env.WIF_PROVIDER != '' && env.TELEMETRY_SA != '' }}
 
       - name: Authenticate to Google Cloud (keyless)
         id: auth
-        if: ${{ env.WIF_PROVIDER != '' && env.DEPLOY_SA != '' }}
+        if: ${{ env.WIF_PROVIDER != '' && env.TELEMETRY_SA != '' }}
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
-          service_account: ${{ env.DEPLOY_SA }}
+          service_account: ${{ env.TELEMETRY_SA }}
           token_format: access_token
 
       - name: Restore poll state
-        if: ${{ env.WIF_PROVIDER != '' && env.DEPLOY_SA != '' }}
+        if: ${{ env.WIF_PROVIDER != '' && env.TELEMETRY_SA != '' }}
         uses: actions/cache@v4
         with:
           path: .deployment-level/${{ matrix.env.name }}
@@ -119,7 +123,7 @@ jobs:
           restore-keys: deployment-level-${{ matrix.env.name }}-
 
       - name: Poll
-        if: ${{ env.WIF_PROVIDER != '' && env.DEPLOY_SA != '' }}
+        if: ${{ env.WIF_PROVIDER != '' && env.TELEMETRY_SA != '' }}
         env:
           ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
@@ -133,7 +137,7 @@ jobs:
           cp "$RUNNER_TEMP/summary.md" "$RUNNER_TEMP/out/$ENV_NAME.md"
 
       - name: Upload result
-        if: ${{ env.WIF_PROVIDER != '' && env.DEPLOY_SA != '' }}
+        if: ${{ env.WIF_PROVIDER != '' && env.TELEMETRY_SA != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: deployment-level-${{ matrix.env.name }}
@@ -142,7 +146,7 @@ jobs:
   report:
     name: Update deployment-level issue
     needs: poll
-    if: ${{ always() && github.event_name != 'pull_request' && needs.poll.result != 'cancelled' }}
+    if: ${{ always() && github.event_name != 'pull_request' && needs.poll.result != 'cancelled' && needs.poll.result != 'skipped' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

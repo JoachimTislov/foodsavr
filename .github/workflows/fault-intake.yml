@@ -53,7 +53,8 @@ jobs:
       actions: write
       id-token: write
     env:
-      HAS_WIF_CONFIG: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && vars.GCP_DEPLOY_SERVICE_ACCOUNT != '' }}
+      TELEMETRY_SA: ${{ vars.GCP_TELEMETRY_SERVICE_ACCOUNT || vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+      HAS_WIF_CONFIG: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && (vars.GCP_TELEMETRY_SERVICE_ACCOUNT != '' || vars.GCP_DEPLOY_SERVICE_ACCOUNT != '') }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -63,7 +64,7 @@ jobs:
       - name: Check agent App configuration
         id: app-config
         env:
-          AGENT_APP_ID: ${{ secrets.AGENT_APP_ID }}
+          AGENT_APP_ID: ${{ vars.AGENT_APP_ID || secrets.AGENT_APP_ID }}
           AGENT_APP_PRIVATE_KEY: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
         run: |
           if [ -n "$AGENT_APP_ID" ] && [ -n "$AGENT_APP_PRIVATE_KEY" ]; then
@@ -75,7 +76,7 @@ jobs:
         if: steps.app-config.outputs.configured == 'true'
         uses: actions/create-github-app-token@v2
         with:
-          app-id: ${{ secrets.AGENT_APP_ID }}
+          app-id: ${{ vars.AGENT_APP_ID || secrets.AGENT_APP_ID }}
           private-key: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
 
       - name: Write push payload (repository_dispatch)
@@ -105,7 +106,7 @@ jobs:
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          service_account: ${{ env.TELEMETRY_SA }}
           token_format: access_token
 
       - name: Poll Firebase telemetry (Spark Firestore / Blaze Cloud Logging)
@@ -115,10 +116,16 @@ jobs:
         env:
           ACCESS_TOKEN: ${{ steps.gcp-auth.outputs.access_token }}
           FIREBASE_PLAN: ${{ vars.FIREBASE_PLAN }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          REPO: ${{ github.repository }}
           INPUT_SOURCE: ${{ inputs.source }}
         run: |
-          if [ "$HAS_WIF_CONFIG" != "true" ] || [ -z "$ACCESS_TOKEN" ]; then
-            echo "::warning::GCP WIF telemetry polling is not configured; skipping pull poll."
+          project="${FIREBASE_PROJECT_ID}"
+          if [ -z "$project" ] && [ "$REPO" = "JoachimTislov/foodsavr" ]; then
+            project="my-foodsavr-store"
+          fi
+          if [ "$HAS_WIF_CONFIG" != "true" ] || [ -z "$ACCESS_TOKEN" ] || [ -z "$project" ]; then
+            echo "::warning::GCP WIF telemetry polling or FIREBASE_PROJECT_ID is not configured; skipping pull poll."
             printf '{"events": []}\n' > "$RUNNER_TEMP/intake-payload.json"
             exit 0
           fi
@@ -127,7 +134,7 @@ jobs:
           if [ "$INPUT_SOURCE" = "blaze-cloud-logging" ]; then plan="blaze"; fi
           python3 scripts/monitoring/poll_firebase_telemetry.py \
             --plan "$plan" \
-            --project "my-foodsavr-store" \
+            --project "$project" \
             --out "$RUNNER_TEMP/intake-payload.json"
 
       - name: Run Fault Intake pipeline

@@ -1,6 +1,6 @@
 name: Merge gate
 
-# Integrates opted-in PRs from trusted authors into develop, one at a time (ADR 0006).
+# Integrates opted-in PRs from trusted authors into develop, one at a time (ADR 0006, ADR 0007, ADR 0008).
 # Level-triggered: each run reconciles the whole queue on CI completion, PR
 # readiness (opened non-draft, ready_for_review, labeled merge/auto), pushes, or schedule.
 on:
@@ -61,6 +61,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Check Release-Gate App configuration
+        id: app-config
+        env:
+          RELEASE_GATE_APP_ID: ${{ vars.RELEASE_GATE_APP_ID || secrets.RELEASE_GATE_APP_ID }}
+          RELEASE_GATE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_GATE_APP_PRIVATE_KEY }}
+        run: |
+          if [ -n "$RELEASE_GATE_APP_ID" ] && [ -n "$RELEASE_GATE_APP_PRIVATE_KEY" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mint Release-Gate App token
+        id: gate-app
+        if: steps.app-config.outputs.configured == 'true'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.RELEASE_GATE_APP_ID || secrets.RELEASE_GATE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_GATE_APP_PRIVATE_KEY }}
+
       - name: Checkout trusted gate
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -70,15 +88,21 @@ jobs:
         env:
           HISTORY_TOKEN: ${{ github.token }}
         run: scripts/github/review_history.sh fetch "$HISTORY_TOKEN"
+
       - name: Reconcile merge queue
         env:
           # Must not be GITHUB_TOKEN: its merges and pushes trigger no workflows.
-          GH_TOKEN: ${{ secrets.MERGE_GATE_TOKEN }}
+          GH_TOKEN: ${{ steps.gate-app.outputs.token || secrets.MERGE_GATE_TOKEN }}
           RUNS_TOKEN: ${{ github.token }}
           AGENT_APP_SLUG: ${{ vars.AGENT_APP_SLUG }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           if [ -z "$GH_TOKEN" ]; then
-            echo "::error::MERGE_GATE_TOKEN is not set; run scripts/secrets/rotate.py MERGE_GATE_TOKEN"
-            exit 1
+            if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+              echo "::error::Configure RELEASE_GATE_APP_ID/RELEASE_GATE_APP_PRIVATE_KEY (or legacy MERGE_GATE_TOKEN)."
+              exit 1
+            fi
+            echo "::warning::Release-Gate App / MERGE_GATE_TOKEN is not configured; skipping merge gate."
+            exit 0
           fi
           python3 scripts/github/merge_gate.py --repo "${{ github.repository }}" --apply
