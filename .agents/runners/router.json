@@ -3,7 +3,11 @@
   "id": "provider-router",
   "decision_provider": {
     "enabled": false,
+    "engine": "jev",
     "protocol": "openai-compatible",
+    "structured_output": true,
+    "control_plane_egress": "independent",
+    "allow_control_plane_on_none": false,
     "base_url_env": "JEV_ROUTER_BASE_URL",
     "api_key_env": "JEV_ROUTER_API_KEY",
     "model_env": "JEV_ROUTER_MODEL",
@@ -13,5 +17,149 @@
     "strategy": "first-available-policy-safe",
     "requires_explicit_provider": false
   },
-  "decision_fields": ["workflow_id", "step_id", "capabilities", "available_providers", "policy"]
+  "decision_fields": [
+    "workflow_id",
+    "step_id",
+    "work_type",
+    "tier",
+    "reasoning_effort",
+    "capabilities",
+    "available_providers",
+    "available_models",
+    "policy"
+  ],
+  "model_tiers": {
+    "fast": {
+      "description": "Low-latency triage, classification, and lightweight checks.",
+      "default_reasoning_effort": "low",
+      "models": ["gemini-3.8-flash", "claude-haiku-5-5", "opencode/claude-haiku-5-5"]
+    },
+    "balanced": {
+      "description": "General research, documentation, verification, and standard code work.",
+      "default_reasoning_effort": "medium",
+      "models": ["gemini-4-neon", "claude-sonnet-5-5", "opencode/claude-sonnet-5-5", "mistral-large-3"]
+    },
+    "code-specialist": {
+      "description": "Focused code implementation, refactoring, and automated testing.",
+      "default_reasoning_effort": "high",
+      "models": ["gpt-6.2-sol", "devstral-2"]
+    },
+    "deep": {
+      "description": "Complex architecture, security audits, and deep multi-step review.",
+      "default_reasoning_effort": "high",
+      "models": ["claude-opus-5-5", "gemini-4-hydrogen", "gemini-4-argon", "gpt-6.1-terra"]
+    }
+  },
+  "work_routes": {
+    "triage": {
+      "tier": "fast",
+      "reasoning_effort": "low",
+      "preferences": [
+        {"provider": "gemini", "model": "gemini-3.8-flash"},
+        {"provider": "claude", "model": "claude-haiku-5-5"},
+        {"provider": "opencode", "model": "opencode/claude-haiku-5-5"},
+        {"provider": "codex", "model": "gpt-6.2-sol"},
+        {"provider": "vibe", "model": "mistral-large-3"},
+        {"provider": "copilot", "model": "claude-sonnet-5-5"}
+      ]
+    },
+    "research": {
+      "tier": "balanced",
+      "reasoning_effort": "medium",
+      "preferences": [
+        {"provider": "gemini", "model": "gemini-4-neon"},
+        {"provider": "claude", "model": "claude-sonnet-5-5"},
+        {"provider": "opencode", "model": "opencode/claude-haiku-5-5"},
+        {"provider": "codex", "model": "gpt-6.2-sol"},
+        {"provider": "vibe", "model": "mistral-large-3"},
+        {"provider": "copilot", "model": "claude-sonnet-5-5"}
+      ]
+    },
+    "documentation": {
+      "tier": "balanced",
+      "reasoning_effort": "low",
+      "preferences": [
+        {"provider": "claude", "model": "claude-sonnet-5-5"},
+        {"provider": "gemini", "model": "gemini-4-neon"},
+        {"provider": "opencode", "model": "opencode/claude-haiku-5-5"},
+        {"provider": "codex", "model": "gpt-6.2-sol"},
+        {"provider": "vibe", "model": "mistral-large-3"},
+        {"provider": "copilot", "model": "claude-sonnet-5-5"}
+      ]
+    },
+    "review": {
+      "tier": "deep",
+      "reasoning_effort": "high",
+      "preferences": [
+        {"provider": "codex", "model": "gpt-6.2-sol"},
+        {"provider": "claude", "model": "claude-opus-5-5"},
+        {"provider": "gemini", "model": "gemini-4-hydrogen"},
+        {"provider": "claude", "model": "claude-sonnet-5-5"},
+        {"provider": "opencode", "model": "opencode/claude-sonnet-5-5"},
+        {"provider": "copilot", "model": "gpt-6.2-sol"},
+        {"provider": "vibe", "model": "mistral-large-3"}
+      ]
+    },
+    "testing": {
+      "tier": "code-specialist",
+      "reasoning_effort": "medium",
+      "preferences": [
+        {"provider": "codex", "model": "gpt-6.2-sol"},
+        {"provider": "claude", "model": "claude-sonnet-5-5"},
+        {"provider": "gemini", "model": "gemini-4-neon"},
+        {"provider": "opencode", "model": "opencode/claude-sonnet-5-5"},
+        {"provider": "vibe", "model": "devstral-2"},
+        {"provider": "copilot", "model": "gpt-6.2-sol"}
+      ]
+    },
+    "implementation": {
+      "tier": "code-specialist",
+      "reasoning_effort": "high",
+      "preferences": [
+        {"provider": "claude", "model": "claude-sonnet-5-5"},
+        {"provider": "codex", "model": "gpt-6.2-sol"},
+        {"provider": "gemini", "model": "gemini-4-hydrogen"},
+        {"provider": "opencode", "model": "opencode/claude-sonnet-5-5"},
+        {"provider": "vibe", "model": "devstral-2"},
+        {"provider": "copilot", "model": "gpt-6.2-sol"}
+      ]
+    },
+    "refactoring": {
+      "tier": "code-specialist",
+      "reasoning_effort": "high",
+      "preferences": [
+        {"provider": "codex", "model": "gpt-6.2-sol"},
+        {"provider": "claude", "model": "claude-opus-5-5"},
+        {"provider": "gemini", "model": "gemini-4-hydrogen"},
+        {"provider": "claude", "model": "claude-sonnet-5-5"},
+        {"provider": "vibe", "model": "devstral-2"},
+        {"provider": "opencode", "model": "opencode/claude-sonnet-5-5"},
+        {"provider": "copilot", "model": "gpt-6.2-sol"}
+      ]
+    },
+    "architecture": {
+      "tier": "deep",
+      "reasoning_effort": "xhigh",
+      "preferences": [
+        {"provider": "claude", "model": "claude-opus-5-5"},
+        {"provider": "gemini", "model": "gemini-4-argon"},
+        {"provider": "codex", "model": "gpt-6.1-terra"},
+        {"provider": "gemini", "model": "gemini-4-hydrogen"},
+        {"provider": "codex", "model": "gpt-6.2-sol"},
+        {"provider": "copilot", "model": "gpt-6.2-sol"}
+      ]
+    },
+    "security": {
+      "tier": "deep",
+      "reasoning_effort": "xhigh",
+      "preferences": [
+        {"provider": "codex", "model": "gpt-6.1-terra"},
+        {"provider": "claude", "model": "claude-opus-5-5"},
+        {"provider": "gemini", "model": "gemini-4-argon"},
+        {"provider": "gemini", "model": "gemini-4-hydrogen"},
+        {"provider": "codex", "model": "gpt-6.2-sol"},
+        {"provider": "copilot", "model": "gpt-6.2-sol"}
+      ]
+    }
+  }
 }

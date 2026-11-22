@@ -9,6 +9,7 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync, appendFileSync } from "fs";
+import { execFileSync } from "child_process";
 import { createHash } from "crypto";
 import { join, basename } from "path";
 
@@ -172,6 +173,33 @@ if (!existsSync(outputDir)) {
 
 const rawFilePath = join(outputDir, "raw.txt");
 
+function resolveUserAgent() {
+  if (process.env.AGENT_RESEARCH_USER_AGENT) {
+    return process.env.AGENT_RESEARCH_USER_AGENT;
+  }
+  const ghRepo = process.env.GITHUB_REPOSITORY;
+  if (ghRepo) {
+    return `agent-research/1.0 (+https://github.com/${ghRepo})`;
+  }
+  try {
+    const remote = execFileSync("git", ["config", "--get", "remote.origin.url"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    if (remote) {
+      const normalized = remote
+        .replace(/^git@([^:]+):/, "https://$1/")
+        .replace(/\.git$/, "");
+      if (normalized.startsWith("https://") || normalized.startsWith("http://")) {
+        return `agent-research/1.0 (+${normalized})`;
+      }
+    }
+  } catch {
+    // Fall back to generic User-Agent when git remote is unavailable.
+  }
+  return "agent-research/1.0";
+}
+
 async function fetchAndProcess() {
   try {
     console.log(`Fetching data from: ${url}`);
@@ -179,7 +207,7 @@ async function fetchAndProcess() {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: {
-        "User-Agent": "FoodSavr-agent-research/1.0 (+https://github.com/JoachimTislov/foodsavr)",
+        "User-Agent": resolveUserAgent(),
       },
     });
 

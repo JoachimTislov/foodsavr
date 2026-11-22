@@ -29,8 +29,10 @@ CI_ONLY = "Web/Android smoke, E2E, Android integration, Firestore rules, depende
 
 AGENT_JSON = [
     ".agents/policies/default.json", ".agents/github/labels.json", ".agents/policies/schema.json",
-    ".agents/runners/providers.json", ".agents/runners/router.json", ".agents/workflows/schema.json",
-    ".agents/workflows/result.schema.json", ".agents/policies/agent-implement.json",
+    ".agents/runners/providers.json", ".agents/runners/providers.schema.json",
+    ".agents/runners/router.json", ".agents/runners/router.schema.json",
+    ".agents/workflows/schema.json", ".agents/workflows/result.schema.json",
+    ".agents/policies/agent-implement.json",
 ]
 
 
@@ -56,7 +58,7 @@ GROUPS: dict[str, Group] = {
         commands=[
             ["python3", "-m", "py_compile", "scripts/agents/agentctl.py", "scripts/agents/agent_skills.py",
              "scripts/agents/traceability.py", "scripts/agents/trace_facts.py", "scripts/agents/session_archive.py",
-             "scripts/agents/session_query.py"],
+             "scripts/agents/session_query.py", "scripts/agents/check_logs.py"],
             ["python3", "scripts/agents/check_logs.py"],
             ["python3", "-m", "unittest", "scripts/agents/test_check_logs.py"],
             ["python3", "-m", "unittest", "scripts/agents/test_agentctl.py"],
