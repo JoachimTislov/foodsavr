@@ -28,7 +28,7 @@
     },
     "module": {
       "type": "object",
-      "required": ["id", "dependencies", "costClass", "entitlement", "userHideable", "trialable", "remoteConfigKey", "status"],
+      "required": ["id", "dependencies", "costClass", "entitlement", "userHideable", "trialable", "status"],
       "properties": {
         "id": { "$ref": "#/$defs/moduleId" },
         "description": { "type": "string" },
@@ -46,15 +46,21 @@
         "entitlement": { "$ref": "#/$defs/entitlementKey" },
         "userHideable": { "type": "boolean", "description": "The user may hide the module in settings" },
         "trialable": { "type": "boolean", "description": "One 14-day trial per user, no card, user-started" },
+        "killSwitchable": { "type": "boolean", "default": true, "description": "Remote Config may switch the module off. false only for data portability (export and delete are never switched off); such a module has no remoteConfigKey" },
         "remoteConfigKey": {
           "type": "string",
           "pattern": "^module_[a-z0-9_]+$",
-          "description": "Remote Config boolean parameter: kill switch and rollout gate; the bundled default is true"
+          "description": "Remote Config boolean parameter: kill switch and rollout gate; the bundled default is true. Required unless killSwitchable is false"
         },
         "status": { "type": "string", "enum": ["built", "spec-ahead"] },
         "issues": { "type": "array", "items": { "type": "string", "pattern": "^#[0-9]+$" } }
       },
       "allOf": [
+        {
+          "if": { "properties": { "killSwitchable": { "const": false } }, "required": ["killSwitchable"] },
+          "then": { "not": { "required": ["remoteConfigKey"] } },
+          "else": { "required": ["remoteConfigKey"] }
+        },
         {
           "if": { "properties": { "costClass": { "const": "cloud" } }, "required": ["costClass"] },
           "then": { "properties": { "trialable": { "const": false }, "entitlement": { "const": "cloud" } } }
@@ -69,6 +75,12 @@
     "plan": {
       "type": "object",
       "required": ["id", "revenueCatEntitlement", "entitlements", "automationPicks", "limits", "household"],
+      "allOf": [
+        {
+          "if": { "properties": { "automationPicks": { "exclusiveMinimum": 0 } }, "required": ["automationPicks"] },
+          "then": { "required": ["pickSwapCadence"] }
+        }
+      ],
       "properties": {
         "id": { "type": "string", "enum": ["free", "plus", "pro", "family"] },
         "revenueCatEntitlement": {
@@ -84,13 +96,18 @@
         "automationPicks": {
           "type": "integer",
           "minimum": 0,
-          "description": "automation modules the user picks when automation is not granted in full; swappable once per billing period"
+          "description": "automation modules the user picks when automation is not granted in full"
+        },
+        "pickSwapCadence": {
+          "type": "string",
+          "const": "monthly",
+          "description": "How often picks may be swapped: at most one swap per calendar month, whatever the billing period. Required when automationPicks is above 0"
         },
         "limits": {
           "type": "object",
           "required": ["inventories", "itemsPerInventory"],
           "properties": {
-            "inventories": { "type": ["integer", "null"], "minimum": 1, "description": "Active (writable) inventories; null = unlimited" },
+            "inventories": { "type": ["integer", "null"], "minimum": 1, "description": "Active (writable) inventories; null = unlimited. Paid plans are unlimited; a hidden fair-use limit against abuse is not modeled here (ADR 0008)" },
             "itemsPerInventory": { "type": ["integer", "null"], "minimum": 1, "description": "null = unlimited" },
             "cloudAllowance": { "type": ["integer", "null"], "default": null, "description": "Monthly cloud allowance; size postponed (ADR 0008)" }
           },

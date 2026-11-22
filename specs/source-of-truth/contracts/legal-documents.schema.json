@@ -9,10 +9,11 @@
     "environment": { "type": "string", "enum": ["development", "test", "staging", "production"] },
     "operator": {
       "type": "object",
-      "required": ["kind", "jurisdiction"],
+      "required": ["kind", "jurisdiction", "contactEmail"],
       "properties": {
         "kind": { "type": "string", "const": "privatePerson", "description": "The owner as a private person" },
-        "jurisdiction": { "type": "string", "const": "NO", "description": "Norwegian law and the GDPR" }
+        "jurisdiction": { "type": "string", "const": "NO", "description": "Norwegian law and the GDPR" },
+        "contactEmail": { "type": "string", "format": "email", "description": "Published contact for the operator and data requests: a dedicated FoodSavr mailbox, never the owner's personal email. The placeholder legal-contact@placeholder.invalid stands in until the owner provides it; the pre-paid-launch gate fails while it remains" }
       },
       "additionalProperties": false
     },
@@ -73,7 +74,7 @@
       "additionalProperties": false
     },
     "acceptance": {
-      "description": "A user's acceptance of one document version; append-only, one record per accepted version.",
+      "description": "A user's acceptance of one document version; append-only, one record per accepted version. Existing accounts accept the first versioned documents on their next launch.",
       "type": "object",
       "required": ["uid", "environment", "kind", "version", "locale", "acceptedAt"],
       "properties": {
@@ -82,8 +83,33 @@
         "kind": { "$ref": "#/$defs/documentKind" },
         "version": { "type": "integer", "minimum": 1 },
         "locale": { "type": "string", "enum": ["nb", "en"], "description": "Language the user accepted" },
-        "acceptedAt": { "type": "string", "format": "date-time" },
-        "consentedBy": { "type": ["string", "null"], "default": null, "description": "UID of the consenting adult for a member aged 13 to 17" }
+        "acceptedAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "ageDeclaration": {
+      "description": "Self-declared age at sign-up, stored with the account. The minimum age to create an account or pay is 18.",
+      "type": "object",
+      "required": ["uid", "adult", "declaredAt"],
+      "properties": {
+        "uid": { "type": "string" },
+        "adult": { "type": "boolean", "const": true, "description": "The user declared to be 18 or older" },
+        "declaredAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "guardianConsent": {
+      "description": "An adult's consent for a member aged 13 to 17 invited to their Family household, recorded when the guardian sends the invite. The guardian withdraws it by removing the member, which sets withdrawnAt and pauses the minor's account.",
+      "type": "object",
+      "required": ["guardianUid", "memberUid", "ageBand", "documentKind", "documentVersion", "consentedAt"],
+      "properties": {
+        "guardianUid": { "type": "string", "description": "UID of the consenting adult (the household's invited-by adult)" },
+        "memberUid": { "type": "string", "description": "UID of the member aged 13 to 17" },
+        "ageBand": { "type": "string", "const": "13-17" },
+        "documentKind": { "$ref": "#/$defs/documentKind" },
+        "documentVersion": { "type": "integer", "minimum": 1, "description": "Version of the document the guardian consented to" },
+        "consentedAt": { "type": "string", "format": "date-time" },
+        "withdrawnAt": { "type": ["string", "null"], "format": "date-time", "default": null }
       },
       "additionalProperties": false
     }

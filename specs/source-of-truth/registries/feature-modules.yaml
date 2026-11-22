@@ -4,7 +4,8 @@
 # resolution works offline; Remote Config only switches modules off.
 # Dependencies are technical starting points; adjust them in implementation.
 # Prices are store and RevenueCat configuration, not app data (ADR 0008).
-# Paid-plan limits of null (unlimited) are an open question in ADR 0008.
+# Paid plans are unlimited (limit null); a hidden fair-use limit against abuse is
+# not part of this catalog (ADR 0008). Picks swap monthly (pickSwapCadence).
 
 version: 1
 
@@ -87,13 +88,13 @@ modules:
     status: spec-ahead
     issues: ["#350"]
   - id: dataPortability
-    description: Export and delete your own data; never plan-gated
+    description: Export and delete your own data; never plan-gated and never kill-switchable (no Remote Config key)
     dependencies: []
     costClass: onDevice
     entitlement: standard
     userHideable: false
     trialable: false
-    remoteConfigKey: module_data_portability
+    killSwitchable: false
     status: spec-ahead
     issues: ["#352", "#354"]
   - id: sharing
@@ -197,6 +198,7 @@ plans:
     revenueCatEntitlement: plus
     entitlements: [standard]
     automationPicks: 2
+    pickSwapCadence: monthly
     limits:
       inventories: null
       itemsPerInventory: null
