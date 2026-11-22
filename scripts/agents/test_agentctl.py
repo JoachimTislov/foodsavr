@@ -10,6 +10,7 @@ import importlib.util
 import os
 import io
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -25,6 +26,7 @@ def load_agentctl_module():
     spec = importlib.util.spec_from_file_location("agentctl_under_test", ROOT / "scripts/agents/agentctl.py")
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -36,9 +38,11 @@ def module_env() -> dict[str, str]:
 
 class AgentctlTest(unittest.TestCase):
     def run_cli(self, *arguments: str, database: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
+        env = {**module_env(), "AGENT_LEDGER_FILE": str(database.parent / "ledger.jsonl")}
         return subprocess.run(
             [str(CLI), "--database", str(database), *arguments],
             cwd=ROOT,
+            env=env,
             check=check,
             capture_output=True,
             text=True,
@@ -617,7 +621,8 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             result = json.loads(output.getvalue())
             self.assertEqual(result["status"], "succeeded")
-            self.assertEqual(result["usage"]["total_tokens"], 10)
+            self.assertEqual(result["usage"]["total_tokens"], 15)
+            self.assertEqual(result["steps"][0]["usage"]["total_tokens"], 15)
             events = Path(result["events"])
             self.assertTrue(events.exists())
             self.assertIn('"type": "run.completed"', events.read_text())
@@ -840,6 +845,351 @@ class AgentctlTest(unittest.TestCase):
         result = json.loads(output.getvalue())
         self.assertEqual(0, code)
         self.assertEqual(args.session_id, result["session"]["session_id"])
+
+    def test_jev_dataclasses_validate_and_roundtrip(self) -> None:
+        module = load_agentctl_module()
+        profile = module.WorkProfile(
+            work_type=module.WorkType.IMPLEMENTATION,
+            tier="code-specialist",
+            reasoning_effort="high",
+            signals=("role:implementer->implementation",),
+            confidence=0.9,
+        )
+        self.assertEqual(profile.tier, module.ComplexityTier.CODE_SPECIALIST)
+        self.assertEqual(module.WorkProfile.from_dict(profile.to_dict()), profile)
+        self.assertIn("work_type", module.WorkProfile.json_schema()["properties"])
+
+        with self.assertRaises(ValueError):
+            module.WorkProfile(
+                work_type="unknown-type",
+                tier="fast",
+                reasoning_effort="low",
+                signals=("x",),
+                confidence=0.5,
+            )
+        with self.assertRaises(ValueError):
+            module.WorkProfile(
+                work_type="triage",
+                tier="fast",
+                reasoning_effort="low",
+                signals=(),
+                confidence=1.5,
+            )
+
+        candidate = module.ModelCandidate(
+            provider="codex",
+            model="gpt-6.2-sol",
+            tier="code-specialist",
+            work_types=("implementation", "refactoring"),
+            policy_safe=True,
+            reasoning_effort="high",
+        )
+        self.assertEqual(module.ModelCandidate.from_dict(candidate.to_dict()), candidate)
+
+        request = module.JevRouteRequest(
+            workflow_id="wf-1",
+            step_id="step-1",
+            work_profile=profile,
+            capabilities={"filesystem": "workspace-write"},
+            candidates=(candidate,),
+            available_providers=("codex",),
+            available_models=("gpt-6.2-sol",),
+        )
+        self.assertEqual(module.JevRouteRequest.from_dict(request.to_dict()), request)
+
+        decision = module.JevRouteDecision(
+            provider="codex",
+            model="gpt-6.2-sol",
+            work_type="implementation",
+            tier="code-specialist",
+            reasoning_effort="high",
+            confidence=0.92,
+            rationale="Best code specialist fit.",
+            source="jev-local",
+        )
+        self.assertEqual(
+            module.JevRouteDecision.from_dict(
+                decision.to_dict(),
+                allowed_providers={"codex"},
+                allowed_models={"gpt-6.2-sol"},
+            ),
+            decision,
+        )
+        with self.assertRaises(ValueError):
+            module.JevRouteDecision.from_dict(decision.to_dict(), allowed_providers={"claude"})
+        with self.assertRaises(ValueError):
+            module.JevRouteDecision.from_dict(decision.to_dict(), allowed_models={"claude-sonnet-5-5"})
+        schema = module.JevRouteDecision.json_schema(["codex"], ["gpt-6.2-sol"])
+        self.assertEqual(schema["properties"]["provider"]["enum"], ["codex"])
+        self.assertEqual(schema["properties"]["model"]["enum"], ["gpt-6.2-sol"])
+
+    def test_jev_local_classifier_infers_all_work_types(self) -> None:
+        module = load_agentctl_module()
+        router = json.loads((ROOT / ".agents/runners/router.json").read_text())
+        cases = [
+            ("triage", {"role": "triage-bot", "prompt": "Classify incoming issue"}, "read-only"),
+            ("research", {"role": "researcher", "prompt": "Investigate package alternatives", "skills": ["research"]}, "read-only"),
+            ("documentation", {"role": "docs-writer", "prompt": "Update README guide", "skills": ["docs-writer"]}, "read-only"),
+            ("review", {"role": "reviewer", "prompt": "Review PR diff and inspect contracts", "skills": ["code-review"]}, "read-only"),
+            ("testing", {"role": "qa-tester", "prompt": "Add unittest coverage", "skills": ["testing"]}, "read-only"),
+            ("implementation", {"role": "implementer", "prompt": "Implement feature handler", "skills": ["creation"]}, "workspace-write"),
+            ("refactoring", {"role": "refactor-lead", "prompt": "Refactor and deduplicate helper", "skills": ["maintenance"]}, "read-only"),
+            ("architecture", {"role": "architect", "prompt": "Design ADR and data-model contract", "skills": ["codebase-design"]}, "read-only"),
+            ("security", {"role": "security-auditor", "prompt": "Audit secret redaction and sandbox vulnerability"}, "read-only"),
+        ]
+        for expected_wt, step, fs in cases:
+            workflow = {
+                "id": "classify-test",
+                "objective": step["prompt"],
+                "permissions": {"filesystem": fs, "network": "none", "git": "read-only", "github": "none"},
+            }
+            profile = module.infer_work_profile(workflow, step, router)
+            self.assertEqual(profile.work_type.value, expected_wt, msg=f"failed for {expected_wt}: {profile}")
+
+        override_step = {
+            "role": "generalist",
+            "work_type": "security",
+            "tier": "deep",
+            "prompt": "Check release checklist",
+        }
+        profile = module.infer_work_profile(
+            {"id": "override", "objective": "misc", "permissions": {"filesystem": "read-only"}},
+            override_step,
+            router,
+        )
+        self.assertEqual(profile.work_type, module.WorkType.SECURITY)
+        self.assertEqual(profile.tier, module.ComplexityTier.DEEP)
+        self.assertEqual(profile.confidence, 1.0)
+
+    def test_select_local_model_route_and_provider_command_model_flag(self) -> None:
+        module = load_agentctl_module()
+        router = json.loads((ROOT / ".agents/runners/router.json").read_text())
+        specs = json.loads((ROOT / ".agents/runners/providers.json").read_text())["providers"]
+        workflow = {
+            "id": "route-test",
+            "objective": "Implement feature",
+            "permissions": {"filesystem": "workspace-write", "network": "none", "git": "read-only", "github": "none"},
+        }
+        step = {"id": "impl", "role": "implementer", "prompt": "Write code"}
+        decision, profile, reason = module.resolve_step_route(
+            workflow, step, ["claude", "codex"], specs, router,
+        )
+        self.assertIsNotNone(decision)
+        assert decision is not None
+        self.assertEqual(decision.provider, "claude")
+        self.assertEqual(decision.model, "claude-sonnet-5-5")
+        self.assertEqual(profile.work_type, module.WorkType.IMPLEMENTATION)
+        self.assertEqual(reason, "deterministic-fallback")
+
+        codex_decision, _, _ = module.resolve_step_route(
+            workflow, step, ["codex"], specs, router,
+        )
+        self.assertIsNotNone(codex_decision)
+        assert codex_decision is not None
+        self.assertEqual(codex_decision.provider, "codex")
+        self.assertEqual(codex_decision.model, "gpt-6.2-sol")
+
+        cmd, _ = module.provider_command("codex", specs["codex"], "hello", model="gpt-6.2-sol")
+        self.assertEqual(cmd.count("--model"), 1)
+        self.assertIn("gpt-6.2-sol", cmd)
+        cmd_no_model, _ = module.provider_command("codex", specs["codex"], "hello")
+        self.assertNotIn("--model", cmd_no_model)
+
+    def test_external_route_sends_structured_schema_and_rejects_non_dict_json(self) -> None:
+        module = load_agentctl_module()
+        router = {
+            "decision_provider": {
+                "enabled": True,
+                "engine": "jev",
+                "structured_output": True,
+                "allow_control_plane_on_none": True,
+                "base_url_env": "TEST_ROUTER_URL",
+                "api_key_env": "TEST_ROUTER_KEY",
+                "model_env": "TEST_ROUTER_MODEL",
+                "timeout_ms": 500,
+            }
+        }
+        specs = json.loads((ROOT / ".agents/runners/providers.json").read_text())["providers"]
+        workflow = {
+            "id": "jev-structured",
+            "objective": "Audit auth permissions",
+            "permissions": {"filesystem": "read-only", "network": "none", "git": "read-only", "github": "none"},
+        }
+        step = {"id": "audit", "role": "security-auditor", "prompt": "Inspect auth checks"}
+        captured_requests: list[dict[str, object]] = []
+
+        class StructuredResponse:
+            def __init__(self, body: object) -> None:
+                self._body = body
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def read(self, _limit):
+                return json.dumps(self._body).encode()
+
+        def fake_urlopen(req, **_kwargs):
+            captured_requests.append(json.loads(req.data.decode()))
+            return StructuredResponse({
+                "choices": [{
+                    "message": {
+                        "content": json.dumps({
+                            "provider": "claude",
+                            "model": "claude-opus-5-5",
+                            "work_type": "security",
+                            "tier": "deep",
+                            "reasoning_effort": "xhigh",
+                            "confidence": 0.96,
+                            "rationale": "Security audit needs deep reasoning.",
+                            "source": "jev-remote",
+                        })
+                    }
+                }]
+            })
+
+        with patch.dict(module.os.environ, {"TEST_ROUTER_URL": "https://jev.example", "TEST_ROUTER_KEY": "secret-key", "TEST_ROUTER_MODEL": "jev-1"}), \
+             patch.object(module.urllib.request, "urlopen", side_effect=fake_urlopen):
+            decision, reason = module.external_route_decision(
+                workflow, step, ["codex", "claude"], router, specs=specs,
+            )
+        self.assertEqual(reason, "external-decision-provider")
+        self.assertIsNotNone(decision)
+        assert decision is not None
+        self.assertEqual(decision.provider, "claude")
+        self.assertEqual(decision.model, "claude-opus-5-5")
+        self.assertEqual(captured_requests[0]["response_format"]["type"], "json_schema")  # type: ignore[index]
+        self.assertTrue(captured_requests[0]["response_format"]["json_schema"]["strict"])  # type: ignore[index]
+
+        for bad_payload in (
+            [],
+            "claude",
+            123,
+            {"choices": [{"message": {"content": "[]"}}]},
+            {"provider": "not-safe"},
+            {"provider": "claude", "model": "not-allowed-model", "work_type": "security", "tier": "deep", "reasoning_effort": "high", "confidence": 0.8, "rationale": "x", "source": "jev-remote"},
+        ):
+            with self.subTest(bad_payload=bad_payload):
+                with patch.dict(module.os.environ, {"TEST_ROUTER_URL": "https://jev.example", "TEST_ROUTER_KEY": "secret-key"}), \
+                     patch.object(module.urllib.request, "urlopen", return_value=StructuredResponse(bad_payload)):
+                    rejected, reject_reason = module.external_route_decision(
+                        workflow, step, ["codex", "claude"], router, specs=specs,
+                    )
+                self.assertIsNone(rejected)
+                self.assertEqual(reject_reason, "external-router-returned-invalid-provider")
+
+    def test_router_matrix_decide_and_workflow_plan_expose_models(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            db = Path(directory) / "db"
+            matrix_res = self.run_cli("router", "matrix", database=db)
+            matrix = json.loads(matrix_res.stdout)
+            self.assertEqual(set(matrix["work_types"]), {
+                "triage", "research", "documentation", "review",
+                "testing", "implementation", "refactoring", "architecture", "security",
+            })
+            self.assertIn("code-specialist", matrix["tiers"])
+            self.assertIn("gemini-4-neon", matrix["providers"]["gemini"]["models"])
+
+            decide_res = self.run_cli(
+                "router", "decide", "--role", "architect", "--prompt", "Design ADR",
+                database=db,
+            )
+            decided = json.loads(decide_res.stdout)
+            self.assertEqual(decided["work_profile"]["work_type"], "architecture")
+            self.assertEqual(decided["work_profile"]["tier"], "deep")
+            self.assertTrue(decided["candidates"])
+
+            plan_res = self.run_cli("workflow", "plan", str(WORKFLOW), database=db, check=False)
+            plan = json.loads(plan_res.stdout)
+            self.assertTrue(all("work_type" in step and "tier" in step and "selected_model" in step for step in plan["steps"]))
+
+            run_res = self.run_cli("workflow", "run", str(WORKFLOW), "--model", "gemini-4-neon", database=db, check=False)
+            run = json.loads(run_res.stdout)
+            self.assertEqual(run["model"], "gemini-4-neon")
+            self.assertEqual(run["status"], "planned")
+
+    def test_workflow_validation_supports_work_type_tier_model_and_rejects_invalid(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            wf = json.loads(WORKFLOW.read_text())
+            wf["steps"][0]["work_type"] = "review"
+            wf["steps"][0]["tier"] = "deep"
+            wf["steps"][0]["model"] = "claude-opus-5-5"
+            valid_path = Path(directory) / "valid.json"
+            valid_path.write_text(json.dumps(wf))
+            self.assertEqual(module.validate_workflow_file(valid_path), [])
+
+            wf["steps"][0]["work_type"] = "bogus-work-type"
+            wf["steps"][0]["tier"] = "mega"
+            invalid_path = Path(directory) / "invalid.json"
+            invalid_path.write_text(json.dumps(wf))
+            errors = "\n".join(module.validate_workflow_file(invalid_path))
+            self.assertIn("invalid work_type", errors)
+            self.assertIn("invalid tier", errors)
+
+    def test_audit_fixes_sha_redaction_memoization_and_doc_api_exclusion(self) -> None:
+        module = load_agentctl_module()
+        # SHA_RE must reject pure alphabetic words like Feedbac/cceeded while keeping hex SHAs with digits
+        self.assertIsNone(module.SHA_RE.search("Feedbac cceeded deadbeef"))
+        self.assertIsNotNone(module.SHA_RE.search("commit a1b2c3d"))
+
+        # document_paths must exclude doc/api
+        for path in module.document_paths():
+            parts = path.relative_to(ROOT).parts
+            self.assertNotEqual(parts[:2], ("doc", "api"))
+
+        # redacted_output must preserve HOME/PWD/PATH/XDG_* while redacting secret env vars
+        with patch.dict(module.os.environ, {
+            "HOME": "/home/runner/work/project",
+            "XDG_CONFIG_HOME": "/home/runner/.config/xdg",
+            "MY_PRIVATE_SIGNING_SECRET": "super-secret-value-1234",
+        }):
+            cleaned = module.redacted_output(
+                "dir=/home/runner/work/project cfg=/home/runner/.config/xdg leak=super-secret-value-1234 token=abc123456"
+            )
+        self.assertIn("/home/runner/work/project", cleaned)
+        self.assertIn("/home/runner/.config/xdg", cleaned)
+        self.assertNotIn("super-secret-value-1234", cleaned)
+        self.assertIn("token=[REDACTED]", cleaned)
+
+        # version_for memoizes calls per (command, version_flags, PATH)
+        module._VERSION_CACHE.clear()
+        spec = {"command": "fake-cli", "version": ["--version"]}
+        with patch.object(
+            module.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(["fake-cli", "--version"], 0, stdout="fake 1.2.3\n", stderr=""),
+        ) as run_mock:
+            first = module.version_for(spec)
+            second = module.version_for(spec)
+        self.assertEqual(first, "fake 1.2.3")
+        self.assertEqual(second, "fake 1.2.3")
+        self.assertEqual(run_mock.call_count, 1)
+
+        # ensure_catalog validates byte sha256 and detects added/deleted docs
+        with tempfile.TemporaryDirectory() as directory:
+            tmp = Path(directory)
+            (tmp / "docs").mkdir()
+            doc_a = tmp / "docs" / "a.md"
+            doc_a.write_bytes(b"# A\n\xff\xfe\n")
+            db = tmp / "state" / "knowledge.sqlite3"
+            with patch.object(module, "ROOT", tmp), \
+                 patch.object(module, "document_paths", return_value=[doc_a]), \
+                 patch.object(module, "INDEX", tmp / "missing-sessions.jsonl"):
+                module.rebuild(argparse.Namespace(database=str(db)), emit=False)
+                conn = module.connect(db)
+                module.ensure_catalog(conn, db)
+                doc_b = tmp / "docs" / "b.md"
+                doc_b.write_text("# B\n", encoding="utf-8")
+                with patch.object(module, "document_paths", return_value=[doc_a, doc_b]):
+                    with self.assertRaises(ValueError):
+                        module.ensure_catalog(conn, db)
+                with patch.object(module, "document_paths", return_value=[]):
+                    with self.assertRaises(ValueError):
+                        module.ensure_catalog(conn, db)
+                conn.close()
 
 
 if __name__ == "__main__":

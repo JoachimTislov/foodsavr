@@ -20,7 +20,9 @@ import uuid
 import urllib.error
 import urllib.parse
 import urllib.request
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -46,7 +48,16 @@ TEXT_SUFFIXES = {".md", ".markdown", ".yaml", ".yml", ".json", ".jsonl", ".toml"
 EXCLUDED_PARTS = {".git", ".dart_tool", "build", "state"}
 URL_RE = re.compile(r"https?://[^\s)\]>]+")
 ISSUE_RE = re.compile(r"(?<![\w])#\d+")
-SHA_RE = re.compile(r"(?<![0-9a-f])[0-9a-f]{7,40}(?![0-9a-f])", re.I)
+SHA_RE = re.compile(r"\b(?=[0-9a-f]*[0-9])[0-9a-f]{7,40}\b", re.I)
+NON_SECRET_ENV_KEYS = {
+    "HOME", "PWD", "OLDPWD", "PATH", "USER", "LOGNAME", "USERNAME", "SHELL",
+    "TERM", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TEMP", "TMP", "HOSTNAME",
+    "HOSTTYPE", "SHLVL", "EDITOR", "VISUAL", "PAGER", "DISPLAY", "WAYLAND_DISPLAY",
+    "COLORTERM", "PYTHONPATH", "VIRTUAL_ENV", "CONDA_PREFIX", "PUB_CACHE",
+    "FLUTTER_ROOT", "ANDROID_HOME", "ANDROID_SDK_ROOT", "JAVA_HOME",
+}
+NON_SECRET_ENV_PREFIXES = ("XDG_", "LC_")
+_VERSION_CACHE: dict[tuple[tuple[str, ...], str], str | None] = {}
 
 
 def now() -> str:
@@ -90,7 +101,11 @@ def document_paths() -> list[Path]:
                 if path.is_symlink() or not path.is_file() or path.suffix not in TEXT_SUFFIXES:
                     continue
                 relative_parts = path.relative_to(ROOT).parts
-                if EXCLUDED_PARTS.intersection(relative_parts) or relative_parts[:1] == ("research",):
+                if (
+                    EXCLUDED_PARTS.intersection(relative_parts)
+                    or relative_parts[:1] == ("research",)
+                    or relative_parts[:2] == ("doc", "api")
+                ):
                     continue
                 result.add(path)
     return sorted(result)
@@ -150,12 +165,13 @@ def rebuild(args: argparse.Namespace, emit: bool = True) -> int:
         for table in ("document_search", "document_references", "documents", "session_references", "sessions", "workflow_run_events", "workflow_run_artifacts", "workflow_runs"):
             connection.execute(f"DELETE FROM {table}")
         for path in paths:
-            content = path.read_text(errors="replace")
+            raw_bytes = path.read_bytes()
+            content = raw_bytes.decode("utf-8", errors="replace")
             relative = path.relative_to(ROOT).as_posix()
             cursor = connection.execute(
                 "INSERT INTO documents(path, kind, title, content, sha256, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
                 (relative, document_kind(path), document_title(path, content), content,
-                 hashlib.sha256(content.encode()).hexdigest(), now()),
+                 hashlib.sha256(raw_bytes).hexdigest(), now()),
             )
             connection.executemany(
                 "INSERT INTO document_references(document_id, ref_type, ref_value) VALUES (?, ?, ?)",
@@ -231,6 +247,10 @@ def ensure_catalog(connection: sqlite3.Connection, database: Path) -> None:
     rows = connection.execute("SELECT path, sha256 FROM documents").fetchall()
     if not rows:
         raise ValueError("knowledge catalog is empty; run `scripts/agents/agentctl knowledge rebuild`")
+    indexed_paths = {row["path"] for row in rows}
+    current_paths = {path.relative_to(ROOT).as_posix() for path in document_paths()}
+    if indexed_paths != current_paths:
+        raise ValueError("knowledge catalog is stale; rebuild after changing document set")
     for row in rows:
         path = ROOT / row["path"]
         if not path.exists():
@@ -586,6 +606,720 @@ def heal_session_index(index: Path = INDEX) -> int:
     return len(current) - len(healed)
 
 
+class WorkType(str, Enum):
+    TRIAGE = "triage"
+    RESEARCH = "research"
+    DOCUMENTATION = "documentation"
+    REVIEW = "review"
+    TESTING = "testing"
+    IMPLEMENTATION = "implementation"
+    REFACTORING = "refactoring"
+    ARCHITECTURE = "architecture"
+    SECURITY = "security"
+
+
+class ComplexityTier(str, Enum):
+    FAST = "fast"
+    BALANCED = "balanced"
+    DEEP = "deep"
+    CODE_SPECIALIST = "code-specialist"
+
+
+REASONING_EFFORTS = ("low", "medium", "high", "xhigh")
+
+DEFAULT_WORK_ROUTES: dict[str, dict[str, Any]] = {
+    WorkType.TRIAGE.value: {"tier": ComplexityTier.FAST.value, "reasoning_effort": "low", "preferences": []},
+    WorkType.RESEARCH.value: {"tier": ComplexityTier.BALANCED.value, "reasoning_effort": "medium", "preferences": []},
+    WorkType.DOCUMENTATION.value: {"tier": ComplexityTier.BALANCED.value, "reasoning_effort": "low", "preferences": []},
+    WorkType.REVIEW.value: {"tier": ComplexityTier.DEEP.value, "reasoning_effort": "high", "preferences": []},
+    WorkType.TESTING.value: {"tier": ComplexityTier.CODE_SPECIALIST.value, "reasoning_effort": "medium", "preferences": []},
+    WorkType.IMPLEMENTATION.value: {"tier": ComplexityTier.CODE_SPECIALIST.value, "reasoning_effort": "high", "preferences": []},
+    WorkType.REFACTORING.value: {"tier": ComplexityTier.CODE_SPECIALIST.value, "reasoning_effort": "high", "preferences": []},
+    WorkType.ARCHITECTURE.value: {"tier": ComplexityTier.DEEP.value, "reasoning_effort": "xhigh", "preferences": []},
+    WorkType.SECURITY.value: {"tier": ComplexityTier.DEEP.value, "reasoning_effort": "xhigh", "preferences": []},
+}
+
+
+def _coerce_enum(value: Any, enum_cls: type[Enum], field_name: str) -> Any:
+    if isinstance(value, enum_cls):
+        return value
+    if isinstance(value, str):
+        try:
+            return enum_cls(value)
+        except ValueError as error:
+            raise ValueError(f"invalid {field_name}: {value!r}") from error
+    raise ValueError(f"{field_name} must be a {enum_cls.__name__}")
+
+
+def _validate_non_empty_str(value: Any, field_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field_name} must be a non-empty string")
+    return value
+
+
+def _validate_confidence(value: Any, field_name: str = "confidence") -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise ValueError(f"{field_name} must be a finite number")
+    numeric = float(value)
+    if not 0.0 <= numeric <= 1.0:
+        raise ValueError(f"{field_name} must be between 0.0 and 1.0")
+    return numeric
+
+
+if __name__ not in sys.modules:
+    class _DynamicModuleProxy:
+        pass
+
+    _proxy = _DynamicModuleProxy()
+    _proxy.__dict__ = globals()
+    sys.modules[__name__] = _proxy  # type: ignore[assignment]
+
+
+@dataclass(frozen=True)
+class WorkProfile:
+    work_type: WorkType
+    tier: ComplexityTier
+    reasoning_effort: str
+    signals: tuple[str, ...]
+    confidence: float
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "work_type", _coerce_enum(self.work_type, WorkType, "work_type"))
+        object.__setattr__(self, "tier", _coerce_enum(self.tier, ComplexityTier, "tier"))
+        if not isinstance(self.reasoning_effort, str) or self.reasoning_effort not in REASONING_EFFORTS:
+            raise ValueError(f"invalid reasoning_effort: {self.reasoning_effort!r}")
+        signals = self.signals
+        if isinstance(signals, list):
+            signals = tuple(signals)
+            object.__setattr__(self, "signals", signals)
+        if not isinstance(signals, tuple) or not all(isinstance(item, str) and item.strip() for item in signals):
+            raise ValueError("signals must be a sequence of non-empty strings")
+        object.__setattr__(self, "confidence", _validate_confidence(self.confidence))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "work_type": self.work_type.value,
+            "tier": self.tier.value,
+            "reasoning_effort": self.reasoning_effort,
+            "signals": list(self.signals),
+            "confidence": self.confidence,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Any) -> WorkProfile:
+        if not isinstance(data, dict):
+            raise ValueError("WorkProfile payload must be an object")
+        required = ("work_type", "tier", "reasoning_effort", "signals", "confidence")
+        missing = [field for field in required if field not in data]
+        if missing:
+            raise ValueError(f"WorkProfile missing fields: {', '.join(missing)}")
+        if not isinstance(data["signals"], (list, tuple)):
+            raise ValueError("WorkProfile.signals must be an array")
+        return cls(
+            work_type=data["work_type"],
+            tier=data["tier"],
+            reasoning_effort=data["reasoning_effort"],
+            signals=tuple(data["signals"]),
+            confidence=data["confidence"],
+        )
+
+    @classmethod
+    def json_schema(cls) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["work_type", "tier", "reasoning_effort", "signals", "confidence"],
+            "properties": {
+                "work_type": {"type": "string", "enum": [item.value for item in WorkType]},
+                "tier": {"type": "string", "enum": [item.value for item in ComplexityTier]},
+                "reasoning_effort": {"type": "string", "enum": list(REASONING_EFFORTS)},
+                "signals": {"type": "array", "items": {"type": "string", "minLength": 1}},
+                "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+            },
+        }
+
+
+@dataclass(frozen=True)
+class ModelCandidate:
+    provider: str
+    model: str
+    tier: ComplexityTier
+    work_types: tuple[WorkType, ...]
+    policy_safe: bool
+    reasoning_effort: str = "medium"
+
+    def __post_init__(self) -> None:
+        _validate_non_empty_str(self.provider, "provider")
+        _validate_non_empty_str(self.model, "model")
+        object.__setattr__(self, "tier", _coerce_enum(self.tier, ComplexityTier, "tier"))
+        work_types = self.work_types
+        if isinstance(work_types, list):
+            work_types = tuple(work_types)
+        if not isinstance(work_types, tuple):
+            raise ValueError("work_types must be a sequence")
+        object.__setattr__(
+            self,
+            "work_types",
+            tuple(_coerce_enum(item, WorkType, "work_types") for item in work_types),
+        )
+        if not isinstance(self.policy_safe, bool):
+            raise ValueError("policy_safe must be boolean")
+        if not isinstance(self.reasoning_effort, str) or self.reasoning_effort not in REASONING_EFFORTS:
+            raise ValueError(f"invalid reasoning_effort: {self.reasoning_effort!r}")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "provider": self.provider,
+            "model": self.model,
+            "tier": self.tier.value,
+            "work_types": [item.value for item in self.work_types],
+            "policy_safe": self.policy_safe,
+            "reasoning_effort": self.reasoning_effort,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Any) -> ModelCandidate:
+        if not isinstance(data, dict):
+            raise ValueError("ModelCandidate payload must be an object")
+        required = ("provider", "model", "tier", "work_types", "policy_safe")
+        missing = [field for field in required if field not in data]
+        if missing:
+            raise ValueError(f"ModelCandidate missing fields: {', '.join(missing)}")
+        if not isinstance(data["work_types"], (list, tuple)):
+            raise ValueError("ModelCandidate.work_types must be an array")
+        return cls(
+            provider=data["provider"],
+            model=data["model"],
+            tier=data["tier"],
+            work_types=tuple(data["work_types"]),
+            policy_safe=data["policy_safe"],
+            reasoning_effort=data.get("reasoning_effort", "medium"),
+        )
+
+    @classmethod
+    def json_schema(cls) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["provider", "model", "tier", "work_types", "policy_safe", "reasoning_effort"],
+            "properties": {
+                "provider": {"type": "string", "minLength": 1},
+                "model": {"type": "string", "minLength": 1},
+                "tier": {"type": "string", "enum": [item.value for item in ComplexityTier]},
+                "work_types": {"type": "array", "items": {"type": "string", "enum": [item.value for item in WorkType]}},
+                "policy_safe": {"type": "boolean"},
+                "reasoning_effort": {"type": "string", "enum": list(REASONING_EFFORTS)},
+            },
+        }
+
+
+@dataclass(frozen=True)
+class JevRouteRequest:
+    workflow_id: str
+    step_id: str
+    work_profile: WorkProfile
+    capabilities: dict[str, str]
+    candidates: tuple[ModelCandidate, ...]
+    available_providers: tuple[str, ...]
+    available_models: tuple[str, ...] = ()
+    requested_model: str | None = None
+
+    def __post_init__(self) -> None:
+        _validate_non_empty_str(self.workflow_id, "workflow_id")
+        _validate_non_empty_str(self.step_id, "step_id")
+        if not isinstance(self.work_profile, WorkProfile):
+            raise ValueError("work_profile must be a WorkProfile")
+        if not isinstance(self.capabilities, dict) or not all(
+            isinstance(key, str) and isinstance(value, str) for key, value in self.capabilities.items()
+        ):
+            raise ValueError("capabilities must be a string map")
+        candidates = self.candidates
+        if isinstance(candidates, list):
+            candidates = tuple(candidates)
+            object.__setattr__(self, "candidates", candidates)
+        if not isinstance(candidates, tuple) or not all(isinstance(item, ModelCandidate) for item in candidates):
+            raise ValueError("candidates must be a sequence of ModelCandidate")
+        for field_name in ("available_providers", "available_models"):
+            value = getattr(self, field_name)
+            if isinstance(value, list):
+                value = tuple(value)
+                object.__setattr__(self, field_name, value)
+            if not isinstance(value, tuple) or not all(isinstance(item, str) and item.strip() for item in value):
+                raise ValueError(f"{field_name} must be a sequence of non-empty strings")
+        if self.requested_model is not None:
+            _validate_non_empty_str(self.requested_model, "requested_model")
+
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "workflow_id": self.workflow_id,
+            "step_id": self.step_id,
+            "work_profile": self.work_profile.to_dict(),
+            "capabilities": dict(self.capabilities),
+            "candidates": [candidate.to_dict() for candidate in self.candidates],
+            "available_providers": list(self.available_providers),
+            "available_models": list(self.available_models),
+        }
+        if self.requested_model is not None:
+            payload["requested_model"] = self.requested_model
+        return payload
+
+    @classmethod
+    def from_dict(cls, data: Any) -> JevRouteRequest:
+        if not isinstance(data, dict):
+            raise ValueError("JevRouteRequest payload must be an object")
+        required = ("workflow_id", "step_id", "work_profile", "capabilities", "candidates", "available_providers")
+        missing = [field for field in required if field not in data]
+        if missing:
+            raise ValueError(f"JevRouteRequest missing fields: {', '.join(missing)}")
+        if not isinstance(data["candidates"], (list, tuple)):
+            raise ValueError("JevRouteRequest.candidates must be an array")
+        return cls(
+            workflow_id=data["workflow_id"],
+            step_id=data["step_id"],
+            work_profile=WorkProfile.from_dict(data["work_profile"]),
+            capabilities=dict(data["capabilities"]),
+            candidates=tuple(ModelCandidate.from_dict(item) for item in data["candidates"]),
+            available_providers=tuple(data["available_providers"]),
+            available_models=tuple(data.get("available_models", ())),
+            requested_model=data.get("requested_model"),
+        )
+
+    @classmethod
+    def json_schema(cls) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["workflow_id", "step_id", "work_profile", "capabilities", "candidates", "available_providers", "available_models"],
+            "properties": {
+                "workflow_id": {"type": "string", "minLength": 1},
+                "step_id": {"type": "string", "minLength": 1},
+                "work_profile": WorkProfile.json_schema(),
+                "capabilities": {"type": "object", "additionalProperties": {"type": "string"}},
+                "candidates": {"type": "array", "items": ModelCandidate.json_schema()},
+                "available_providers": {"type": "array", "items": {"type": "string", "minLength": 1}},
+                "available_models": {"type": "array", "items": {"type": "string", "minLength": 1}},
+                "requested_model": {"type": ["string", "null"]},
+            },
+        }
+
+
+@dataclass(frozen=True)
+class JevRouteDecision:
+    provider: str
+    model: str
+    work_type: WorkType
+    tier: ComplexityTier
+    reasoning_effort: str
+    confidence: float
+    rationale: str
+    source: str
+
+    def __post_init__(self) -> None:
+        _validate_non_empty_str(self.provider, "provider")
+        _validate_non_empty_str(self.model, "model")
+        object.__setattr__(self, "work_type", _coerce_enum(self.work_type, WorkType, "work_type"))
+        object.__setattr__(self, "tier", _coerce_enum(self.tier, ComplexityTier, "tier"))
+        if not isinstance(self.reasoning_effort, str) or self.reasoning_effort not in REASONING_EFFORTS:
+            raise ValueError(f"invalid reasoning_effort: {self.reasoning_effort!r}")
+        object.__setattr__(self, "confidence", _validate_confidence(self.confidence))
+        _validate_non_empty_str(self.rationale, "rationale")
+        _validate_non_empty_str(self.source, "source")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "provider": self.provider,
+            "model": self.model,
+            "work_type": self.work_type.value,
+            "tier": self.tier.value,
+            "reasoning_effort": self.reasoning_effort,
+            "confidence": self.confidence,
+            "rationale": self.rationale,
+            "source": self.source,
+        }
+
+    @classmethod
+    def from_dict(
+        cls,
+        data: Any,
+        *,
+        allowed_providers: set[str] | tuple[str, ...] | list[str] | None = None,
+        allowed_models: set[str] | tuple[str, ...] | list[str] | None = None,
+    ) -> JevRouteDecision:
+        if not isinstance(data, dict):
+            raise ValueError("JevRouteDecision payload must be an object")
+        required = ("provider", "model", "work_type", "tier", "reasoning_effort", "confidence", "rationale", "source")
+        missing = [field for field in required if field not in data]
+        if missing:
+            raise ValueError(f"JevRouteDecision missing fields: {', '.join(missing)}")
+        decision = cls(
+            provider=data["provider"],
+            model=data["model"],
+            work_type=data["work_type"],
+            tier=data["tier"],
+            reasoning_effort=data["reasoning_effort"],
+            confidence=data["confidence"],
+            rationale=data["rationale"],
+            source=data["source"],
+        )
+        if allowed_providers is not None and decision.provider not in set(allowed_providers):
+            raise ValueError(f"provider {decision.provider!r} is not in allowed_providers")
+        if allowed_models is not None and len(allowed_models) > 0 and decision.model not in set(allowed_models):
+            raise ValueError(f"model {decision.model!r} is not in allowed_models")
+        return decision
+
+    @classmethod
+    def from_payload(
+        cls,
+        payload: Any,
+        *,
+        allowed_providers: set[str] | tuple[str, ...] | list[str] | None = None,
+        allowed_models: set[str] | tuple[str, ...] | list[str] | None = None,
+        default_profile: WorkProfile | None = None,
+        default_models: dict[str, str] | None = None,
+        allow_minimal: bool = False,
+    ) -> JevRouteDecision:
+        if isinstance(payload, str):
+            cleaned = payload.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            payload = json.loads(cleaned)
+        if not isinstance(payload, dict):
+            raise ValueError("Jev decision response must be a JSON object")
+        candidate_obj: Any = payload
+        if "provider" not in payload and "choices" in payload:
+            choices = payload.get("choices")
+            if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+                raise ValueError("Jev response choices[0] must be an object")
+            message = choices[0].get("message")
+            if not isinstance(message, dict):
+                raise ValueError("Jev response choices[0].message must be an object")
+            content = message.get("content")
+            if isinstance(content, dict):
+                candidate_obj = content
+            elif isinstance(content, str):
+                cleaned = content.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                candidate_obj = json.loads(cleaned)
+            else:
+                raise ValueError("Jev response message content must be JSON string or object")
+        if not isinstance(candidate_obj, dict):
+            raise ValueError("Jev decision content must decode to a JSON object")
+        if allow_minimal and isinstance(candidate_obj.get("provider"), str) and candidate_obj["provider"].strip():
+            provider_name = candidate_obj["provider"]
+            merged = dict(candidate_obj)
+            if "model" not in merged:
+                merged["model"] = (default_models or {}).get(provider_name) or "default"
+            if default_profile is not None:
+                merged.setdefault("work_type", default_profile.work_type.value)
+                merged.setdefault("tier", default_profile.tier.value)
+                merged.setdefault("reasoning_effort", default_profile.reasoning_effort)
+                merged.setdefault("confidence", default_profile.confidence)
+            merged.setdefault("rationale", "Selected by Jev decision provider.")
+            merged.setdefault("source", "jev-remote")
+            candidate_obj = merged
+        return cls.from_dict(
+            candidate_obj,
+            allowed_providers=allowed_providers,
+            allowed_models=allowed_models,
+        )
+
+    @classmethod
+    def json_schema(
+        cls,
+        available_providers: list[str] | tuple[str, ...] | None = None,
+        available_models: list[str] | tuple[str, ...] | None = None,
+    ) -> dict[str, Any]:
+        provider_prop: dict[str, Any] = {"type": "string", "minLength": 1}
+        if available_providers:
+            provider_prop = {"type": "string", "enum": list(dict.fromkeys(available_providers))}
+        model_prop: dict[str, Any] = {"type": "string", "minLength": 1}
+        if available_models:
+            model_prop = {"type": "string", "enum": list(dict.fromkeys(available_models))}
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["provider", "model", "work_type", "tier", "reasoning_effort", "confidence", "rationale", "source"],
+            "properties": {
+                "provider": provider_prop,
+                "model": model_prop,
+                "work_type": {"type": "string", "enum": [item.value for item in WorkType]},
+                "tier": {"type": "string", "enum": [item.value for item in ComplexityTier]},
+                "reasoning_effort": {"type": "string", "enum": list(REASONING_EFFORTS)},
+                "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                "rationale": {"type": "string", "minLength": 1},
+                "source": {"type": "string", "minLength": 1},
+            },
+        }
+
+
+class JevLocalClassifier:
+    """Deterministic type-safe work-profile classifier for local/offline Jev routing."""
+
+    ROLE_KEYWORDS: dict[WorkType, tuple[str, ...]] = {
+        WorkType.SECURITY: ("security", "vuln", "vulnerability", "cve", "secret", "redact", "auth", "sandbox", "permission"),
+        WorkType.ARCHITECTURE: ("architecture", "architect", "design", "adr", "schema", "contract", "data-model", "boundary"),
+        WorkType.REFACTORING: ("refactor", "refactoring", "restructure", "cleanup", "simplify", "deduplicate", "modularize", "migrate"),
+        WorkType.IMPLEMENTATION: ("implement", "implementer", "builder", "coder", "developer", "feature", "fix", "patch", "write"),
+        WorkType.TESTING: ("test", "tester", "testing", "qa", "e2e", "playwright", "unittest", "coverage", "verify", "verification"),
+        WorkType.REVIEW: ("review", "reviewer", "audit", "auditor", "inspect", "parity", "contradiction"),
+        WorkType.DOCUMENTATION: ("doc", "docs", "documentation", "readme", "mkdocs", "guide", "spec", "changelog", "writer"),
+        WorkType.RESEARCH: ("research", "researcher", "investigate", "explore", "survey", "benchmark", "fetch"),
+        WorkType.TRIAGE: ("triage", "classify", "route", "label", "intake", "summarize", "summary"),
+    }
+
+    SKILL_HINTS: dict[str, WorkType] = {
+        "tdd": WorkType.TESTING,
+        "testing": WorkType.TESTING,
+        "code-review": WorkType.REVIEW,
+        "review": WorkType.REVIEW,
+        "docs-writer": WorkType.DOCUMENTATION,
+        "research": WorkType.RESEARCH,
+        "implement": WorkType.IMPLEMENTATION,
+        "implement-spec": WorkType.IMPLEMENTATION,
+        "creation": WorkType.IMPLEMENTATION,
+        "codebase-design": WorkType.ARCHITECTURE,
+        "domain-modeling": WorkType.ARCHITECTURE,
+        "maintenance": WorkType.REFACTORING,
+        "triage": WorkType.TRIAGE,
+        "diagnosing-bugs": WorkType.REVIEW,
+    }
+
+    @classmethod
+    def classify(
+        cls,
+        workflow: dict[str, Any],
+        step: dict[str, Any],
+        router: dict[str, Any] | None = None,
+    ) -> WorkProfile:
+        signals: list[str] = []
+        work_routes = (router or {}).get("work_routes") or DEFAULT_WORK_ROUTES
+        explicit_work_type = step.get("work_type")
+        if explicit_work_type is not None:
+            work_type = _coerce_enum(explicit_work_type, WorkType, "work_type")
+            signals.append(f"explicit:work_type={work_type.value}")
+            confidence = 1.0
+        else:
+            scores: dict[WorkType, float] = {wt: 0.0 for wt in WorkType}
+            role_text = str(step.get("role", "")).casefold()
+            prompt_text = str(step.get("prompt", "")).casefold()
+            objective_text = str(workflow.get("objective", "")).casefold()
+            skills = [
+                str(skill).casefold()
+                for skill in [*workflow.get("context", {}).get("skills", []), *step.get("skills", [])]
+                if isinstance(skill, str)
+            ]
+            for wt, keywords in cls.ROLE_KEYWORDS.items():
+                for kw in keywords:
+                    pattern = rf"\b{re.escape(kw)}"
+                    if re.search(pattern, role_text):
+                        scores[wt] += 4.0
+                        signals.append(f"role:{kw}->{wt.value}")
+                    if re.search(pattern, prompt_text):
+                        scores[wt] += 2.0
+                        signals.append(f"prompt:{kw}->{wt.value}")
+                    if re.search(pattern, objective_text):
+                        scores[wt] += 1.0
+                        signals.append(f"objective:{kw}->{wt.value}")
+            for skill in skills:
+                hint = cls.SKILL_HINTS.get(skill)
+                if hint is not None:
+                    scores[hint] += 2.5
+                    signals.append(f"skill:{skill}->{hint.value}")
+            permissions = workflow.get("permissions", {})
+            if permissions.get("filesystem") == "workspace-write":
+                scores[WorkType.IMPLEMENTATION] += 1.5
+                signals.append("permission:workspace-write->implementation")
+            if permissions.get("git") in {"branch-write", "push"}:
+                scores[WorkType.IMPLEMENTATION] += 0.5
+                signals.append(f"permission:git={permissions.get('git')}->implementation")
+            if permissions.get("network") in {"allowlisted", "full"} and max(scores.values()) == 0.0:
+                scores[WorkType.RESEARCH] += 0.5
+                signals.append(f"permission:network={permissions.get('network')}->research")
+
+            ranked = sorted(scores.items(), key=lambda item: (-item[1], list(WorkType).index(item[0])))
+            best_wt, best_score = ranked[0]
+            if best_score <= 0.0:
+                work_type = WorkType.TRIAGE if permissions.get("filesystem", "read-only") == "read-only" else WorkType.IMPLEMENTATION
+                signals.append(f"fallback:default->{work_type.value}")
+                confidence = 0.55
+            else:
+                work_type = best_wt
+                confidence = round(min(0.95, 0.6 + min(best_score, 10.0) * 0.035), 2)
+
+        route_cfg = work_routes.get(work_type.value) or DEFAULT_WORK_ROUTES[work_type.value]
+        explicit_tier = step.get("tier")
+        if explicit_tier is not None:
+            tier = _coerce_enum(explicit_tier, ComplexityTier, "tier")
+            signals.append(f"explicit:tier={tier.value}")
+        else:
+            tier = _coerce_enum(route_cfg.get("tier", ComplexityTier.BALANCED.value), ComplexityTier, "tier")
+            if workflow.get("permissions", {}).get("filesystem") == "workspace-write" and tier == ComplexityTier.FAST:
+                tier = ComplexityTier.CODE_SPECIALIST
+                signals.append("escalate:workspace-write->code-specialist")
+
+        reasoning_effort = str(route_cfg.get("reasoning_effort", "medium"))
+        if reasoning_effort not in REASONING_EFFORTS:
+            reasoning_effort = "medium"
+        if not signals:
+            signals.append(f"inferred:{work_type.value}")
+        deduped_signals = tuple(dict.fromkeys(signals))[:12]
+        return WorkProfile(
+            work_type=work_type,
+            tier=tier,
+            reasoning_effort=reasoning_effort,
+            signals=deduped_signals,
+            confidence=confidence,
+        )
+
+
+def infer_work_profile(
+    workflow: dict[str, Any],
+    step: dict[str, Any],
+    router: dict[str, Any] | None = None,
+) -> WorkProfile:
+    """Infer a strongly-typed WorkProfile from workflow/step signals before remote routing."""
+    return JevLocalClassifier.classify(workflow, step, router)
+
+
+def build_model_candidates(
+    candidates: list[str],
+    specs: dict[str, dict[str, Any]],
+    safe: list[str],
+) -> tuple[ModelCandidate, ...]:
+    safe_set = set(safe)
+    items: list[ModelCandidate] = []
+    for provider in candidates:
+        spec = specs.get(provider)
+        if not isinstance(spec, dict):
+            continue
+        models = spec.get("models")
+        if isinstance(models, dict) and models:
+            for model_id, meta in models.items():
+                if not isinstance(meta, dict):
+                    continue
+                try:
+                    items.append(ModelCandidate(
+                        provider=provider,
+                        model=model_id,
+                        tier=meta.get("tier", ComplexityTier.BALANCED.value),
+                        work_types=tuple(meta.get("work_types", (WorkType.IMPLEMENTATION.value,))),
+                        policy_safe=provider in safe_set,
+                        reasoning_effort=meta.get("reasoning_effort", "medium"),
+                    ))
+                except ValueError:
+                    continue
+        else:
+            default_model = spec.get("default_model")
+            if isinstance(default_model, str) and default_model.strip():
+                items.append(ModelCandidate(
+                    provider=provider,
+                    model=default_model,
+                    tier=ComplexityTier.BALANCED,
+                    work_types=(WorkType.IMPLEMENTATION,),
+                    policy_safe=provider in safe_set,
+                    reasoning_effort="medium",
+                ))
+    return tuple(items)
+
+
+def _best_model_for_provider(
+    spec: dict[str, Any],
+    profile: WorkProfile,
+    requested_model: str | None = None,
+) -> str | None:
+    if requested_model:
+        return requested_model
+    models = spec.get("models")
+    if isinstance(models, dict) and models:
+        scored: list[tuple[int, str]] = []
+        for model_id, meta in models.items():
+            if not isinstance(meta, dict):
+                continue
+            score = 0
+            if meta.get("tier") == profile.tier.value:
+                score += 4
+            if profile.work_type.value in meta.get("work_types", []):
+                score += 3
+            if meta.get("reasoning_effort") == profile.reasoning_effort:
+                score += 1
+            if model_id == spec.get("default_model"):
+                score += 1
+            scored.append((score, model_id))
+        if scored:
+            scored.sort(key=lambda item: (-item[0], item[1]))
+            return scored[0][1]
+    default_model = spec.get("default_model")
+    return default_model if isinstance(default_model, str) and default_model.strip() else None
+
+
+def select_local_model_route(
+    profile: WorkProfile,
+    safe: list[str],
+    specs: dict[str, dict[str, Any]],
+    router: dict[str, Any],
+    step: dict[str, Any],
+    explicit_provider: str | None = None,
+    explicit_model: str | None = None,
+) -> tuple[str | None, str | None, str, str]:
+    """Select the best policy-safe (provider, model) using the Jev work-type matrix."""
+    requested_model = explicit_model or (step.get("model") if isinstance(step.get("model"), str) else None)
+    if explicit_provider is not None:
+        spec = specs.get(explicit_provider, {})
+        chosen_model = _best_model_for_provider(spec, profile, requested_model)
+        return (
+            explicit_provider,
+            chosen_model,
+            f"Explicit provider {explicit_provider} selected for work_type={profile.work_type.value}.",
+            "explicit-provider",
+        )
+    if not safe:
+        return None, None, "No available policy-safe provider satisfies the workflow policy.", "jev-unavailable"
+    if requested_model:
+        for provider in safe:
+            models = specs.get(provider, {}).get("models", {})
+            if isinstance(models, dict) and requested_model in models:
+                return (
+                    provider,
+                    requested_model,
+                    f"Matched requested model {requested_model} on policy-safe provider {provider}.",
+                    "jev-local",
+                )
+        return (
+            safe[0],
+            requested_model,
+            f"Applied requested model {requested_model} on policy-safe fallback provider {safe[0]}.",
+            "jev-local",
+        )
+    work_routes = router.get("work_routes") or DEFAULT_WORK_ROUTES
+    route_cfg = work_routes.get(profile.work_type.value) or DEFAULT_WORK_ROUTES.get(profile.work_type.value, {})
+    for pref in route_cfg.get("preferences", []):
+        if not isinstance(pref, dict):
+            continue
+        pref_provider = pref.get("provider")
+        pref_model = pref.get("model")
+        if pref_provider not in safe or not isinstance(pref_model, str) or not pref_model:
+            continue
+        spec = specs.get(pref_provider, {})
+        models = spec.get("models", {})
+        if step.get("tier") and isinstance(models, dict) and models:
+            tier_match = _best_model_for_provider(spec, profile, None)
+            if tier_match and models.get(tier_match, {}).get("tier") == profile.tier.value:
+                pref_model = tier_match
+        elif isinstance(models, dict) and models and pref_model not in models:
+            pref_model = _best_model_for_provider(spec, profile, None) or pref_model
+        return (
+            pref_provider,
+            pref_model,
+            f"Matched work_routes[{profile.work_type.value}] preference {pref_provider}/{pref_model} (tier={profile.tier.value}).",
+            "jev-local",
+        )
+    fallback_provider = safe[0]
+    fallback_model = _best_model_for_provider(specs.get(fallback_provider, {}), profile, None)
+    return (
+        fallback_provider,
+        fallback_model,
+        f"Selected fallback policy-safe provider {fallback_provider} for work_type={profile.work_type.value}.",
+        "jev-policy-fallback",
+    )
+
+
 def provider_specs() -> dict[str, dict[str, Any]]:
     return load_json(RUNNERS).get("providers", {})
 
@@ -609,6 +1343,8 @@ def validate_declarative_manifests() -> list[str]:
         "git": {"read-only", "branch-write", "push"},
         "github": {"none", "read-only", "write"},
     }
+    valid_work_types = {item.value for item in WorkType}
+    valid_tiers = {item.value for item in ComplexityTier}
     try:
         policy = load_json(POLICY)
         for field in ("schema_version", "id", *permission_values):
@@ -619,7 +1355,7 @@ def validate_declarative_manifests() -> list[str]:
         for field, allowed in permission_values.items():
             if field in policy and policy[field] not in allowed:
                 errors.append(f"{POLICY}: invalid {field}: {policy[field]}")
-        for field in ("require_draft_pr", "require_session_id", "require_ledger_event", "require_acceptance"):
+        for field in ("require_draft_pr", "require_session_id", "require_ledger_event", "require_acceptance", "allow_raw_artifacts"):
             if field in policy and not isinstance(policy[field], bool):
                 errors.append(f"{POLICY}: {field} must be boolean")
     except ValueError as error:
@@ -644,6 +1380,28 @@ def validate_declarative_manifests() -> list[str]:
                     errors.append(f"{RUNNERS}: provider {provider}.prompt_mode is invalid")
                 if spec.get("prompt_mode") == "flag" and not isinstance(spec.get("prompt_flag"), str):
                     errors.append(f"{RUNNERS}: provider {provider}.prompt_flag is required for flag prompt mode")
+                if "model_flag" in spec and (not isinstance(spec["model_flag"], str) or not spec["model_flag"].strip()):
+                    errors.append(f"{RUNNERS}: provider {provider}.model_flag must be a non-empty string")
+                if "default_model" in spec and (not isinstance(spec["default_model"], str) or not spec["default_model"].strip()):
+                    errors.append(f"{RUNNERS}: provider {provider}.default_model must be a non-empty string")
+                if "models" in spec:
+                    models = spec["models"]
+                    if not isinstance(models, dict) or not models:
+                        errors.append(f"{RUNNERS}: provider {provider}.models must be a non-empty object")
+                    else:
+                        if "default_model" in spec and spec["default_model"] not in models:
+                            errors.append(f"{RUNNERS}: provider {provider}.default_model must exist in models")
+                        for model_id, meta in models.items():
+                            if not isinstance(meta, dict):
+                                errors.append(f"{RUNNERS}: provider {provider}.models.{model_id} must be an object")
+                                continue
+                            if meta.get("tier") not in valid_tiers:
+                                errors.append(f"{RUNNERS}: provider {provider}.models.{model_id}.tier is invalid")
+                            work_types = meta.get("work_types")
+                            if not isinstance(work_types, list) or not work_types or any(wt not in valid_work_types for wt in work_types):
+                                errors.append(f"{RUNNERS}: provider {provider}.models.{model_id}.work_types is invalid")
+                            if "reasoning_effort" in meta and meta["reasoning_effort"] not in REASONING_EFFORTS:
+                                errors.append(f"{RUNNERS}: provider {provider}.models.{model_id}.reasoning_effort is invalid")
                 enforced = spec.get("enforced_permissions", {})
                 if not isinstance(enforced, dict):
                     errors.append(f"{RUNNERS}: provider {provider}.enforced_permissions must be an object")
@@ -688,6 +1446,34 @@ def validate_declarative_manifests() -> list[str]:
             errors.append(f"{ROUTER}: schema_version must be 1")
         if not isinstance(router.get("decision_provider"), dict) or not isinstance(router.get("fallback"), dict):
             errors.append(f"{ROUTER}: decision_provider and fallback must be objects")
+        if "model_tiers" in router:
+            if not isinstance(router["model_tiers"], dict):
+                errors.append(f"{ROUTER}: model_tiers must be an object")
+            elif any(tier not in valid_tiers for tier in router["model_tiers"]):
+                errors.append(f"{ROUTER}: model_tiers contains unknown tier")
+        if "work_routes" in router:
+            work_routes = router["work_routes"]
+            if not isinstance(work_routes, dict):
+                errors.append(f"{ROUTER}: work_routes must be an object")
+            else:
+                for work_type, route in work_routes.items():
+                    if work_type not in valid_work_types:
+                        errors.append(f"{ROUTER}: work_routes has unknown work_type {work_type}")
+                        continue
+                    if not isinstance(route, dict):
+                        errors.append(f"{ROUTER}: work_routes.{work_type} must be an object")
+                        continue
+                    if route.get("tier") not in valid_tiers:
+                        errors.append(f"{ROUTER}: work_routes.{work_type}.tier is invalid")
+                    if route.get("reasoning_effort") not in REASONING_EFFORTS:
+                        errors.append(f"{ROUTER}: work_routes.{work_type}.reasoning_effort is invalid")
+                    prefs = route.get("preferences")
+                    if not isinstance(prefs, list) or not prefs:
+                        errors.append(f"{ROUTER}: work_routes.{work_type}.preferences must be a non-empty array")
+                    else:
+                        for pref in prefs:
+                            if not isinstance(pref, dict) or not isinstance(pref.get("provider"), str) or not isinstance(pref.get("model"), str):
+                                errors.append(f"{ROUTER}: work_routes.{work_type}.preferences entries must contain provider and model")
     except ValueError as error:
         errors.append(str(error))
 
@@ -753,6 +1539,8 @@ def validate_workflow_file(path: Path) -> list[str]:
     else:
         step_ids = set()
         specs = provider_specs()
+        valid_work_types = {item.value for item in WorkType}
+        valid_tiers = {item.value for item in ComplexityTier}
         for index, step in enumerate(workflow["steps"]):
             if not isinstance(step, dict):
                 errors.append(f"{path}: step {index} must be an object")
@@ -767,8 +1555,17 @@ def validate_workflow_file(path: Path) -> list[str]:
                 errors.append(f"{path}: duplicate step id: {step_id}")
             if isinstance(step_id, str):
                 step_ids.add(step_id)
-            unknown_step_fields = set(step) - {"id", "role", "prompt", "providers", "skills", "acceptance", "acceptance_commands", "on_failure"}
+            unknown_step_fields = set(step) - {
+                "id", "role", "work_type", "tier", "model",
+                "prompt", "providers", "skills", "acceptance", "acceptance_commands", "on_failure",
+            }
             errors.extend(f"{path}: step {index}: unknown field {field}" for field in unknown_step_fields)
+            if "work_type" in step and step["work_type"] not in valid_work_types:
+                errors.append(f"{path}: step {index}: invalid work_type {step['work_type']}")
+            if "tier" in step and step["tier"] not in valid_tiers:
+                errors.append(f"{path}: step {index}: invalid tier {step['tier']}")
+            if "model" in step and (not isinstance(step["model"], str) or not step["model"].strip()):
+                errors.append(f"{path}: step {index}: model must be a non-empty string")
             if not isinstance(step.get("acceptance"), list) or not step.get("acceptance"):
                 errors.append(f"{path}: step {index} acceptance must be non-empty")
             for provider in step.get("providers", []):
@@ -871,18 +1668,25 @@ def version_for(spec: dict[str, Any]) -> str | None:
     command = spec.get("command")
     if not command:
         return None
+    cmd_tuple = (str(command), *(str(flag) for flag in spec.get("version", ["--version"])))
+    cache_key = (cmd_tuple, os.environ.get("PATH", ""))
+    if cache_key in _VERSION_CACHE:
+        return _VERSION_CACHE[cache_key]
     try:
         result = subprocess.run(
-            [command, *spec.get("version", ["--version"])],
+            list(cmd_tuple),
             capture_output=True,
             text=True,
             timeout=8,
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
+        _VERSION_CACHE[cache_key] = None
         return None
     output = (result.stdout or result.stderr).strip().splitlines()
-    return output[0] if result.returncode == 0 and output else None
+    version = output[0] if result.returncode == 0 and output else None
+    _VERSION_CACHE[cache_key] = version
+    return version
 
 
 def workflow_validate(args: argparse.Namespace) -> int:
@@ -894,6 +1698,58 @@ def workflow_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def resolve_step_route(
+    workflow: dict[str, Any],
+    step: dict[str, Any],
+    safe: list[str],
+    specs: dict[str, dict[str, Any]],
+    router: dict[str, Any],
+    policy: dict[str, Any] | None = None,
+    explicit_provider: str | None = None,
+    explicit_model: str | None = None,
+) -> tuple[JevRouteDecision | None, WorkProfile, str]:
+    """Resolve provider + model decision for one step using Jev inference and policy-safe constraints."""
+    profile = infer_work_profile(workflow, step, router)
+    if explicit_provider is not None:
+        provider_name, model_name, rationale, source = select_local_model_route(
+            profile, safe, specs, router, step, explicit_provider=explicit_provider, explicit_model=explicit_model,
+        )
+        decision = JevRouteDecision(
+            provider=provider_name or explicit_provider,
+            model=model_name or "default",
+            work_type=profile.work_type,
+            tier=profile.tier,
+            reasoning_effort=profile.reasoning_effort,
+            confidence=profile.confidence,
+            rationale=rationale,
+            source=source,
+        )
+        return decision, profile, "explicit-provider"
+
+    remote_decision, remote_reason = external_route_decision(
+        workflow, step, safe, router, policy, specs=specs, explicit_model=explicit_model,
+    )
+    if remote_decision is not None:
+        return remote_decision, profile, remote_reason
+
+    provider_name, model_name, rationale, source = select_local_model_route(
+        profile, safe, specs, router, step, explicit_model=explicit_model,
+    )
+    if provider_name is None:
+        return None, profile, "no-available-policy-safe-provider"
+    decision = JevRouteDecision(
+        provider=provider_name,
+        model=model_name or "default",
+        work_type=profile.work_type,
+        tier=profile.tier,
+        reasoning_effort=profile.reasoning_effort,
+        confidence=profile.confidence,
+        rationale=rationale,
+        source=source,
+    )
+    return decision, profile, remote_reason
+
+
 def workflow_plan(args: argparse.Namespace) -> int:
     path = Path(args.path).expanduser()
     errors = validate_workflow_file(path)
@@ -903,7 +1759,7 @@ def workflow_plan(args: argparse.Namespace) -> int:
     workflow = load_json(path)
     runner_specs = load_json(RUNNERS).get("providers", {})
     policy = load_json(POLICY)
-    policy_values = {"filesystem": ["read-only", "workspace-write"], "network": ["none", "allowlisted", "full"], "git": ["read-only", "branch-write", "push"], "github": ["none", "read-only", "write"]}
+    router = load_json(ROUTER)
     permission_errors = policy_errors(workflow, policy)
     if permission_errors:
         print(json.dumps({"valid": False, "errors": permission_errors, "policy": policy["id"]}, indent=2))
@@ -923,17 +1779,29 @@ def workflow_plan(args: argparse.Namespace) -> int:
             else:
                 capabilities[candidate] = capability_report(candidate, effective_spec(runner_specs[candidate], workflow["permissions"]), workflow["permissions"])
         available = [provider for provider in installed if capabilities[provider]["policy_safe"]]
+        decision, profile, route_reason = resolve_step_route(workflow, step, available, specs, router, policy)
+        selected = decision.provider if decision else None
+        selected_model = (
+            decision.model
+            if decision and (decision.model != "default" or specs.get(selected or "", {}).get("default_model"))
+            else None
+        )
         steps.append({
             "id": step["id"],
             "role": step["role"],
+            "work_type": profile.work_type.value,
+            "tier": profile.tier.value,
+            "reasoning_effort": decision.reasoning_effort if decision else profile.reasoning_effort,
             "candidates": candidates,
             "installed": installed,
             "capabilities": capabilities,
             "available": available,
-            "selected": available[0] if available else None,
+            "selected": selected,
+            "selected_model": selected_model,
+            "route_reason": route_reason,
             "acceptance": step["acceptance"],
             "status": "ready" if available else "unavailable",
-            "runner": effective_spec(runner_specs[available[0]], workflow["permissions"]) if available else None,
+            "runner": effective_spec(runner_specs[selected], workflow["permissions"]) if selected and selected in runner_specs else None,
         })
     unavailable_steps = [step["id"] for step in steps if step["status"] == "unavailable"]
     plan = {
@@ -971,8 +1839,13 @@ def router_plan(args: argparse.Namespace) -> int:
         candidates = step.get("providers") or list(specs)
         available = [provider for provider in candidates if provider in specs and shutil.which(specs[provider].get("command", ""))]
         safe = [provider for provider in available if provider_is_safe(provider, workflow, specs)]
-        routed, reason = external_route(workflow, step, safe, router)
-        selected = routed or (safe[0] if safe else None)
+        decision, profile, reason = resolve_step_route(workflow, step, safe, specs, router, policy)
+        selected = decision.provider if decision else None
+        selected_model = (
+            decision.model
+            if decision and (decision.model != "default" or specs.get(selected or "", {}).get("default_model"))
+            else None
+        )
         decisions.append({
             "step_id": step["id"],
             "capabilities": {"filesystem": workflow["permissions"]["filesystem"], "network": workflow["permissions"]["network"], "git": workflow["permissions"]["git"], "github": workflow["permissions"].get("github", "none")},
@@ -980,6 +1853,14 @@ def router_plan(args: argparse.Namespace) -> int:
             "available_providers": available,
             "policy_safe_providers": safe,
             "selected": selected,
+            "selected_model": selected_model,
+            "work_type": profile.work_type.value,
+            "tier": profile.tier.value,
+            "reasoning_effort": decision.reasoning_effort if decision else profile.reasoning_effort,
+            "confidence": decision.confidence if decision else profile.confidence,
+            "rationale": decision.rationale if decision else "No available policy-safe provider.",
+            "decision_source": decision.source if decision else "jev-unavailable",
+            "work_profile": profile.to_dict(),
             "reason": reason if selected else "no-available-policy-safe-provider",
         })
     result = {
@@ -995,6 +1876,161 @@ def router_plan(args: argparse.Namespace) -> int:
     # Planning is valid on a clean runner with no provider binaries; execution
     # remains fail-closed when no policy-safe provider is available.
     return 0 if not permission_errors else 1
+
+
+def router_matrix(args: argparse.Namespace) -> int:
+    specs = provider_specs()
+    router = load_json(ROUTER)
+    policy = load_json(POLICY)
+    permissions = {
+        field: policy.get(field, "none")
+        for field in ("filesystem", "network", "git", "github")
+    }
+    if getattr(args, "workflow", None):
+        workflow_path = Path(args.workflow).expanduser()
+        errors = validate_workflow_file(workflow_path)
+        if errors:
+            print(json.dumps({"valid": False, "errors": errors}, indent=2))
+            return 1
+        permissions = load_json(workflow_path).get("permissions", permissions)
+    availability = {
+        provider: shutil.which(spec.get("command", "")) is not None
+        for provider, spec in specs.items()
+    }
+    policy_safety = {
+        provider: availability[provider] and capability_report(provider, effective_spec(spec, permissions), permissions)["policy_safe"]
+        for provider, spec in specs.items()
+    }
+    work_routes = router.get("work_routes") or DEFAULT_WORK_ROUTES
+    work_filter = getattr(args, "work_type", None)
+    tier_filter = getattr(args, "tier", None)
+    matrix: dict[str, Any] = {}
+    for wt in WorkType:
+        if work_filter and wt.value != work_filter:
+            continue
+        route = work_routes.get(wt.value) or DEFAULT_WORK_ROUTES[wt.value]
+        if tier_filter and route.get("tier") != tier_filter:
+            continue
+        preferences = []
+        for pref in route.get("preferences", []):
+            provider = pref.get("provider")
+            model = pref.get("model")
+            spec = specs.get(provider, {})
+            model_meta = spec.get("models", {}).get(model, {}) if isinstance(spec.get("models"), dict) else {}
+            preferences.append({
+                "provider": provider,
+                "model": model,
+                "tier": model_meta.get("tier"),
+                "reasoning_effort": model_meta.get("reasoning_effort"),
+                "available": availability.get(provider, False),
+                "policy_safe": policy_safety.get(provider, False),
+            })
+        matrix[wt.value] = {
+            "tier": route.get("tier"),
+            "reasoning_effort": route.get("reasoning_effort"),
+            "preferences": preferences,
+        }
+    providers_summary = {
+        provider: {
+            "available": availability[provider],
+            "policy_safe": policy_safety[provider],
+            "model_flag": spec.get("model_flag"),
+            "default_model": spec.get("default_model"),
+            "models": spec.get("models", {}),
+        }
+        for provider, spec in specs.items()
+    }
+    print(json.dumps({
+        "router": router["id"],
+        "policy": policy["id"],
+        "permissions": permissions,
+        "work_types": [wt.value for wt in WorkType],
+        "tiers": [tier.value for tier in ComplexityTier],
+        "model_tiers": router.get("model_tiers", {}),
+        "providers": providers_summary,
+        "matrix": matrix,
+    }, indent=2, sort_keys=True))
+    return 0
+
+
+def router_decide(args: argparse.Namespace) -> int:
+    specs = provider_specs()
+    router = load_json(ROUTER)
+    policy = load_json(POLICY)
+    workflow: dict[str, Any]
+    step: dict[str, Any]
+    if getattr(args, "workflow", None):
+        workflow_path = Path(args.workflow).expanduser()
+        errors = validate_workflow_file(workflow_path)
+        if errors:
+            print(json.dumps({"valid": False, "errors": errors}, indent=2))
+            return 1
+        workflow = load_json(workflow_path)
+        steps = workflow["steps"]
+        if getattr(args, "step", None):
+            matched = [item for item in steps if item["id"] == args.step]
+            if not matched:
+                print(json.dumps({"valid": False, "errors": [f"unknown step id: {args.step}"]}, indent=2))
+                return 1
+            step = matched[0]
+        else:
+            step = steps[0]
+    else:
+        permissions = {
+            "filesystem": getattr(args, "filesystem", None) or policy.get("filesystem", "read-only"),
+            "network": getattr(args, "network", None) or policy.get("network", "none"),
+            "git": getattr(args, "git", None) or policy.get("git", "read-only"),
+            "github": getattr(args, "github", None) or policy.get("github", "none"),
+        }
+        workflow = {
+            "schema_version": 1,
+            "id": "ad-hoc-route",
+            "objective": getattr(args, "objective", None) or getattr(args, "prompt", None) or "Route a work step.",
+            "context": {"skills": list(getattr(args, "skill", []) or [])},
+            "permissions": permissions,
+        }
+        step = {
+            "id": getattr(args, "step", None) or "step-1",
+            "role": getattr(args, "role", None) or "generalist",
+            "prompt": getattr(args, "prompt", None) or workflow["objective"],
+            "skills": list(getattr(args, "skill", []) or []),
+            "acceptance": ["complete task"],
+        }
+        if getattr(args, "work_type", None):
+            step["work_type"] = args.work_type
+        if getattr(args, "tier", None):
+            step["tier"] = args.tier
+        if getattr(args, "model", None):
+            step["model"] = args.model
+    if getattr(args, "provider", None):
+        step = {**step, "providers": list(args.provider)}
+
+    candidates = step.get("providers") or list(specs)
+    available = [provider for provider in candidates if provider in specs and shutil.which(specs[provider].get("command", ""))]
+    safe = [provider for provider in available if provider_is_safe(provider, workflow, specs)]
+    decision, profile, reason = resolve_step_route(
+        workflow,
+        step,
+        safe,
+        specs,
+        router,
+        policy,
+        explicit_model=getattr(args, "model", None),
+    )
+    model_candidates = build_model_candidates(candidates, specs, safe)
+    output = {
+        "router": router["id"],
+        "workflow_id": workflow["id"],
+        "step_id": step["id"],
+        "available_providers": available,
+        "policy_safe_providers": safe,
+        "work_profile": profile.to_dict(),
+        "decision": decision.to_dict() if decision else None,
+        "reason": reason,
+        "candidates": [item.to_dict() for item in model_candidates],
+    }
+    print(json.dumps(output, indent=2, sort_keys=True))
+    return 0
 
 
 def workflow_prompt(workflow: dict[str, Any], step: dict[str, Any], run_id: str, resolved_context: str) -> str:
@@ -1019,8 +2055,18 @@ def workflow_prompt(workflow: dict[str, Any], step: dict[str, Any], run_id: str,
     ])
 
 
-def provider_command(provider: str, spec: dict[str, Any], prompt: str, workdir: Path = ROOT) -> tuple[list[str], str | None]:
+def provider_command(
+    provider: str,
+    spec: dict[str, Any],
+    prompt: str,
+    workdir: Path = ROOT,
+    model: str | None = None,
+) -> tuple[list[str], str | None]:
     command = [spec["command"], *spec.get("headless", [])]
+    if model:
+        model_flag = spec.get("model_flag", "--model")
+        if model_flag and model_flag not in command:
+            command.extend([model_flag, model])
     if spec.get("prompt_mode") == "stdin":
         if provider == "codex":
             command.extend(["--cd", str(workdir), "-"])
@@ -1387,7 +2433,9 @@ def path_reference(path: Path) -> str:
 
 def redacted_output(output: str) -> str:
     result = re.sub(r"(?i)(bearer|token|api[_-]?key|secret)([=: ]+)[^\s,}]+", r"\1\2[REDACTED]", output)
-    for value in os.environ.values():
+    for key, value in os.environ.items():
+        if key in NON_SECRET_ENV_KEYS or key.startswith(NON_SECRET_ENV_PREFIXES):
+            continue
         if value and len(value) >= 12:
             result = result.replace(value, "[REDACTED]")
     return result
@@ -1500,10 +2548,15 @@ def policy_errors(workflow: dict[str, Any], policy: dict[str, Any]) -> list[str]
     return errors
 
 
-def external_route(
-    workflow: dict[str, Any], step: dict[str, Any], safe: list[str], router: dict[str, Any],
+def external_route_decision(
+    workflow: dict[str, Any],
+    step: dict[str, Any],
+    safe: list[str],
+    router: dict[str, Any],
     policy: dict[str, Any] | None = None,
-) -> tuple[str | None, str]:
+    specs: dict[str, dict[str, Any]] | None = None,
+    explicit_model: str | None = None,
+) -> tuple[JevRouteDecision | None, str]:
     decision = router.get("decision_provider", {})
     if not decision.get("enabled"):
         return None, "deterministic-fallback"
@@ -1513,7 +2566,8 @@ def external_route(
     if not base_url or not api_key or not base_url.startswith("https://"):
         return None, "external-router-not-configured-or-not-https"
     network = workflow.get("permissions", {}).get("network", "none")
-    if network == "none":
+    allow_control_plane = bool(decision.get("allow_control_plane_on_none", False))
+    if network == "none" and not allow_control_plane:
         return None, "external-router-disabled-by-network-policy"
     if network == "allowlisted":
         host = urllib.parse.urlparse(base_url).hostname
@@ -1523,14 +2577,51 @@ def external_route(
         }
         if not host or (host.casefold() not in allowed_hosts and not any(host.casefold().endswith(f".{allowed}") for allowed in allowed_hosts)):
             return None, "external-router-host-outside-allowlist"
-    payload = {
-        "model": model,
-        "messages": [{"role": "user", "content": json.dumps({
-            "workflow_id": workflow["id"], "step_id": step["id"],
-            "capabilities": workflow["permissions"], "available_providers": safe,
-            "instruction": "Return only JSON: {\\\"provider\\\": <one available provider>}.",
-        })}],
+
+    profile = infer_work_profile(workflow, step, router)
+    provider_catalog = specs or {}
+    candidates = build_model_candidates(safe, provider_catalog, safe)
+    available_models = list(dict.fromkeys(candidate.model for candidate in candidates))
+    requested_model = explicit_model or (step.get("model") if isinstance(step.get("model"), str) else None)
+    default_models = {
+        provider: (_best_model_for_provider(provider_catalog.get(provider, {}), profile, requested_model) or "default")
+        for provider in safe
     }
+    jev_request = JevRouteRequest(
+        workflow_id=workflow["id"],
+        step_id=step["id"],
+        work_profile=profile,
+        capabilities={str(key): str(value) for key, value in workflow.get("permissions", {}).items()},
+        candidates=candidates,
+        available_providers=tuple(safe),
+        available_models=tuple(available_models),
+        requested_model=requested_model,
+    )
+    payload: dict[str, Any] = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are Jev, a type-safe model-to-work routing engine. "
+                    "Return strictly valid JSON matching the schema."
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(jev_request.to_dict(), sort_keys=True),
+            },
+        ],
+    }
+    if decision.get("structured_output", True):
+        payload["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "jev_route_decision",
+                "strict": True,
+                "schema": JevRouteDecision.json_schema(safe, available_models or None),
+            },
+        }
     request = urllib.request.Request(
         base_url.rstrip("/") + "/chat/completions",
         data=json.dumps(payload).encode(),
@@ -1541,16 +2632,35 @@ def external_route(
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             body = json.loads(response.read(128 * 1024))
-        content = body.get("provider")
-        if content is None:
-            content = body.get("choices", [{}])[0].get("message", {}).get("content", "")
-            content = content.strip().removeprefix("```").removeprefix("json").removesuffix("```").strip()
-            content = json.loads(content).get("provider")
-        if content in safe:
-            return content, "external-decision-provider"
-        return None, "external-router-returned-invalid-provider"
     except (OSError, ValueError, KeyError, IndexError, urllib.error.URLError):
         return None, "external-router-failed-using-fallback"
+    try:
+        parsed = JevRouteDecision.from_payload(
+            body,
+            allowed_providers=set(safe),
+            allowed_models=set(available_models) if available_models else None,
+            default_profile=profile,
+            default_models=default_models,
+            allow_minimal=True,
+        )
+        return parsed, "external-decision-provider"
+    except (ValueError, KeyError, IndexError, TypeError):
+        return None, "external-router-returned-invalid-provider"
+
+
+def external_route(
+    workflow: dict[str, Any],
+    step: dict[str, Any],
+    safe: list[str],
+    router: dict[str, Any],
+    policy: dict[str, Any] | None = None,
+    specs: dict[str, dict[str, Any]] | None = None,
+    explicit_model: str | None = None,
+) -> tuple[str | None, str]:
+    decision, reason = external_route_decision(
+        workflow, step, safe, router, policy, specs=specs, explicit_model=explicit_model,
+    )
+    return (decision.provider if decision else None), reason
 
 
 def run_acceptance(
@@ -1605,6 +2715,7 @@ def workflow_run(args: argparse.Namespace) -> int:
     specs = provider_specs()
     router = load_json(ROUTER)
     provider = args.provider if args.provider != "auto" else None
+    explicit_model = getattr(args, "model", None)
     if args.execute and provider is not None and provider not in specs:
         print(json.dumps({"status": "unavailable", "provider": provider}, indent=2))
         return 1
@@ -1631,16 +2742,38 @@ def workflow_run(args: argparse.Namespace) -> int:
         "provider": provider or "auto",
         "references": workflow.get("references", {}),
     }
+    if explicit_model:
+        result["model"] = explicit_model
     if not args.execute:
-        result["steps"] = [
-            {
+        planned_steps = []
+        for step in workflow["steps"]:
+            candidates = step.get("providers") or list(specs)
+            available = available_providers(candidates, specs)
+            safe = [name for name in available if provider_is_safe(name, workflow, specs)]
+            step_explicit_provider = provider if (provider is not None and provider in candidates) else None
+            decision, profile, route_reason = resolve_step_route(
+                workflow, step, safe, specs, router, policy,
+                explicit_provider=step_explicit_provider,
+                explicit_model=explicit_model,
+            )
+            selected_model = (
+                decision.model
+                if decision and (decision.model != "default" or specs.get(decision.provider, {}).get("default_model"))
+                else (explicit_model or (step.get("model") if isinstance(step.get("model"), str) else None))
+            )
+            planned_steps.append({
                 "id": step["id"],
                 "status": "planned",
                 "acceptance_results": [{"criterion": criterion, "status": "pending"} for criterion in step["acceptance"]],
-                "providers": step.get("providers") or list(specs),
-            }
-            for step in workflow["steps"]
-        ]
+                "providers": candidates,
+                "work_type": profile.work_type.value,
+                "tier": profile.tier.value,
+                "reasoning_effort": decision.reasoning_effort if decision else profile.reasoning_effort,
+                "selected": decision.provider if decision else None,
+                "selected_model": selected_model,
+                "route_reason": route_reason,
+            })
+        result["steps"] = planned_steps
         result["completed_at"] = now()
         append_event(events_path, {"type": "run.completed", "status": "planned"})
         if policy.get("require_ledger_event", True):
@@ -1725,31 +2858,72 @@ def workflow_run(args: argparse.Namespace) -> int:
     for step in workflow["steps"]:
         step_id = step["id"]
         candidates = step.get("providers") or list(specs)
-        selected = provider if provider in candidates else None
-        route_reason = "explicit-provider" if selected else ""
-        append_event(events_path, {"type": "step.started", "step_id": step_id, "route_reason": route_reason})
-        if selected is None and provider is not None:
+        if provider is not None and provider not in candidates:
+            append_event(events_path, {"type": "step.started", "step_id": step_id, "route_reason": ""})
             result["steps"].append({"id": step_id, "status": "failed", "acceptance_results": [], "reason": f"requested provider {provider} is not allowed for this step"})
             append_event(events_path, {"type": "step.completed", "step_id": step_id, "status": "failed"})
             had_failure = True
             if step.get("on_failure", "stop") != "continue":
                 break
             continue
+        selected: str | None = provider
+        decision: JevRouteDecision | None = None
         if selected is None:
             selected_candidates = available_providers(candidates, specs)
             policy_safe = [name for name in selected_candidates if provider_is_safe(name, workflow, specs)]
-            selected, route_reason = external_route(workflow, step, policy_safe, router, policy)
-            if selected is None and policy_safe:
-                selected, route_reason = policy_safe[0], "deterministic-fallback"
+            decision, profile, route_reason = resolve_step_route(
+                workflow, step, policy_safe, specs, router, policy, explicit_model=explicit_model,
+            )
+            selected = decision.provider if decision else None
+        else:
+            decision, profile, route_reason = resolve_step_route(
+                workflow, step, [selected], specs, router, policy,
+                explicit_provider=selected, explicit_model=explicit_model,
+            )
+        selected_model = (
+            decision.model
+            if decision and (decision.model != "default" or specs.get(selected or "", {}).get("default_model"))
+            else (explicit_model or (step.get("model") if isinstance(step.get("model"), str) else None))
+        )
+        reasoning_effort = decision.reasoning_effort if decision else profile.reasoning_effort
+        append_event(events_path, {
+            "type": "step.started",
+            "step_id": step_id,
+            "route_reason": route_reason,
+            "work_type": profile.work_type.value,
+            "tier": profile.tier.value,
+            "selected_model": selected_model,
+        })
         if selected is None:
-            result["steps"].append({"id": step_id, "status": "unavailable", "acceptance_results": [], "reason": "no available provider satisfies the workflow policy", "route_reason": route_reason or "no-available-policy-safe-provider"})
+            result["steps"].append({
+                "id": step_id,
+                "status": "unavailable",
+                "acceptance_results": [],
+                "reason": "no available provider satisfies the workflow policy",
+                "route_reason": route_reason or "no-available-policy-safe-provider",
+                "work_type": profile.work_type.value,
+                "tier": profile.tier.value,
+                "reasoning_effort": reasoning_effort,
+                "selected_model": selected_model,
+            })
             append_event(events_path, {"type": "step.completed", "step_id": step_id, "status": "unavailable"})
             had_failure = True
             if step.get("on_failure", "stop") != "continue":
                 break
             continue
         if not provider_is_safe(selected, workflow, specs):
-            result["steps"].append({"id": step_id, "status": "unavailable", "acceptance_results": [], "provider": selected, "reason": f"provider adapter {selected} has not verified enforcement of the requested permissions", "route_reason": route_reason})
+            result["steps"].append({
+                "id": step_id,
+                "status": "unavailable",
+                "acceptance_results": [],
+                "provider": selected,
+                "selected_model": selected_model,
+                "work_type": profile.work_type.value,
+                "tier": profile.tier.value,
+                "reasoning_effort": reasoning_effort,
+                "reason": f"provider adapter {selected} has not verified enforcement of the requested permissions",
+                "route_reason": route_reason,
+            })
             append_event(events_path, {"type": "step.completed", "step_id": step_id, "status": "unavailable", "provider": selected})
             had_failure = True
             if step.get("on_failure", "stop") != "continue":
@@ -1757,11 +2931,12 @@ def workflow_run(args: argparse.Namespace) -> int:
             continue
         prompt = workflow_prompt(workflow, step, run_id, resolved_context)
         spec = effective_spec(specs[selected], workflow["permissions"])
+        effective_model = selected_model if (explicit_model or step.get("model") or spec.get("model_flag")) else None
         attempts = []
         step_succeeded = False
         for attempt in range(1, workflow["limits"]["max_attempts"] + 1):
             try:
-                command, stdin = provider_command(selected, spec, prompt, execution_root)
+                command, stdin = provider_command(selected, spec, prompt, execution_root, model=effective_model)
                 completed = subprocess.run(
                     command, input=stdin, capture_output=True, text=True,
                     cwd=execution_root, timeout=workflow["limits"]["timeout_seconds"], check=False,
@@ -1816,21 +2991,66 @@ def workflow_run(args: argparse.Namespace) -> int:
                 attempts.append({"attempt": attempt, "status": "failed", "acceptance_results": [], "error": str(error)})
                 if step.get("on_failure", "stop") != "retry":
                     break
-        if attempts:
-            for field, value in attempts[-1].get("usage", {}).items():
+        step_usage: dict[str, int | float] = {}
+        for item in attempts:
+            for field, value in item.get("usage", {}).items():
+                step_usage[field] = step_usage.get(field, 0) + value
+        if step_usage:
+            step_usage = normalize_usage_totals(step_usage)
+            for field, value in step_usage.items():
                 result["usage"][field] = result["usage"].get(field, 0) + value
         if not step_succeeded:
             final_status = "awaiting_acceptance" if attempts and attempts[-1]["status"] == "awaiting_acceptance" else "failed"
             had_failure = had_failure or final_status == "failed"
             if final_status == "awaiting_acceptance":
                 result["status"] = "awaiting_acceptance"
-            result["steps"].append({"id": step_id, "status": final_status, "provider": selected, "route_reason": route_reason, "attempts": attempts, "acceptance_results": attempts[-1].get("acceptance_results", []) if attempts else []})
-            append_event(events_path, {"type": "step.completed", "step_id": step_id, "status": final_status, "provider": selected})
+            result["steps"].append({
+                "id": step_id,
+                "status": final_status,
+                "provider": selected,
+                "selected_model": selected_model,
+                "work_type": profile.work_type.value,
+                "tier": profile.tier.value,
+                "reasoning_effort": reasoning_effort,
+                "route_reason": route_reason,
+                "attempts": attempts,
+                "usage": step_usage,
+                "acceptance_results": attempts[-1].get("acceptance_results", []) if attempts else [],
+            })
+            append_event(events_path, {
+                "type": "step.completed",
+                "step_id": step_id,
+                "status": final_status,
+                "provider": selected,
+                "selected_model": selected_model,
+                "work_type": profile.work_type.value,
+                "tier": profile.tier.value,
+            })
             if step.get("on_failure", "stop") != "continue":
                 break
         else:
-            result["steps"].append({"id": step_id, "status": "succeeded", "provider": selected, "route_reason": route_reason, "attempts": attempts, "acceptance_results": attempts[-1]["acceptance_results"]})
-            append_event(events_path, {"type": "step.completed", "step_id": step_id, "status": "succeeded", "provider": selected})
+            result["steps"].append({
+                "id": step_id,
+                "status": "succeeded",
+                "provider": selected,
+                "selected_model": selected_model,
+                "work_type": profile.work_type.value,
+                "tier": profile.tier.value,
+                "reasoning_effort": reasoning_effort,
+                "route_reason": route_reason,
+                "attempts": attempts,
+                "usage": step_usage,
+                "acceptance_results": attempts[-1]["acceptance_results"],
+            })
+            append_event(events_path, {
+                "type": "step.completed",
+                "step_id": step_id,
+                "status": "succeeded",
+                "provider": selected,
+                "selected_model": selected_model,
+                "work_type": profile.work_type.value,
+                "tier": profile.tier.value,
+            })
         write_result(run_dir / "result.json", result)
     if had_failure:
         result["status"] = "failed"
@@ -1840,6 +3060,7 @@ def workflow_run(args: argparse.Namespace) -> int:
         result["status"] = "succeeded"
     result["usage"] = normalize_usage_totals(result["usage"])
     result["providers"] = sorted({step.get("provider") for step in result["steps"] if step.get("provider")})
+    result["models"] = sorted({step.get("selected_model") for step in result["steps"] if step.get("selected_model")})
     if base_revision and execution_root != ROOT:
         try:
             patch_reference = export_worktree_changes(execution_root, base_revision, run_dir)
@@ -2032,6 +3253,7 @@ def build_parser() -> argparse.ArgumentParser:
     run = workflow_commands.add_parser("run")
     run.add_argument("path")
     run.add_argument("--provider", default="auto")
+    run.add_argument("--model", help="override selected provider model ID")
     run.add_argument("--execute", action="store_true")
     run.add_argument("--capture-raw", action="store_true", help="persist redacted raw provider output; disabled by default policy")
     cancel = workflow_commands.add_parser("cancel")
@@ -2040,6 +3262,25 @@ def build_parser() -> argparse.ArgumentParser:
     router_commands = router.add_subparsers(dest="router_command", required=True)
     router_plan_parser = router_commands.add_parser("plan")
     router_plan_parser.add_argument("path")
+    router_decide_parser = router_commands.add_parser("decide")
+    router_decide_parser.add_argument("--workflow")
+    router_decide_parser.add_argument("--step")
+    router_decide_parser.add_argument("--role")
+    router_decide_parser.add_argument("--work-type", choices=[wt.value for wt in WorkType])
+    router_decide_parser.add_argument("--tier", choices=[tier.value for tier in ComplexityTier])
+    router_decide_parser.add_argument("--model")
+    router_decide_parser.add_argument("--provider", action="append", default=[])
+    router_decide_parser.add_argument("--skill", action="append", default=[])
+    router_decide_parser.add_argument("--prompt")
+    router_decide_parser.add_argument("--objective")
+    router_decide_parser.add_argument("--filesystem", choices=["read-only", "workspace-write"])
+    router_decide_parser.add_argument("--network", choices=["none", "allowlisted", "full"])
+    router_decide_parser.add_argument("--git", choices=["read-only", "branch-write", "push"])
+    router_decide_parser.add_argument("--github", choices=["none", "read-only", "write"])
+    router_matrix_parser = router_commands.add_parser("matrix")
+    router_matrix_parser.add_argument("--workflow")
+    router_matrix_parser.add_argument("--work-type", choices=[wt.value for wt in WorkType])
+    router_matrix_parser.add_argument("--tier", choices=[tier.value for tier in ComplexityTier])
     policy = commands.add_parser("policy")
     policy_commands = policy.add_subparsers(dest="policy_command", required=True)
     compile_policy = policy_commands.add_parser("compile")
@@ -2103,6 +3344,10 @@ def main(argv: list[str] | None = None) -> int:
         return workflow_cancel(args)
     if args.command == "router" and args.router_command == "plan":
         return router_plan(args)
+    if args.command == "router" and args.router_command == "decide":
+        return router_decide(args)
+    if args.command == "router" and args.router_command == "matrix":
+        return router_matrix(args)
     if args.command == "policy" and args.policy_command == "compile":
         return policy_compile(args)
     if args.command == "sessions" and args.session_command == "list":

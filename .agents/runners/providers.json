@@ -1,11 +1,186 @@
 {
   "schema_version": 1,
   "providers": {
-    "codex": {"command": "codex", "headless": ["exec", "--json", "--sandbox", "read-only"], "prompt_mode": "stdin", "enforces_read_only": true, "enforced_permissions": {"filesystem": ["read-only"], "network": ["none"], "git": ["read-only"], "github": ["none"]}, "capability_verification": {"mode": "version-and-flags", "verified_version_prefix": "codex-cli 0.169.", "required_flags": ["exec", "--json", "--sandbox", "read-only"]}, "usage_fields": ["usage.input_tokens", "usage.output_tokens", "usage.total_tokens"], "version": ["--version"], "session_id_source": "JSONL thread.started.thread_id", "permission_modes": {"workspace-write": {"headless": ["exec", "--json", "--sandbox", "workspace-write"], "enforced_permissions": {"filesystem": ["workspace-write"], "network": ["none"], "git": ["read-only"], "github": ["none"]}, "capability_verification": {"required_flags": ["exec", "--json", "--sandbox", "workspace-write"]}}}},
-    "claude": {"command": "claude", "headless": ["-p", "--output-format", "json", "--permission-mode", "plan", "--permission-prompts", "none"], "prompt_mode": "argument", "enforces_read_only": true, "enforced_permissions": {"filesystem": ["read-only"], "network": ["none"], "git": ["read-only"], "github": ["none"]}, "capability_verification": {"mode": "version-and-flags", "verified_version_prefix": "2.1.326", "required_flags": ["-p", "--permission-mode", "plan", "--permission-prompts", "none"]}, "usage_fields": ["usage.input_tokens", "usage.output_tokens", "usage.total_tokens"], "version": ["--version"], "session_id_source": "JSON session_id", "permission_modes": {"workspace-write": {"headless": ["-p", "--output-format", "json", "--permission-mode", "acceptEdits", "--permission-prompts", "none"], "enforced_permissions": {"filesystem": ["workspace-write"], "network": ["none"], "git": ["read-only"], "github": ["none"]}, "capability_verification": {"required_flags": ["-p", "--permission-mode", "acceptEdits", "--permission-prompts", "none"]}}}},
-    "opencode": {"command": "opencode", "headless": ["run", "--format", "json"], "prompt_mode": "argument", "enforces_read_only": false, "enforced_permissions": {}, "capability_verification": {"mode": "version-and-flags", "verified_version_prefix": "opencode v2.3.", "required_flags": ["run", "--format", "json"]}, "usage_fields": ["usage.input_tokens", "usage.output_tokens", "usage.total_tokens"], "version": ["--version"], "session_id_source": "JSON event sessionID"},
-    "gemini": {"command": "gemini", "headless": ["-p"], "prompt_mode": "argument", "enforces_read_only": false, "enforced_permissions": {}, "capability_verification": {"mode": "version-and-flags", "verified_version_prefix": "gemini ", "required_flags": ["-p"]}, "usage_fields": ["usage.input_tokens", "usage.output_tokens", "usage.total_tokens"], "version": ["--version"], "session_id_source": "JSON event session_id"},
-    "vibe": {"command": "vibe", "headless": ["--output", "json"], "prompt_mode": "flag", "prompt_flag": "--prompt", "enforces_read_only": false, "enforced_permissions": {}, "capability_verification": {"mode": "version-and-flags", "verified_version_prefix": "vibe 3.1.", "required_flags": ["--output", "json", "--prompt"]}, "usage_fields": ["usage.input_tokens", "usage.output_tokens", "usage.total_tokens"], "version": ["--version"], "session_id_source": "export.json session_id"},
-    "copilot": {"command": "copilot", "headless": ["--silent", "--output-format", "json"], "prompt_mode": "flag", "prompt_flag": "--prompt", "enforces_read_only": false, "enforced_permissions": {}, "capability_verification": {"mode": "version-and-flags", "verified_version_prefix": "GitHub Copilot CLI 1.0.", "required_flags": ["--silent", "--output-format", "json", "--prompt"]}, "usage_fields": ["usage.input_tokens", "usage.output_tokens", "usage.total_tokens"], "version": ["--version"], "session_id_source": "session output or --session-id"}
+    "codex": {
+      "command": "codex",
+      "headless": ["exec", "--json", "--sandbox", "read-only"],
+      "prompt_mode": "stdin",
+      "model_flag": "--model",
+      "default_model": "gpt-6.2-sol",
+      "models": {
+        "gpt-6.2-sol": {
+          "tier": "code-specialist",
+          "work_types": ["implementation", "refactoring", "testing", "review"],
+          "reasoning_effort": "high"
+        },
+        "gpt-6.1-terra": {
+          "tier": "deep",
+          "work_types": ["architecture", "security", "review"],
+          "reasoning_effort": "xhigh"
+        }
+      },
+      "enforces_read_only": true,
+      "enforced_permissions": {"filesystem": ["read-only"], "network": ["none"], "git": ["read-only"], "github": ["none"]},
+      "capability_verification": {"mode": "version-and-flags", "verified_version_prefix": "codex-cli 0.169.", "required_flags": ["exec", "--json", "--sandbox", "read-only"]},
+      "usage_fields": ["usage.input_tokens", "usage.output_tokens", "usage.total_tokens"],
+      "version": ["--version"],
+      "session_id_source": "JSONL thread.started.thread_id",
+      "permission_modes": {
+        "workspace-write": {
+          "headless": ["exec", "--json", "--sandbox", "workspace-write"],
+          "enforced_permissions": {"filesystem": ["workspace-write"], "network": ["none"], "git": ["read-only"], "github": ["none"]},
+          "capability_verification": {"required_flags": ["exec", "--json", "--sandbox", "workspace-write"]}
+        }
+      }
+    },
+    "claude": {
+      "command": "claude",
+      "headless": ["-p", "--output-format", "json", "--permission-mode", "plan", "--permission-prompts", "none"],
+      "prompt_mode": "argument",
+      "model_flag": "--model",
+      "default_model": "claude-sonnet-5-5",
+      "models": {
+        "claude-haiku-5-5": {
+          "tier": "fast",
+          "work_types": ["triage", "documentation", "research"],
+          "reasoning_effort": "low"
+        },
+        "claude-sonnet-5-5": {
+          "tier": "balanced",
+          "work_types": ["implementation", "review", "testing", "refactoring", "documentation", "research"],
+          "reasoning_effort": "medium"
+        },
+        "claude-opus-5-5": {
+          "tier": "deep",
+          "work_types": ["architecture", "security", "review", "refactoring"],
+          "reasoning_effort": "high"
+        }
+      },
+      "enforces_read_only": true,
+      "enforced_permissions": {"filesystem": ["read-only"], "network": ["none"], "git": ["read-only"], "github": ["none"]},
+      "capability_verification": {"mode": "version-and-flags", "verified_version_prefix": "2.1.326", "required_flags": ["-p", "--permission-mode", "plan", "--permission-prompts", "none"]},
+      "usage_fields": ["usage.input_tokens", "usage.output_tokens", "usage.total_tokens"],
+      "version": ["--version"],
+      "session_id_source": "JSON session_id",
+      "permission_modes": {
+        "workspace-write": {
+          "headless": ["-p", "--output-format", "json", "--permission-mode", "acceptEdits", "--permission-prompts", "none"],
+          "enforced_permissions": {"filesystem": ["workspace-write"], "network": ["none"], "git": ["read-only"], "github": ["none"]},
+          "capability_verification": {"required_flags": ["-p", "--permission-mode", "acceptEdits", "--permission-prompts", "none"]}
+        }
+      }
+    },
+    "opencode": {
+      "command": "opencode",
+      "headless": ["run", "--format", "json"],
+      "prompt_mode": "argument",
+      "model_flag": "--model",
+      "default_model": "opencode/claude-haiku-5-5",
+      "models": {
+        "opencode/claude-haiku-5-5": {
+          "tier": "fast",
+          "work_types": ["triage", "documentation", "research"],
+          "reasoning_effort": "low"
+        },
+        "opencode/claude-sonnet-5-5": {
+          "tier": "balanced",
+          "work_types": ["implementation", "testing", "review", "refactoring"],
+          "reasoning_effort": "medium"
+        }
+      },
+      "enforces_read_only": false,
+      "enforced_permissions": {},
+      "capability_verification": {"mode": "version-and-flags", "verified_version_prefix": "opencode v2.3.", "required_flags": ["run", "--format", "json"]},
+      "usage_fields": ["usage.input_tokens", "usage.output_tokens", "usage.total_tokens"],
+      "version": ["--version"],
+      "session_id_source": "JSON event sessionID"
+    },
+    "gemini": {
+      "command": "gemini",
+      "headless": ["-p"],
+      "prompt_mode": "argument",
+      "model_flag": "--model",
+      "default_model": "gemini-4-neon",
+      "models": {
+        "gemini-3.8-flash": {
+          "tier": "fast",
+          "work_types": ["triage", "documentation"],
+          "reasoning_effort": "low"
+        },
+        "gemini-4-neon": {
+          "tier": "balanced",
+          "work_types": ["research", "documentation", "testing", "review"],
+          "reasoning_effort": "medium"
+        },
+        "gemini-4-hydrogen": {
+          "tier": "deep",
+          "work_types": ["implementation", "refactoring", "architecture", "security"],
+          "reasoning_effort": "high"
+        },
+        "gemini-4-argon": {
+          "tier": "deep",
+          "work_types": ["architecture", "security", "research"],
+          "reasoning_effort": "xhigh"
+        }
+      },
+      "enforces_read_only": false,
+      "enforced_permissions": {},
+      "capability_verification": {"mode": "version-and-flags", "verified_version_prefix": "gemini ", "required_flags": ["-p"]},
+      "usage_fields": ["usage.input_tokens", "usage.output_tokens", "usage.total_tokens"],
+      "version": ["--version"],
+      "session_id_source": "JSON event session_id"
+    },
+    "vibe": {
+      "command": "vibe",
+      "headless": ["--output", "json"],
+      "prompt_mode": "flag",
+      "prompt_flag": "--prompt",
+      "model_flag": "--model",
+      "default_model": "devstral-2",
+      "models": {
+        "devstral-2": {
+          "tier": "code-specialist",
+          "work_types": ["implementation", "refactoring", "testing"],
+          "reasoning_effort": "medium"
+        },
+        "mistral-large-3": {
+          "tier": "balanced",
+          "work_types": ["research", "documentation", "review"],
+          "reasoning_effort": "medium"
+        }
+      },
+      "enforces_read_only": false,
+      "enforced_permissions": {},
+      "capability_verification": {"mode": "version-and-flags", "verified_version_prefix": "vibe 3.1.", "required_flags": ["--output", "json", "--prompt"]},
+      "usage_fields": ["usage.input_tokens", "usage.output_tokens", "usage.total_tokens"],
+      "version": ["--version"],
+      "session_id_source": "export.json session_id"
+    },
+    "copilot": {
+      "command": "copilot",
+      "headless": ["--silent", "--output-format", "json"],
+      "prompt_mode": "flag",
+      "prompt_flag": "--prompt",
+      "model_flag": "--model",
+      "default_model": "gpt-6.2-sol",
+      "models": {
+        "gpt-6.2-sol": {
+          "tier": "code-specialist",
+          "work_types": ["implementation", "refactoring", "testing", "review"],
+          "reasoning_effort": "high"
+        },
+        "claude-sonnet-5-5": {
+          "tier": "balanced",
+          "work_types": ["research", "documentation", "review"],
+          "reasoning_effort": "medium"
+        }
+      },
+      "enforces_read_only": false,
+      "enforced_permissions": {},
+      "capability_verification": {"mode": "version-and-flags", "verified_version_prefix": "GitHub Copilot CLI 1.0.", "required_flags": ["--silent", "--output-format", "json", "--prompt"]},
+      "usage_fields": ["usage.input_tokens", "usage.output_tokens", "usage.total_tokens"],
+      "version": ["--version"],
+      "session_id_source": "session output or --session-id"
+    }
   }
 }
