@@ -1,0 +1,8 @@
+# Package-level analysis options. The root app uses flutter_lints; this pure
+# Dart package uses the Dart-only equivalent (the same `lints` ruleset that
+# flutter_lints builds on) so there are no Flutter-specific expectations here.
+include: package:lints/recommended.yaml
+
+linter:
+  rules:
+    prefer_single_quotes: true

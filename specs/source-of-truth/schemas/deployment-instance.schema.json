@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "foodsavr://deployment-instance",
+  "title": "DeploymentInstance",
+  "description": "Deployment levels manifest (ADR 0005): identity, capabilities, shared level ladder, KEDA-style triggers, behavior, and environments (flavor x level). Code anchor: packages/foodsavr_deploy/lib/src/model/deployment_instance.dart. Manifest: deploy/instance.yaml. Semantic rules (ordering, bindings, budgets, bands, identities) are enforced by `levels validate`.",
+  "type": "object",
+  "required": ["version", "identity", "capabilities", "levels", "triggers", "behavior", "environments"],
+  "properties": {
+    "version": { "const": 1 },
+    "identity": { "$ref": "#/$defs/identity" },
+    "capabilities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "description": "What the app needs from a backend, e.g. auth, documents, hosting, appCheck."
+    },
+    "levels": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/level" },
+      "description": "Ordered ladder; the next level is the next item."
+    },
+    "triggers": { "type": "array", "items": { "$ref": "#/$defs/trigger" } },
+    "behavior": { "$ref": "#/$defs/behavior" },
+    "environments": {
+      "type": "object",
+      "required": ["production"],
+      "propertyNames": { "enum": ["development", "test", "staging", "production"] },
+      "additionalProperties": { "$ref": "#/$defs/environment" },
+      "description": "Keys are app flavors (--dart-define=FLAVOR)."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "duration": { "type": "string", "pattern": "^[0-9]+[mhdw]$" },
+    "binding": {
+      "type": "string",
+      "pattern": "^([a-z0-9-]+/[a-zA-Z0-9-]+|none)$",
+      "description": "provider/service implementing a capability, or none."
+    },
+    "identity": {
+      "type": "object",
+      "required": ["name", "githubRepository", "region"],
+      "properties": {
+        "name": { "type": "string" },
+        "githubRepository": { "type": "string", "pattern": "^[\\w.-]+/[\\w.-]+$" },
+        "region": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "firebase": {
+      "type": "object",
+      "required": ["projectId", "webAppId"],
+      "properties": {
+        "projectId": { "type": "string" },
+        "webAppId": { "type": "string" },
+        "webApiKeyId": { "type": "string" },
+        "siteId": { "type": "string", "description": "Defaults to projectId." }
+      },
+      "additionalProperties": false
+    },
+    "level": {
+      "type": "object",
+      "required": ["name", "provider", "plan", "status", "paid", "limits", "bindings"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "provider": { "type": "string" },
+        "plan": { "type": "string" },
+        "status": { "enum": ["built", "spec-ahead"] },
+        "paid": { "type": "boolean", "description": "Paid levels must declare a budget." },
+        "limits": {
+          "type": "object",
+          "additionalProperties": { "type": "number", "exclusiveMinimum": 0 },
+          "description": "Keys carry unit and period, e.g. firestoreReadsPerDay, hostingStorageGiB."
+        },
+        "bindings": { "type": "object", "additionalProperties": { "$ref": "#/$defs/binding" } },
+        "requires": { "type": "array", "items": { "type": "string" } },
+        "budget": {
+          "type": "object",
+          "required": ["monthlyUsd", "alertThresholds"],
+          "properties": {
+            "monthlyUsd": { "type": "number", "exclusiveMinimum": 0 },
+            "alertThresholds": { "type": "array", "minItems": 1, "items": { "type": "number", "exclusiveMinimum": 0 } },
+            "killSwitch": { "type": "boolean", "default": false }
+          },
+          "additionalProperties": false
+        },
+        "migration": {
+          "type": "object",
+          "required": ["class", "reversible", "steps"],
+          "description": "Transition from the previous level. Required on every level but the first.",
+          "properties": {
+            "class": { "enum": ["inPlace", "redeploy", "dataMove", "authMove"] },
+            "reversible": { "type": "boolean" },
+            "steps": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+          },
+          "additionalProperties": false
+        },
+        "notes": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "trigger": {
+      "type": "object",
+      "required": ["name", "capability", "binding", "scaler", "limit", "warn"],
+      "properties": {
+        "name": { "type": "string" },
+        "capability": { "type": "string" },
+        "binding": { "$ref": "#/$defs/binding" },
+        "scaler": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": { "enum": ["firebaseAuthUsers", "firestoreDailyOps", "hostingStorage", "deployGuard", "file"] },
+            "op": { "enum": ["read", "write", "delete"] },
+            "script": { "type": "string" },
+            "key": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "limit": { "type": "string", "description": "Limit key on the current level." },
+        "warn": { "type": "number", "exclusiveMinimum": 0 },
+        "promote": { "type": "number" },
+        "demote": { "type": "number", "minimum": 0 },
+        "description": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "behavior": {
+      "type": "object",
+      "required": ["pollingInterval", "stabilizationPolls", "minDwell", "mode"],
+      "properties": {
+        "pollingInterval": { "$ref": "#/$defs/duration" },
+        "stabilizationPolls": { "type": "integer", "minimum": 1 },
+        "minDwell": { "$ref": "#/$defs/duration" },
+        "mode": { "enum": ["recommend", "auto"] },
+        "fallback": {
+          "type": "object",
+          "properties": {
+            "action": { "const": "hold" },
+            "alertAfterFailures": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "environment": {
+      "type": "object",
+      "required": ["currentLevel"],
+      "properties": {
+        "currentLevel": { "type": "string" },
+        "emulator": { "type": "boolean", "default": false, "description": "Local emulators; no cloud identity, not polled." },
+        "githubEnvironment": { "type": "string" },
+        "firebase": { "$ref": "#/$defs/firebase" },
+        "supabase": {
+          "type": "object",
+          "required": ["projectRef"],
+          "properties": { "projectRef": { "type": "string" } },
+          "additionalProperties": false
+        },
+        "sharedWith": {
+          "type": "array",
+          "items": { "enum": ["development", "test", "staging", "production"] },
+          "description": "Environments whose cloud project this one reuses; the first owns the infrastructure."
+        },
+        "triggers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "warn": { "type": "number" },
+              "promote": { "type": "number" },
+              "demote": { "type": "number" },
+              "enabled": { "type": "boolean" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "behavior": {
+          "type": "object",
+          "properties": {
+            "pollingInterval": { "$ref": "#/$defs/duration" },
+            "stabilizationPolls": { "type": "integer", "minimum": 1 },
+            "minDwell": { "$ref": "#/$defs/duration" },
+            "mode": { "enum": ["recommend", "auto"] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

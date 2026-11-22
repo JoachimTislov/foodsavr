@@ -1,0 +1,265 @@
+# FoodSavr deployment instance (owner's instance).
+#
+# Shape: specs/source-of-truth/schemas/deployment-instance.schema.json
+# Why:   specs/source-of-truth/deployment-levels.md, ADR 0005
+# Tool:  dart run packages/foodsavr_deploy/bin/levels.dart <validate|plan|poll|env>
+#
+# Levels are a shared, ordered ladder; each environment (flavor) sits at one
+# level. Limits use the unit and period in their key. Where provider sources
+# disagree the lower figure is used and the conflict is noted.
+
+version: 1
+
+identity:
+  name: foodsavr
+  githubRepository: JoachimTislov/foodsavr
+  region: europe-north1
+
+# What the app needs from a backend. Cloud Storage (blobs) is not used:
+# it is unavailable on Spark since 2026-02-03.
+capabilities: [auth, documents, hosting, appCheck]
+
+levels:
+  - name: firebase-spark
+    provider: firebase
+    plan: spark
+    status: built
+    paid: false
+    limits:
+      # Identity Platform on Spark: 3k DAU (legacy Auth documents no cap).
+      # Compared against total users, which over-counts active users.
+      authUsersTotal: 3000
+      firestoreStorageGiB: 1
+      firestoreReadsPerDay: 50000
+      firestoreWritesPerDay: 20000
+      firestoreDeletesPerDay: 20000
+      firestoreEgressGiBPerMonth: 10
+      hostingStorageGiB: 10
+      # Pricing page: 360 MB/day; quotas page: 10 GB/month (conflict).
+      hostingTransferMBPerDay: 360
+      recaptchaAssessmentsPerMonth: 10000
+    bindings:
+      auth: firebase/auth
+      documents: firebase/firestore
+      hosting: firebase/hosting
+      appCheck: firebase/appCheck
+    requires: [firebaseProject, firebaseWebApp]
+    notes: No Functions, Cloud Storage, Firestore export/PITR/TTL on Spark.
+
+  - name: firebase-blaze
+    provider: firebase
+    plan: blaze
+    status: built
+    paid: true
+    # Same free allowance as Spark, then pay-as-you-go. Ratios above 1 mean
+    # paying; the budget (alerts only, no hard cap) is the spend guard.
+    limits:
+      # Identity Platform on Blaze: 50k MAU free (sources conflict).
+      authUsersTotal: 50000
+      firestoreStorageGiB: 1
+      firestoreReadsPerDay: 50000
+      firestoreWritesPerDay: 20000
+      firestoreDeletesPerDay: 20000
+      firestoreEgressGiBPerMonth: 10
+      hostingStorageGiB: 10
+      hostingTransferMBPerDay: 360
+      recaptchaAssessmentsPerMonth: 10000
+    bindings:
+      auth: firebase/auth
+      documents: firebase/firestore
+      hosting: firebase/hosting
+      appCheck: firebase/appCheck
+    requires: [billingAccount, budget]
+    budget:
+      monthlyUsd: 10
+      alertThresholds: [0.5, 0.9, 1.0]
+      killSwitch: false
+    migration:
+      class: inPlace
+      reversible: true
+      steps:
+        - "Owner: link a billing account to the project (Console or gcloud billing projects link)."
+        - "Set environments.<env>.currentLevel to firebase-blaze in this manifest."
+        - "Run scripts/infra/apply.sh to create the budget (level=firebase-blaze, BILLING_ACCOUNT set)."
+
+  - name: hybrid-firebase-auth-supabase-data
+    provider: hybrid
+    plan: firebase-spark+supabase-free
+    status: spec-ahead
+    paid: false
+    # Firestore leaves, so Firebase can drop back to Spark.
+    limits:
+      authUsersTotal: 3000
+      databaseStorageGiB: 0.5
+      supabaseEgressGiBPerMonth: 5
+      hostingStorageGiB: 10
+      hostingTransferMBPerDay: 360
+    bindings:
+      auth: firebase/auth
+      documents: supabase/postgres
+      hosting: firebase/hosting
+      appCheck: firebase/appCheck
+    requires: [backendPort, supabaseProject, firebaseAuthJwtInSupabase]
+    notes: Supabase Free pauses after 1 week inactivity; no App Check for Supabase calls.
+    migration:
+      class: dataMove
+      reversible: true
+      steps:
+        - "Phase 2: ship the app backend port (Config.backend, IBackendBootstrap)."
+        - "Create the Supabase project; trust Firebase Auth JWTs (third-party auth)."
+        - "Export Firestore (needs Blaze) and import products/collections into Postgres."
+        - "Switch documents binding; keep Firestore read-only until verified."
+
+  - name: supabase-free
+    provider: supabase
+    plan: free
+    status: spec-ahead
+    paid: false
+    limits:
+      authUsersTotal: 50000
+      databaseStorageGiB: 0.5
+      fileStorageGiB: 1
+      supabaseEgressGiBPerMonth: 5
+      hostingStorageGiB: 10
+      hostingTransferMBPerDay: 360
+    # Supabase has no static hosting: hosting stays on Firebase Hosting
+    # (Spark) or Cloudflare Pages.
+    bindings:
+      auth: supabase/auth
+      documents: supabase/postgres
+      hosting: firebase/hosting
+      appCheck: none
+    requires: [backendPort, supabaseProject, uidMapping]
+    notes: Pauses after 1 week inactivity; 2 free projects per account.
+    migration:
+      class: authMove
+      reversible: false
+      steps:
+        - "Export Firebase Auth users (scrypt hashes import natively into GoTrue)."
+        - "Map 28-char Firebase UIDs to UUIDs; rewrite userId fields."
+        - "Switch auth binding; App Check protection is lost."
+
+  - name: supabase-pro
+    provider: supabase
+    plan: pro
+    status: spec-ahead
+    paid: true
+    limits:
+      authUsersTotal: 100000
+      databaseStorageGiB: 8
+      fileStorageGiB: 100
+      supabaseEgressGiBPerMonth: 250
+      hostingStorageGiB: 10
+      hostingTransferMBPerDay: 360
+    bindings:
+      auth: supabase/auth
+      documents: supabase/postgres
+      hosting: firebase/hosting
+      appCheck: none
+    requires: [supabaseBilling, spendCap]
+    budget:
+      monthlyUsd: 25
+      alertThresholds: [0.9, 1.0]
+      killSwitch: true # Supabase spend cap
+    migration:
+      class: inPlace
+      reversible: true
+      steps:
+        - "Owner: upgrade the Supabase organization to Pro with the spend cap on."
+
+  - name: standalone-selfhost
+    provider: selfhost
+    plan: supabase-docker-or-pocketbase
+    status: spec-ahead
+    paid: true
+    # Capacity of the host, not a provider quota.
+    limits:
+      hostVcpu: 2
+      hostMemoryGiB: 4
+      hostDiskGiB: 40
+    bindings:
+      auth: selfhost/supabase
+      documents: selfhost/supabase
+      hosting: selfhost/static
+      appCheck: none
+    requires: [host, domain, tls, backups]
+    budget:
+      monthlyUsd: 20
+      alertThresholds: [1.0]
+    notes: Supabase docker (2 vCPU / 4-8 GB RAM), Appwrite (2 vCPU / 4 GB) or PocketBase (tiny, pre-1.0).
+    migration:
+      class: authMove
+      reversible: true
+      steps:
+        - "Provision the host; run Supabase docker (or PocketBase)."
+        - "pg_dump/restore the database including the auth schema."
+        - "Serve the web build from the host; point DNS."
+
+triggers:
+  - name: auth-users
+    capability: auth
+    binding: firebase/auth
+    scaler: { type: firebaseAuthUsers }
+    limit: authUsersTotal
+    warn: 0.7
+    promote: 0.9
+    demote: 0.3
+  - name: firestore-reads
+    capability: documents
+    binding: firebase/firestore
+    scaler: { type: firestoreDailyOps, op: read }
+    limit: firestoreReadsPerDay
+    warn: 0.6
+    promote: 0.8
+    demote: 0.2
+  - name: firestore-writes
+    capability: documents
+    binding: firebase/firestore
+    scaler: { type: firestoreDailyOps, op: write }
+    limit: firestoreWritesPerDay
+    warn: 0.6
+    promote: 0.8
+    demote: 0.2
+  - name: firestore-deletes
+    capability: documents
+    binding: firebase/firestore
+    scaler: { type: firestoreDailyOps, op: delete }
+    limit: firestoreDeletesPerDay
+    warn: 0.6
+    promote: 0.8
+    demote: 0.2
+  - name: hosting-storage
+    capability: hosting
+    binding: firebase/hosting
+    scaler: { type: hostingStorage }
+    limit: hostingStorageGiB
+    warn: 0.8
+    promote: 0.95
+  - name: hosting-build-size
+    capability: hosting
+    binding: firebase/hosting
+    description: Builds over 5 GB (0.5 of storage) are flagged by the deploy-time guard.
+    scaler: { type: deployGuard, script: scripts/web/hosting_storage_guard.py }
+    limit: hostingStorageGiB
+    warn: 0.5
+
+behavior:
+  pollingInterval: 24h
+  stabilizationPolls: 3
+  minDwell: 30d
+  mode: recommend
+  fallback:
+    action: hold
+    alertAfterFailures: 3
+
+environments:
+  development:
+    currentLevel: firebase-spark
+    emulator: true
+  production:
+    currentLevel: firebase-spark
+    firebase:
+      projectId: my-foodsavr-store
+      webAppId: "1:514586238925:web:e562b8b85d97417f83ae84"
+      webApiKeyId: 2010adfb-c62e-4376-bf08-58fb4bd61747
+      siteId: my-foodsavr-store
