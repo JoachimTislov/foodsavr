@@ -1,7 +1,8 @@
 name: Merge gate
 
-# Integrates PRs labeled merge/auto into develop, one at a time (ADR 0006, ADR 0007).
-# Level-triggered: each run reconciles the whole queue, so any event is enough.
+# Integrates opted-in PRs from trusted authors into develop, one at a time (ADR 0006).
+# Level-triggered: each run reconciles the whole queue on CI completion, PR
+# readiness (opened non-draft, ready_for_review, labeled merge/auto), pushes, or schedule.
 on:
   workflow_run:
     workflows:
@@ -10,11 +11,12 @@ on:
       - "Web Build"
       - "Android Build"
       - "Agent system validation"
+      - "Agent review"
       - "Documentation Pages"
       - "Dependency Review"
     types: [completed]
   pull_request_target:
-    types: [labeled]
+    types: [opened, ready_for_review, labeled]
   push:
     branches: [develop]
   schedule:
@@ -25,12 +27,16 @@ permissions:
   contents: read
 
 jobs:
-  # Label events (attached to the PR) and Dependabot-triggered CI (no repository
-  # secrets) only dispatch a gate run on develop; no PR code is checked out.
+  # PR readiness/label events and Dependabot-triggered CI (no repository secrets)
+  # only dispatch a gate run on develop; no PR code is checked out and forks are ignored.
   dispatch:
     name: Request gate run
-    if: >
-      (github.event_name == 'pull_request_target' && github.event.label.name == 'merge/auto') ||
+    if: >-
+      (github.event_name == 'pull_request_target' &&
+       !github.event.pull_request.head.repo.fork &&
+       ((github.event.action == 'labeled' && github.event.label.name == 'merge/auto') ||
+        github.event.action == 'ready_for_review' ||
+        (github.event.action == 'opened' && !github.event.pull_request.draft))) ||
       (github.event_name == 'workflow_run' && github.actor == 'dependabot[bot]')
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -60,11 +66,16 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
+      - name: Load review history from the history branch
+        env:
+          HISTORY_TOKEN: ${{ github.token }}
+        run: scripts/github/review_history.sh fetch "$HISTORY_TOKEN"
       - name: Reconcile merge queue
         env:
           # Must not be GITHUB_TOKEN: its merges and pushes trigger no workflows.
           GH_TOKEN: ${{ secrets.MERGE_GATE_TOKEN }}
           RUNS_TOKEN: ${{ github.token }}
+          AGENT_APP_SLUG: ${{ vars.AGENT_APP_SLUG }}
         run: |
           if [ -z "$GH_TOKEN" ]; then
             echo "::error::MERGE_GATE_TOKEN is not set; run scripts/secrets/rotate.py MERGE_GATE_TOKEN"

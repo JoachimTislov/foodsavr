@@ -7,6 +7,7 @@ from typing import Any
 QUEUE_CHECK = "Detect changed areas"
 IGNORED_WORKFLOWS = {
     "Merge gate",
+    "Agent review",
     "Synchronize GitHub labels",
     "Promote develop to main",
     "Promote release channels",

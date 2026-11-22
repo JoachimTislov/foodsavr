@@ -78,6 +78,7 @@ def check(root: Path, paths: list[str]) -> list[str]:
             or path.suffix == ".log"
             or path.stem.endswith("ledger")
             or (path.parent == Path(".agents/sessions") and path.stem == "index")
+            or (path.parent == Path(".agents/reviews") and path.stem == "history")
         )
         if is_log and path.suffix != ".jsonl":
             errors.append(f"{name}: repository logs must use .jsonl")

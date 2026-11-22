@@ -128,3 +128,42 @@ through creating and installing it): commits, PRs, and comments come from
 The App has no Workflows permission, so agent patches cannot change CI.
 Without it, the job falls back to the Actions token, whose PRs start no
 workflows.
+
+## Integrating readied PRs
+
+`integrate-pr.json` is a read-only triage and verification workflow for
+assessing whether a readied PR meets ADR 0006 criteria (non-draft, non-fork,
+trusted author, two-way door, required adaptive review tier, green check rollup,
+no unresolved review threads) before applying `merge/auto`. Because the workflow
+runs with `"network": "none"` and `"github": "none"`, callers pre-stage the
+target PR snapshot into `.agents/state/pr-<N>.json` and `.agents/state/pr-<N>.md`
+and bind `references.prs` and the adaptive review tier before invoking
+`agentctl workflow run` (matching `implement-issue.json`'s pre-staged issue
+pattern):
+
+```sh
+python3 scripts/github/pr_review.py classify \
+  --pr 42 \
+  --pr-json .agents/state/pr-42-raw.json \
+  --diff-file .agents/state/pr-42.diff \
+  --stage-dir .agents/state \
+  --stage-workflow .agents/state/workflows/integrate-pr-42.json
+scripts/agents/agentctl workflow run .agents/state/workflows/integrate-pr-42.json --execute --provider auto
+```
+
+Or manually with `jq`:
+
+```sh
+jq --arg json .agents/state/pr-42.json --arg md .agents/state/pr-42.md \
+  '.context.files += [$json, $md] | .references.prs = ["#42"]' \
+  .agents/workflows/integrate-pr.json > .agents/state/workflows/integrate-pr-42.json
+scripts/agents/agentctl workflow run .agents/state/workflows/integrate-pr-42.json --execute --provider auto
+```
+
+`.github/workflows/agent-review.yml` runs this classification and review pipeline
+automatically on non-draft, non-fork pull requests and posts a head-bound
+review attestation (`<!-- agent-review: ... -->`), while
+`.github/workflows/merge-gate.yml` and `scripts/github/merge_gate.py` enforce
+that the attested review tier at `headRefOid` meets or exceeds the PR's
+`required_tier` (including any history-driven escalation from
+`.agents/reviews/history.jsonl`).
