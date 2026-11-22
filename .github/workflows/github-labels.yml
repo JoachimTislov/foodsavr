@@ -5,9 +5,6 @@ on:
     types: [opened, edited, reopened, closed]
   pull_request_target:
     types: [opened, edited, synchronize, ready_for_review, converted_to_draft, closed]
-  workflow_run:
-    workflows: ["Agent system validation", "Validation", "Dependency Review"]
-    types: [completed]
 
 permissions:
   contents: read
@@ -28,9 +25,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            python3 scripts/github/sync_labels.py --repo "${{ github.repository }}" --sha "${{ github.event.workflow_run.head_sha }}" --apply
-          elif [ "${{ github.event_name }}" = "issues" ]; then
+          if [ "${{ github.event_name }}" = "issues" ]; then
             python3 scripts/github/sync_labels.py --repo "${{ github.repository }}" --number "${{ github.event.issue.number }}" --apply
           else
             python3 scripts/github/sync_labels.py --repo "${{ github.repository }}" --number "${{ github.event.pull_request.number }}" --apply
