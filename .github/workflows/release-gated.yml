@@ -15,7 +15,8 @@ jobs:
     if: >
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'release'
+      (github.event.workflow_run.head_branch == 'release' ||
+       (github.event.workflow_run.head_branch == 'develop' && vars.RELEASE_TOPOLOGY == 'single'))
     runs-on: ubuntu-latest
     timeout-minutes: 115
     outputs:
@@ -38,7 +39,7 @@ jobs:
     if: needs.gate.outputs.release_web == 'true'
     runs-on: ubuntu-latest
     env:
-      HAS_FIREBASE_SECRETS: ${{ secrets.FIREBASE_CLI_TOKEN != '' && secrets.FIREBASE_APP_ID_ANDROID != '' }}
+      HAS_FIREBASE_SECRETS: ${{ secrets.FIREBASE_CLI_TOKEN != '' && (vars.FIREBASE_APP_ID_ANDROID != '' || secrets.FIREBASE_APP_ID_ANDROID != '') }}
     steps:
       - name: Checkout released commit (provenance)
         uses: actions/checkout@v6

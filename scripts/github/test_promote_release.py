@@ -157,6 +157,28 @@ class ResolveStepsTest(unittest.TestCase):
             promote.resolve_steps(target_branch="main")
         with self.assertRaises(ValueError):
             promote.resolve_steps(target_branch="stable", source_branch="stable")
+        with self.assertRaises(ValueError):
+            promote.resolve_steps(target_branch="nightly", topology="two-stage")
+        with self.assertRaises(ValueError):
+            promote.resolve_steps(topology="unknown")
+
+    def test_single_and_two_stage_topologies(self):
+        self.assertEqual(promote.resolve_steps(schedule="0 4 * * *", topology="single"), [])
+        self.assertEqual(promote.resolve_steps(target_branch="release", topology="single"), [])
+        self.assertEqual(promote.resolve_steps(schedule="0 4 * * *", topology="two-stage"), [])
+        self.assertEqual(promote.resolve_steps(schedule="0 5 * * 1", topology="two-stage"), [])
+        self.assertEqual(
+            promote.resolve_steps(schedule="0 6 1,15 * *", topology="two-stage"),
+            [("develop", "release")],
+        )
+        self.assertEqual(
+            promote.resolve_steps(target_branch="release", topology="two-stage"),
+            [("develop", "release")],
+        )
+
+    def test_single_topology_main_is_clean_noop_without_token(self):
+        code = promote.main(["--repo", "alice/foodsavr", "--topology", "single", "--schedule", "0 4 * * *", "--apply"])
+        self.assertEqual(code, 0)
 
 
 class ChainedPromotionTest(unittest.TestCase):

@@ -3,6 +3,8 @@ name: Web Monitor
 # Synthetic post-deploy and scheduled probe for live web health.
 # Emits normalized FaultEvents into fault_intake.py on failure and closes
 # resolved healing issues via verify_and_close.py on clean boots.
+# Fork-safe (ADR 0008): skips cleanly when MONITOR_TARGET_URL is unset outside
+# the upstream repository instead of probing upstream Hosting.
 
 on:
   workflow_run:
@@ -13,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       target_url:
-        description: "Target URL to probe (defaults to MONITOR_TARGET_URL or production Hosting)"
+        description: "Target URL to probe (defaults to MONITOR_TARGET_URL)"
         required: false
         type: string
       dry_run:
@@ -33,8 +35,11 @@ jobs:
   probe-and-heal:
     name: Probe live web app
     if: >-
-      github.event_name != 'workflow_run' ||
-      github.event.workflow_run.conclusion == 'success'
+      (github.event_name != 'workflow_run' ||
+       github.event.workflow_run.conclusion == 'success') &&
+      (inputs.target_url != '' ||
+       vars.MONITOR_TARGET_URL != '' ||
+       github.repository == 'JoachimTislov/foodsavr')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -51,7 +56,7 @@ jobs:
       - name: Check agent App configuration
         id: app-config
         env:
-          AGENT_APP_ID: ${{ secrets.AGENT_APP_ID }}
+          AGENT_APP_ID: ${{ vars.AGENT_APP_ID || secrets.AGENT_APP_ID }}
           AGENT_APP_PRIVATE_KEY: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
         run: |
           if [ -n "$AGENT_APP_ID" ] && [ -n "$AGENT_APP_PRIVATE_KEY" ]; then
@@ -65,7 +70,7 @@ jobs:
         if: steps.app-config.outputs.configured == 'true'
         uses: actions/create-github-app-token@v2
         with:
-          app-id: ${{ secrets.AGENT_APP_ID }}
+          app-id: ${{ vars.AGENT_APP_ID || secrets.AGENT_APP_ID }}
           private-key: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
 
       - name: Set up Node
@@ -84,11 +89,18 @@ jobs:
         env:
           INPUT_URL: ${{ inputs.target_url }}
           VAR_URL: ${{ vars.MONITOR_TARGET_URL }}
+          REPO: ${{ github.repository }}
           DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           FIREBASE_PLAN: ${{ vars.FIREBASE_PLAN }}
         run: |
           url="${INPUT_URL:-$VAR_URL}"
-          url="${url:-https://my-foodsavr-store.web.app}"
+          if [ -z "$url" ] && [ "$REPO" = "JoachimTislov/foodsavr" ]; then
+            url="https://my-foodsavr-store.web.app"
+          fi
+          if [ -z "$url" ]; then
+            echo "::warning::MONITOR_TARGET_URL is not configured; skipping web probe."
+            exit 0
+          fi
           level="firebase-${FIREBASE_PLAN:-spark}"
           echo "url=${url}" >> "$GITHUB_OUTPUT"
           echo "sha=${DEPLOYED_SHA}" >> "$GITHUB_OUTPUT"
@@ -96,6 +108,7 @@ jobs:
 
       - name: Run Playwright web probe
         id: probe
+        if: steps.target.outputs.url != ''
         env:
           TARGET_URL: ${{ steps.target.outputs.url }}
           RELEASE_SHA: ${{ steps.target.outputs.sha }}
@@ -114,7 +127,7 @@ jobs:
           cat "$RUNNER_TEMP/probe-report.json" >> "$GITHUB_STEP_SUMMARY" || true
 
       - name: Process probe failure through Fault Intake
-        if: steps.probe.outputs.ok != 'true'
+        if: steps.target.outputs.url != '' && steps.probe.outputs.ok != 'true'
         env:
           GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
           DRY_RUN: ${{ inputs.dry_run }}
@@ -135,7 +148,7 @@ jobs:
           python3 scripts/monitoring/verify_and_close.py "${verify_args[@]}"
 
       - name: Verify and close resolved healing issues on clean boot
-        if: steps.probe.outputs.ok == 'true'
+        if: steps.target.outputs.url != '' && steps.probe.outputs.ok == 'true'
         env:
           GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
           DRY_RUN: ${{ inputs.dry_run }}
@@ -150,7 +163,7 @@ jobs:
           python3 scripts/monitoring/verify_and_close.py "${verify_args[@]}"
 
       - name: Fail job when live web probe detected errors
-        if: steps.probe.outputs.ok != 'true' && inputs.dry_run != true
+        if: steps.target.outputs.url != '' && steps.probe.outputs.ok != 'true' && inputs.dry_run != true
         run: |
           echo "::error::Web probe failed on ${{ steps.target.outputs.url }}; see Fault Intake output."
           exit 1

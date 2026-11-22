@@ -1,14 +1,15 @@
 name: Promote release channels
 
-# Periodic and manual fast-forward promotions along the linear release pipeline
-# (ADR 0007):
-#   develop -> nightly (daily 04:00 UTC)
-#   nightly -> beta    (weekly Mondays 05:00 UTC)
-#   beta    -> stable -> release (biweekly 1st & 15th 06:00 UTC)
+# Periodic and manual fast-forward promotions along the configured release
+# topology (ADR 0007, ADR 0008, controlled by vars.RELEASE_TOPOLOGY):
+#   single        — develop only (workflow cleanly no-ops)
+#   two-stage     — develop -> release (biweekly 1st & 15th 06:00 UTC or manual)
+#   full-channels — develop -> nightly (daily 04:00 UTC) -> beta (Mon 05:00 UTC)
+#                   -> stable -> release (1st & 15th 06:00 UTC)
 #
-# Never creates merge commits and never force-pushes. Pushing with
-# MERGE_GATE_TOKEN triggers downstream deployment workflows on `release`
-# (Firebase Hosting, Release (Gated), Documentation Pages).
+# Never creates merge commits and never force-pushes. Pushing with the
+# Release-Gate GitHub App token (or legacy MERGE_GATE_TOKEN) triggers
+# downstream deployment workflows on `release`.
 
 on:
   schedule:
@@ -26,7 +27,7 @@ on:
         options: [release, nightly, beta, stable]
         default: release
       source:
-        description: "Source branch (default follows develop->nightly->beta->stable->release)"
+        description: "Source branch (default follows active RELEASE_TOPOLOGY)"
         type: choice
         options: [default, develop, nightly, beta, stable]
         default: default
@@ -47,27 +48,63 @@ jobs:
     name: Fast-forward release channel
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      RELEASE_TOPOLOGY: ${{ vars.RELEASE_TOPOLOGY || (github.repository == 'JoachimTislov/foodsavr' && 'full-channels' || 'single') }}
     steps:
+      - name: Skip cleanly in single-branch topology
+        if: env.RELEASE_TOPOLOGY == 'single'
+        run: |
+          echo "RELEASE_TOPOLOGY=single; no release channel promotions needed."
+          echo "Skipped: RELEASE_TOPOLOGY=single (no channel promotion branches)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check Release-Gate App configuration
+        if: env.RELEASE_TOPOLOGY != 'single'
+        id: app-config
+        env:
+          RELEASE_GATE_APP_ID: ${{ vars.RELEASE_GATE_APP_ID || secrets.RELEASE_GATE_APP_ID }}
+          RELEASE_GATE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_GATE_APP_PRIVATE_KEY }}
+        run: |
+          if [ -n "$RELEASE_GATE_APP_ID" ] && [ -n "$RELEASE_GATE_APP_PRIVATE_KEY" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mint Release-Gate App token
+        id: gate-app
+        if: env.RELEASE_TOPOLOGY != 'single' && steps.app-config.outputs.configured == 'true'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.RELEASE_GATE_APP_ID || secrets.RELEASE_GATE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_GATE_APP_PRIVATE_KEY }}
+
       - name: Checkout repository
+        if: env.RELEASE_TOPOLOGY != 'single'
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Fetch integration and release branches
-        run: git fetch --no-tags origin develop nightly beta stable release
+      - name: Fetch active topology branches
+        if: env.RELEASE_TOPOLOGY != 'single'
+        run: |
+          if [ "$RELEASE_TOPOLOGY" = "two-stage" ]; then
+            git fetch --no-tags origin develop release
+          else
+            git fetch --no-tags origin develop nightly beta stable release
+          fi
 
       - name: Promote release channel (fast-forward only)
+        if: env.RELEASE_TOPOLOGY != 'single'
         env:
           # Must not be GITHUB_TOKEN for --apply: its pushes trigger no deployment workflows.
-          GH_TOKEN: ${{ inputs.dry_run && (secrets.MERGE_GATE_TOKEN || github.token) || secrets.MERGE_GATE_TOKEN }}
+          GATE_TOKEN: ${{ steps.gate-app.outputs.token || secrets.MERGE_GATE_TOKEN }}
+          FALLBACK_READ_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           SCHEDULE_CRON: ${{ github.event.schedule }}
           TARGET_CHANNEL: ${{ inputs.channel }}
           SOURCE_BRANCH: ${{ inputs.source }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          args=(--repo "${{ github.repository }}")
+          args=(--repo "${{ github.repository }}" --topology "$RELEASE_TOPOLOGY")
           if [ "$EVENT_NAME" = "schedule" ]; then
             args+=(--schedule "$SCHEDULE_CRON")
           else
@@ -78,14 +115,21 @@ jobs:
           fi
 
           if [ "$DRY_RUN" != "true" ]; then
-            if [ -z "$GH_TOKEN" ]; then
-              echo "::error::MERGE_GATE_TOKEN is not set; run scripts/secrets/rotate.py MERGE_GATE_TOKEN"
+            if [ -z "$GATE_TOKEN" ]; then
+              if [ "$EVENT_NAME" = "schedule" ]; then
+                echo "::warning::Release-Gate App / MERGE_GATE_TOKEN is not configured; skipping scheduled promotion."
+                exit 0
+              fi
+              echo "::error::Configure RELEASE_GATE_APP_ID/RELEASE_GATE_APP_PRIVATE_KEY (or legacy MERGE_GATE_TOKEN)."
               exit 1
             fi
+            export GH_TOKEN="$GATE_TOKEN"
             args+=(--apply)
             if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
               args+=(--strict-pending)
             fi
+          else
+            export GH_TOKEN="${GATE_TOKEN:-$FALLBACK_READ_TOKEN}"
           fi
 
           python3 scripts/github/promote_release.py "${args[@]}"

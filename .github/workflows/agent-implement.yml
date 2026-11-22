@@ -131,13 +131,14 @@ jobs:
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          ROUTER_BASE_URL: ${{ secrets.ROUTER_BASE_URL }}
+          ROUTER_BASE_URL: ${{ vars.ROUTER_BASE_URL || secrets.ROUTER_BASE_URL }}
           ROUTER_API_KEY: ${{ secrets.ROUTER_API_KEY }}
-          ROUTER_MODEL: ${{ secrets.ROUTER_MODEL }}
+          ROUTER_MODEL: ${{ vars.ROUTER_MODEL || secrets.ROUTER_MODEL }}
           AGENT_POLICY_FILE: .agents/policies/agent-implement.json
+          AGENT_QUOTA_ROUTING: "1"
         run: |
           scripts/agents/agentctl workflow run .agents/state/workflows/implement-issue.json \
-            --execute --provider auto > .agents/state/result.json || true
+            --execute --provider auto --quota-aware > .agents/state/result.json || true
           rm -f "$HOME/.codex/auth.json" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
           jq '{status, run_id, session_ids, patch, steps: [.steps[] | {id, status, provider, reason}]}' .agents/state/result.json || true
 
@@ -166,7 +167,21 @@ jobs:
         env:
           FIREBASE_OPTIONS_B64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
         run: |
-          echo "$FIREBASE_OPTIONS_B64" | base64 -d > lib/firebase_options.dart
+          if [ -n "$FIREBASE_OPTIONS_B64" ]; then
+            echo "$FIREBASE_OPTIONS_B64" | base64 -d > lib/firebase_options.dart
+          else
+            cat > lib/firebase_options.dart <<'EOF'
+          import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
+          class DefaultFirebaseOptions {
+            static const FirebaseOptions currentPlatform = FirebaseOptions(
+              apiKey: 'dummy-api-key',
+              appId: '1:000000000000:android:0000000000000000',
+              messagingSenderId: '000000000000',
+              projectId: 'foodsavr-local-dev',
+            );
+          }
+          EOF
+          fi
           echo 'CI_TEST=1' > assets/.env
           flutter pub get
           dart run build_runner build --delete-conflicting-outputs
@@ -220,7 +235,7 @@ jobs:
       - name: Check agent App configuration
         id: app-config
         env:
-          AGENT_APP_ID: ${{ secrets.AGENT_APP_ID }}
+          AGENT_APP_ID: ${{ vars.AGENT_APP_ID || secrets.AGENT_APP_ID }}
           AGENT_APP_PRIVATE_KEY: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
         run: |
           if [ -n "$AGENT_APP_ID" ] && [ -n "$AGENT_APP_PRIVATE_KEY" ]; then
@@ -234,7 +249,7 @@ jobs:
         if: steps.app-config.outputs.configured == 'true'
         uses: actions/create-github-app-token@v2
         with:
-          app-id: ${{ secrets.AGENT_APP_ID }}
+          app-id: ${{ vars.AGENT_APP_ID || secrets.AGENT_APP_ID }}
           private-key: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
