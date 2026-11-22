@@ -1,5 +1,4 @@
-import 'package:foodsavr_core/src/line_item.dart';
-import 'package:foodsavr_core/src/shelf_life.dart';
+import 'package:foodsavr_core/foodsavr_core.dart';
 import 'package:test/test.dart';
 
 LineItem item(String name) =>
@@ -9,6 +8,40 @@ void main() {
   final s = ShelfLifeInferer();
 
   group('ShelfLifeInferer', () {
+    test('returns the first supported tag with its rule and duration', () {
+      expect(
+        s.estimate(
+          tags: ['unknown', ' EN:MILKS ', 'en:breads'],
+          category: 'meat',
+          normalizedName: 'tine lettmelk 1l',
+        ),
+        (days: 10, source: ShelfLifeSource.tag, rule: 'en:milks'),
+      );
+    });
+
+    test('category aliases precede name keywords', () {
+      expect(
+        s.estimate(
+          tags: ['unknown'],
+          category: 'Dairy',
+          normalizedName: 'laksfilet',
+        ),
+        (days: 10, source: ShelfLifeSource.category, rule: 'dairy'),
+      );
+    });
+
+    test('unknown tags and category fall back to normalized name', () {
+      expect(
+        s.estimate(
+          tags: ['unknown'],
+          category: 'unknown',
+          normalizedName: 'tine lettmelk 1l',
+        ),
+        (days: 7, source: ShelfLifeSource.name, rule: 'melk'),
+      );
+      expect(s.estimate(normalizedName: 'wunderbaum'), isNull);
+    });
+
     test('dairy keywords', () {
       expect(s.infer(item('tine melk')), s.defaultFor(FoodCategory.dairy));
       expect(s.infer(item('jarlsberg ost')), s.defaultFor(FoodCategory.dairy));
