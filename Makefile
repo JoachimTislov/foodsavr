@@ -22,4 +22,6 @@ help:
 	@echo "  worktree name=<issue>    Create a worktree"
 	@echo "  hooks                    Install the pre-push hook"
 	@echo "  start-firebase-emulators / kill-firebase-emulators"
-	@echo "  social-auth-setup, router-setup  One-time setup"
+	@echo "  setup / setup-probe      Guided setup (local-dev, fork-agents, full-cloud)"
+	@echo "  agent-status / agent-usage  Agent system health & harness quota headroom"
+	@echo "  social-auth-setup, router-setup  Legacy individual setup helpers"
