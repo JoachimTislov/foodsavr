@@ -14,6 +14,12 @@ enum FoodCategory {
   other,
 }
 
+/// Input that supplied the matched rule.
+enum ShelfLifeSource { tag, category, name }
+
+/// Estimated days and the matched tag, category alias, or name keyword.
+typedef ShelfLifeEstimate = ({int days, ShelfLifeSource source, String rule});
+
 /// Infers a default shelf life (in days) from category-based defaults.
 ///
 /// Users can always override the result per item in the app; this exists so
@@ -23,6 +29,7 @@ class ShelfLifeInferer {
   ShelfLifeInferer({Map<FoodCategory, int> defaults = defaultDays})
     : _defaults = Map.of(defaults);
 
+  // Coarse defaults from the original core name inference rules.
   static const Map<FoodCategory, int> defaultDays = {
     FoodCategory.dairy: 7,
     FoodCategory.meat: 3,
@@ -33,6 +40,57 @@ class ShelfLifeInferer {
     FoodCategory.frozen: 180,
     FoodCategory.beverages: 365,
     FoodCategory.other: 14,
+  };
+
+  // Specific Open Food Facts defaults from the app's barcode estimator.
+  // Category aliases reuse these values to preserve existing app estimates.
+  static const _tagDays = {
+    // Dairy & Eggs
+    'en:milks': 10,
+    'en:yogurts': 14,
+    'en:cheeses': 30,
+    'en:eggs': 28,
+    'en:butter': 90,
+
+    // Meats & Fish
+    'en:fresh-meats': 4,
+    'en:poultries': 4,
+    'en:fishes': 2,
+    'en:seafood': 2,
+    'en:processed-meats': 14, // e.g., sausages, ham
+    // Bakery
+    'en:breads': 5,
+    'en:pastries': 3,
+
+    // Produce
+    'en:fresh-fruits': 7,
+    'en:fresh-vegetables': 7,
+    'en:salads': 5,
+
+    // Pantry / Long-term
+    'en:canned-foods': 730,
+    'en:dried-products': 365,
+    'en:pastas': 730,
+    'en:rice': 730,
+    'en:cereals': 365,
+    'en:condiments': 180,
+    'en:sauces': 365,
+    'en:snacks': 180,
+    'en:beverages': 365,
+
+    // Frozen
+    'en:frozen-foods': 180,
+    'en:ice-creams': 180,
+  };
+
+  static const _categoryAliases = {
+    'en:milks': ['dairy', 'milk'],
+    'en:fresh-meats': ['meat'],
+    'en:poultries': ['poultry'],
+    'en:fresh-fruits': ['fruit'],
+    'en:fresh-vegetables': ['vegetable'],
+    'en:frozen-foods': ['frozen'],
+    'en:canned-foods': ['canned'],
   };
 
   static const Map<String, FoodCategory> _keywordCategories = {
@@ -121,9 +179,46 @@ class ShelfLifeInferer {
 
   /// Infers shelf life for a [LineItem] from its normalized name.
   /// Returns the category default in days, or null if no category matches.
-  int? infer(LineItem item) {
-    final category = categorize(item.normalizedName);
-    return category == null ? null : defaultFor(category);
+  int? infer(LineItem item) =>
+      estimate(normalizedName: item.normalizedName)?.days;
+
+  /// Uses the first recognized tag, then a category alias, then a name keyword.
+  /// Returns null when the supplied inputs yield no estimate.
+  ShelfLifeEstimate? estimate({
+    Iterable<String> tags = const [],
+    String? category,
+    String? normalizedName,
+  }) {
+    for (final tag in tags) {
+      final rule = tag.toLowerCase().trim();
+      final days = _tagDays[rule];
+      if (days != null) {
+        return (days: days, source: ShelfLifeSource.tag, rule: rule);
+      }
+    }
+
+    if (category != null) {
+      final label = category.toLowerCase();
+      for (final entry in _categoryAliases.entries) {
+        for (final alias in entry.value) {
+          if (label.contains(alias)) {
+            return (
+              days: _tagDays[entry.key]!,
+              source: ShelfLifeSource.category,
+              rule: alias,
+            );
+          }
+        }
+      }
+    }
+
+    if (normalizedName == null) return null;
+    final match = _matchKeyword(normalizedName);
+    if (match == null) return null;
+    final days = defaultFor(match.value);
+    return days == null
+        ? null
+        : (days: days, source: ShelfLifeSource.name, rule: match.key);
   }
 
   static final RegExp _tokenSplit = RegExp(r'[^\p{L}\p{N}]+', unicode: true);
@@ -133,13 +228,15 @@ class ShelfLifeInferer {
   /// Short keywords (three characters or fewer) match only as whole
   /// tokens, so keys like "ost" or "is" cannot match inside unrelated
   /// words such as "toast" or "pistasj".
-  FoodCategory? categorize(String name) {
+  FoodCategory? categorize(String name) => _matchKeyword(name)?.value;
+
+  MapEntry<String, FoodCategory>? _matchKeyword(String name) {
     final tokens = name.split(_tokenSplit).where((t) => t.isNotEmpty).toSet();
     for (final e in _keywordCategories.entries) {
       if (e.key.length <= 3) {
-        if (tokens.contains(e.key)) return e.value;
+        if (tokens.contains(e.key)) return e;
       } else if (name.contains(e.key)) {
-        return e.value;
+        return e;
       }
     }
     return null;
