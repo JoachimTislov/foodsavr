@@ -68,8 +68,12 @@ jobs:
           [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || { echo "PR_NUMBER must be an integer"; exit 1; }
           mkdir -p .agents/state/workflows
           gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
-            --json number,title,body,isDraft,isCrossRepository,headRefOid,author,authorAssociation,labels,files,additions,deletions,changedFiles,reviewDecision \
-            > ".agents/state/pr-${PR_NUMBER}-raw.json"
+            --json number,title,body,isDraft,isCrossRepository,headRefOid,author,labels,files,additions,deletions,changedFiles,reviewDecision \
+            > ".agents/state/pr-${PR_NUMBER}-meta.json"
+          # gh pr view has no authorAssociation field; the REST API does.
+          assoc="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.author_association')"
+          jq --arg assoc "$assoc" '. + {authorAssociation: $assoc}' \
+            ".agents/state/pr-${PR_NUMBER}-meta.json" > ".agents/state/pr-${PR_NUMBER}-raw.json"
           is_draft="$(jq -r '.isDraft // false' ".agents/state/pr-${PR_NUMBER}-raw.json")"
           is_fork="$(jq -r '.isCrossRepository // false' ".agents/state/pr-${PR_NUMBER}-raw.json")"
           if [ "$is_draft" = "true" ] || [ "$is_fork" = "true" ]; then

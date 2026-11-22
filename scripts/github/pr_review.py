@@ -1572,7 +1572,7 @@ def extract_verdict(result: dict[str, Any], root: Path) -> str | None:
 def fetch_pr_via_gh(repo: str, pr_number: int) -> dict[str, Any]:
     fields = (
         "number,title,body,isDraft,isCrossRepository,headRefOid,"
-        "author,authorAssociation,labels,files,additions,deletions,changedFiles,reviewDecision"
+        "author,labels,files,additions,deletions,changedFiles,reviewDecision"
     )
     proc = subprocess.run(
         ["gh", "pr", "view", str(pr_number), "--repo", repo, "--json", fields],
@@ -1580,7 +1580,16 @@ def fetch_pr_via_gh(repo: str, pr_number: int) -> dict[str, Any]:
         text=True,
         check=True,
     )
-    return json.loads(proc.stdout)
+    data = json.loads(proc.stdout)
+    # gh pr view has no authorAssociation field; the REST API does.
+    assoc = subprocess.run(
+        ["gh", "api", f"repos/{repo}/pulls/{pr_number}", "--jq", ".author_association"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    data["authorAssociation"] = assoc.stdout.strip()
+    return data
 
 
 def cmd_classify(args: argparse.Namespace) -> int:
