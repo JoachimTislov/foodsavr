@@ -144,6 +144,139 @@
       }
     })();
   </script>
+  <script>
+    (function () {
+      const MAX_EARLY_ERRORS = 20;
+      const MAX_PREBOOT_DISPATCH = 5;
+      const buffer = [];
+      let dispatched = 0;
+
+      function isLocalHost() {
+        try {
+          const host = (window.location && window.location.hostname) || '';
+          return host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+        } catch (_) {
+          return true;
+        }
+      }
+
+      function serializeError(errorType, message, stack, source) {
+        return {
+          error_type: String(errorType || 'Error').slice(0, 120),
+          message: String(message || 'Unknown error').slice(0, 500),
+          stack: String(stack || '').slice(0, 2000),
+          source: String(source || 'web-preboot').slice(0, 120),
+          url: String((window.location && window.location.href) || '').slice(0, 300),
+          occurred_at: new Date().toISOString(),
+        };
+      }
+
+      function maybeDispatchPreboot(entry) {
+        try {
+          if (isLocalHost() || dispatched >= MAX_PREBOOT_DISPATCH) return;
+          const cfg = window.foodsavrMonitoringConfig;
+          if (!cfg || !cfg.mode || cfg.mode === 'none') return;
+
+          if (cfg.mode === 'external' && typeof cfg.endpoint === 'string' && cfg.endpoint.startsWith('https://')) {
+            dispatched += 1;
+            const body = JSON.stringify({
+              source: 'web-preboot',
+              platform: 'web',
+              environment: cfg.environment || 'production',
+              deployment_level: cfg.deploymentLevel || 'firebase-spark',
+              error_type: entry.error_type,
+              message: entry.message,
+              stack: entry.stack,
+              url: entry.url,
+              occurred_at: entry.occurred_at,
+            });
+            if (navigator.sendBeacon) {
+              navigator.sendBeacon(cfg.endpoint, new Blob([body], { type: 'application/json' }));
+            } else if (window.fetch) {
+              window.fetch(cfg.endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: body,
+                keepalive: true,
+              }).catch(function () {});
+            }
+          } else if (
+            cfg.mode === 'spark-firestore' &&
+            typeof cfg.projectId === 'string' &&
+            cfg.projectId &&
+            typeof cfg.apiKey === 'string' &&
+            cfg.apiKey &&
+            window.fetch
+          ) {
+            dispatched += 1;
+            const endpoint =
+              'https://firestore.googleapis.com/v1/projects/' +
+              encodeURIComponent(cfg.projectId) +
+              '/databases/(default)/documents/runtime_errors?key=' +
+              encodeURIComponent(cfg.apiKey);
+            const firestoreBody = JSON.stringify({
+              fields: {
+                status: { stringValue: 'new' },
+                platform: { stringValue: 'web' },
+                environment: { stringValue: String(cfg.environment || 'production') },
+                deployment_level: { stringValue: 'firebase-spark' },
+                error_type: { stringValue: entry.error_type },
+                message: { stringValue: entry.message },
+                url: { stringValue: entry.url },
+                occurred_at: { stringValue: entry.occurred_at },
+                stack: { stringValue: entry.stack },
+              },
+            });
+            window.fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: firestoreBody,
+              keepalive: true,
+            }).catch(function () {});
+          }
+        } catch (_) {}
+      }
+
+      function recordEarlyError(entry) {
+        try {
+          if (buffer.length < MAX_EARLY_ERRORS) {
+            buffer.push(entry);
+          }
+          maybeDispatchPreboot(entry);
+        } catch (_) {}
+      }
+
+      window.__foodsavrEarlyErrors = buffer;
+      window.foodsavrMonitoring = {
+        getEarlyErrors: function () {
+          return buffer.slice();
+        },
+        clearEarlyErrors: function () {
+          buffer.length = 0;
+        },
+      };
+
+      window.addEventListener('error', function (event) {
+        try {
+          const err = event && event.error;
+          const name = (err && err.name) || 'WindowError';
+          const msg = (err && err.message) || (event && event.message) || 'Script error';
+          const stack = (err && err.stack) || (event && event.filename ? event.filename + ':' + event.lineno + ':' + event.colno : '');
+          recordEarlyError(serializeError(name, msg, stack, 'window.error'));
+        } catch (_) {}
+      });
+
+      window.addEventListener('unhandledrejection', function (event) {
+        try {
+          const reason = event && event.reason;
+          const name = (reason && reason.name) || 'UnhandledRejection';
+          const msg = (reason && reason.message) || (typeof reason === 'string' ? reason : 'Unhandled promise rejection');
+          const stack = (reason && reason.stack) || '';
+          recordEarlyError(serializeError(name, msg, stack, 'window.unhandledrejection'));
+        } catch (_) {}
+      });
+    })();
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

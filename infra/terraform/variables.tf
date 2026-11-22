@@ -26,6 +26,16 @@ variable "app_check_enforcement" {
   }
 }
 
+variable "firebase_plan" {
+  description = "Firebase billing plan for this instance: spark (free) or blaze (pay-as-you-go)."
+  type        = string
+  default     = "spark"
+  validation {
+    condition     = contains(["spark", "blaze"], var.firebase_plan)
+    error_message = "Must be spark or blaze."
+  }
+}
+
 # Firebase's auto-created allow-list for the browser key.
 variable "web_api_key_services" {
   type = list(string)

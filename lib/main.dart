@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -12,6 +14,7 @@ import 'package:openfoodfacts/openfoodfacts.dart';
 
 import 'firebase_options.dart';
 import 'interfaces/i_auth_service.dart';
+import 'interfaces/i_error_reporter.dart';
 import 'routes/go_router.dart';
 import 'service_locator.dart';
 import 'utils/theme_notifier.dart';
@@ -98,6 +101,16 @@ void main() async {
   } catch (_) {
     rethrow;
   }
+
+  final errorReporter = getIt<IErrorReporter>();
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    unawaited(errorReporter.recordFlutterError(details));
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    unawaited(errorReporter.recordError(error, stack, fatal: true));
+    return false;
+  };
 
   if (Config.useEmulators) {
     await serviceLocator.setupDevelopment();
