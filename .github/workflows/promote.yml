@@ -1,22 +1,42 @@
-name: Promote develop to main
+name: Promote release channels
 
-# Scheduled (daily) and manual fast-forward promotion of green develop -> main
-# (ADR 0007). Never creates merge commits and never force-pushes. Pushing with
-# MERGE_GATE_TOKEN triggers main deployment workflows (Firebase Hosting,
-# Release (Gated), Documentation Pages).
+# Periodic and manual fast-forward promotions along the linear release pipeline
+# (ADR 0007):
+#   develop -> nightly (daily 04:00 UTC)
+#   nightly -> beta    (weekly Mondays 05:00 UTC)
+#   beta    -> stable -> release (biweekly 1st & 15th 06:00 UTC)
+#
+# Never creates merge commits and never force-pushes. Pushing with
+# MERGE_GATE_TOKEN triggers downstream deployment workflows on `release`
+# (Firebase Hosting, Release (Gated), Documentation Pages).
 
 on:
   schedule:
+    # Daily nightly cut: develop -> nightly
     - cron: '0 4 * * *'
+    # Weekly beta cut (Mondays): nightly -> beta
+    - cron: '0 5 * * 1'
+    # Biweekly stable + production release cut (1st & 15th): beta -> stable -> release
+    - cron: '0 6 1,15 * *'
   workflow_dispatch:
     inputs:
+      channel:
+        description: "Target release channel to fast-forward"
+        type: choice
+        options: [release, nightly, beta, stable]
+        default: release
+      source:
+        description: "Source branch (default follows develop->nightly->beta->stable->release)"
+        type: choice
+        options: [default, develop, nightly, beta, stable]
+        default: default
       dry_run:
-        description: "Preview promotion without pushing to main"
+        description: "Preview promotion without pushing"
         type: boolean
         default: false
 
 concurrency:
-  group: promote-develop-to-main
+  group: promote-release-channels
   cancel-in-progress: false
 
 permissions:
@@ -24,7 +44,7 @@ permissions:
 
 jobs:
   promote:
-    name: Fast-forward main to green develop
+    name: Fast-forward release channel
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -34,24 +54,38 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Fetch develop and main
-        run: git fetch --no-tags origin develop main
+      - name: Fetch integration and release branches
+        run: git fetch --no-tags origin develop nightly beta stable release
 
-      - name: Promote develop -> main (fast-forward only)
+      - name: Promote release channel (fast-forward only)
         env:
           # Must not be GITHUB_TOKEN for --apply: its pushes trigger no deployment workflows.
           GH_TOKEN: ${{ inputs.dry_run && (secrets.MERGE_GATE_TOKEN || github.token) || secrets.MERGE_GATE_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          SCHEDULE_CRON: ${{ github.event.schedule }}
+          TARGET_CHANNEL: ${{ inputs.channel }}
+          SOURCE_BRANCH: ${{ inputs.source }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            python3 scripts/github/promote_main.py --repo "${{ github.repository }}"
+          args=(--repo "${{ github.repository }}")
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            args+=(--schedule "$SCHEDULE_CRON")
           else
+            args+=(--target-branch "$TARGET_CHANNEL")
+            if [ -n "$SOURCE_BRANCH" ] && [ "$SOURCE_BRANCH" != "default" ]; then
+              args+=(--source-branch "$SOURCE_BRANCH")
+            fi
+          fi
+
+          if [ "$DRY_RUN" != "true" ]; then
             if [ -z "$GH_TOKEN" ]; then
               echo "::error::MERGE_GATE_TOKEN is not set; run scripts/secrets/rotate.py MERGE_GATE_TOKEN"
               exit 1
             fi
-            strict=""
-            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-              strict="--strict-pending"
+            args+=(--apply)
+            if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+              args+=(--strict-pending)
             fi
-            python3 scripts/github/promote_main.py --repo "${{ github.repository }}" --apply $strict
           fi
+
+          python3 scripts/github/promote_release.py "${args[@]}"

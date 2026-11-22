@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const {decision} = require('./release_gate.cjs');
 const paths = ['ci', 'validation', 'android'];
 const run = (path, extra = {}) => ({
-  path, id: 1, run_attempt: 1, event: 'push', head_branch: 'main',
+  path, id: 1, run_attempt: 1, event: 'push', head_branch: 'release',
   status: 'completed', conclusion: 'success', ...extra,
 });
 
@@ -11,7 +11,7 @@ test('requires every check, including validation', () => {
   assert.equal(decision(paths.map(path => run(path)), paths), 'ready');
   assert.equal(decision([run('ci'), run('android')], paths), 'waiting');
 });
-test('does not use PR or non-main checks to authorize a release', () => {
+test('does not use PR or non-release checks to authorize a release', () => {
   assert.equal(decision(paths.map(path => run(path, {event: 'pull_request'})), paths), 'waiting');
   assert.equal(decision(paths.map(path => run(path, {head_branch: 'feature'})), paths), 'waiting');
 });

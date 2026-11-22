@@ -89,7 +89,7 @@ make serve-web BASE_HREF=/foodsavr/
 [GitHub Pages](https://joachimtislov.github.io/foodsavr/) hosts the app's vision,
 canonical specification, and contributor documentation. It does not run the
 Flutter app. The `Documentation Pages` workflow builds pull requests and deploys
-trusted `main` changes; it is the only Pages deployment owner.
+trusted `release` changes; it is the only Pages deployment owner.
 
 The `Web Build` workflow still compiles the Flutter app and uploads its
 `web-build` artifact. Download that artifact from a successful workflow run

@@ -6,7 +6,7 @@ on:
       ref:
         description: Git ref to build
         required: false
-        default: main
+        default: release
         type: string
 
 permissions:
