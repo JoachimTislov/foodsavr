@@ -17,7 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts/setup/monitoring.sh"
-MAKEFILE = ROOT / "Makefile"
+MAKEFILE = ROOT / "make" / "setup.mk"
 
 AGENT_ENV_KEYS = (
     "CI",
