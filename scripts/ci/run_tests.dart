@@ -9,6 +9,8 @@ import 'dart:io';
 String get selected => Platform.environment['SELECTED_FILES'] ?? 'ALL';
 bool get forceAll => Platform.environment['FORCE_ALL'] == 'true';
 const hashDir = '.test-hashes';
+const corePackageDir = 'packages/foodsavr_core';
+const testRoots = <String>['test', '$corePackageDir/test'];
 
 Set<String> transitiveDeps(String entry) {
   final seen = <String>{};
@@ -35,9 +37,9 @@ Set<String> transitiveDeps(String entry) {
         }
         String path;
         if (spec.startsWith('package:')) {
-          final parts = spec.substring(7).split('/');
+          final parts = spec.substring('package:'.length).split('/');
           path = parts.first == 'foodsavr_core'
-              ? 'packages/foodsavr_core/lib/${parts.skip(2).join('/')}'
+              ? 'packages/foodsavr_core/lib/${parts.skip(1).join('/')}'
               : 'lib/${parts.skip(1).join('/')}';
         } else {
           final base = File(file).parent.path;
@@ -82,12 +84,15 @@ Future<void> main() async {
   final isAll = forceAll || selected == 'ALL';
   List<String> tests;
   if (isAll) {
-    tests = Directory('test')
-        .listSync(recursive: true)
-        .whereType<File>()
-        .map((f) => f.path)
-        .where((p) => p.endsWith('_test.dart'))
-        .toList();
+    tests = [
+      for (final root in testRoots)
+        if (Directory(root).existsSync())
+          ...Directory(root)
+              .listSync(recursive: true)
+              .whereType<File>()
+              .map((f) => f.path)
+              .where((p) => p.endsWith('_test.dart')),
+    ];
   } else {
     tests = selected.split(' ').where((t) => t.trim().isNotEmpty).toList();
   }
@@ -124,11 +129,16 @@ Future<void> main() async {
     return;
   }
 
-  final unit = toRun.where((t) => !t.startsWith('integration_test')).toList();
-  final integration = toRun
+  final core = toRun.where((t) => t.startsWith('$corePackageDir/')).toList();
+  final rest = toRun.where((t) => !core.contains(t)).toList();
+  final unit = rest.where((t) => !t.startsWith('integration_test')).toList();
+  final integration = rest
       .where((t) => t.startsWith('integration_test'))
       .toList();
-  if (unit.isNotEmpty) {
+  if (core.isNotEmpty) {
+    exitCode = await _runCorePackage(core);
+  }
+  if (exitCode == 0 && unit.isNotEmpty) {
     exitCode = await _runFlutter(unit);
   }
   if (exitCode == 0 && integration.isNotEmpty) {
@@ -156,6 +166,31 @@ Future<int> _runFlutter(List<String> tests) async {
     '--coverage',
     ...tests,
   ], runInShell: true);
+  stdout.write(res.stdout);
+  stderr.write(res.stderr);
+  return res.exitCode;
+}
+
+/// Runs the foodsavr_core package tests with `dart test` inside the package,
+/// which is a standalone pure Dart package with its own dependencies.
+Future<int> _runCorePackage(List<String> tests) async {
+  final relative = [
+    for (final t in tests) t.substring('$corePackageDir/'.length),
+  ];
+  var res = await Process.run(
+    'dart',
+    ['pub', 'get'],
+    workingDirectory: corePackageDir,
+    runInShell: true,
+  );
+  if (res.exitCode == 0) {
+    res = await Process.run(
+      'dart',
+      ['test', ...relative],
+      workingDirectory: corePackageDir,
+      runInShell: true,
+    );
+  }
   stdout.write(res.stdout);
   stderr.write(res.stderr);
   return res.exitCode;

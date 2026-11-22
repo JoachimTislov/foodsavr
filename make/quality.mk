@@ -29,7 +29,9 @@ test: deps
 	@FILES=$$(git --no-pager diff --name-only @{upstream}..HEAD;git --no-pager diff --name-only --staged; git --no-pager diff); \
 	if echo "$$FILES" | grep -E '\.dart$$' > /dev/null; then \
 		echo "Running tests..."; \
-		flutter test --no-pub $(DOTENV_FLAGS); \
+		flutter test --no-pub $(DOTENV_FLAGS) || exit 1; \
+		echo "Running foodsavr_core package tests..."; \
+		(cd packages/foodsavr_core && dart pub get && dart test) || exit 1; \
 	else \
 		echo "No Dart changes detected in local commits or staged changes. Skipping tests."; \
 	fi

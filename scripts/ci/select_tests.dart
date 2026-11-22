@@ -18,6 +18,16 @@ const coreWorkflows = <String>[
   'test/models/product_model_test.dart',
 ];
 
+/// Directories holding unit tests. `packages/foodsavr_core/test` runs with
+/// `dart test` inside the package (see run_tests.dart).
+const testRoots = <String>['test', 'packages/foodsavr_core/test'];
+
+/// Package inputs that are not Dart sources but affect every package test.
+const corePackageInputs = <String>[
+  'packages/foodsavr_core/pubspec.yaml',
+  'packages/foodsavr_core/analysis_options.yaml',
+];
+
 const selfScope = <String>[
   'scripts/ci/select_tests.dart',
   '.github/workflows/ci-checks.yml',
@@ -47,14 +57,20 @@ Set<String> transitiveDeps(String entry) {
     if (!seen.add(file)) continue;
     if (!File(file).existsSync()) continue;
     final dir = File(file).parent.path;
-    final importRe = RegExp(
-      r"""(?:import|export|part)\s+['"]([^'"]+)['"]""",
+    final directiveRe = RegExp(
+      r'^\s*(?:import|export|part)\s+[^;]*;',
       multiLine: true,
     );
-    for (final match in importRe.allMatches(File(file).readAsStringSync())) {
-      for (final path in _resolveSpec(match.group(0)!.trim(), dir)) {
-        if (!path.contains('/.dart_tool/')) {
-          queue.add(path);
+    final uriRe = RegExp(r"""['"]([^'"]+\.dart)['"]""");
+    for (final directive in directiveRe.allMatches(
+      File(file).readAsStringSync(),
+    )) {
+      // A directive lists every URI a conditional import/export can select.
+      for (final uri in uriRe.allMatches(directive.group(0)!)) {
+        for (final path in _resolveSpec(uri.group(1)!, dir)) {
+          if (!path.contains('/.dart_tool/')) {
+            queue.add(path);
+          }
         }
       }
     }
@@ -62,37 +78,19 @@ Set<String> transitiveDeps(String entry) {
   return seen;
 }
 
-/// Resolves one import/export/part spec (including every URI a conditional
-/// `export ... if (...) ...` can select) to repo paths.
+/// Resolves one import/export/part URI to repo paths.
 List<String> _resolveSpec(String spec, String dir) {
   if (spec.startsWith('dart:')) return const [];
-  final specs = <String>[spec];
-  final results = <String>[];
-  final condRe = RegExp(
-    r"""['"]([^'"]+)['"]\s+if\s*\(.*?\)\s*['"]([^'"]+)['"]""",
-  );
-  while (specs.isNotEmpty) {
-    final s = specs.removeLast();
-    final cond = condRe.firstMatch(s);
-    if (cond != null) {
-      specs
-        ..add(cond.group(1)!)
-        ..add(cond.group(2)!);
-      continue;
-    }
-    String path;
-    if (s.startsWith('package:')) {
-      final parts = s.substring(7).split('/');
-      path = parts.first == 'foodsavr_core'
-          ? 'packages/foodsavr_core/lib/${parts.skip(2).join('/')}'
-          : 'lib/${parts.skip(1).join('/')}';
-    } else {
-      path = Uri.file('$dir/$s').normalizePath().toFilePath();
-      path = path.replaceAll(RegExp(r'/lib/lib/'), '/lib/');
-    }
-    results.add(path);
+  if (spec.startsWith('package:')) {
+    final parts = spec.substring('package:'.length).split('/');
+    return [
+      parts.first == 'foodsavr_core'
+          ? 'packages/foodsavr_core/lib/${parts.skip(1).join('/')}'
+          : 'lib/${parts.skip(1).join('/')}',
+    ];
   }
-  return results;
+  final path = Uri.file('$dir/$spec').normalizePath().toFilePath();
+  return [path.replaceAll(RegExp(r'/lib/lib/'), '/lib/')];
 }
 
 void main(List<String> args) async {
@@ -129,7 +127,8 @@ void main(List<String> args) async {
   }
 
   final changedDart = changed.where((c) => c.endsWith('.dart')).toSet();
-  if (changedDart.isEmpty) {
+  final corePackageChanged = changed.any(corePackageInputs.contains);
+  if (changedDart.isEmpty && !corePackageChanged) {
     // Nothing code-related changed; still pin core workflows (cheap, vital).
     stdout.writeln('reason=no dart changes; core workflow pin only');
     stdout.writeln('files=${coreWorkflows.join(' ')}');
@@ -138,18 +137,23 @@ void main(List<String> args) async {
 
   // Relational selection: every test whose transitive import closure
   // intersects the changed files is affected.
-  final testFiles = Directory('test')
-      .listSync(recursive: true)
-      .whereType<File>()
-      .map((f) => f.path)
-      .where((p) => p.endsWith('_test.dart'))
-      .toList();
+  final testFiles = [
+    for (final root in testRoots)
+      if (Directory(root).existsSync())
+        ...Directory(root)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .map((f) => f.path)
+            .where((p) => p.endsWith('_test.dart')),
+  ];
 
   final affected = <String>{...coreWorkflows};
   for (final test in testFiles) {
     final norm = test.startsWith('./') ? test.substring(2) : test;
     if (coreWorkflows.contains(norm)) continue;
-    if (transitiveDeps(norm).any(changedDart.contains)) {
+    if (corePackageChanged && norm.startsWith('packages/foodsavr_core/')) {
+      affected.add(norm);
+    } else if (transitiveDeps(norm).any(changedDart.contains)) {
       affected.add(norm);
     }
   }
