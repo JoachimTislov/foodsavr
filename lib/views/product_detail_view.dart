@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:watch_it/watch_it.dart';
 
 import 'product_form_view.dart';
 import '../constants/product_categories.dart';
@@ -12,7 +13,7 @@ import '../services/collection_service.dart';
 import '../services/product_service.dart';
 import '../interfaces/i_auth_service.dart';
 
-class ProductDetailView extends StatefulWidget {
+class ProductDetailView extends WatchingStatefulWidget {
   final Product product;
 
   const ProductDetailView({super.key, required this.product});
@@ -78,7 +79,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
 
     // Get status from product model
     final status = product.statusWithin(
-      getIt<PreferencesController>().expiringSoonDays,
+      watchPropertyValue((PreferencesController c) => c.expiringSoonDays),
     );
     final statusColor = status.getColor(colorScheme);
     final statusMessage = status.getMessage();

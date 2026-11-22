@@ -124,6 +124,7 @@
 		"all_products": "Alle produkter",
 		"availableIn": "Tilgjengelig i {inventories}",
 		"available_stock": "TILGJENGELIG LAGER",
+		"addToInventoryError": "Varen ble lagret, men kunne ikke legges til i lageret: {error}",
 		"barcodeAddError": "Kunne ikke legge til skannet strekkode: {error}",
 		"barcodeAssumedExpiry": ". Antar utløp om {days} dager. Trykk for å endre.",
 		"barcodeCreated": "Opprettet nytt produkt \"{name}\"",
@@ -242,7 +243,8 @@
 			"defaultInventory": "Standardlager",
 			"defaultInventoryHelp": "Nye varer legges til her når ingen lager er valgt.",
 			"firstInventory": "Første lager",
-			"noInventories": "Ingen lagre ennå"
+			"noInventories": "Ingen lagre ennå",
+			"syncError": "Lagret bare på denne enheten; synkronisering mislyktes."
 		}
 	},
 	"transfer": {

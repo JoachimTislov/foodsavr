@@ -53,12 +53,20 @@ class PreferencesController extends ChangeNotifier {
   Future<String?> resolveDefaultInventoryId({String? userId}) async {
     final id = userId ?? _userId;
     if (id == null) return null;
-    final inventories = await _collectionService.getCollectionsForUser(
-      id,
-      type: CollectionType.inventory,
-    );
-    final preferences = id == _userId ? _preferences : const UserPreferences();
-    return preferences.resolveDefaultInventoryId(inventories);
+    try {
+      final inventories = await _collectionService.getCollectionsForUser(
+        id,
+        type: CollectionType.inventory,
+      );
+      final preferences = id == _userId
+          ? _preferences
+          : const UserPreferences();
+      return preferences.resolveDefaultInventoryId(inventories);
+    } catch (e) {
+      // No target is a valid outcome: the product is created standalone.
+      _logger.w('Could not resolve the default inventory: $e');
+      return null;
+    }
   }
 
   /// Refreshes the preferences from the backend for the signed-in user.
@@ -90,6 +98,9 @@ class PreferencesController extends ChangeNotifier {
     return _update(_preferences.copyWith(defaultInventoryId: inventoryId));
   }
 
+  /// Applies [next] locally (and to the device cache), then syncs it. A failed
+  /// sync is rethrown so the caller can tell the user the change is kept on
+  /// this device only.
   Future<void> _update(UserPreferences next) async {
     final userId = _userId;
     if (userId == null || next == _preferences) return;
@@ -100,6 +111,7 @@ class PreferencesController extends ChangeNotifier {
       await _repository.save(userId, next);
     } catch (e) {
       _logger.e('Failed to save preferences: $e');
+      rethrow;
     }
   }
 

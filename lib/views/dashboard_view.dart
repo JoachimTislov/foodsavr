@@ -17,7 +17,7 @@ import 'collection_form_view.dart';
 class DashboardView extends WatchingWidget {
   const DashboardView({super.key});
 
-  Future<void> _refreshDashboard() => getIt<DashboardController>().load();
+  Future<void> _refreshDashboard() => getIt<DashboardController>().refresh();
 
   @override
   Widget build(BuildContext context) {

@@ -30,6 +30,14 @@ class _SnapshotPreferencesRepository extends InMemoryPreferencesRepository {
   }
 }
 
+class _FailingSaveRepository extends InMemoryPreferencesRepository {
+  @override
+  Future<void> save(String userId, UserPreferences preferences) async {
+    cache[userId] = preferences;
+    throw Exception('permission-denied');
+  }
+}
+
 Collection _inventory(String id) =>
     Collection(id: id, name: id, productIds: const [], userId: 'user-1');
 
@@ -185,6 +193,16 @@ void main() {
       },
     );
 
+    test('a failed sync is reported and the change kept locally', () async {
+      repository = _FailingSaveRepository();
+      controller = create();
+      await settle();
+
+      await expectLater(controller.setExpiringSoonDays(3), throwsException);
+      expect(controller.expiringSoonDays, 3);
+      expect(repository.getCached('user-1')?.expiringSoonDays, 3);
+    });
+
     group('resolveDefaultInventoryId', () {
       setUp(() {
         when(
@@ -193,6 +211,17 @@ void main() {
             type: CollectionType.inventory,
           ),
         ).thenAnswer((_) async => [_inventory('a'), _inventory('b')]);
+      });
+
+      test('returns null when the inventories cannot be loaded', () async {
+        when(
+          () => collections.getCollectionsForUser(
+            'user-1',
+            type: CollectionType.inventory,
+          ),
+        ).thenThrow(Exception('offline'));
+        controller = create();
+        expect(await controller.resolveDefaultInventoryId(), isNull);
       });
 
       test('returns the first inventory without a preference', () async {

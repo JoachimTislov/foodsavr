@@ -24,9 +24,8 @@ class ProductSelectItem extends WatchingWidget {
     final expiringSoonDays = watchPropertyValue(
       (PreferencesController c) => c.expiringSoonDays,
     );
-    final statusColor = product
-        .statusWithin(expiringSoonDays)
-        .getColor(colorScheme);
+    final status = product.statusWithin(expiringSoonDays);
+    final statusColor = status.getColor(colorScheme);
 
     return InkWell(
       onTap: onToggle,
@@ -84,7 +83,7 @@ class ProductSelectItem extends WatchingWidget {
                         ),
                       ),
                       Text(
-                        product.status.getMessage(),
+                        status.getMessage(),
                         style: textTheme.bodySmall?.copyWith(
                           color: statusColor,
                           fontWeight: FontWeight.bold,

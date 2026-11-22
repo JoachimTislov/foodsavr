@@ -161,6 +161,29 @@ void main() {
     expect(find.text('Create'), findsNothing);
   });
 
+  testWidgets('a retry after a failed assignment creates no second product', (
+    tester,
+  ) async {
+    var attempts = 0;
+    when(
+      () => collectionService.addProductToCollection(any(), any()),
+    ).thenAnswer((_) async {
+      if (attempts++ == 0) throw Exception('offline');
+    });
+    await openForm(tester, prefill: scanned, collectionId: 'inv');
+    await tester.enterText(find.byType(TextFormField).first, 'Oat drink');
+
+    await tester.tap(find.text('Create'));
+    await settle(tester);
+    final addedAfterFailure = repository.added.length;
+    await tester.tap(find.text('Create'));
+    await settle(tester);
+
+    expect(repository.added.length, addedAfterFailure);
+    expect(attempts, 2);
+    expect(find.text('Create'), findsNothing);
+  });
+
   testWidgets('B: editing keeps barcode, image and tags; rescan increments', (
     tester,
   ) async {

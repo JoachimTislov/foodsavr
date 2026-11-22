@@ -360,6 +360,16 @@ class _BehaviorSectionState extends State<_BehaviorSection> {
     );
   }
 
+  /// Reports a preference that could not be synced; it stays on this device.
+  void _sync(Future<void> update) {
+    final messenger = ScaffoldMessenger.of(context);
+    update.catchError((Object _) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('settings.behavior.syncError'.tr())),
+      );
+    });
+  }
+
   Future<void> _showExpiringSoonDialog(
     BuildContext context,
     PreferencesController preferences,
@@ -399,7 +409,7 @@ class _BehaviorSectionState extends State<_BehaviorSection> {
             ),
             FilledButton(
               onPressed: () {
-                preferences.setExpiringSoonDays(days);
+                _sync(preferences.setExpiringSoonDays(days));
                 Navigator.of(context).pop();
               },
               child: Text('common.save'.tr()),
@@ -419,37 +429,40 @@ class _BehaviorSectionState extends State<_BehaviorSection> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      isScrollControlled: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: Text('settings.behavior.firstInventory'.tr()),
-              trailing: preferences.defaultInventoryId == null
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                preferences.setDefaultInventoryId(null);
-                Navigator.pop(context);
-              },
-            ),
-            if (_inventories.isEmpty)
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               ListTile(
-                enabled: false,
-                title: Text('settings.behavior.noInventories'.tr()),
-              ),
-            for (final inventory in _inventories)
-              ListTile(
-                title: Text(inventory.name),
-                trailing: preferences.defaultInventoryId == inventory.id
+                title: Text('settings.behavior.firstInventory'.tr()),
+                trailing: preferences.defaultInventoryId == null
                     ? const Icon(Icons.check)
                     : null,
                 onTap: () {
-                  preferences.setDefaultInventoryId(inventory.id);
+                  _sync(preferences.setDefaultInventoryId(null));
                   Navigator.pop(context);
                 },
               ),
-          ],
+              if (_inventories.isEmpty)
+                ListTile(
+                  enabled: false,
+                  title: Text('settings.behavior.noInventories'.tr()),
+                ),
+              for (final inventory in _inventories)
+                ListTile(
+                  title: Text(inventory.name),
+                  trailing: preferences.defaultInventoryId == inventory.id
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () {
+                    _sync(preferences.setDefaultInventoryId(inventory.id));
+                    Navigator.pop(context);
+                  },
+                ),
+            ],
+          ),
         ),
       ),
     );

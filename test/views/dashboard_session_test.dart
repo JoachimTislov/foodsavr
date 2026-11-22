@@ -55,6 +55,7 @@ void main() {
           getIt<CollectionService>(),
           Logger(level: Level.off),
         ),
+        Logger(level: Level.off),
       ),
     );
   });
