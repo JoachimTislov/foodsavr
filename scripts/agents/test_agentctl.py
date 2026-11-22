@@ -715,7 +715,7 @@ class AgentctlTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             result = self.run_cli("router", "plan", str(WORKFLOW), database=Path(directory) / "db", check=False)
             plan = json.loads(result.stdout)
-            self.assertEqual(plan["fallback"]["strategy"], "first-available-policy-safe")
+            self.assertEqual(plan["fallback"]["strategy"], "hybrid-deterministic-jev")
             self.assertFalse(plan["decision_provider"]["enabled"])
             self.assertEqual(len(plan["decisions"]), 2)
 
@@ -1431,6 +1431,182 @@ class AgentctlTest(unittest.TestCase):
             )
             self.assertEqual(probe_missing_key.returncode, 1)
             self.assertIn("ROUTER_API_KEY is not set", probe_missing_key.stdout)
+
+            # Jev mode: --enable-remote without ROUTER_MODEL or --base-url defaults to https://api.typesafe.ai/v1/systemone
+            jev_env_file = tmp / ".jev.env"
+            jev_override = tmp / "router.jev.override.json"
+            jev_res = subprocess.run(
+                [
+                    str(script),
+                    "--enable-remote",
+                    "--override-file", str(jev_override),
+                ],
+                cwd=ROOT,
+                env={
+                    **base_env,
+                    "AGENT_ENV_FILE": str(jev_env_file),
+                    "ROUTER_API_KEY": "dummy-router-key",
+                },
+                stdin=subprocess.DEVNULL,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotIn("dummy-router-key", jev_res.stdout)
+            jev_env_contents = jev_env_file.read_text()
+            self.assertIn("ROUTER_BASE_URL='https://api.typesafe.ai/v1/systemone'", jev_env_contents)
+            self.assertIn("ROUTER_API_KEY='dummy-router-key'", jev_env_contents)
+            self.assertNotIn("ROUTER_MODEL=", jev_env_contents)
+
+    def test_hybrid_jev_routing_and_antigravity_provider(self) -> None:
+        module = load_agentctl_module()
+        # 1. resolve_router_endpoint_url
+        self.assertEqual(
+            module.resolve_router_endpoint_url("https://api.typesafe.ai/v1/systemone"),
+            "https://api.typesafe.ai/v1/systemone",
+        )
+        self.assertEqual(
+            module.resolve_router_endpoint_url("https://api.typesafe.ai/v1/systemone/"),
+            "https://api.typesafe.ai/v1/systemone",
+        )
+        self.assertEqual(
+            module.resolve_router_endpoint_url("https://api.example.com/v1"),
+            "https://api.example.com/v1/chat/completions",
+        )
+        self.assertEqual(
+            module.resolve_router_endpoint_url("https://api.example.com"),
+            "https://api.example.com/chat/completions",
+        )
+
+        # 2. Antigravity (agy) provider command generation and conversation_id extraction
+        specs = json.loads((ROOT / ".agents/runners/providers.json").read_text())["providers"]
+        self.assertIn("antigravity", specs)
+        agy_spec = specs["antigravity"]
+        self.assertEqual(agy_spec["command"], "agy")
+        read_perms = {"filesystem": "read-only", "network": "none", "git": "read-only", "github": "none"}
+        write_perms = {"filesystem": "workspace-write", "network": "none", "git": "read-only", "github": "none"}
+        agy_read_cmd, _ = module.provider_command(
+            "antigravity",
+            module.effective_spec(agy_spec, read_perms),
+            "Audit repo",
+            model="gemini-4-argon",
+        )
+        self.assertEqual(agy_read_cmd[0], "agy")
+        self.assertIn("--mode", agy_read_cmd)
+        self.assertIn("plan", agy_read_cmd)
+        self.assertIn("--sandbox", agy_read_cmd)
+        self.assertIn("--model", agy_read_cmd)
+        self.assertIn("gemini-4-argon", agy_read_cmd)
+
+        agy_write_cmd, _ = module.provider_command(
+            "antigravity",
+            module.effective_spec(agy_spec, write_perms),
+            "Implement issue",
+            model="gemini-4-hydrogen",
+        )
+        self.assertIn("accept-edits", agy_write_cmd)
+        self.assertIn("--dangerously-skip-permissions", agy_write_cmd)
+        self.assertIn("gemini-4-hydrogen", agy_write_cmd)
+
+        self.assertEqual(
+            module.extract_session_id(json.dumps({"conversation_id": "conv-12345"})),
+            "conv-12345",
+        )
+        self.assertEqual(
+            module.extract_session_id(json.dumps({"result": {"conversationId": "conv-67890"}})),
+            "conv-67890",
+        )
+
+        # 3. external_route_decision with Jev contract (no ROUTER_MODEL required)
+        router = json.loads((ROOT / ".agents/runners/router.json").read_text())
+        router["decision_provider"]["enabled"] = True
+        router["decision_provider"]["allow_control_plane_on_none"] = True
+        policy = json.loads((ROOT / ".agents/policies/default.json").read_text())
+        self.assertIn("api.typesafe.ai", policy["allow_hosts"])
+        workflow = {
+            "id": "hybrid-test",
+            "objective": "Handle ticket",
+            "permissions": write_perms,
+        }
+        inferred_step = {"id": "step-1", "role": "worker", "prompt": "Apply change"}
+        explicit_step = {"id": "explicit-impl", "role": "implementer", "work_type": "implementation", "prompt": "Build feature"}
+
+        captured_reqs: list[tuple[str, dict[str, str], dict[str, object]]] = []
+
+        class JevResponse:
+            def __init__(self, payload: dict[str, object]) -> None:
+                self._payload = payload
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def read(self, _limit):
+                return json.dumps(self._payload).encode()
+
+        def fake_jev_urlopen(req, **_kwargs):
+            headers = {k.lower(): v for k, v in req.header_items()}
+            body = json.loads(req.data.decode())
+            captured_reqs.append((req.full_url, headers, body))
+            return JevResponse({
+                "decision": {
+                    "provider": "antigravity",
+                    "model": "gemini-4-hydrogen",
+                    "work_type": "implementation",
+                    "tier": "code-specialist",
+                    "effort": "high",
+                    "confidence": 0.94,
+                    "reason": "Jev selected Antigravity hydrogen for implementation.",
+                }
+            })
+
+        with patch.dict(module.os.environ, {
+            "ROUTER_BASE_URL": "https://api.typesafe.ai/v1/systemone",
+            "ROUTER_API_KEY": "jev-token-xyz",
+            "ROUTER_MODEL": "",
+        }), patch.object(module.urllib.request, "urlopen", side_effect=fake_jev_urlopen):
+            # Explicit work_type (confidence 1.0 >= 0.9) uses deterministic code without calling Jev
+            det_decision, det_profile, det_reason = module.resolve_step_route(
+                workflow, explicit_step, ["antigravity", "claude", "codex"], specs, router, policy,
+            )
+            self.assertEqual(len(captured_reqs), 0)
+            self.assertEqual(det_reason, "hybrid-deterministic")
+            self.assertIsNotNone(det_decision)
+            assert det_decision is not None
+            self.assertEqual(det_profile.confidence, 1.0)
+
+            # Inferred step (confidence 0.85 < 0.9) calls Jev fallback without requiring ROUTER_MODEL
+            jev_decision, jev_profile, jev_reason = module.resolve_step_route(
+                workflow, inferred_step, ["antigravity", "claude", "codex"], specs, router, policy,
+            )
+            self.assertEqual(len(captured_reqs), 1)
+            url, headers, body = captured_reqs[0]
+            self.assertEqual(url, "https://api.typesafe.ai/v1/systemone")
+            self.assertEqual(headers["authorization"], "Bearer jev-token-xyz")
+            self.assertEqual(headers["content-type"], "application/json")
+            self.assertNotIn("model", body)
+            self.assertEqual(jev_reason, "external-decision-provider")
+            self.assertIsNotNone(jev_decision)
+            assert jev_decision is not None
+            self.assertEqual(jev_decision.provider, "antigravity")
+            self.assertEqual(jev_decision.model, "gemini-4-hydrogen")
+            self.assertEqual(jev_decision.reasoning_effort, "high")
+            self.assertEqual(jev_decision.rationale, "Jev selected Antigravity hydrogen for implementation.")
+
+        # 4. Future model support: when ROUTER_MODEL is set, it is included in payload
+        captured_reqs.clear()
+        with patch.dict(module.os.environ, {
+            "ROUTER_BASE_URL": "https://api.typesafe.ai/v1/systemone",
+            "ROUTER_API_KEY": "jev-token-xyz",
+            "ROUTER_MODEL": "future-router-v2",
+        }), patch.object(module.urllib.request, "urlopen", side_effect=fake_jev_urlopen):
+            module.external_route_decision(
+                workflow, inferred_step, ["antigravity", "claude"], router, policy, specs=specs,
+            )
+            self.assertEqual(len(captured_reqs), 1)
+            self.assertEqual(captured_reqs[0][2].get("model"), "future-router-v2")
 
 
 SESSION_ENV_VARS = ("CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "T3CODE_THREAD_ID", "AGENT_SESSION_ID", "AGENT_HARNESS",

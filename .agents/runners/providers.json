@@ -70,6 +70,71 @@
         }
       }
     },
+    "antigravity": {
+      "command": "agy",
+      "headless": ["-p", "--output-format", "json", "--mode", "plan", "--sandbox", "--disable-slash-commands"],
+      "prompt_mode": "argument",
+      "model_flag": "--model",
+      "default_model": "gemini-4-hydrogen",
+      "cost_rank": 1,
+      "strengths": ["audit", "implementation", "testing", "review", "ci-triage", "low-harness-overhead"],
+      "models": {
+        "gemini-4-hydrogen": {
+          "tier": "deep",
+          "work_types": ["implementation", "refactoring", "review", "architecture", "security"],
+          "reasoning_effort": "high",
+          "cost_rank": 2,
+          "speed_rank": 2,
+          "strengths": ["implementation", "refactoring", "review", "deep-reasoning"]
+        },
+        "gemini-4-neon": {
+          "tier": "balanced",
+          "work_types": ["research", "documentation", "testing", "review"],
+          "reasoning_effort": "medium",
+          "cost_rank": 1,
+          "speed_rank": 1,
+          "strengths": ["research", "documentation", "testing", "low-latency"]
+        },
+        "gemini-4-argon": {
+          "tier": "deep",
+          "work_types": ["architecture", "security", "review", "research"],
+          "reasoning_effort": "xhigh",
+          "cost_rank": 3,
+          "speed_rank": 3,
+          "strengths": ["architecture", "security", "audit", "complex-analysis"]
+        },
+        "gemini-3.8-flash": {
+          "tier": "fast",
+          "work_types": ["triage", "documentation", "research"],
+          "reasoning_effort": "low",
+          "cost_rank": 1,
+          "speed_rank": 1,
+          "strengths": ["triage", "ci-triage", "fast-classification"]
+        }
+      },
+      "enforces_read_only": true,
+      "enforced_permissions": {"filesystem": ["read-only"], "network": ["none"], "git": ["read-only"], "github": ["none"]},
+      "capability_verification": {
+        "mode": "version-and-flags",
+        "verified_version_prefix": "1.",
+        "required_flags": ["-p", "--output-format", "json", "--mode", "plan", "--sandbox", "--disable-slash-commands"]
+      },
+      "usage_fields": ["usage.input_tokens", "usage.output_tokens", "usage.total_tokens"],
+      "version": ["--version"],
+      "session_id_source": "JSON session_id or conversation_id",
+      "permission_modes": {
+        "read-only": {
+          "headless": ["-p", "--output-format", "json", "--mode", "plan", "--sandbox", "--disable-slash-commands"],
+          "enforced_permissions": {"filesystem": ["read-only"], "network": ["none"], "git": ["read-only"], "github": ["none"]},
+          "capability_verification": {"required_flags": ["-p", "--output-format", "json", "--mode", "plan", "--sandbox", "--disable-slash-commands"]}
+        },
+        "workspace-write": {
+          "headless": ["-p", "--output-format", "json", "--mode", "accept-edits", "--sandbox", "--dangerously-skip-permissions", "--disable-slash-commands"],
+          "enforced_permissions": {"filesystem": ["workspace-write"], "network": ["none"], "git": ["read-only"], "github": ["none"]},
+          "capability_verification": {"required_flags": ["-p", "--output-format", "json", "--mode", "accept-edits", "--sandbox", "--dangerously-skip-permissions", "--disable-slash-commands"]}
+        }
+      }
+    },
     "opencode": {
       "command": "opencode",
       "headless": ["run", "--format", "json"],

@@ -1318,38 +1318,56 @@ class RouteDecision:
         if not isinstance(payload, dict):
             raise ValueError("Router decision response must be a JSON object")
         candidate_obj: Any = payload
-        if "provider" not in payload and "choices" in payload:
-            choices = payload.get("choices")
-            if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
-                raise ValueError("Router response choices[0] must be an object")
-            message = choices[0].get("message")
-            if not isinstance(message, dict):
-                raise ValueError("Router response choices[0].message must be an object")
-            content = message.get("content")
-            if isinstance(content, dict):
-                candidate_obj = content
-            elif isinstance(content, str):
-                cleaned = content.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-                candidate_obj = json.loads(cleaned)
+        if "provider" not in payload:
+            if "choices" in payload:
+                choices = payload.get("choices")
+                if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+                    raise ValueError("Router response choices[0] must be an object")
+                message = choices[0].get("message")
+                if not isinstance(message, dict):
+                    raise ValueError("Router response choices[0].message must be an object")
+                content = message.get("content")
+                if isinstance(content, dict):
+                    candidate_obj = content
+                elif isinstance(content, str):
+                    cleaned = content.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                    candidate_obj = json.loads(cleaned)
+                else:
+                    raise ValueError("Router response message content must be JSON string or object")
             else:
-                raise ValueError("Router response message content must be JSON string or object")
+                for wrapper_key in ("decision", "result", "data", "output", "structured_output"):
+                    nested = payload.get(wrapper_key)
+                    if isinstance(nested, dict):
+                        candidate_obj = nested
+                        break
+                    if isinstance(nested, str):
+                        cleaned = nested.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                        candidate_obj = json.loads(cleaned)
+                        break
         if not isinstance(candidate_obj, dict):
             raise ValueError("Router decision content must decode to a JSON object")
-        if allow_minimal and isinstance(candidate_obj.get("provider"), str) and candidate_obj["provider"].strip():
-            provider_name = candidate_obj["provider"]
-            merged = dict(candidate_obj)
-            if "model" not in merged:
-                merged["model"] = (default_models or {}).get(provider_name) or "default"
+        normalized_obj = dict(candidate_obj)
+        if "reasoning_effort" not in normalized_obj and isinstance(normalized_obj.get("effort"), str):
+            normalized_obj["reasoning_effort"] = normalized_obj.pop("effort")
+        if "rationale" not in normalized_obj and isinstance(normalized_obj.get("reason"), str):
+            normalized_obj["rationale"] = normalized_obj.pop("reason")
+        if "source" not in normalized_obj and all(
+            key in normalized_obj for key in ("provider", "model", "work_type", "tier", "reasoning_effort", "confidence", "rationale")
+        ):
+            normalized_obj["source"] = "router-remote"
+        if allow_minimal and isinstance(normalized_obj.get("provider"), str) and normalized_obj["provider"].strip():
+            provider_name = normalized_obj["provider"]
+            if "model" not in normalized_obj:
+                normalized_obj["model"] = (default_models or {}).get(provider_name) or "default"
             if default_profile is not None:
-                merged.setdefault("work_type", default_profile.work_type.value)
-                merged.setdefault("tier", default_profile.tier.value)
-                merged.setdefault("reasoning_effort", default_profile.reasoning_effort)
-                merged.setdefault("confidence", default_profile.confidence)
-            merged.setdefault("rationale", "Selected by external decision provider.")
-            merged.setdefault("source", "router-remote")
-            candidate_obj = merged
+                normalized_obj.setdefault("work_type", default_profile.work_type.value)
+                normalized_obj.setdefault("tier", default_profile.tier.value)
+                normalized_obj.setdefault("reasoning_effort", default_profile.reasoning_effort)
+                normalized_obj.setdefault("confidence", default_profile.confidence)
+            normalized_obj.setdefault("rationale", "Selected by external decision provider.")
+            normalized_obj.setdefault("source", "router-remote")
         return cls.from_dict(
-            candidate_obj,
+            normalized_obj,
             allowed_providers=allowed_providers,
             allowed_models=allowed_models,
         )
@@ -1729,7 +1747,9 @@ def validate_router_config(router: dict[str, Any], source: Any = ROUTER) -> list
     else:
         allowed_dp = {
             "enabled", "engine", "protocol", "structured_output", "control_plane_egress",
-            "allow_control_plane_on_none", "base_url_env", "api_key_env", "model_env", "timeout_ms",
+            "allow_control_plane_on_none", "base_url_env", "default_base_url", "api_key_env",
+            "model_env", "default_model", "model_required", "always_consult", "consult_on_inferred",
+            "timeout_ms",
         }
         for field in sorted(set(dp) - allowed_dp):
             errors.append(f"{source}: decision_provider unknown field {field}")
@@ -1742,14 +1762,14 @@ def validate_router_config(router: dict[str, Any], source: Any = ROUTER) -> list
             errors.append(f"{source}: decision_provider.engine must be a non-empty string")
         if "protocol" in dp and dp["protocol"] != "openai-compatible":
             errors.append(f"{source}: decision_provider.protocol must be 'openai-compatible'")
-        for bool_field in ("structured_output", "allow_control_plane_on_none"):
+        for bool_field in ("structured_output", "allow_control_plane_on_none", "model_required", "always_consult", "consult_on_inferred"):
             if bool_field in dp and not isinstance(dp[bool_field], bool):
                 errors.append(f"{source}: decision_provider.{bool_field} must be boolean")
         if "control_plane_egress" in dp and dp["control_plane_egress"] not in {"independent", "workflow"}:
             errors.append(f"{source}: decision_provider.control_plane_egress is invalid")
-        for env_field in ("base_url_env", "api_key_env", "model_env"):
-            if env_field in dp and (not isinstance(dp[env_field], str) or not dp[env_field].strip()):
-                errors.append(f"{source}: decision_provider.{env_field} must be a non-empty string")
+        for str_field in ("base_url_env", "default_base_url", "api_key_env", "model_env", "default_model"):
+            if str_field in dp and (not isinstance(dp[str_field], str) or not dp[str_field].strip()):
+                errors.append(f"{source}: decision_provider.{str_field} must be a non-empty string")
         if "timeout_ms" in dp:
             timeout_ms = dp["timeout_ms"]
             if not isinstance(timeout_ms, int) or isinstance(timeout_ms, bool) or timeout_ms < 50:
@@ -1760,13 +1780,18 @@ def validate_router_config(router: dict[str, Any], source: Any = ROUTER) -> list
         if "fallback" in router:
             errors.append(f"{source}: fallback must be an object")
     else:
-        for field in sorted(set(fb) - {"strategy", "requires_explicit_provider"}):
+        for field in sorted(set(fb) - {"strategy", "deterministic_min_confidence", "requires_explicit_provider"}):
             errors.append(f"{source}: fallback unknown field {field}")
         for field in ("strategy", "requires_explicit_provider"):
             if field not in fb:
                 errors.append(f"{source}: fallback missing {field}")
-        if "strategy" in fb and fb["strategy"] != "first-available-policy-safe":
-            errors.append(f"{source}: fallback.strategy must be 'first-available-policy-safe'")
+        valid_strategies = {"hybrid-deterministic-jev", "first-available-policy-safe", "local-classifier", "static-priority"}
+        if "strategy" in fb and fb["strategy"] not in valid_strategies:
+            errors.append(f"{source}: fallback.strategy must be one of {sorted(valid_strategies)}")
+        if "deterministic_min_confidence" in fb:
+            min_conf = fb["deterministic_min_confidence"]
+            if isinstance(min_conf, bool) or not isinstance(min_conf, (int, float)) or not math.isfinite(min_conf) or not 0.0 <= float(min_conf) <= 1.0:
+                errors.append(f"{source}: fallback.deterministic_min_confidence must be a number between 0.0 and 1.0")
         if "requires_explicit_provider" in fb and not isinstance(fb["requires_explicit_provider"], bool):
             errors.append(f"{source}: fallback.requires_explicit_provider must be boolean")
 
@@ -2177,11 +2202,23 @@ def resolve_step_route(
         )
         return decision, profile, "explicit-provider"
 
-    remote_decision, remote_reason = external_route_decision(
-        workflow, step, safe, router, policy, specs=specs, explicit_model=explicit_model,
+    dp = router.get("decision_provider", {}) if isinstance(router.get("decision_provider"), dict) else {}
+    fb = router.get("fallback", {}) if isinstance(router.get("fallback"), dict) else {}
+    strategy = str(fb.get("strategy", "hybrid-deterministic-jev"))
+    min_conf = float(fb.get("deterministic_min_confidence", 0.9))
+    always_consult = bool(dp.get("always_consult", False))
+    enabled = bool(dp.get("enabled", False))
+    should_consult_remote = enabled and (
+        strategy != "hybrid-deterministic-jev" or always_consult or profile.confidence < min_conf
     )
-    if remote_decision is not None:
-        return remote_decision, profile, remote_reason
+    if should_consult_remote:
+        remote_decision, remote_reason = external_route_decision(
+            workflow, step, safe, router, policy, specs=specs, explicit_model=explicit_model,
+        )
+        if remote_decision is not None:
+            return remote_decision, profile, remote_reason
+    else:
+        remote_reason = "hybrid-deterministic" if enabled else "deterministic-fallback"
 
     provider_name, model_name, rationale, source = select_local_model_route(
         profile, safe, specs, router, step, explicit_model=explicit_model,
@@ -2513,6 +2550,18 @@ def write_json_ordered(path: Path, value: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
+def resolve_router_endpoint_url(base_url: str) -> str:
+    """Resolve an endpoint URL for Jev (e.g. /v1/systemone) or OpenAI-compatible (/v1) routers."""
+    cleaned = base_url.strip().rstrip("/")
+    if not cleaned:
+        return ""
+    parsed = urllib.parse.urlparse(cleaned)
+    normalized_path = parsed.path.rstrip("/")
+    if normalized_path in ("", "/v1", "/api/v1"):
+        return f"{cleaned}/chat/completions"
+    return cleaned
+
+
 def router_status(args: argparse.Namespace) -> int:
     router = load_json(ROUTER)
     policy = load_json(POLICY)
@@ -2521,9 +2570,11 @@ def router_status(args: argparse.Namespace) -> int:
     base_url_env = str(dp.get("base_url_env") or "ROUTER_BASE_URL")
     api_key_env = str(dp.get("api_key_env") or "ROUTER_API_KEY")
     model_env = str(dp.get("model_env") or "ROUTER_MODEL")
-    base_url = os.environ.get(base_url_env, "")
-    api_key = os.environ.get(api_key_env, "")
-    model = os.environ.get(model_env, "")
+    default_base_url = str(dp.get("default_base_url") or "https://api.typesafe.ai/v1/systemone")
+    model_required = bool(dp.get("model_required", False))
+    base_url = os.environ.get(base_url_env, "").strip()
+    api_key = os.environ.get(api_key_env, "").strip()
+    model = os.environ.get(model_env, "").strip() or str(dp.get("default_model") or "").strip()
     parsed_url = urllib.parse.urlparse(base_url) if base_url else None
     url_host = parsed_url.hostname if parsed_url else None
     is_https = bool(parsed_url and parsed_url.scheme == "https" and url_host)
@@ -2542,6 +2593,8 @@ def router_status(args: argparse.Namespace) -> int:
         blockers.append(f"{base_url_env} must use https:// with a valid hostname")
     if not api_key:
         blockers.append(f"{api_key_env} is not set")
+    if model_required and not model:
+        blockers.append(f"{model_env} is not set")
     if policy_network == "none" and not allow_control_plane_on_none:
         blockers.append("policy network=none and allow_control_plane_on_none=false")
     if policy_network == "allowlisted" and not host_allowed:
@@ -2581,6 +2634,7 @@ def router_status(args: argparse.Namespace) -> int:
         "effective_mode": "remote" if not blockers else "local-deterministic",
         "remote_ready": not blockers,
         "remote_blockers": blockers,
+        "resolved_endpoint": resolve_router_endpoint_url(base_url) if base_url else resolve_router_endpoint_url(default_base_url),
         "decision_provider": {
             "enabled": enabled,
             "engine": dp.get("engine"),
@@ -2590,14 +2644,16 @@ def router_status(args: argparse.Namespace) -> int:
             "allow_control_plane_on_none": allow_control_plane_on_none,
             "timeout_ms": dp.get("timeout_ms"),
             "base_url_env": base_url_env,
+            "default_base_url": default_base_url,
             "api_key_env": api_key_env,
             "model_env": model_env,
+            "model_required": model_required,
         },
         "fallback": router.get("fallback", {}),
         "environment": {
             base_url_env: {"set": bool(base_url), "https": is_https, "host": url_host},
             api_key_env: {"set": bool(api_key)},
-            model_env: {"set": bool(model), "value": model or None},
+            model_env: {"set": bool(model), "value": model or None, "required": model_required},
         },
         "host_allowlist": {
             "host": url_host,
@@ -2745,16 +2801,23 @@ def provider_command(
 
 
 def extract_session_id(output: str) -> str | None:
+    keys = ("session_id", "sessionId", "sessionID", "thread_id", "threadId", "conversation_id", "conversationId")
     for line in output.splitlines():
         try:
             value = json.loads(line)
         except json.JSONDecodeError:
             continue
         if isinstance(value, dict):
-            for key in ("session_id", "sessionId", "sessionID", "thread_id", "threadId"):
-                candidate = value.get(key)
-                if isinstance(candidate, str) and candidate:
-                    return candidate
+            candidates_dicts = [value]
+            for nested_key in ("result", "data", "metadata", "session"):
+                nested = value.get(nested_key)
+                if isinstance(nested, dict):
+                    candidates_dicts.append(nested)
+            for item in candidates_dicts:
+                for key in keys:
+                    candidate = item.get(key)
+                    if isinstance(candidate, str) and candidate:
+                        return candidate
     match = re.search(r"\b[0-9a-f]{8}-[0-9a-f-]{27,}\b", output, re.I)
     return match.group(0) if match else None
 
@@ -3228,10 +3291,12 @@ def external_route_decision(
     decision = router.get("decision_provider", {})
     if not decision.get("enabled"):
         return None, "deterministic-fallback"
-    base_url = os.environ.get(decision.get("base_url_env") or "ROUTER_BASE_URL", "")
-    api_key = os.environ.get(decision.get("api_key_env") or "ROUTER_API_KEY", "")
-    model = os.environ.get(decision.get("model_env") or "ROUTER_MODEL", "auto")
-    if not base_url or not api_key or not base_url.startswith("https://"):
+    base_url = os.environ.get(decision.get("base_url_env") or "ROUTER_BASE_URL", "").strip()
+    api_key = os.environ.get(decision.get("api_key_env") or "ROUTER_API_KEY", "").strip()
+    model_env = str(decision.get("model_env") or "ROUTER_MODEL")
+    model = os.environ.get(model_env, "").strip() or str(decision.get("default_model") or "").strip()
+    model_required = bool(decision.get("model_required", False))
+    if not base_url or not api_key or not base_url.startswith("https://") or (model_required and not model):
         return None, "external-router-not-configured-or-not-https"
     network = workflow.get("permissions", {}).get("network", "none")
     allow_control_plane = bool(decision.get("allow_control_plane_on_none", False))
@@ -3265,8 +3330,11 @@ def external_route_decision(
         available_models=tuple(available_models),
         requested_model=requested_model,
     )
+    request_dict = route_request.to_dict()
     payload: dict[str, Any] = {
-        "model": model,
+        **request_dict,
+        "request": request_dict,
+        "temperature": 0,
         "messages": [
             {
                 "role": "system",
@@ -3277,10 +3345,12 @@ def external_route_decision(
             },
             {
                 "role": "user",
-                "content": json.dumps(route_request.to_dict(), sort_keys=True),
+                "content": json.dumps(request_dict, sort_keys=True),
             },
         ],
     }
+    if model:
+        payload["model"] = model
     if decision.get("structured_output", True):
         payload["response_format"] = {
             "type": "json_schema",
@@ -3290,8 +3360,9 @@ def external_route_decision(
                 "schema": RouteDecision.json_schema(safe, available_models or None),
             },
         }
+    endpoint_url = resolve_router_endpoint_url(base_url)
     request = urllib.request.Request(
-        base_url.rstrip("/") + "/chat/completions",
+        endpoint_url,
         data=json.dumps(payload).encode(),
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         method="POST",

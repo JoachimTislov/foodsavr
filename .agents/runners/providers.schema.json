@@ -43,11 +43,17 @@
                     ]
                   }
                 },
-                "reasoning_effort": {"enum": ["low", "medium", "high", "xhigh"]}
+                "reasoning_effort": {"enum": ["low", "medium", "high", "xhigh"]},
+                "cost_rank": {"type": "integer", "minimum": 1},
+                "speed_rank": {"type": "integer", "minimum": 1},
+                "strengths": {"type": "array", "items": {"type": "string", "minLength": 1}}
               },
               "additionalProperties": false
             }
           },
+          "cost_rank": {"type": "integer", "minimum": 1},
+          "speed_rank": {"type": "integer", "minimum": 1},
+          "strengths": {"type": "array", "items": {"type": "string", "minLength": 1}},
           "enforces_read_only": {"type": "boolean"},
           "enforced_permissions": {
             "type": "object",

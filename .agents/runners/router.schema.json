@@ -17,8 +17,13 @@
         "control_plane_egress": {"enum": ["independent", "workflow"]},
         "allow_control_plane_on_none": {"type": "boolean"},
         "base_url_env": {"type": "string", "minLength": 1, "default": "ROUTER_BASE_URL"},
+        "default_base_url": {"type": "string", "minLength": 1, "default": "https://api.typesafe.ai/v1/systemone"},
         "api_key_env": {"type": "string", "minLength": 1, "default": "ROUTER_API_KEY"},
         "model_env": {"type": "string", "minLength": 1, "default": "ROUTER_MODEL"},
+        "default_model": {"type": "string", "minLength": 1},
+        "model_required": {"type": "boolean", "default": false},
+        "always_consult": {"type": "boolean", "default": false},
+        "consult_on_inferred": {"type": "boolean", "default": true},
         "timeout_ms": {"type": "integer", "minimum": 50}
       },
       "additionalProperties": false
@@ -27,7 +32,8 @@
       "type": "object",
       "required": ["strategy", "requires_explicit_provider"],
       "properties": {
-        "strategy": {"enum": ["first-available-policy-safe"]},
+        "strategy": {"enum": ["hybrid-deterministic-jev", "first-available-policy-safe", "local-classifier", "static-priority"]},
+        "deterministic_min_confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0, "default": 0.9},
         "requires_explicit_provider": {"type": "boolean"}
       },
       "additionalProperties": false
