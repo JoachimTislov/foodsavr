@@ -108,6 +108,11 @@ or otherwise rewrite or update a Dependabot branch. Preserve explicit owner
 intent; a bot refusal does not authorize a workaround. Reassess readiness
 against the bot-updated head before merging.
 
+A Dependabot PR whose failure is not fixed by a rebase (for example a
+`flutter pub get` version-solving conflict with an SDK-pinned package) is
+closed, not held: close it with a comment stating the cause and the condition
+for retrying. Do not edit its branch or pin versions to force it green.
+
 ## Execute the ready portion
 
 Serialize merges affecting the same base or stack. Immediately before each
