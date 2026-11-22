@@ -6,9 +6,9 @@ on:
     paths:
       - "**.dart"
       - "lib/**"
+      - "packages/**"
       - "test/**"
       - "assets/**"
-      - "packages/**"
       - ".github/workflows/build-android.yml"
       - ".github/workflows/release-gated.yml"
       - "scripts/release/**"
@@ -16,8 +16,6 @@ on:
       - "pubspec.yaml"
       - "pubspec.lock"
       - "analysis_options.yaml"
-      - "android/**"
-      - "web/**"
       - "integration_test/**"
       - "test_driver/**"
   pull_request:
@@ -52,17 +50,14 @@ jobs:
             code:
               - "**.dart"
               - "lib/**"
+              - "packages/**"
               - "test/**"
-              - "assets/translations/**"
+              - "assets/**"
               - "pubspec.yaml"
               - "pubspec.lock"
               - "analysis_options.yaml"
-              - "android/**"
-              - "web/**"
               - "integration_test/**"
               - "test_driver/**"
-              - "assets/**"
-              - "packages/**"
               - ".github/workflows/build-android.yml"
               - ".github/workflows/android-drive-test.yml"
               - ".github/workflows/release-gated.yml"
@@ -92,12 +87,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - name: Set up Flutter app
+        uses: ./.github/actions/setup-flutter-app
         with:
           flutter-version: 3.47.6
-          channel: "stable"
-          cache: true
+          firebase-options-b64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
+          run-pub-get: "false"
+          run-build-runner: "false"
 
       - name: Check Android release orchestration
         run: |
@@ -112,14 +108,6 @@ jobs:
 
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed .
-
-      - name: Write firebase_options.dart
-        env:
-          FIREBASE_OPTIONS_B64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
-        run: bash scripts/ci/write_firebase_options.sh
-
-      - name: Create empty .env file
-        run: touch assets/.env
 
       - name: Build generative code
         run: dart run build_runner build --delete-conflicting-outputs
