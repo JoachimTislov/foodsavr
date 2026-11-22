@@ -87,6 +87,13 @@
     {
       "if": { "properties": { "plan": { "not": { "const": "plus" } } }, "required": ["plan"] },
       "then": { "properties": { "picks": { "properties": { "modules": { "maxItems": 0 } } } } }
+    },
+    {
+      "if": {
+        "properties": { "household": { "type": "object", "properties": { "role": { "const": "minor" } }, "required": ["role"] } },
+        "required": ["household"]
+      },
+      "then": { "properties": { "plan": { "const": "family" } } }
     }
   ],
   "additionalProperties": false
