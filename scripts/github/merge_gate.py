@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Merge gate: integrate opted-in, revertable PRs into main, one at a time.
+"""Merge gate: integrate opted-in, revertable PRs into develop, one at a time.
 
 Level-triggered: every run reads the whole open-PR queue and takes the next
-safe step (ADR 0006). Dry run by default; ``--apply`` mutates.
+safe step (ADR 0006, ADR 0007). Dry run by default; ``--apply`` mutates.
 """
 
 from __future__ import annotations
@@ -16,20 +16,22 @@ import sys
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from checks import FAILED, IGNORED_WORKFLOWS, QUEUE_CHECK, queue_check_state, rollup_state  # noqa: E402
 
 LABEL = "merge/auto"
 LABEL_COLOR = "0e8a16"
 LABEL_DESCRIPTION = "Finalized two-way-door PR; the merge gate integrates it"
-BASE = "main"
+BASE = "develop"
 DEPENDABOT = "dependabot"
-# Metadata workflows, not verification; the gate never waits on itself.
-IGNORED_WORKFLOWS = {"Merge gate", "Synchronize GitHub labels"}
 ACTIVE = {"queued", "in_progress", "waiting", "requested", "pending"}
-FAILED = {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"}
 REBASE_COMMAND = "@dependabot rebase"
 REFUSAL = re.compile(r"can't rebase|cannot rebase|edited by someone other than Dependabot", re.IGNORECASE)
 STALL_AFTER = timedelta(minutes=60)
+QUEUE_START_GRACE = timedelta(minutes=10)
 REBASE_WAIT = timedelta(minutes=30)
 ONE_WAY = re.compile(r"\*\*Door:\*\*\s*one-way", re.IGNORECASE)
 BUMP = re.compile(r"\bfrom v?(\d+)\.(\d+)(?:\.(\d+))?\S* to v?(\d+)\.(\d+)(?:\.(\d+))?", re.IGNORECASE)
@@ -37,7 +39,7 @@ BUMP = re.compile(r"\bfrom v?(\d+)\.(\d+)(?:\.(\d+))?\S* to v?(\d+)\.(\d+)(?:\.(
 QUERY = """
 query($owner: String!, $name: String!, $cursor: String) {
   repository(owner: $owner, name: $name) {
-    pullRequests(states: OPEN, baseRefName: "main", first: 30, after: $cursor,
+    pullRequests(states: OPEN, baseRefName: "develop", first: 30, after: $cursor,
                  orderBy: {field: CREATED_AT, direction: ASC}) {
       pageInfo { hasNextPage endCursor }
       nodes {
@@ -51,8 +53,12 @@ query($owner: String!, $name: String!, $cursor: String) {
           ... on CheckRun { name status conclusion checkSuite { workflowRun { workflow { name } } } }
           ... on StatusContext { context state }
         } } } } } }
-        timelineItems(itemTypes: [UNLABELED_EVENT], last: 50) {
-          nodes { ... on UnlabeledEvent { label { name } } }
+        timelineItems(itemTypes: [LABELED_EVENT, UNLABELED_EVENT], last: 50) {
+          nodes {
+            __typename
+            ... on LabeledEvent { createdAt label { name } }
+            ... on UnlabeledEvent { label { name } }
+          }
         }
         comments(last: 20) { nodes { body createdAt author { login } } }
       }
@@ -80,6 +86,9 @@ class PR:
     review_decision: str | None = None
     open_threads: int = 0
     label_removed: bool = False
+    labeled_at: datetime | None = None
+    queue_ok: bool = False
+    queue_running: bool = False
     rebase_requested: datetime | None = None
     rebase_refused: bool = False
 
@@ -109,31 +118,26 @@ def bump_kind(title: str) -> str | None:
     return "minor" if new[1] != old[1] else "patch"
 
 
-def rollup_state(contexts: list[dict[str, Any]]) -> str | None:
-    """Aggregate head checks like GitHub's rollup, excluding metadata workflows."""
-    states = []
-    for c in contexts:
-        if c.get("__typename") == "CheckRun":
-            workflow = (((c.get("checkSuite") or {}).get("workflowRun") or {}).get("workflow") or {}).get("name")
-            if workflow in IGNORED_WORKFLOWS:
-                continue
-            states.append("PENDING" if c.get("status") != "COMPLETED" else
-                          "FAILURE" if c.get("conclusion") in FAILED else "SUCCESS")
-        elif c.get("__typename") == "StatusContext":
-            states.append({"SUCCESS": "SUCCESS", "PENDING": "PENDING", "EXPECTED": "PENDING"}.get(c.get("state"), "FAILURE"))
-    if not states:
-        return None
-    return "FAILURE" if "FAILURE" in states else "PENDING" if "PENDING" in states else "SUCCESS"
-
-
 def from_node(node: dict[str, Any]) -> PR:
     commit = (node["commits"]["nodes"] or [{}])[0].get("commit", {})
-    rollup = rollup_state(((commit.get("statusCheckRollup") or {}).get("contexts") or {}).get("nodes", []))
+    contexts = ((commit.get("statusCheckRollup") or {}).get("contexts") or {}).get("nodes", [])
+    rollup = rollup_state(contexts)
+    queue_ok, queue_running = queue_check_state(contexts)
     head_time = parse_time(commit["committedDate"]) if commit.get("committedDate") else datetime.now(timezone.utc)
     comments = node["comments"]["nodes"]
     requested = [parse_time(c["createdAt"]) for c in comments if c["body"].strip() == REBASE_COMMAND]
     refused = [parse_time(c["createdAt"]) for c in comments
                if (c.get("author") or {}).get("login") == DEPENDABOT and REFUSAL.search(c["body"])]
+    timeline = node["timelineItems"]["nodes"]
+    labeled_times = [
+        parse_time(n["createdAt"])
+        for n in timeline
+        if n.get("__typename") == "LabeledEvent" and (n.get("label") or {}).get("name") == LABEL and n.get("createdAt")
+    ]
+    unlabeled = any(
+        (n.get("__typename") in {None, "UnlabeledEvent"}) and (n.get("label") or {}).get("name") == LABEL
+        for n in timeline
+    )
     return PR(
         number=node["number"],
         node_id=node["id"],
@@ -150,7 +154,10 @@ def from_node(node: dict[str, Any]) -> PR:
         body=node.get("body") or "",
         review_decision=node.get("reviewDecision"),
         open_threads=sum(1 for t in node["reviewThreads"]["nodes"] if not t["isResolved"] and not t["isOutdated"]),
-        label_removed=any((n.get("label") or {}).get("name") == LABEL for n in node["timelineItems"]["nodes"]),
+        label_removed=unlabeled,
+        labeled_at=max(labeled_times) if labeled_times else None,
+        queue_ok=queue_ok,
+        queue_running=queue_running,
         rebase_requested=max(requested) if requested else None,
         rebase_refused=bool(refused and requested and max(refused) >= max(requested)),
     )
@@ -165,7 +172,7 @@ def blocker(pr: PR) -> str | None:
     if ONE_WAY.search(pr.body):
         return "PR body declares a one-way door"
     if pr.merge_state == "DIRTY":
-        return "conflicts with main"
+        return f"conflicts with {BASE}"
     if pr.review_decision == "CHANGES_REQUESTED":
         return "changes requested"
     if pr.open_threads:
@@ -178,7 +185,7 @@ def blocker(pr: PR) -> str | None:
 
 
 def plan(prs: list[PR], now: datetime) -> Plan:
-    """Choose the next safe step for the queue. Pure; see ADR 0006."""
+    """Choose the next safe step for the queue. Pure; see ADR 0006 & ADR 0007."""
     actions: list[tuple[str, PR]] = []
     report: list[tuple[int, str, str]] = []
     queue: list[PR] = []
@@ -194,8 +201,11 @@ def plan(prs: list[PR], now: datetime) -> Plan:
             continue
         queue.append(pr)
 
-    # UNSTABLE only reflects non-required checks; the gate's own rollup must still be green.
-    ready = [p for p in queue if p.merge_state in {"CLEAN", "HAS_HOOKS", "UNSTABLE"} and p.rollup == "SUCCESS"]
+    # UNSTABLE only reflects non-required checks; the gate's own rollup and queue Validation must be green.
+    ready = [
+        p for p in queue
+        if p.merge_state in {"CLEAN", "HAS_HOOKS", "UNSTABLE"} and p.rollup == "SUCCESS" and p.queue_ok
+    ]
     if ready:
         pr = ready[0]
         actions.append(("merge", pr))
@@ -208,15 +218,22 @@ def plan(prs: list[PR], now: datetime) -> Plan:
     in_flight: list[PR] = []
     behind: list[PR] = []
     for pr in queue:
+        activity_at = max(pr.head_time, pr.labeled_at) if pr.labeled_at else pr.head_time
         if pr.merge_state == "BEHIND":
             rebasing = pr.dependabot and pr.rebase_requested and pr.rebase_requested > pr.head_time and now - pr.rebase_requested < REBASE_WAIT
             (in_flight if rebasing else behind).append(pr)
-            report.append((pr.number, "in flight" if rebasing else "behind", "Dependabot rebase requested" if rebasing else "needs update with main"))
+            report.append((pr.number, "in flight" if rebasing else "behind",
+                           "Dependabot rebase requested" if rebasing else f"needs update with {BASE}"))
         elif pr.merge_state == "UNKNOWN":
             report.append((pr.number, "unknown", "GitHub is computing mergeability"))
-        elif pr.rollup in {None, "PENDING"} and now - pr.head_time < STALL_AFTER:
+        elif (pr.queue_running or pr.rollup in {None, "PENDING"}) and now - activity_at < STALL_AFTER:
             in_flight.append(pr)
             report.append((pr.number, "in flight", "checks running"))
+        elif not pr.queue_ok and now - activity_at < QUEUE_START_GRACE:
+            in_flight.append(pr)
+            report.append((pr.number, "in flight", "waiting for queue checks to start"))
+        elif not pr.queue_ok:
+            report.append((pr.number, "blocked", f"queue checks ({QUEUE_CHECK}) did not run on this head"))
         else:
             report.append((pr.number, "blocked", f"merge state {pr.merge_state}, checks {pr.rollup}"))
     if behind and not in_flight:
@@ -272,7 +289,7 @@ class GitHub:
                 "{pullRequestId: $id, expectedHeadOid: $head, updateMethod: REBASE}) { pullRequest { headRefOid } } }"
             )
             out = json.loads(self.run("api", "graphql", "-f", f"query={mutation}", "-F", f"id={pr.node_id}", "-F", f"head={pr.head}"))
-            return f"rebased onto main as {out['data']['updatePullRequestBranch']['pullRequest']['headRefOid'][:7]}"
+            return f"rebased onto {BASE} as {out['data']['updatePullRequestBranch']['pullRequest']['headRefOid'][:7]}"
         raise ValueError(action)
 
     def _label_exists(self) -> bool:
@@ -293,7 +310,7 @@ def gate_runs(repo: str, token: str) -> list[dict[str, Any]]:
 def supersession(runs: list[dict[str, Any]], me: int) -> str | None:
     """'exit' when a newer gate run will act, 'wait' while an older one acts, else None.
 
-    Replaces a concurrency group: cancelled queued runs would mark main's
+    Replaces a concurrency group: cancelled queued runs would mark develop's
     checks as failing, and the newest event's run always executes.
     """
     active = [r for r in runs if r["status"] in ACTIVE and r["id"] != me and r["event"] != "pull_request_target"

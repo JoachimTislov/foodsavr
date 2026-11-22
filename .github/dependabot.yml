@@ -7,6 +7,7 @@ version: 2
 updates:
   - package-ecosystem: "pub" # Package manager for Flutter
     directory: "/" # Location of package manifests
+    target-branch: "develop"
     schedule:
       interval: "weekly"
       day: saturday
@@ -14,6 +15,7 @@ updates:
       timezone: Europe/Oslo
   - package-ecosystem: "pub"
     directory: "/packages/foodsavr_core"
+    target-branch: "develop"
     schedule:
       interval: "weekly"
       day: saturday

@@ -18,7 +18,7 @@ The issue tracker and domain docs are configured in [.agents/tracker.md](../../t
 
 ### 1. Pin the fixed point
 
-Whatever the invocation names is the fixed point (a commit SHA, branch name, tag, `main`, `HEAD~5`, a PR's base). If none is named, use `origin/main` and state that in the report.
+Whatever the invocation names is the fixed point (a commit SHA, branch name, tag, `develop`, `main`, `HEAD~5`, a PR's base). If none is named, use `origin/develop` and state that in the report.
 
 Capture the diff command once: `git diff <fixed-point>...HEAD` (three-dot, so the comparison is against the merge-base). Also note the list of commits via `git log <fixed-point>..HEAD --oneline`.
 

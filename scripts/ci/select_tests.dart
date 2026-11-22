@@ -3,7 +3,7 @@
 // hash-based caching + relational (import) selection + core-workflow pinning.
 //
 // Inputs (env or defaults):
-//   BASE_REF  - git ref to diff against (default: origin/main)
+//   BASE_REF  - git ref to diff against (default: origin/develop)
 // Outputs (written to $GITHUB_OUTPUT of the calling step):
 //   files     - space-separated selected test paths ("ALL" forces full suite)
 //   reason    - human-readable selection reason
@@ -97,7 +97,17 @@ List<String> _resolveSpec(String spec, String dir) {
 
 void main(List<String> args) async {
   final forceAll = args.contains('--all');
-  final baseRef = Platform.environment['BASE_REF'] ?? 'origin/main';
+  var baseRef = Platform.environment['BASE_REF'];
+  if (baseRef == null) {
+    final hasDevelop =
+        (await Process.run('git', [
+          'rev-parse',
+          '--verify',
+          'origin/develop',
+        ])).exitCode ==
+        0;
+    baseRef = hasDevelop ? 'origin/develop' : 'origin/main';
+  }
 
   // Escape hatch: manual or self-scope change forces the full suite.
   if (forceAll) {

@@ -16,7 +16,7 @@ Pick the mode from the work:
 
 ## One ticket
 
-1. Work in a worktree branch, never `main` (`make worktree name=<issue>`).
+1. Work in a worktree branch, never `develop` or `main` (`make worktree name=<issue>`).
 2. Load `flutter-standards` for Dart work. Build with `tdd` at the seams the ticket names; when it names none, pick the highest existing seam and state it.
 3. Run single test files while working and `make check` at the end.
 4. Review with `code-review` against the branch base; fix its findings.

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Sets skip=true when HEAD (a push to main) has the exact tree of a merged PR's
-# head commit on which workflow $1 already succeeded. Rebase merges rewrite
-# SHAs but keep the tree when the PR was up to date, so the push run is redundant.
+# Sets skip=true when HEAD (a push to develop or main) already succeeded for
+# this commit SHA, or has the exact tree of a merged PR's head commit on which
+# workflow $1 already succeeded. Rebase merges rewrite SHAs but keep the tree
+# when the PR was up to date, and fast-forward promotions preserve the SHA.
 # Usage: already_tested.sh <workflow-file.yml>   (needs GH_TOKEN, full-enough checkout)
 set -euo pipefail
 out="${GITHUB_OUTPUT:-/dev/stdout}"
@@ -9,6 +10,11 @@ skip() { echo "skip=$1" >> "$out"; echo "already_tested: skip=$1 ($2)" >&2; exit
 
 [ "${GITHUB_EVENT_NAME:-}" = "push" ] || skip false "not a push"
 sha="${GITHUB_SHA:?}"; repo="${GITHUB_REPOSITORY:?}"
+
+same_sha_ok=$(gh run list --repo "$repo" --workflow "$1" --commit "$sha" --status success --json databaseId --jq length 2>/dev/null || echo 0)
+if [ "${same_sha_ok:-0}" -gt 0 ]; then
+  skip true "workflow $1 already succeeded on commit $sha"
+fi
 
 pr=$(gh api "repos/$repo/commits/$sha/pulls" --jq '[.[]|select(.merged_at!=null)][0].number // empty') || skip false "PR lookup failed"
 [ -n "$pr" ] || skip false "no merged PR for commit"

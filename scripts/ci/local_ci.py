@@ -46,7 +46,8 @@ GROUPS: dict[str, Group] = {
         paths=[
             ".agents/**", "AGENTS.md", "CLAUDE.md", "GEMINI.md", "scripts/agents/**", "scripts/github/**",
             "scripts/secrets/**", "scripts/ci/local_ci.py", "scripts/ci/test_local_ci.py", ".githooks/**", ".agents/github/**",
-            ".github/workflows/github-labels.yml", ".github/workflows/merge-gate.yml", "specs/**", "docs/**", "doc/**",
+            ".github/workflows/github-labels.yml", ".github/workflows/merge-gate.yml",
+            ".github/workflows/promote.yml", "specs/**", "docs/**", "doc/**",
             ".github/workflows/agent-system.yml", ".claude/**", ".gemini/**", ".github/agents/**",
             ".github/instructions/**", ".github/copilot-instructions.md", ".github/workflows/agent-implement.yml",
             "scripts/human/**", "log/**", "logs/**", "**/*.jsonl", "**/*.log",
@@ -61,6 +62,7 @@ GROUPS: dict[str, Group] = {
             ["scripts/agents/agentctl", "skills", "check"],
             ["python3", "-m", "unittest", "scripts/github/test_sync_labels.py"],
             ["python3", "-m", "unittest", "scripts/github/test_merge_gate.py"],
+            ["python3", "-m", "unittest", "scripts/github/test_promote_main.py"],
             ["python3", "-m", "unittest", "scripts/secrets/test_rotate.py"],
             ["python3", "-m", "unittest", "scripts/ci/test_local_ci.py"],
             ["scripts/agents/agentctl", "heal"],
@@ -347,7 +349,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--make-check", metavar="MAKE", help="run the Makefile checks with the Dart CI setup")
     parser.add_argument("--flutter-bin", action="store_true", help="print the Flutter executable matching CI")
     parser.add_argument("--all", action="store_true", help="run every group")
-    parser.add_argument("--base", default=os.environ.get("LOCAL_CI_BASE", "origin/main"))
+    parser.add_argument("--base", default=os.environ.get("LOCAL_CI_BASE", "origin/develop"))
     parser.add_argument("--list", action="store_true", help="print the plan without running")
     parser.add_argument("--no-cache", action="store_true")
     parser.add_argument("--pre-push", action="store_true", help="git pre-push hook mode")
