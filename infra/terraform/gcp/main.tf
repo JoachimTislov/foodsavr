@@ -1,7 +1,7 @@
 # Firebase / Google Cloud configuration for one environment of the instance
-# declared in deploy/instance.yaml.
-# Apply with scripts/infra/apply.sh (uses your gcloud login; state in GCS,
-# bucket and prefix passed via -backend-config).
+# declared in deploy/instance.yaml (ADR 0005, ADR 0008).
+# Apply with scripts/infra/apply.sh (uses your gcloud login; GCS state on Blaze
+# or worktree-safe XDG local state on Spark).
 
 terraform {
   required_version = ">= 1.6"
@@ -30,6 +30,22 @@ locals {
   project_number = data.google_project.this.number
   live_domains   = ["${var.project_id}.web.app", "${var.project_id}.firebaseapp.com"]
   is_blaze       = var.firebase_plan == "blaze"
+  paid_level     = var.level == "firebase-blaze"
+
+  effective_deploy_branch = (
+    var.deploy_branch != ""
+    ? var.deploy_branch
+    : (var.release_topology == "single" ? "develop" : "release")
+  )
+
+  deploy_wif_member = (
+    var.allow_preview_refs
+    ? "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repo_env/${var.github_repository}:${var.github_environment}"
+    : "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repo_ref_env/${var.github_repository}:refs/heads/${local.effective_deploy_branch}:${var.github_environment}"
+  )
+
+  telemetry_wif_member = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repo_ref/${var.github_repository}:refs/heads/${var.telemetry_branch}"
+
   base_apis = [
     "apikeys.googleapis.com",
     "recaptchaenterprise.googleapis.com",
@@ -139,7 +155,10 @@ resource "google_firebase_app_check_service_config" "enforcement" {
 }
 
 # ---------------------------------------------------------------------------
-# GitHub Actions -> Google Cloud without keys (Workload Identity Federation).
+# GitHub Actions -> Google Cloud without keys (scoped Workload Identity, ADR 0008).
+# Split into two least-privilege service accounts:
+#   1. github-deploy-live  — write deploy permissions, bound to repo + branch + env
+#   2. github-telemetry-ro — read-only telemetry/levels polling, bound to repo + default branch
 # ---------------------------------------------------------------------------
 
 resource "google_iam_workload_identity_pool" "github" {
@@ -156,9 +175,14 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   display_name                       = "GitHub OIDC"
 
   attribute_mapping = {
-    "google.subject"       = "assertion.sub"
-    "attribute.repository" = "assertion.repository"
-    "attribute.ref"        = "assertion.ref"
+    "google.subject"             = "assertion.sub"
+    "attribute.repository"       = "assertion.repository"
+    "attribute.ref"              = "assertion.ref"
+    "attribute.environment"      = "has(assertion.environment) ? assertion.environment : ''"
+    "attribute.job_workflow_ref" = "assertion.job_workflow_ref"
+    "attribute.repo_ref"         = "assertion.repository + ':' + assertion.ref"
+    "attribute.repo_env"         = "assertion.repository + ':' + (has(assertion.environment) ? assertion.environment : '')"
+    "attribute.repo_ref_env"     = "assertion.repository + ':' + assertion.ref + ':' + (has(assertion.environment) ? assertion.environment : '')"
   }
   # Only tokens minted for this repository are accepted.
   attribute_condition = "assertion.repository == '${var.github_repository}'"
@@ -168,60 +192,72 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   }
 }
 
-resource "google_service_account" "hosting_deployer" {
+resource "google_service_account" "deploy_live" {
   provider     = google-beta
-  account_id   = "github-hosting-deploy"
-  display_name = "GitHub Actions: Firebase Hosting deploy"
+  account_id   = "github-deploy-live"
+  display_name = "GitHub Actions: Firebase Hosting deploy (scoped)"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
-resource "google_project_iam_member" "hosting_deployer" {
+resource "google_project_iam_member" "deploy_live" {
   provider = google-beta
-  for_each = toset(concat([
+  for_each = toset([
     "roles/firebasehosting.admin",             # deploy live + preview channels
     "roles/firebase.viewer",                   # read web SDK config at build time
     "roles/firebaseauth.admin",                # add preview domains to Auth
     "roles/serviceusage.apiKeysViewer",        # resolve web API key
     "roles/serviceusage.serviceUsageConsumer", # call Firebase APIs
+  ])
+  project = var.project_id
+  role    = each.key
+  member  = "serviceAccount:${google_service_account.deploy_live.email}"
+}
+
+resource "google_service_account_iam_member" "github_impersonates_deploy_live" {
+  provider           = google-beta
+  service_account_id = google_service_account.deploy_live.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = local.deploy_wif_member
+}
+
+resource "google_service_account" "telemetry_ro" {
+  provider     = google-beta
+  account_id   = "github-telemetry-ro"
+  display_name = "GitHub Actions: Firebase telemetry & levels poll (read-only)"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "google_project_iam_member" "telemetry_ro" {
+  provider = google-beta
+  for_each = toset(concat([
     "roles/datastore.viewer",                  # Spark-safe read-only Firestore runtime_errors polling
     "roles/monitoring.viewer",                 # levels poll: Firestore op counts
     "roles/firebaseauth.viewer",               # levels poll: user count
+    "roles/firebase.viewer",                   # read Firebase project metadata
+    "roles/serviceusage.serviceUsageConsumer", # quota project header on API calls
   ], local.is_blaze ? ["roles/logging.viewer"] : []))
   project = var.project_id
   role    = each.key
-  member  = "serviceAccount:${google_service_account.hosting_deployer.email}"
+  member  = "serviceAccount:${google_service_account.telemetry_ro.email}"
 }
 
-resource "google_service_account_iam_member" "github_impersonates_deployer" {
+resource "google_service_account_iam_member" "github_impersonates_telemetry_ro" {
   provider           = google-beta
-  service_account_id = google_service_account.hosting_deployer.name
+  service_account_id = google_service_account.telemetry_ro.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repository}"
-}
-
-output "workload_identity_provider" {
-  value = google_iam_workload_identity_pool_provider.github.name
-}
-
-output "recaptcha_enterprise_site_key" {
-  value = google_recaptcha_enterprise_key.web.name
-}
-
-output "deploy_service_account" {
-  value = google_service_account.hosting_deployer.email
-}
-
-output "firebase_plan" {
-  value = var.firebase_plan
+  member             = local.telemetry_wif_member
 }
 
 # ---------------------------------------------------------------------------
 # Paid level guard (ADR 0005): firebase-blaze must have a budget. Budgets only
 # alert (Pub/Sub costAmount messages); they never cap spend.
 # ---------------------------------------------------------------------------
-
-locals {
-  paid_level = var.level == "firebase-blaze"
-}
 
 resource "google_project_service" "billing_budgets" {
   provider           = google-beta
