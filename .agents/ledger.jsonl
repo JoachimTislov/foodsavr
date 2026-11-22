@@ -289,3 +289,4 @@
 {"event": "opened draft PR", "prs": ["#380"], "session_id": "claude-code:d6acdf38-87c7-407e-a019-5d82d1117a97", "timestamp": "2026-11-22T17:41:01+00:00"}
 {"event": "created Epic 381 with children 382-394; added 371 as sub-issue; wired blocked-by on 288 340 341 338 344 332 371", "issues": ["#381"], "session_id": "claude-code:d6acdf38-87c7-407e-a019-5d82d1117a97", "timestamp": "2026-11-22T17:41:01+00:00"}
 {"event": "commented on 323 321 193 350 371", "issues": ["#323"], "session_id": "claude-code:d6acdf38-87c7-407e-a019-5d82d1117a97", "timestamp": "2026-11-22T17:41:01+00:00"}
+{"event": "updated PR body with Epic 381", "prs": ["#380"], "session_id": "claude-code:d6acdf38-87c7-407e-a019-5d82d1117a97", "timestamp": "2026-11-22T17:42:29+00:00"}
