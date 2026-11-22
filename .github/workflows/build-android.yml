@@ -188,3 +188,10 @@ jobs:
         with:
           name: android-apk-debug
           path: build/app/outputs/flutter-apk/app-development-debug.apk
+
+      - name: Record provenance
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/provenance
+        with:
+          sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          pr: ${{ github.event.pull_request.number }}

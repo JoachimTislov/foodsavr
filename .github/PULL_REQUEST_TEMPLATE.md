@@ -24,6 +24,8 @@ Closes: # <!-- Issue number here -->
 
 ### AI Contribution & Experience Disclosure
 
+Agent-Session: <!-- only `none (human)` for human-written commits; agent commits carry the trailer themselves (`make hooks`) -->
+
 *   **Author-By:**
 *   **Model-Used:**
 *   **Summary of AI-generated content:**

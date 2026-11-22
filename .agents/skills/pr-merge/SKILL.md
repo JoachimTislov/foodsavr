@@ -126,8 +126,11 @@ gh pr merge <PR_URL> --squash --match-head-commit <VERIFIED_HEAD_SHA>
 Choose `--squash` only when allowed by repository policy. Respect the merge
 queue and protection checks; bypass flags are outside this workflow. Preserve
 branches and worktrees used by other sessions. Confirm the server reports
-`MERGED` and record its resulting SHA; a queued or auto-merge request is still
-pending. Keep a named owner and actionable handoff until it completes. If a
+`MERGED` and record its resulting SHA with
+`scripts/agents/agentctl log '<event>' --pr '#N' --commit <merge SHA>` (rebase merges rewrite
+SHAs; `agentctl trace '#N'` resolves the
+link). A queued or
+auto-merge request is still pending. Keep a named owner and actionable handoff until it completes. If a
 hold or authorization change arrives, the owner must remove the PR from the
 merge queue and disable auto-merge wherever enabled, then confirm the server
 has withdrawn those pending requests. If withdrawal fails, notify the

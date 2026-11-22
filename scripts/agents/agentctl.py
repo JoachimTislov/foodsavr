@@ -16,6 +16,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import time
 import uuid
 import urllib.error
 import urllib.parse
@@ -27,6 +28,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import agent_skills  # noqa: E402
+import traceability as tr  # noqa: E402
+import trace_facts as tf  # noqa: E402
 
 
 def configured_path(environment: str, default: Path) -> Path:
@@ -53,7 +56,7 @@ def now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def records(index: Path = INDEX) -> list[dict[str, Any]]:
+def records(index: Path = INDEX, fold: bool = True) -> list[dict[str, Any]]:
     if not index.exists():
         return []
     result = []
@@ -67,7 +70,7 @@ def records(index: Path = INDEX) -> list[dict[str, Any]]:
         if not isinstance(value, dict):
             raise ValueError(f"{index}:{number}: record must be an object")
         result.append(value)
-    return result
+    return tr.fold_records(result) if fold else result
 
 
 def connect(path: Path) -> sqlite3.Connection:
@@ -215,6 +218,11 @@ def rebuild(args: argparse.Namespace, emit: bool = True) -> int:
                         "INSERT INTO workflow_run_events(run_id, event_index, timestamp, event_type, raw_json) VALUES (?, ?, ?, ?, ?)",
                         (run_id, event_index, event.get("timestamp"), str(event.get("type", "unknown")), json.dumps(event, sort_keys=True)),
                     )
+        try:
+            tf.build_projection(connection, Path(getattr(args, "root", None) or ROOT), session_records, tr.read_jsonl(ledger_path()),
+                                INDEX, ledger_path(), equivalence_cache(database))
+        except (OSError, ValueError, sqlite3.Error):
+            connection.execute("DELETE FROM trace_meta")  # trace falls back to direct git computation
         connection.execute("INSERT INTO document_search(document_search) VALUES ('rebuild')")
     connection.close()
     if emit:
@@ -322,6 +330,22 @@ def fresh_catalog(database: Path) -> sqlite3.Connection:
     return connection
 
 
+def commit_rationale(connection: sqlite3.Connection, database: Path, term: str, limit: int) -> list[dict[str, Any]]:
+    """Commits matching `term`, each with the sessions (and their summaries) that produced it."""
+    hits = tf.search_commits(connection, term, min(limit, 5))
+    if not hits:
+        return []
+    sessions, ledger = records(INDEX), tr.read_jsonl(ledger_path())
+    direct = tf.DirectFacts(ROOT, sessions, ledger, equivalence_cache(database))
+    facts = tf.ProjectionFacts.from_connection(connection, ROOT, INDEX, ledger_path(), direct) or direct
+    result = []
+    for hit in hits:
+        traced = tr.trace(ROOT, hit["sha"], sessions, ledger, False, facts)
+        result.append({**hit, "sessions": [{"session_id": s["session_id"], "summary": s["summary"], "via": s["via"]} for s in traced["sessions"]],
+                       "equivalents": [eq for c in traced["commits"] for eq in c["equivalents"]]})
+    return result
+
+
 def query(args: argparse.Namespace) -> int:
     connection = fresh_catalog(Path(args.database).expanduser())
     rows = connection.execute(
@@ -329,8 +353,12 @@ def query(args: argparse.Namespace) -> int:
         "FROM document_search WHERE document_search MATCH ? ORDER BY rank LIMIT ?",
         (search_phrase(args.term), args.limit),
     ).fetchall()
+    result = [dict(row) for row in rows]
+    for hit in commit_rationale(connection, Path(args.database).expanduser(), args.term, args.limit):
+        why = "; ".join(f"{s['session_id']}: {s['summary']}" for s in hit["sessions"]) or "no session recorded"
+        result.append({"title": hit["subject"], "path": f"git:{hit['sha'][:9]}", "snippet": why, "rank": None})
     connection.close()
-    print(json.dumps([dict(row) for row in rows], indent=2))
+    print(json.dumps(result, indent=2))
     return 0
 
 
@@ -369,8 +397,10 @@ def context(args: argparse.Namespace) -> int:
         "WHERE run_id LIKE ? OR workflow_id LIKE ? OR raw_json LIKE ? ORDER BY started_at DESC LIMIT ?",
         (f"%{args.term}%", f"%{args.term}%", f"%{args.term}%", args.limit),
     ).fetchall()
+    commits = commit_rationale(connection, Path(args.database).expanduser(), args.term, args.limit)
     connection.close()
-    print(json.dumps({"term": args.term, "documents": [dict(row) for row in docs], "sessions": [dict(row) for row in sessions], "runs": [dict(row) for row in runs]}, indent=2))
+    identity = tr.detect_session()
+    print(json.dumps({"term": args.term, "current_session": identity.as_dict() if identity else None, "documents": [dict(row) for row in docs], "sessions": [dict(row) for row in sessions], "runs": [dict(row) for row in runs], "commits": commits}, indent=2))
     return 0
 
 
@@ -506,30 +536,34 @@ def session_find(args: argparse.Namespace) -> int:
 
 
 def session_register(args: argparse.Namespace) -> int:
-    index = Path(args.index).expanduser()
-    current = records(index)
-    record: dict[str, Any] = {
-        "session_id": args.session_id, "provider": args.provider, "harness": args.harness,
-        "started_at": args.started_at or now(), "status": args.status, "issues": args.issue,
-        "prs": args.pr, "sources": args.source, "commits": args.commit, "summary": args.summary,
-    }
+    """Register or update a session. Identity is auto-detected from the environment unless given."""
+    root = Path(args.root).expanduser()
+    refs = normalized_refs(args, root)
+    fields: dict[str, Any] = {}
     if args.transcript:
-        record["transcript"] = args.transcript
-    current = upsert_session_records(current, record)
-    write_session_records(index, current)
+        fields["transcript"] = args.transcript
+    if args.started_at:
+        fields["started_at"] = args.started_at
+    record = ensure_session(Path(args.index).expanduser(), current_identity(args), args.summary, args.status,
+                            ended_at=now() if args.status == "completed" else None, fields=fields, **refs)
     print(json.dumps(record, indent=2, sort_keys=True))
     return 0
 
 
+def session_current(args: argparse.Namespace) -> int:
+    """Show the auto-detected session, whether it is registered, how to reopen it, and hook status."""
+    identity = tr.detect_session()
+    print(json.dumps({"session": identity.as_dict() if identity else None,
+                      "registered": bool(identity and tr.find_record(records(Path(args.index).expanduser()), identity.session_id)),
+                      "locators": [tr.locate(i) for i in ([identity.session_id, *identity.related] if identity else [])],
+                      "hooks": tr.hooks_status(Path(args.root).expanduser())}, indent=2, sort_keys=True))
+    return 0 if identity else 1
+
+
 def session_commits(args: argparse.Namespace) -> int:
     """List commits carrying `Agent-Session: <id>`, the trailer that links changes to a session."""
-    trailer = f"Agent-Session: {args.session_id}"
-    output = subprocess.run(
-        ["git", "-C", str(ROOT), "log", "--all", "--fixed-strings", f"--grep={trailer}", "--format=%H%x1f%cI%x1f%s"],
-        check=True, capture_output=True, text=True,
-    ).stdout
-    commits = [dict(zip(("sha", "committed_at", "subject"), line.split("\x1f"))) for line in output.splitlines() if line]
-    record = next((row for row in records(Path(args.index).expanduser()) if row.get("session_id") == args.session_id), None)
+    commits = tr.session_commit_rows(ROOT, args.session_id)
+    record = tr.find_record(records(Path(args.index).expanduser()), args.session_id)
     print(json.dumps({"session": record, "commits": commits}, indent=2, sort_keys=True))
     return 0 if record or commits else 1
 
@@ -577,13 +611,195 @@ def upsert_session_records(existing: list[dict[str, Any]], incoming: dict[str, A
 
 
 def heal_session_index(index: Path = INDEX) -> int:
-    current = records(index)
-    healed: list[dict[str, Any]] = []
-    for record in current:
-        healed = upsert_session_records(healed, record)
+    """Compact duplicate session lines (left by `merge=union` or legacy writers)."""
+    current = records(index, fold=False)
+    healed = tr.fold_records(current)
     if healed != current:
         write_session_records(index, healed)
     return len(current) - len(healed)
+
+
+
+# ---- traceability (#271): session identity, ledger writer, trace, PR check, provenance
+
+def ledger_path() -> Path:
+    return configured_path("AGENT_LEDGER_FILE", ROOT / ".agents/ledger.jsonl")
+
+
+def append_session_line(index: Path, record: dict[str, Any]) -> None:
+    if index.suffix != ".jsonl":
+        raise ValueError("session indexes must use .jsonl")
+    index.parent.mkdir(parents=True, exist_ok=True)
+    needs_newline = index.exists() and index.stat().st_size > 0 and not index.read_bytes().endswith(b"\n")
+    with index.open("a", encoding="utf-8") as stream:
+        stream.write(("\n" if needs_newline else "") + json.dumps(record, sort_keys=True, allow_nan=False) + "\n")
+
+
+def equivalence_cache(database: Path = DATABASE) -> Path:
+    return configured_path("AGENT_EQUIVALENCE_CACHE", database.parent / "equivalence.json")
+
+
+def ensure_session(index: Path, identity: Any, summary: str | None = None, status: str | None = None,
+                   issues: list[str] = (), prs: list[str] = (), sources: list[str] = (), commits: list[str] = (),
+                   ended_at: str | None = None, fields: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Upsert the session record, unioning references; never drops existing data."""
+    current = records(index)
+    match = tr.find_record(current, identity.session_id)
+    record = dict(match) if match else {
+        "session_id": identity.session_id, "provider": identity.provider, "harness": identity.harness,
+        "started_at": now(), "status": "active", "summary": "", "issues": [], "prs": [], "sources": [], "commits": [],
+    }
+    for field, values in (("issues", issues), ("prs", prs), ("sources", sources), ("commits", commits)):
+        if values or field in record:
+            record[field] = tr.unique([*record.get(field, []), *values])
+    related = tr.unique([*record.get("related", []), *identity.related])
+    if related:
+        record["related"] = related
+    if summary:
+        record["summary"] = summary
+    elif not record.get("summary"):
+        record["summary"] = "(auto-registered; no summary yet)"
+    if status:
+        record["status"] = status
+    if ended_at:
+        record["ended_at"] = ended_at
+    record.update(fields or {})
+    if record != match:  # append-only: parallel branches union-merge, readers fold, `maintain` compacts
+        append_session_line(index, record)
+    return record
+
+
+def normalized_refs(args: argparse.Namespace, root: Path) -> dict[str, list[str]]:
+    slug = tr.repo_slug(root)
+    return {
+        "issues": [tr.normalize_number_ref(v, "issue", slug) for v in getattr(args, "issue", [])],
+        "prs": [tr.normalize_number_ref(v, "pr", slug) for v in getattr(args, "pr", [])],
+        "commits": [tr.normalize_commit(v, root) for v in getattr(args, "commit", [])],
+        "sources": list(getattr(args, "source", [])),
+    }
+
+
+def current_identity(args: argparse.Namespace) -> Any:
+    explicit = getattr(args, "session_id", None)
+    if explicit:
+        harness = getattr(args, "harness", None) or (explicit.split(":", 1)[0] if tr.PREFIX_RE.match(explicit) else "agent")
+        return tr.Identity(tr.normalize_session_id(explicit, harness), harness, getattr(args, "provider", None) or "unknown", [], "--session-id")
+    identity = tr.detect_session()
+    if identity is None:
+        raise ValueError("no agent session detected (set AGENT_SESSION_ID=<harness>:<id> or pass --session-id; `log --human` records a human event)")
+    return identity
+
+
+def log_command(args: argparse.Namespace) -> int:
+    root = Path(args.root).expanduser()
+    refs = normalized_refs(args, root)
+    index = Path(args.index).expanduser()
+    if args.human:
+        session_id = tr.HUMAN
+    else:
+        session_id = ensure_session(index, current_identity(args), None, None, **refs)["session_id"]
+    event: dict[str, Any] = {"session_id": session_id, "event": args.event}
+    for field in ("commits", "issues", "prs", "sources"):
+        if refs[field]:
+            event[field] = refs[field]
+    append_event(ledger_path(), event)
+    print(json.dumps({"timestamp": now(), **event}, indent=2, sort_keys=True))
+    return 0
+
+
+def trace_command(args: argparse.Namespace) -> int:
+    root = Path(args.root).expanduser()
+    online = args.online or os.environ.get("AGENTCTL_ONLINE") == "1"
+    index = Path(args.index).expanduser()
+    sessions, ledger = records(index), tr.read_jsonl(ledger_path())
+    direct = tf.DirectFacts(root, sessions, ledger, equivalence_cache(Path(args.database).expanduser()))
+    facts = None if args.no_projection else tf.ProjectionFacts.open(Path(args.database).expanduser(), root, index, ledger_path(), direct)
+    result = tr.trace(root, args.ref, sessions, ledger, online, facts or direct, args.infer)
+    print(json.dumps(result, indent=2, sort_keys=True) if args.json else tr.render_trace(result))
+    return 0
+
+
+def hook_command(args: argparse.Namespace) -> int:
+    """Internal: invoked by .githooks; must never block a commit."""
+    if args.hook == "prepare-commit-msg":
+        tr.prepare_commit_msg(Path(args.root).expanduser(), args.message_file, args.source or "")
+    return 0
+
+
+def check_pr_command(args: argparse.Namespace) -> int:
+    body = Path(args.body_file).read_text(encoding="utf-8") if args.body_file else os.environ.get("PR_BODY", "")
+    result = tr.check_pr(Path(args.root).expanduser(), args.base, args.head, body, args.author or os.environ.get("PR_AUTHOR", ""),
+                         records(INDEX))
+    print(json.dumps(result, indent=2, sort_keys=True))
+    for message in result["errors"]:
+        print(f"::error::{message}", file=sys.stderr)
+    for message in result["warnings"]:
+        print(f"::warning::{message}", file=sys.stderr)
+    return 0 if result["ok"] else 1
+
+
+def provenance_command(args: argparse.Namespace) -> int:
+    value = tr.provenance(Path(args.root).expanduser(), os.environ, records(Path(args.index).expanduser()),
+                          tr.read_jsonl(ledger_path()), args.sha, args.pr, args.triggering_run)
+    if args.out:
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if args.summary:
+        with Path(args.summary).open("a", encoding="utf-8") as stream:
+            stream.write(tr.render_provenance(value))
+    print(json.dumps(value, indent=2, sort_keys=True))
+    return 0
+
+
+def history_coverage(root: Path, sessions: list[dict[str, Any]], ledger: list[dict[str, Any]], limit: int = 50) -> dict[str, Any]:
+    """How many of the last `limit` commits on main resolve to a session (trailer, recorded SHA, or rebase equivalence)."""
+    ref = next((r for r in ("origin/main", "main", "HEAD") if tr.run_git(root, "rev-parse", "--verify", "--quiet", r)), "HEAD")
+    equivalence = tf.Equivalence(root, sessions, ledger, equivalence_cache(), deadline=time.monotonic() + 20)
+    counts = {"trailer": 0, "recorded-sha": 0, "rebase-equivalent": 0, "bot": 0, "unresolved": 0}
+    unresolved = []
+    for sha in (tr.run_git(root, "rev-list", "--no-merges", f"--max-count={limit}", ref) or "").split():
+        info = tr.commit_info(root, sha)
+        if info is None:
+            continue
+        if tr.is_bot(info["author"], info["email"]):
+            counts["bot"] += 1
+        elif tr.declared_sessions(info["message"]):
+            counts["trailer"] += 1
+        elif any(tr.sha_match(sha, str(c)) for row in (*sessions, *ledger) for c in tr.row_shas(row)):
+            counts["recorded-sha"] += 1
+        elif equivalence.find(info):
+            counts["rebase-equivalent"] += 1
+        else:
+            counts["unresolved"] += 1
+            unresolved.append(f"{sha[:9]} {info['subject']}")
+    owned = sum(counts[k] for k in ("trailer", "recorded-sha", "rebase-equivalent"))
+    total = owned + counts["unresolved"]
+    return {"ref": ref, "checked": total + counts["bot"], **counts, "coverage_pct": round(100 * owned / total, 1) if total else None,
+            "unresolved_sample": unresolved[:5]}
+
+
+def traceability_report(root: Path = ROOT, limit: int = 50) -> dict[str, Any]:
+    """Gaps that make work un-debuggable: report only, never fail."""
+    identity = tr.detect_session()
+    sessions, ledger = records(INDEX), tr.read_jsonl(ledger_path())
+    cutoff = tr.parse_time(tr.CUTOFF)
+    missing = []
+    for sha in (tr.run_git(root, "rev-list", "--no-merges", f"--max-count={limit}", "HEAD") or "").split():
+        info = tr.commit_info(root, sha)
+        moment = tr.parse_time(info["date"]) if info else None
+        if info and moment and moment >= cutoff and not tr.is_bot(info["author"], info["email"]) and not tr.declared_sessions(info["message"]):
+            missing.append(f"{sha[:9]} {info['subject']}")
+    registered = bool(identity and tr.find_record(sessions, identity.session_id))
+    return {
+        "current_session": identity.as_dict() if identity else None,
+        "current_session_registered": registered if identity else None,
+        "register_command": None if registered or not identity else "scripts/agents/agentctl sessions register --summary '<what this session is doing>' --issue '#N'",
+        "main_coverage": history_coverage(root, sessions, ledger, limit),
+        "hooks": tr.hooks_status(root),
+        "recent_commits_without_session": missing,
+        "sessions_without_refs": [r.get("session_id") for r in sessions if not any(r.get(f) for f in ("issues", "prs", "commits", "sources"))],
+        "ledger_entries_without_session": sum(1 for e in ledger if not tr.is_legacy(e) and not e.get("session_id")),
+    }
 
 
 def provider_specs() -> dict[str, dict[str, Any]]:
@@ -863,7 +1079,7 @@ def doctor(args: argparse.Namespace) -> int:
         }
         for provider, spec in runner_specs.items()
     }
-    print(json.dumps({"runner": str(ROOT), "providers": result}, indent=2, sort_keys=True))
+    print(json.dumps({"runner": str(ROOT), "providers": result, "traceability": traceability_report()}, indent=2, sort_keys=True))
     return 0
 
 
@@ -1411,7 +1627,9 @@ def write_provider_artifact(path: Path, provider: str, output: str, exit_code: i
 
 def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: str, artifact: str | None = None, references: dict[str, list[str]] | None = None) -> str:
     ledger = configured_path("AGENT_LEDGER_FILE", ROOT / ".agents/ledger.jsonl")
+    identity = tr.detect_session()
     append_event(ledger, {
+        "session_id": identity.session_id if identity else f"agentctl:{run_id}",
         "type": "workflow.completed",
         "run_id": run_id,
         "workflow_id": workflow_id,
@@ -1951,12 +2169,14 @@ def maintain(args: argparse.Namespace) -> int:
         errors.extend(validate_workflow_file(path))
     database = Path(args.database).expanduser()
     errors.extend(validate_run_artifacts(database.parent / "runs"))
+    compacted = heal_session_index(INDEX)  # fold duplicate session lines left by parallel branches
     try:
         rebuild(argparse.Namespace(database=str(database)), emit=False)
     except (OSError, ValueError, sqlite3.Error) as error:
         errors.append(f"knowledge rebuild failed: {error}")
     result = {
         "status": "healthy" if not errors else "failed",
+        "compacted_session_lines": compacted,
         "knowledge": str(database),
         "workflows": [str(path.relative_to(ROOT)) for path in workflow_paths if "schema" not in path.name],
         "errors": errors,
@@ -1971,8 +2191,12 @@ def maintain(args: argparse.Namespace) -> int:
 
 
 def heal(args: argparse.Namespace) -> int:
-    """Repair disposable derived state without invoking providers or editing source."""
-    deduplicated = heal_session_index()
+    """Repair disposable derived state without invoking providers or editing source.
+
+    Tracked logs (session index, ledger) are never rewritten here: duplicate session
+    lines are legal (`merge=union`), so CI's clean-tree check must not trip on them.
+    `maintain` is the only command that compacts them.
+    """
     workflow_paths = sorted((ROOT / ".agents/workflows").glob("*.json"))
     errors: list[str] = validate_declarative_manifests()
     for path in workflow_paths:
@@ -1988,7 +2212,7 @@ def heal(args: argparse.Namespace) -> int:
         errors.append(f"knowledge rebuild failed: {error}")
     report = {
         "status": "healthy" if not errors else "failed",
-        "actions": ["rebuild knowledge catalog", f"deduplicate session index ({deduplicated} records)", f"repair legacy planned artifacts ({repaired} records)", f"recover interrupted runs ({recovered} records)"],
+        "actions": ["rebuild knowledge catalog", f"repair legacy planned artifacts ({repaired} records)", f"recover interrupted runs ({recovered} records)"],
         "knowledge": str(database),
         "workflows": [str(path.relative_to(ROOT)) for path in workflow_paths if "schema" not in path.name],
         "errors": errors,
@@ -1998,6 +2222,19 @@ def heal(args: argparse.Namespace) -> int:
     write_json(runs / "last-heal.json", report)
     print(json.dumps(report, indent=2))
     return 0 if not errors else 1
+
+
+def add_session_options(parser: argparse.ArgumentParser, summary: bool = True) -> None:
+    parser.add_argument("--session-id", help="override the auto-detected session")
+    parser.add_argument("--harness")
+    parser.add_argument("--provider")
+    parser.add_argument("--status")
+    parser.add_argument("--issue", action="append", default=[])
+    parser.add_argument("--pr", action="append", default=[])
+    parser.add_argument("--commit", action="append", default=[])
+    parser.add_argument("--source", action="append", default=[])
+    if summary:
+        parser.add_argument("--summary")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -2045,6 +2282,39 @@ def build_parser() -> argparse.ArgumentParser:
     compile_policy = policy_commands.add_parser("compile")
     compile_policy.add_argument("--provider", required=True)
     compile_policy.add_argument("--path", default=str(POLICY))
+    log = commands.add_parser("log", help="append a ledger event with the current session and validated refs")
+    log.add_argument("event")
+    log.add_argument("--index", default=str(INDEX))
+    log.add_argument("--root", default=str(ROOT))
+    log.add_argument("--human", action="store_true", help="record as a human-authored event (no agent session)")
+    add_session_options(log, summary=False)
+    trace = commands.add_parser("trace", help="explain why a commit, PR, issue, path:line, run or session exists")
+    trace.add_argument("ref")
+    trace.add_argument("--json", action="store_true")
+    trace.add_argument("--online", action="store_true", help="enrich via gh (10s timeout per call)")
+    trace.add_argument("--infer", action="store_true", help="also guess sessions from time windows (labelled inferred; never counted as coverage)")
+    trace.add_argument("--no-projection", action="store_true", help="compute from git directly instead of the SQLite projection")
+    trace.add_argument("--index", default=str(INDEX))
+    trace.add_argument("--root", default=str(ROOT))
+    hook = commands.add_parser("hook", help="internal git hook entry point")
+    hook.add_argument("hook", choices=["prepare-commit-msg"])
+    hook.add_argument("message_file")
+    hook.add_argument("source", nargs="?")
+    hook.add_argument("--root", default=".")
+    check_pr = commands.add_parser("check-pr", help="fail unless every PR commit or the PR body names an Agent-Session")
+    check_pr.add_argument("--base", required=True)
+    check_pr.add_argument("--head", required=True)
+    check_pr.add_argument("--body-file", help="PR description file (default: $PR_BODY)")
+    check_pr.add_argument("--author", help="PR author login (default: $PR_AUTHOR)")
+    check_pr.add_argument("--root", default=str(ROOT))
+    provenance = commands.add_parser("provenance", help="emit a CI run provenance record")
+    provenance.add_argument("--sha")
+    provenance.add_argument("--pr")
+    provenance.add_argument("--triggering-run")
+    provenance.add_argument("--out")
+    provenance.add_argument("--summary", help="append markdown to this file (e.g. $GITHUB_STEP_SUMMARY)")
+    provenance.add_argument("--index", default=str(INDEX))
+    provenance.add_argument("--root", default=str(ROOT))
     sessions = commands.add_parser("sessions")
     sessions.add_argument("--index", default=str(INDEX))
     session_commands = sessions.add_subparsers(dest="session_command", required=True)
@@ -2054,18 +2324,20 @@ def build_parser() -> argparse.ArgumentParser:
     finding.add_argument("term")
     finding.add_argument("--limit", type=int, default=20)
     finding.add_argument("--provider")
-    register = session_commands.add_parser("register")
-    register.add_argument("--session-id", required=True)
-    register.add_argument("--provider", required=True)
-    register.add_argument("--harness", required=True)
-    register.add_argument("--status", default="active")
+    sessions.add_argument("--root", default=str(ROOT))
+    session_commands.add_parser("current", help="show the auto-detected session and how to reopen it")
+    register = session_commands.add_parser("register", help="register or update a session (identity auto-detected from the environment)")
+    register.add_argument("--session-id", help="default: detected (AGENT_SESSION_ID, T3CODE_THREAD_ID, CLAUDE_CODE_SESSION_ID, CODEX_THREAD_ID, GitHub Actions)")
+    register.add_argument("--provider")
+    register.add_argument("--harness")
+    register.add_argument("--status", help="`completed` also stamps ended_at")
     register.add_argument("--started-at")
     register.add_argument("--issue", action="append", default=[])
     register.add_argument("--pr", action="append", default=[])
     register.add_argument("--source", action="append", default=[])
     register.add_argument("--commit", action="append", default=[])
     register.add_argument("--transcript")
-    register.add_argument("--summary", required=True)
+    register.add_argument("--summary")
     session_commit_parser = session_commands.add_parser("commits", help="list commits linked by the Agent-Session trailer")
     session_commit_parser.add_argument("session_id")
     skills = commands.add_parser("skills", help="validate, list, and project the canonical skill catalog")
@@ -2079,6 +2351,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "log":
+        return log_command(args)
+    if args.command == "trace":
+        return trace_command(args)
+    if args.command == "hook":
+        return hook_command(args)
+    if args.command == "check-pr":
+        return check_pr_command(args)
+    if args.command == "provenance":
+        return provenance_command(args)
     if args.command == "knowledge":
         return rebuild(args)
     if args.command == "query":
@@ -2109,6 +2391,8 @@ def main(argv: list[str] | None = None) -> int:
         return session_list(args)
     if args.command == "sessions" and args.session_command == "find":
         return session_find(args)
+    if args.command == "sessions" and args.session_command == "current":
+        return session_current(args)
     if args.command == "sessions" and args.session_command == "register":
         return session_register(args)
     if args.command == "sessions" and args.session_command == "commits":

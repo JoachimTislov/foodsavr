@@ -49,6 +49,12 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: build/docs-site
+      - name: Record provenance
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/provenance
+        with:
+          sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          pr: ${{ github.event.pull_request.number }}
 
   deploy:
     name: Publish documentation

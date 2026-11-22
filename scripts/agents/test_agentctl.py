@@ -9,6 +9,7 @@ import contextlib
 import importlib.util
 import os
 import io
+import sqlite3
 import subprocess
 import tempfile
 import unittest
@@ -32,6 +33,20 @@ def load_agentctl_module():
 def module_env() -> dict[str, str]:
     """The test process environment without hook-exported GIT_* variables."""
     return {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+def load_traceability_module():
+    spec = importlib.util.spec_from_file_location("traceability_under_test", ROOT / "scripts/agents/traceability.py")
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_trace_facts_module():
+    spec = importlib.util.spec_from_file_location("trace_facts_under_test", ROOT / "scripts/agents/trace_facts.py")
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
 
 
 class AgentctlTest(unittest.TestCase):
@@ -290,7 +305,10 @@ class AgentctlTest(unittest.TestCase):
     def test_maintain_reports_the_requested_database(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             database = Path(directory) / "knowledge.sqlite3"
-            result = self.run_cli("maintain", database=database)
+            index = Path(directory) / "sessions.jsonl"
+            index.write_bytes((ROOT / ".agents/sessions/index.jsonl").read_bytes())
+            with patch.dict(os.environ, {"AGENT_SESSION_INDEX": str(index)}):
+                result = self.run_cli("maintain", database=database)
             report = json.loads(result.stdout)
             self.assertEqual(report["status"], "healthy")
             self.assertEqual(report["knowledge"], str(database))
@@ -840,6 +858,593 @@ class AgentctlTest(unittest.TestCase):
         result = json.loads(output.getvalue())
         self.assertEqual(0, code)
         self.assertEqual(args.session_id, result["session"]["session_id"])
+
+
+SESSION_ENV_VARS = ("CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "T3CODE_THREAD_ID", "AGENT_SESSION_ID", "AGENT_HARNESS",
+                    "AGENT_PROVIDER", "GITHUB_ACTIONS", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT", "GITHUB_REPOSITORY", "PR_BODY", "PR_AUTHOR")
+
+
+def clean_env(**extra: str) -> dict[str, str]:
+    """Process env without session variables or hook-exported GIT_* (the pre-push hook sets GIT_DIR and friends)."""
+    env = {k: v for k, v in os.environ.items() if k not in SESSION_ENV_VARS and not k.startswith("GIT_")}
+    env.update({"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null"})
+    env.update(extra)
+    return env
+
+
+class TraceabilityTest(unittest.TestCase):
+    """Session identity, trailers, ledger writer, trace, PR check, provenance (#271)."""
+
+    def setUp(self) -> None:
+        self.tr = load_traceability_module()
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = Path(self._tmp.name)
+        self.repo = self.dir / "repo"
+        self.repo.mkdir()
+        self.index = self.dir / "index.jsonl"
+        self.ledger = self.dir / "ledger.jsonl"
+        self.git("init", "-q", "-b", "main")
+        for key, value in (("user.email", "dev@example.com"), ("user.name", "Dev"), ("commit.gpgsign", "false")):
+            self.git("config", key, value)
+
+    def git(self, *args: str, env: dict[str, str] | None = None) -> str:
+        return subprocess.run(["git", *args], cwd=self.repo, env=env or clean_env(), check=True,
+                              capture_output=True, text=True).stdout.strip()
+
+    def commit(self, message: str, name: str = "f", content: str = "x\n", env: dict[str, str] | None = None) -> str:
+        (self.repo / name).write_text(content)
+        self.git("add", name)
+        self.git("commit", "-q", "-m", message, env=env)
+        return self.git("rev-parse", "HEAD")
+
+    def cli(self, *args: str, env: dict[str, str] | None = None, check: bool = True) -> subprocess.CompletedProcess[str]:
+        merged = clean_env(AGENT_SESSION_INDEX=str(self.index), AGENT_LEDGER_FILE=str(self.ledger),
+                           AGENT_KNOWLEDGE_DB=str(self.dir / "k.sqlite3"))
+        merged.update(env or {})
+        return subprocess.run([str(CLI), *args], cwd=ROOT, env=merged, check=check, capture_output=True, text=True)
+
+    def write_jsonl(self, path: Path, rows: list[dict]) -> None:
+        path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+
+    # -- A. identity
+    def test_detects_sessions_from_environment_table(self) -> None:
+        tr = self.tr
+        self.assertIsNone(tr.detect_session({}))
+        wrapped = tr.detect_session({"CLAUDE_CODE_SESSION_ID": "abc-1", "T3CODE_THREAD_ID": "th-9"})
+        self.assertEqual((wrapped.session_id, wrapped.harness, wrapped.provider), ("t3-code:th-9", "t3-code", "anthropic"))
+        self.assertEqual(wrapped.related, ["claude-code:abc-1"])
+        claude = tr.detect_session({"CLAUDE_CODE_SESSION_ID": "abc-1"})
+        self.assertEqual((claude.session_id, claude.harness, claude.provider), ("claude-code:abc-1", "claude-code", "anthropic"))
+        both = tr.detect_session({"CLAUDE_CODE_SESSION_ID": "abc-1", "CODEX_THREAD_ID": "019e"})
+        self.assertEqual((both.session_id, both.related), ("claude-code:abc-1", ["codex:019e"]))
+        self.assertEqual(tr.detect_session({"CODEX_THREAD_ID": "019e"}).session_id, "codex:019e")
+        self.assertEqual(tr.detect_session({"T3CODE_THREAD_ID": "th-9"}).session_id, "t3-code:th-9")
+        override = tr.detect_session({"AGENT_SESSION_ID": "vibe:s1", "T3CODE_THREAD_ID": "th-9", "CLAUDE_CODE_SESSION_ID": "abc-1"})
+        self.assertEqual((override.session_id, override.related), ("vibe:s1", ["t3-code:th-9", "claude-code:abc-1"]))
+        self.assertEqual(tr.detect_session({"AGENT_SESSION_ID": "bare", "AGENT_HARNESS": "mine"}).session_id, "mine:bare")
+        actions = tr.detect_session({"GITHUB_ACTIONS": "true", "GITHUB_RUN_ID": "99", "GITHUB_REPOSITORY": "o/r"})
+        self.assertEqual(actions.session_id, "github-actions:o/r/99/1")
+        self.assertIsNone(tr.detect_session({"CLAUDE_CODE_SESSION_ID": "bad\nvalue"}))
+
+    def test_legacy_ids_alias_to_canonical_ids(self) -> None:
+        tr = self.tr
+        self.assertTrue(tr.same_session("t3-code:01a1", "01a1"))
+        self.assertTrue(tr.same_session("claude:01a1", "claude-code:01a1"))
+        self.assertFalse(tr.same_session("claude-code:01a1", "claude-code:01a2"))
+        record = tr.find_record([{"session_id": "01a1", "related": ["t3-code:th"]}], "codex:01a1")
+        self.assertIsNotNone(record)
+        self.assertIsNotNone(tr.find_record([{"session_id": "x:1", "related": ["t3-code:th"]}], "t3-code:th"))
+        self.assertEqual(tr.normalize_session_id("None (human)"), "human")
+        with self.assertRaises(ValueError):
+            tr.normalize_session_id("bare")
+
+    def test_ref_normalization_accepts_urls_and_numbers(self) -> None:
+        tr = self.tr
+        for raw in ("#269", "269", "PR 269", "https://github.com/o/r/pull/269"):
+            self.assertEqual(tr.normalize_number_ref(raw, "pr", "o/r"), "#269")
+        self.assertEqual(tr.normalize_number_ref("https://github.com/o/r/issues/5", "issue", "o/r"), "#5")
+        foreign = "https://github.com/x/y/pull/3"
+        self.assertEqual(tr.normalize_number_ref(foreign, "pr", "o/r"), foreign)
+        with self.assertRaises(ValueError):
+            tr.normalize_number_ref("soon", "pr")
+        sha = self.commit("init")
+        self.assertEqual(tr.normalize_commit(sha[:8], self.repo), sha)
+        with self.assertRaises(ValueError):
+            tr.normalize_commit("HEAD-ish", self.repo)
+
+    def test_sessions_register_detects_identity_and_current_reports_it(self) -> None:
+        env = {"CLAUDE_CODE_SESSION_ID": "abc-1", "T3CODE_THREAD_ID": "th-9"}
+        root = ["--root", str(self.repo)]
+        out = json.loads(self.cli("sessions", *root, "register", "--summary", "work", "--issue", "271", "--pr", "https://github.com/o/r/pull/7", env=env).stdout)
+        self.assertEqual(out["session_id"], "t3-code:th-9")  # same convention as sessions on main
+        self.assertEqual((out["issues"], out["prs"], out["related"], out["provider"]), (["#271"], ["#7"], ["claude-code:abc-1"], "anthropic"))
+        self.cli("sessions", *root, "register", "--issue", "#272", env=env)
+        rows = [json.loads(line) for line in self.index.read_text().splitlines()]
+        self.assertGreater(len(rows), 1)  # appended, never rewritten
+        rows = self.tr.fold_records(rows)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0]["issues"], rows[0]["summary"]), (["#271", "#272"], "work"))
+        current = json.loads(self.cli("sessions", *root, "current", env=env).stdout)
+        self.assertEqual((current["session"]["session_id"], current["registered"]), ("t3-code:th-9", True))
+        explicit = json.loads(self.cli("sessions", *root, "register", "--session-id", "vibe:s1", "--provider", "mistral", "--summary", "manual").stdout)
+        self.assertEqual((explicit["harness"], explicit["provider"]), ("vibe", "mistral"))
+        self.assertEqual(self.cli("sessions", *root, "current", check=False).returncode, 1)
+        self.assertNotEqual(self.cli("sessions", *root, "register", check=False).returncode, 0)  # nothing detected, nothing given
+        context = json.loads(self.cli("context", "work", env=env).stdout)
+        self.assertEqual(context["current_session"]["session_id"], "t3-code:th-9")
+
+    def test_trace_session_uses_the_shared_commit_by_trailer_lookup(self) -> None:
+        module = load_agentctl_module()
+        self.commit("chore: base")
+        sha = self.commit("feat: tagged\n\nAgent-Session: t3-code:th-9", name="t.txt")
+        rows = self.tr.session_commit_rows(self.repo, "t3-code:th-9")
+        self.assertEqual([r["sha"] for r in rows], [sha])
+        self.assertEqual(set(rows[0]), {"sha", "committed_at", "subject"})  # the shape `sessions commits` prints
+        self.assertEqual([c["sha"] for c in self.traced("t3-code:th-9")["commits"]], [sha])
+        self.assertEqual(self.tr.session_commit_rows(self.repo, "th-9")[0]["sha"], sha)  # legacy bare id
+
+    # -- B. trailer hook
+    def test_prepare_commit_msg_appends_trailer_only_with_a_session(self) -> None:
+        message = self.dir / "msg"
+        message.write_text("feat: x\n\nbody\n\nCo-Authored-By: A <a@b.c>\n\n# Please enter the commit message\n")
+        self.assertFalse(self.tr.prepare_commit_msg(self.repo, str(message), "", {}))
+        self.assertNotIn("Agent-Session", message.read_text())
+        self.assertTrue(self.tr.prepare_commit_msg(self.repo, str(message), "", {"CLAUDE_CODE_SESSION_ID": "s1"}))
+        text = message.read_text()
+        self.assertEqual(self.tr.declared_sessions(text), ["claude-code:s1"])
+        self.assertLess(text.index("Agent-Session"), text.index("# Please enter"))
+        self.assertFalse(self.tr.prepare_commit_msg(self.repo, str(message), "", {"CLAUDE_CODE_SESSION_ID": "s1"}))
+        self.assertEqual(text.count("Agent-Session"), message.read_text().count("Agent-Session"))
+        self.assertFalse(self.tr.prepare_commit_msg(self.repo, str(self.dir / "missing"), "", {"CLAUDE_CODE_SESSION_ID": "s1"}))
+
+    def test_tracked_hook_adds_trailer_and_never_blocks_humans(self) -> None:
+        (self.repo / "scripts").mkdir()
+        (self.repo / "scripts/agents").symlink_to(ROOT / "scripts/agents")
+        shutil_hooks = self.repo / ".githooks"
+        shutil_hooks.mkdir()
+        hook = shutil_hooks / "prepare-commit-msg"
+        hook.write_text((ROOT / ".githooks/prepare-commit-msg").read_text())
+        hook.chmod(0o755)
+        self.git("config", "core.hooksPath", ".githooks")  # what `make hooks` does
+        status = self.tr.hooks_status(self.repo)
+        self.assertTrue(status["installed"])
+        agent = self.commit("feat: agent work", env=clean_env(CLAUDE_CODE_SESSION_ID="s1"), name="a")
+        human = self.commit("fix: human work", name="b")
+        self.assertEqual(self.tr.declared_sessions(self.git("log", "-1", "--format=%B", agent)), ["claude-code:s1"])
+        self.assertEqual(self.tr.declared_sessions(self.git("log", "-1", "--format=%B", human)), [])
+
+    # -- C. ledger writer and log validation
+    def test_log_writes_session_id_canonical_refs_and_registers_session(self) -> None:
+        sha = self.commit("init")
+        env = {"CLAUDE_CODE_SESSION_ID": "abc-1"}
+        args = ("log", "did a thing", "--root", str(self.repo), "--pr", "https://github.com/o/r/pull/7", "--issue", "271", "--commit", "HEAD", "--source", "https://example.com")
+        entry = json.loads(self.cli(*args, env=env).stdout)
+        self.assertEqual((entry["session_id"], entry["prs"], entry["issues"], entry["commits"]), ("claude-code:abc-1", ["#7"], ["#271"], [sha]))
+        stored = json.loads(self.ledger.read_text())
+        self.assertEqual(stored["session_id"], "claude-code:abc-1")
+        self.assertTrue(self.ledger.read_text().endswith("\n"))
+        self.assertEqual(json.loads(self.index.read_text())["prs"], ["#7"])
+        human = json.loads(self.cli("log", "human event", "--human", "--root", str(self.repo)).stdout)
+        self.assertEqual(human["session_id"], "human")
+        failed = self.cli("log", "no session", "--root", str(self.repo), check=False)
+        self.assertEqual(failed.returncode, 2)
+        self.assertIn("no agent session", failed.stderr)
+        bad = self.cli("log", "bad ref", "--root", str(self.repo), "--pr", "later", env=env, check=False)
+        self.assertEqual(bad.returncode, 2)
+
+    def test_check_logs_grandfathers_legacy_and_requires_session_on_new_events(self) -> None:
+        spec = importlib.util.spec_from_file_location("check_logs_under_test", ROOT / "scripts/agents/check_logs.py")
+        logs = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(logs)
+        root = self.dir / "logs"
+        (root / ".agents/sessions").mkdir(parents=True)
+        legacy = [{"timestamp": "2026-11-20T10:00:00+00:00", "event": "old"}, {"date": "2026-10-01", "event": "older"}]
+        new = "2026-11-22T10:00:00+00:00"
+        self.write_jsonl(root / ".agents/sessions/index.jsonl", [
+            {"session_id": "01a1-legacy", "started_at": "2026-11-20T00:00:00+00:00"},
+            {"session_id": "claude-code:abc", "started_at": new}])
+
+        def errors(rows: list[dict]) -> list[str]:
+            self.write_jsonl(root / ".agents/ledger.jsonl", rows)
+            return logs.check(root, [".agents/ledger.jsonl", ".agents/sessions/index.jsonl"])
+
+        self.assertEqual(errors(legacy), [])
+        self.assertEqual(errors([*legacy, {"timestamp": new, "event": "ok", "session_id": "claude-code:abc"}]), [])
+        self.assertEqual(errors([*legacy, {"timestamp": new, "event": "ok", "session_id": "human"}]), [])
+        self.assertEqual(errors([*legacy, {"timestamp": new, "event": "ok", "session_id": "github-actions:o/r/1/1"}]), [])
+        self.assertTrue(any("needs `session_id`" in e for e in errors([{"timestamp": new, "event": "x"}])))
+        self.assertTrue(any("not registered" in e for e in errors([{"timestamp": new, "event": "x", "session_id": "codex:nope"}])))
+        self.assertTrue(any("invalid session_id" in e for e in errors([{"timestamp": new, "event": "x", "session_id": "nope"}])))
+        self.assertTrue(any("ISO `timestamp`" in e for e in errors([{"date": new, "event": "x", "session_id": "human"}])))
+        self.write_jsonl(root / ".agents/sessions/index.jsonl", [{"session_id": "bare-new", "started_at": new}])
+        self.assertTrue(any("canonical" in e for e in logs.check(root, [".agents/sessions/index.jsonl"])))
+
+    # -- D/E. trace
+    def squash_fixture(self) -> dict[str, str]:
+        base = self.commit("chore: base")
+        squash = self.commit(
+            "feat: add thing (#7)\n\n* feat: add thing\n\nAgent-Session: claude-code:abc-1\n\n* fix: tweak\n\nAgent-Session: codex:zzz\n\nCloses #271",
+            name="thing.txt", content="line1\nline2\n")
+        orphan = "deadbeefcafe0123456789abcdef0123456789ab"
+        self.write_jsonl(self.index, [
+            {"session_id": "claude-code:abc-1", "provider": "anthropic", "harness": "claude-code", "started_at": "2026-11-22T10:00:00+00:00",
+             "status": "completed", "summary": "Build the thing", "issues": ["#271"], "prs": ["#7"], "commits": [orphan[:12]], "sources": []},
+            {"session_id": "01a1legacy", "provider": "openai", "harness": "t3-code", "started_at": "2026-11-21T10:00:00+00:00",
+             "status": "completed", "summary": "Legacy bare id", "issues": ["#271"], "prs": [], "commits": [], "sources": []},
+            {"session_id": "claude-code:other", "provider": "anthropic", "harness": "claude-code", "started_at": "2026-11-22T11:00:00+00:00",
+             "status": "active", "summary": "Unrelated", "issues": ["#9"], "prs": ["#8"], "commits": [], "sources": []}])
+        self.write_jsonl(self.ledger, [
+            {"timestamp": "2026-11-22T10:05:00+00:00", "session_id": "claude-code:abc-1", "event": "Opened PR 7", "prs": ["#7"]},
+            {"timestamp": "2026-11-22T10:06:00+00:00", "session_id": "claude-code:other", "event": "other work", "prs": ["#8"]},
+            {"timestamp": "2026-11-22T10:07:00+00:00", "session_id": "claude-code:abc-1", "event": "pre-squash commit", "commits": [orphan[:7]]},
+            {"timestamp": "2026-11-22T10:08:00+00:00", "session_id": "agentctl:run-1", "type": "workflow.completed", "run_id": "run-1", "event": "run done"}])
+        return {"base": base, "squash": squash, "orphan": orphan}
+
+    def traced(self, ref: str) -> dict:
+        return json.loads(self.cli("trace", ref, "--json", "--root", str(self.repo)).stdout)
+
+    def test_trace_resolves_pr_to_squash_commit_trailers_and_why(self) -> None:
+        refs = self.squash_fixture()
+        for ref in ("#7", "https://github.com/o/r/pull/7", "pr:7"):
+            result = self.traced(ref)
+            self.assertEqual([c["sha"] for c in result["commits"]], [refs["squash"]])
+            ids = {s["session_id"] for s in result["sessions"]}
+            self.assertEqual(ids, {"claude-code:abc-1", "codex:zzz"})
+            self.assertNotIn("claude-code:other", ids)
+            self.assertIn("#271", result["issues"])
+            self.assertTrue(any("Build the thing" in item["text"] for item in result["why"]))
+            self.assertEqual([e["event"] for e in result["ledger"]], ["Opened PR 7"])
+        self.assertTrue(any("codex:zzz" in gap for gap in self.traced("#7")["gaps"]))
+
+    def test_trace_commit_blame_session_issue_and_legacy_alias(self) -> None:
+        refs = self.squash_fixture()
+        by_commit = self.traced(refs["squash"][:10])
+        self.assertEqual(by_commit["kind"], "commit")
+        self.assertIn("claude-code:abc-1", {s["session_id"] for s in by_commit["sessions"]})
+        by_line = self.traced("thing.txt:2")
+        self.assertEqual((by_line["kind"], by_line["commits"][0]["sha"]), ("line", refs["squash"]))
+        by_session = self.traced("claude-code:abc-1")
+        self.assertEqual(by_session["kind"], "session")
+        self.assertEqual([c["sha"] for c in by_session["commits"]], [refs["squash"]])
+        self.assertEqual(len(by_session["ledger"]), 2)
+        by_issue = self.traced("issue:271")
+        self.assertEqual({s["session_id"] for s in by_issue["sessions"]}, {"claude-code:abc-1", "01a1legacy", "codex:zzz"})
+        by_legacy = self.traced("t3-code:01a1legacy")
+        self.assertEqual(by_legacy["sessions"][0]["session_id"], "01a1legacy")
+        text = self.cli("trace", "#7", "--root", str(self.repo)).stdout
+        self.assertIn("Why:", text)
+        self.assertIn("feat: add thing", text)
+
+    def test_trace_finds_logs_for_commits_squashed_away_and_reports_gaps(self) -> None:
+        refs = self.squash_fixture()
+        orphan = self.traced(refs["orphan"][:9])
+        self.assertIn("claude-code:abc-1", {s["session_id"] for s in orphan["sessions"]})
+        self.assertEqual([c["sha"] for c in orphan["commits"]], [refs["squash"]])  # pre-squash SHA -> its PR's squash commit
+        self.assertTrue(any("not in this repository" in n for n in orphan["notes"]))
+        no_trailer = self.traced(refs["base"])
+        self.assertTrue(any("no Agent-Session trailer" in g for g in no_trailer["gaps"]))
+        run = self.traced("run:run-1")
+        self.assertEqual(run["ledger"][0]["run_id"], "run-1")
+        self.assertEqual(self.cli("trace", "nonsense words", "--root", str(self.repo), check=False).returncode, 2)
+
+    def test_trace_resolves_rebase_merged_pr_without_subject_suffix(self) -> None:
+        """This repo allows rebase merges only: commits keep messages, no (#N) in subjects."""
+        self.commit("chore: base")
+        first = self.commit("feat: one\n\nAgent-Session: claude-code:abc-1", name="a")
+        second = self.commit("feat: two\n\nAgent-Session: claude-code:abc-1", name="b")
+        self.commit("chore: unrelated", name="c")
+        self.write_jsonl(self.index, [{"session_id": "claude-code:abc-1", "started_at": "2026-11-22T10:00:00+00:00", "status": "completed",
+                                       "summary": "Rebased work", "issues": [], "prs": ["#7"], "commits": [], "sources": []}])
+        self.write_jsonl(self.ledger, [])
+        offline = self.traced("#7")
+        self.assertEqual({c["sha"] for c in offline["commits"]}, {first, second})
+        self.assertTrue(any("rebase merge" in n for n in offline["notes"]))
+        by_commit = self.traced(second)
+        self.assertEqual(by_commit["candidate_prs"], ["#7"])
+        gh = {"title": "Two commits", "state": "MERGED", "body": "Agent-Session: claude-code:abc-1", "commits": [{}, {}], "mergeCommit": {"oid": second}}
+        with patch.object(self.tr, "gh_json", return_value=gh):
+            online = self.tr.trace(self.repo, "#7", self.tr.read_jsonl(self.index), [], online=True)
+        self.assertEqual({c["sha"] for c in online["commits"]}, {first, second})
+        self.assertTrue(any("Two commits" in item["text"] for item in online["why"]))
+
+    def test_trace_online_enrichment_is_optional_and_time_bounded(self) -> None:
+        self.squash_fixture()
+        with patch.object(self.tr.shutil, "which", return_value=None):
+            result = self.tr.trace(self.repo, "#7", self.tr.read_jsonl(self.index), self.tr.read_jsonl(self.ledger), online=True)
+        self.assertTrue(any("gh enrichment unavailable" in n for n in result["notes"]))
+        with patch.object(self.tr.shutil, "which", return_value="/bin/gh"), \
+             patch.object(self.tr.subprocess, "run", side_effect=subprocess.TimeoutExpired("gh", 10)) as run:
+            self.assertIsNone(self.tr.gh_json(["pr", "view", "7"]))
+            self.assertEqual(run.call_args.kwargs["timeout"], 10)
+
+    # -- F. PR check
+    def check_pr(self, body: str = "", author: str = "") -> subprocess.CompletedProcess[str]:
+        args = ["check-pr", "--root", str(self.repo), "--base", "main", "--head", "topic"]
+        env = {"PR_BODY": body, "PR_AUTHOR": author}
+        return self.cli(*args, env=env, check=False)
+
+    def test_check_pr_requires_trailer_or_body_declaration_with_exemptions(self) -> None:
+        self.commit("chore: base")
+        self.git("checkout", "-q", "-b", "topic")
+        self.commit("feat: agent", name="a", env=clean_env(), content="1\n")
+        self.git("commit", "-q", "--amend", "-m", "feat: agent\n\nAgent-Session: claude-code:abc")
+        self.commit("fix: human", name="b", content="2\n")
+        failed = self.check_pr()
+        self.assertEqual(failed.returncode, 1)
+        self.assertEqual(len(json.loads(failed.stdout)["missing"]), 1)
+        self.assertIn("::error::", failed.stderr)
+        self.assertEqual(self.check_pr("Summary\nAgent-Session: none (human)\n").returncode, 0)
+        informational = self.check_pr("Agent-Session: claude-code:abc\n")  # body session ids no longer exempt anything
+        self.assertEqual(informational.returncode, 1)
+        mixed = self.check_pr("Agent-Session: none (human)\n")
+        self.assertIn("mixed authorship", mixed.stderr)
+        self.assertIn("not in the session index", mixed.stderr)
+        placeholder = self.check_pr("Agent-Session: <harness:session-id | none (human)>\n")
+        self.assertEqual(placeholder.returncode, 1)
+        self.assertIn("::warning::", placeholder.stderr)
+        self.assertEqual(self.check_pr("Agent-Session: garbage value\n").returncode, 1)
+        self.assertEqual(self.check_pr(author="dependabot[bot]").returncode, 0)
+        self.git("commit", "-q", "--amend", "--author", "dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>", "--no-edit")
+        self.assertEqual(self.check_pr().returncode, 0)
+
+    # -- round 2: rebase equivalence, locators, projection, union-fold, coverage
+    def rebased_fixture(self, amend: str) -> tuple[str, str]:
+        """Commit A on a branch, move main, rebase A (optionally amended), fast-forward main. Returns (old, new)."""
+        self.commit("chore: base")
+        self.git("checkout", "-q", "-b", "feat")
+        old = self.commit("feat: add a", name="a.txt", content="alpha\n")
+        self.git("checkout", "-q", "main")
+        self.commit("chore: main moved", name="m.txt")
+        self.git("checkout", "-q", "feat")
+        self.git("rebase", "-q", "main")
+        if amend == "subject":
+            self.git("commit", "-q", "--amend", "-m", "feat: add a (reworded)")
+        elif amend == "content":
+            (self.repo / "a.txt").write_text("alpha\nbeta\n")
+            self.git("commit", "-q", "-a", "--amend", "--no-edit")
+        self.git("checkout", "-q", "main")
+        self.git("merge", "-q", "--ff-only", "feat")
+        new = self.git("rev-parse", "HEAD")
+        self.assertNotEqual(old, new)
+        self.write_jsonl(self.index, [{"session_id": "claude-code:abc-1", "provider": "anthropic", "harness": "claude-code",
+                                       "started_at": "2026-11-21T10:00:00+00:00", "status": "completed", "summary": "Add a",
+                                       "issues": ["#5"], "prs": ["#7"], "commits": [old[:7]], "sources": []}])
+        self.write_jsonl(self.ledger, [])
+        return old, new
+
+    def test_trace_maps_rebased_commit_to_recorded_sha_by_patch_id(self) -> None:
+        old, new = self.rebased_fixture("subject")  # subject differs: only the patch-id can match
+        result = self.traced(new)
+        self.assertEqual(result["commits"][0]["equivalents"], [{"recorded": old[:7], "kind": "patch-id"}])
+        self.assertEqual([s["session_id"] for s in result["sessions"]], ["claude-code:abc-1"])
+        self.assertTrue(any(f"rebase-equivalent {old[:7]} (patch-id)" in v for v in result["sessions"][0]["via"]))
+        self.assertIn("#7", result["prs"])
+        self.assertIn(f"via rebase-equivalent {old[:7]} (patch-id)", self.cli("trace", new, "--root", str(self.repo)).stdout)
+        self.assertTrue((self.dir / "equivalence.json").is_file(), "fingerprints are cached next to the projection")
+        by_line = self.traced("a.txt:1")
+        self.assertEqual(by_line["sessions"][0]["session_id"], "claude-code:abc-1")
+
+    def test_trace_falls_back_to_author_date_email_subject_when_patch_differs(self) -> None:
+        old, new = self.rebased_fixture("content")
+        kinds = [eq["kind"] for eq in self.traced(new)["commits"][0]["equivalents"]]
+        self.assertEqual(kinds, ["author-date+email+subject"])
+
+    def test_unrelated_commits_are_not_equivalent(self) -> None:
+        self.rebased_fixture("")
+        other = self.commit("feat: unrelated", name="z.txt", content="zzz\n")
+        result = self.traced(other)
+        self.assertEqual(result["commits"][0]["equivalents"], [])
+        self.assertEqual(result["sessions"], [])
+
+    def test_online_commit_to_pr_lookup_uses_gh_api_with_timeout(self) -> None:
+        self.commit("chore: base")
+        sha = self.commit("feat: plain", name="p.txt")
+        self.write_jsonl(self.index, [{"session_id": "claude-code:abc-1", "started_at": "2026-11-21T10:00:00+00:00", "summary": "Plain", "prs": ["#9"]}])
+        calls = []
+
+        def fake_gh(args: list[str], timeout: int = 10):
+            calls.append(args)
+            return [{"number": 9}] if args[0] == "api" else None
+
+        with patch.object(self.tr, "gh_json", side_effect=fake_gh):
+            result = self.tr.trace(self.repo, sha, self.tr.read_jsonl(self.index), [], online=True)
+        self.assertTrue(calls[0][1].endswith(f"/commits/{sha}/pulls"))
+        self.assertEqual([s["session_id"] for s in result["sessions"]], ["claude-code:abc-1"])
+        self.assertIn("#9", result["prs"])
+
+    # locators
+    def test_locators_are_table_driven_and_report_only_paths(self) -> None:
+        home = self.dir / "home"
+        transcript = home / ".claude/projects/proj/abc-1.jsonl"
+        transcript.parent.mkdir(parents=True)
+        transcript.write_text("secret transcript body\n")
+        found = self.tr.locate("claude-code:abc-1", home=home)
+        self.assertEqual((found["open"], found["available_locally"], found["transcript"]), ("claude --resume abc-1", True, str(transcript)))
+        self.assertNotIn("secret", json.dumps(found))
+        missing = self.tr.locate("claude-code:nope", home=home)
+        self.assertEqual((missing["open"], missing["available_locally"], missing["transcript"]), ("claude --resume nope", False, None))
+        self.assertEqual(self.tr.locate("codex:019e", home=home)["open"], "codex resume 019e")
+        self.assertIn("thread th-9", self.tr.locate("t3-code:th-9", home=home)["open"])
+        actions = self.tr.locate("github-actions:o/r/123/2")
+        self.assertEqual((actions["open"], actions["available_locally"]), ("https://github.com/o/r/actions/runs/123/attempts/2", False))
+        self.assertEqual(self.tr.locate("claude:abc-1", home=home)["harness"], "claude-code")  # legacy prefix alias
+        self.assertEqual(self.tr.locate("01a1legacy", {"harness": "t3-code"}, home=home)["harness"], "t3-code")
+        self.assertIsNone(self.tr.locate("mystery:1", home=home)["open"])
+        self.squash_fixture()
+        sessions = self.traced("claude-code:abc-1")["sessions"]
+        self.assertEqual(sessions[0]["locators"][0]["open"], "claude --resume abc-1")
+        self.assertIn("open: claude --resume abc-1", self.cli("trace", "claude-code:abc-1", "--root", str(self.repo)).stdout)
+
+    # union-merge friendly index
+    def test_duplicate_index_lines_fold_and_writers_only_append(self) -> None:
+        module = load_agentctl_module()
+        rows = [{"session_id": "a:1", "status": "active", "issues": ["#1"], "attempts": [{"attempt": 1}], "summary": "first"},
+                {"session_id": "b:2", "status": "active"},
+                {"session_id": "a:1", "status": "completed", "issues": ["#2", "#1"], "attempts": [{"attempt": 1}, {"attempt": 2}]}]
+        folded = self.tr.fold_records(rows)
+        self.assertEqual([r["session_id"] for r in folded], ["a:1", "b:2"])
+        self.assertEqual((folded[0]["status"], folded[0]["issues"], folded[0]["summary"]), ("completed", ["#1", "#2"], "first"))
+        self.assertEqual(folded[0]["attempts"], [{"attempt": 1}, {"attempt": 2}])
+        self.write_jsonl(self.index, rows)
+        self.assertEqual(len(module.records(self.index)), 2)
+        self.assertEqual(len(module.records(self.index, fold=False)), 3)
+        identity = self.tr.Identity("a:1", "a", "unknown", [], "test")
+        before = self.index.read_text()
+        module.ensure_session(self.index, identity)  # nothing new: no write
+        self.assertEqual(self.index.read_text(), before)
+        module.ensure_session(self.index, identity, prs=["#7"])
+        self.assertTrue(self.index.read_text().startswith(before))  # appended
+        self.assertEqual(module.records(self.index)[0]["prs"], ["#7"])
+        self.assertEqual(module.heal_session_index(self.index), 2)  # `maintain`/`heal` compact: 4 lines -> 2
+        self.assertEqual(len(self.index.read_text().splitlines()), 2)
+
+    def test_check_logs_accepts_duplicate_index_lines_and_gitattributes_declare_union(self) -> None:
+        spec = importlib.util.spec_from_file_location("check_logs_dupes", ROOT / "scripts/agents/check_logs.py")
+        logs = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(logs)
+        root = self.dir / "dupes"
+        (root / ".agents/sessions").mkdir(parents=True)
+        new = "2026-11-22T10:00:00+00:00"
+        self.write_jsonl(root / ".agents/sessions/index.jsonl", [
+            {"session_id": "claude-code:a", "started_at": new, "prs": ["#1"]}, {"session_id": "claude-code:a", "started_at": new, "prs": ["#2"]}])
+        self.assertEqual(logs.check(root, [".agents/sessions/index.jsonl"]), [])
+        attributes = (ROOT / ".gitattributes").read_text()
+        for log in (".agents/ledger.jsonl", ".agents/sessions/index.jsonl", "specs/source-of-truth/sync-ledger.jsonl"):
+            self.assertIn(f"{log} merge=union", attributes)
+
+    # projection
+    def test_projection_serves_trace_when_fresh_and_goes_stale_on_change(self) -> None:
+        module = load_agentctl_module()
+        facts_module = load_trace_facts_module()
+        old, new = self.rebased_fixture("subject")
+        database = self.dir / "projection.sqlite3"
+        env = {"AGENT_LEDGER_FILE": str(self.ledger), "AGENT_EQUIVALENCE_CACHE": str(self.dir / "eq.json")}
+        with patch.object(module, "INDEX", self.index), patch.dict(module.os.environ, env):
+            module.rebuild(argparse.Namespace(database=str(database), root=str(self.repo)), emit=False)
+        sessions, ledger = self.tr.read_jsonl(self.index), []
+        direct = facts_module.DirectFacts(self.repo, sessions, ledger)
+        facts = facts_module.ProjectionFacts.open(database, self.repo, self.index, self.ledger, direct)
+        self.assertIsNotNone(facts)
+        connection = sqlite3.connect(database)
+        edges = connection.execute("SELECT dst_id, kind, via FROM trace_edges WHERE src_type='commit' AND src_id=? AND kind='equivalent'", (new,)).fetchall()
+        self.assertEqual(edges, [(old[:7], "equivalent", "patch-id")])
+        self.assertEqual(connection.execute("SELECT subject FROM git_commits WHERE sha=?", (new,)).fetchone()[0], "feat: add a (reworded)")
+        self.assertEqual([c["sha"] for c in facts_module.search_commits(connection, "reworded", 5)], [new])
+        connection.close()
+        via_projection = self.tr.trace(self.repo, new, sessions, ledger, facts=facts)
+        via_direct = self.tr.trace(self.repo, new, sessions, ledger, facts=direct)
+        self.assertEqual(via_projection["engine"], "projection")
+        self.assertEqual(via_direct["engine"], "direct")
+        for key in ("commits", "sessions", "prs", "issues", "why"):
+            self.assertEqual(via_projection[key], via_direct[key], key)
+        self.write_jsonl(self.index, [*sessions, {"session_id": "codex:later", "started_at": "2026-11-22T00:00:00+00:00"}])
+        self.assertIsNone(facts_module.ProjectionFacts.open(database, self.repo, self.index, self.ledger, direct))
+        facts.connection.close()
+
+    # doctor
+    def test_doctor_reports_registration_command_and_equivalence_coverage(self) -> None:
+        module = load_agentctl_module()
+        old, new = self.rebased_fixture("subject")
+        self.commit("feat: tagged\n\nAgent-Session: claude-code:abc-1", name="t.txt")
+        self.commit("chore: nobody knows", name="n.txt")
+        env = {"AGENT_LEDGER_FILE": str(self.ledger), "AGENT_EQUIVALENCE_CACHE": str(self.dir / "eq.json"), "CLAUDE_CODE_SESSION_ID": "fresh-1"}
+        with patch.object(module, "INDEX", self.index), patch.dict(module.os.environ, env):
+            report = module.traceability_report(self.repo)
+        self.assertIs(report["current_session_registered"], False)
+        self.assertIn("agentctl sessions register", report["register_command"])
+        coverage = report["main_coverage"]
+        self.assertEqual((coverage["trailer"], coverage["rebase-equivalent"], coverage["unresolved"]), (1, 1, 3))  # base + main-moved + nobody
+        self.assertEqual(coverage["coverage_pct"], 40.0)
+
+    # -- round 3: heal vs maintain, ended_at, --infer
+    def test_heal_never_rewrites_tracked_logs_but_maintain_compacts(self) -> None:
+        module = load_agentctl_module()
+        rows = [{"session_id": "a:1", "status": "active"}, {"session_id": "a:1", "status": "completed"}]
+        self.write_jsonl(self.index, rows)
+        before = self.index.read_text()
+        args = argparse.Namespace(database=str(self.dir / "k.sqlite3"))
+        with patch.object(module, "INDEX", self.index), patch.object(module, "rebuild", return_value=0), \
+             contextlib.redirect_stdout(io.StringIO()):
+            module.heal(args)
+            self.assertEqual(self.index.read_text(), before)
+            module.maintain(args)
+        self.assertEqual(len(self.index.read_text().splitlines()), 1)
+        self.assertEqual(json.loads(self.index.read_text())["status"], "completed")
+
+    def test_session_end_records_ended_at(self) -> None:
+        env = {"CLAUDE_CODE_SESSION_ID": "abc-1"}
+        self.cli("sessions", "--root", str(self.repo), "register", "--summary", "work", env=env)
+        self.assertNotIn("ended_at", self.tr.fold_records(self.tr.read_jsonl(self.index))[0])
+        self.cli("sessions", "--root", str(self.repo), "register", "--status", "completed", env=env)
+        record = self.tr.fold_records(self.tr.read_jsonl(self.index))[0]
+        self.assertEqual(record["status"], "completed")
+        self.assertIsNotNone(self.tr.parse_time(record["ended_at"]))
+
+    def test_trace_infer_is_opt_in_labelled_and_not_coverage(self) -> None:
+        module = load_agentctl_module()
+        self.commit("chore: base")
+        window = lambda day: clean_env(GIT_AUTHOR_DATE=f"2026-11-{day}T10:00:00+00:00", GIT_COMMITTER_DATE=f"2026-11-{day}T10:00:00+00:00")  # noqa: E731
+        with_ref = self.commit("feat: in window\n\nCloses #8", name="a", env=window("20"))
+        no_ref = self.commit("chore: in window", name="b", env=window("20"))
+        outside = self.commit("chore: outside", name="c", env=window("25"))
+        self.write_jsonl(self.index, [
+            {"session_id": "claude-code:s1", "harness": "claude-code", "started_at": "2026-11-20T09:00:00+00:00", "ended_at": "2026-11-20T12:00:00+00:00",
+             "summary": "S1", "issues": ["#8"]},
+            {"session_id": "claude-code:s2", "harness": "claude-code", "started_at": "2026-11-20T09:30:00+00:00", "summary": "S2", "issues": ["#99"]},
+            {"session_id": "claude-code:s3", "harness": "claude-code", "started_at": "2026-11-21T09:30:00+00:00", "summary": "S3"}])
+        self.write_jsonl(self.ledger, [])
+
+        def sessions(sha: str, *flags: str) -> dict[str, dict]:
+            result = json.loads(self.cli("trace", sha, "--json", "--root", str(self.repo), *flags).stdout)
+            return {s["session_id"]: s for s in result["sessions"]}
+
+        self.assertEqual(sessions(with_ref), {})  # opt-in only
+        found = sessions(with_ref, "--infer")
+        self.assertEqual(list(found), ["claude-code:s1"])  # s2 shares no PR/issue; s3 is outside the window
+        self.assertTrue(found["claude-code:s1"]["inferred"])
+        evidence = found["claude-code:s1"]["via"][0]
+        self.assertTrue(evidence.startswith("inferred:") and "ended_at" in evidence and "#8" in evidence)
+        both = sessions(no_ref, "--infer")  # no refs on the commit: time window only; s2 ends at the next session start
+        self.assertEqual(set(both), {"claude-code:s1", "claude-code:s2"})
+        self.assertIn("time only", both["claude-code:s2"]["via"][0])
+        self.assertIn("next session start", both["claude-code:s2"]["via"][0])
+        self.assertEqual(sessions(outside, "--infer"), {})
+        self.assertIn("INFERRED", self.cli("trace", with_ref, "--infer", "--root", str(self.repo)).stdout)
+        env = {"AGENT_LEDGER_FILE": str(self.ledger), "AGENT_EQUIVALENCE_CACHE": str(self.dir / "eq.json")}
+        with patch.object(module, "INDEX", self.index), patch.dict(module.os.environ, env):
+            coverage = module.history_coverage(self.repo, self.tr.read_jsonl(self.index), [], 10)
+            database = self.dir / "infer.sqlite3"
+            module.rebuild(argparse.Namespace(database=str(database), root=str(self.repo)), emit=False)
+        self.assertEqual(coverage["unresolved"], 4)  # inference never counts toward coverage
+        connection = sqlite3.connect(database)
+        self.assertEqual(connection.execute("SELECT COUNT(*) FROM trace_edges WHERE dst_id LIKE 'claude-code:s%' AND src_type='commit'").fetchone()[0], 0)
+        connection.close()
+
+    # -- G. provenance
+    def test_provenance_links_run_to_commit_pr_and_sessions(self) -> None:
+        refs = self.squash_fixture()
+        env = {"GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "2", "GITHUB_REPOSITORY": "o/r", "GITHUB_WORKFLOW": "Web Build", "GITHUB_EVENT_NAME": "push"}
+        summary, out = self.dir / "summary.md", self.dir / "out/p.json"
+        self.cli("provenance", "--root", str(self.repo), "--sha", refs["squash"], "--triggering-run", "55", "--out", str(out), "--summary", str(summary), env=env)
+        value = json.loads(out.read_text())
+        self.assertEqual((value["run_id"], value["commit"], value["prs"], value["triggering_run_id"]), ("123", refs["squash"], ["#7"], "55"))
+        self.assertEqual({s["session_id"] for s in value["sessions"]}, {"claude-code:abc-1", "codex:zzz"})
+        self.assertTrue(value["run_url"].endswith("/o/r/actions/runs/123"))
+        self.assertIn("claude-code:abc-1", summary.read_text())
+
+    # -- H. doctor
+    def test_doctor_reports_traceability_gaps(self) -> None:
+        module = load_agentctl_module()
+        self.commit("chore: untracked")
+        with patch.object(module, "INDEX", self.index), patch.dict(module.os.environ, {"AGENT_LEDGER_FILE": str(self.ledger)}):
+            self.write_jsonl(self.index, [{"session_id": "claude-code:e", "started_at": "2026-11-22T00:00:00+00:00"}])
+            self.write_jsonl(self.ledger, [{"timestamp": "2026-11-23T00:00:00+00:00", "event": "no session"}])
+            report = module.traceability_report(self.repo)
+        self.assertEqual(report["sessions_without_refs"], ["claude-code:e"])
+        self.assertEqual(report["ledger_entries_without_session"], 1)
+        self.assertEqual(len(report["recent_commits_without_session"]), 1)
+        self.assertFalse(report["hooks"]["installed"])
 
 
 if __name__ == "__main__":

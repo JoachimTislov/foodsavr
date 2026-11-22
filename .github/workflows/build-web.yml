@@ -153,3 +153,10 @@ jobs:
         with:
           name: web-build
           path: build/web
+
+      - name: Record provenance
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/provenance
+        with:
+          sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          pr: ${{ github.event.pull_request.number }}

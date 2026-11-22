@@ -1,3 +1,7 @@
 #!/bin/sh
 # Mirror CI for the changed areas before pushing (ADR 0006). Install: make hooks
-exec python3 "$(git rev-parse --show-toplevel)/scripts/ci/local_ci.py" --pre-push
+root=$(git rev-parse --show-toplevel) || exit 1
+# Git tests exercise temporary repositories. Avoid binding them to this worktree.
+local_git_env=$(git rev-parse --local-env-vars) || exit 1
+unset $local_git_env
+exec python3 "$root/scripts/ci/local_ci.py" --pre-push
