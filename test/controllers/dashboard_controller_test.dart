@@ -10,6 +10,7 @@ import 'package:foodsavr/models/product_model.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/utils/collection_types.dart';
+import 'package:foodsavr/models/user_preferences_model.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -50,6 +51,7 @@ void main() {
       mockProductService,
       mockCollectionService,
       preferences,
+      Logger(level: Level.off),
     );
   });
 
@@ -231,6 +233,48 @@ void main() {
         ).called(1);
       },
     );
+
+    test('refresh reloads the preferences before the dashboard', () async {
+      final user = MockUser();
+      when(() => user.uid).thenReturn('user_1');
+      when(() => mockAuthService.getUserId()).thenReturn('user_1');
+      final repository = InMemoryPreferencesRepository();
+      preferences = PreferencesController(
+        mockAuthService,
+        repository,
+        mockCollectionService,
+        Logger(level: Level.off),
+      );
+      controller = DashboardController(
+        mockAuthService,
+        mockProductService,
+        mockCollectionService,
+        preferences,
+        Logger(level: Level.off),
+      );
+      await Future<void>.delayed(Duration.zero);
+      // Another device changed the window in the backend.
+      repository.remote['user_1'] = const UserPreferences(expiringSoonDays: 12);
+      when(
+        () => mockProductService.getExpiringSoon(
+          'user_1',
+          expiringSoonDays: any(named: 'expiringSoonDays'),
+        ),
+      ).thenAnswer((_) async => []);
+      when(
+        () => mockCollectionService.getCollectionsForUser(
+          'user_1',
+          type: CollectionType.inventory,
+        ),
+      ).thenAnswer((_) async => []);
+
+      await controller.refresh();
+
+      verify(
+        () =>
+            mockProductService.getExpiringSoon('user_1', expiringSoonDays: 12),
+      ).called(1);
+    });
 
     test(
       'does not load on a preference change before the first load',

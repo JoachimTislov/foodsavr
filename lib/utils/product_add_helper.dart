@@ -37,6 +37,7 @@ class ProductAddHelper {
     if (userId == null) return false;
 
     final messenger = ScaffoldMessenger.of(context);
+    var loadingOpen = false;
     try {
       // Show loading indicator
       showDialog(
@@ -44,6 +45,7 @@ class ProductAddHelper {
         barrierDismissible: false,
         builder: (_) => const Center(child: CircularProgressIndicator()),
       );
+      loadingOpen = true;
 
       final result = await productService.addOrIncrementByBarcode(
         userId: userId,
@@ -56,6 +58,7 @@ class ProductAddHelper {
         context,
         rootNavigator: true,
       ).pop(); // Dismiss loading indicator
+      loadingOpen = false;
 
       if (result.notFound) {
         messenger.showSnackBar(
@@ -68,10 +71,22 @@ class ProductAddHelper {
         );
       } else {
         if (collectionId != null) {
-          await collectionService.addProductToCollection(
-            collectionId,
-            result.product.id,
-          );
+          // The scan already saved the product; a failed assignment is
+          // reported without failing (and so repeating) the scan.
+          try {
+            await collectionService.addProductToCollection(
+              collectionId,
+              result.product.id,
+            );
+          } catch (e) {
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(
+                  'product.addToInventoryError'.tr(namedArgs: {'error': '$e'}),
+                ),
+              ),
+            );
+          }
         }
 
         if (!context.mounted) return false;
@@ -108,10 +123,12 @@ class ProductAddHelper {
       }
     } catch (e) {
       if (!context.mounted) return false;
-      Navigator.of(
-        context,
-        rootNavigator: true,
-      ).pop(); // Dismiss loading indicator
+      if (loadingOpen) {
+        Navigator.of(
+          context,
+          rootNavigator: true,
+        ).pop(); // Dismiss loading indicator
+      }
       messenger.showSnackBar(
         SnackBar(
           content: Text(

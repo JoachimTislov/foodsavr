@@ -97,6 +97,10 @@ class _ProductFormContentState extends State<_ProductFormContent> {
 
   bool _isSaving = false;
 
+  /// Product created by an earlier attempt whose collection assignment
+  /// failed; a retry only repeats the assignment.
+  Product? _created;
+
   bool get _isEditing => widget.product != null;
 
   @override
@@ -150,7 +154,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
         await _productService.updateProduct(product);
       } else {
         final collectionId = widget.initialCollectionId;
-        final created = await _productService.createProduct(
+        final created = _created ??= await _productService.createProduct(
           product,
           withPersonalTemplate: collectionId != null,
         );

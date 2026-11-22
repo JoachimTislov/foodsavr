@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
+import 'package:logger/logger.dart';
 
 import '../interfaces/i_auth_service.dart';
 import '../models/collection_model.dart';
@@ -20,12 +21,14 @@ class DashboardController extends ChangeNotifier {
   final ProductService _productService;
   final CollectionService _collectionService;
   final PreferencesController _preferences;
+  final Logger _logger;
 
   DashboardController(
     this._authService,
     this._productService,
     this._collectionService,
     this._preferences,
+    this._logger,
   ) {
     _preferences.addListener(_onPreferencesChanged);
   }
@@ -72,12 +75,24 @@ class DashboardController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Refreshes the synced preferences, then reloads, so a window changed on
+  /// another device applies on pull-to-refresh.
+  Future<void> refresh() async {
+    await _preferences.load();
+    await load();
+  }
+
   /// Reloads when a synced or edited preference changes the expiring-soon
-  /// window after the dashboard was already loaded.
+  /// window after the dashboard was already loaded. Errors on this background
+  /// path are logged; the next explicit refresh surfaces them.
   void _onPreferencesChanged() {
     final loaded = _loadedExpiringSoonDays;
     if (loaded != null && loaded != _preferences.expiringSoonDays) {
-      unawaited(load());
+      unawaited(
+        load().catchError((Object e) {
+          _logger.w('Dashboard reload after a preference change failed: $e');
+        }),
+      );
     }
   }
 

@@ -150,7 +150,7 @@ class ProductCardDetails extends WatchingWidget {
                   ),
                 ),
               // Details grid
-              _buildDetailsGrid(context),
+              _buildDetailsGrid(context, expiringSoonDays),
             ],
           ),
         ),
@@ -158,7 +158,7 @@ class ProductCardDetails extends WatchingWidget {
     );
   }
 
-  Widget _buildDetailsGrid(BuildContext context) {
+  Widget _buildDetailsGrid(BuildContext context, int expiringSoonDays) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -211,7 +211,7 @@ class ProductCardDetails extends WatchingWidget {
                 textColor = colorScheme.tertiary;
               } else {
                 expiryText = DateFormat.yMMMd().format(entry.expirationDate);
-                if (days <= 6) textColor = colorScheme.tertiary;
+                if (days <= expiringSoonDays) textColor = colorScheme.tertiary;
               }
 
               return Padding(
@@ -227,7 +227,7 @@ class ProductCardDetails extends WatchingWidget {
                       expiryText,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: textColor,
-                        fontWeight: days <= 6 || isEntryExpired
+                        fontWeight: days <= expiringSoonDays || isEntryExpired
                             ? FontWeight.bold
                             : FontWeight.normal,
                       ),

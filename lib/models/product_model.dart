@@ -96,9 +96,11 @@ abstract class ExpiryEntry with _$ExpiryEntry {
   }
 
   int get daysUntilExpiration {
+    // Compare calendar days in UTC so a daylight-saving change between today
+    // and the expiry date cannot shorten the difference by an hour.
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final expiry = DateTime(
+    final today = DateTime.utc(now.year, now.month, now.day);
+    final expiry = DateTime.utc(
       expirationDate.year,
       expirationDate.month,
       expirationDate.day,

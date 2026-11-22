@@ -124,6 +124,7 @@
 		"all_products": "All Products",
 		"availableIn": "Available in: {inventories}",
 		"available_stock": "AVAILABLE STOCK",
+		"addToInventoryError": "Saved the product, but could not add it to the inventory: {error}",
 		"barcodeAddError": "Could not add scanned barcode: {error}",
 		"barcodeAssumedExpiry": ". Assumes expiry in {days} days. Tap to edit.",
 		"barcodeCreated": "Created new product \"{name}\"",
@@ -242,7 +243,8 @@
 			"defaultInventory": "Default inventory",
 			"defaultInventoryHelp": "New products are added here when no inventory is chosen.",
 			"firstInventory": "First inventory",
-			"noInventories": "No inventories yet"
+			"noInventories": "No inventories yet",
+			"syncError": "Saved on this device only; syncing failed."
 		}
 	},
 	"transfer": {

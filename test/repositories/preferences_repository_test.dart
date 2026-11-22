@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/constants/preferences_config.dart';
@@ -144,6 +146,20 @@ void main() {
         throwsA(isA<FirebaseException>()),
       );
       expect(repository.getCached('user-1'), updated);
+    });
+
+    test('a load that started before a save keeps the saved cache', () async {
+      final read = Completer<DocumentSnapshot<Map<String, dynamic>>>();
+      when(() => docRef.get()).thenAnswer((_) => read.future);
+      when(() => docRef.set(any(), any())).thenAnswer((_) async {});
+
+      final loading = repository.load('user-1');
+      const saved = UserPreferences(expiringSoonDays: 4);
+      await repository.save('user-1', saved);
+      read.complete(snapshot({'expiringSoonDays': 9}));
+      await loading;
+
+      expect(repository.getCached('user-1'), saved);
     });
 
     test('the cache never leaks preferences to another account', () async {

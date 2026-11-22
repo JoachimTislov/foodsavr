@@ -18,6 +18,10 @@ class PreferencesRepository implements IPreferencesRepository {
   final SharedPreferencesWithCache _prefs;
   final Logger _logger;
 
+  /// Incremented by every [save]; a [load] that started before a save does
+  /// not write its (older) backend value to the cache.
+  int _writeSequence = 0;
+
   PreferencesRepository(this._firestore, this._prefs, this._logger);
 
   DocumentReference<Map<String, dynamic>> _doc(String userId) =>
@@ -41,12 +45,13 @@ class PreferencesRepository implements IPreferencesRepository {
 
   @override
   Future<UserPreferences> load(String userId) async {
+    final sequence = _writeSequence;
     try {
       final snapshot = await _doc(userId).get();
       final data = snapshot.data();
       if (snapshot.exists && data != null) {
         final preferences = UserPreferences.fromJson(data);
-        await _cache(userId, preferences);
+        if (sequence == _writeSequence) await _cache(userId, preferences);
         return preferences;
       }
     } catch (e) {
@@ -57,6 +62,7 @@ class PreferencesRepository implements IPreferencesRepository {
 
   @override
   Future<void> save(String userId, UserPreferences preferences) async {
+    _writeSequence++;
     await _cache(userId, preferences);
     await _doc(userId).set(preferences.toJson(), SetOptions(merge: true));
   }
