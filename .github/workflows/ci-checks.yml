@@ -24,7 +24,9 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Dependabot rebases keep the running check: the next run starts after it and
+  # skips when the previous head was green and nothing in scope changed.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
 
 jobs:
   gate:
@@ -72,7 +74,7 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ steps.paths.outputs.code }}" != "true" ]; then
             echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          scripts/ci/already_tested.sh ci-checks.yml
+          scripts/ci/already_tested.sh ci-checks.yml ':(glob)**/*.dart' lib packages test assets/translations pubspec.yaml pubspec.lock analysis_options.yaml integration_test test_driver
           if grep -q 'skip=true' "$GITHUB_OUTPUT"; then echo "run=false" >> "$GITHUB_OUTPUT"; else echo "run=true" >> "$GITHUB_OUTPUT"; fi
 
   check:

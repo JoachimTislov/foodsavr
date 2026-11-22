@@ -10,7 +10,8 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # See ci-checks.yml: Dependabot runs are not cancelled by their own rebases.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
 
 jobs:
   changes:
@@ -35,7 +36,7 @@ jobs:
         id: tested
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/ci/already_tested.sh validation.yml
+        run: scripts/ci/already_tested.sh validation.yml lib packages web assets android integration_test test_driver test/e2e pubspec.yaml pubspec.lock
       - name: Path filters
         uses: dorny/paths-filter@v3
         id: filter

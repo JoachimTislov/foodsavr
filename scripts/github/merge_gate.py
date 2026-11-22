@@ -30,6 +30,9 @@ DEPENDABOT = "dependabot"
 ACTIVE = {"queued", "in_progress", "waiting", "requested", "pending"}
 REBASE_COMMAND = "@dependabot rebase"
 REFUSAL = re.compile(r"can't rebase|cannot rebase|edited by someone other than Dependabot", re.IGNORECASE)
+# Paths whose change invalidates running PR checks (mirrors the workflow scopes).
+SCOPE = ("lib/", "packages/", "web/", "assets/", "android/", "test/", "integration_test/", "test_driver/",
+         "pubspec.", "analysis_options.yaml", ".github/")
 STALL_AFTER = timedelta(minutes=60)
 QUEUE_START_GRACE = timedelta(minutes=10)
 REBASE_WAIT = timedelta(minutes=30)
@@ -45,6 +48,7 @@ query($owner: String!, $name: String!, $cursor: String) {
       nodes {
         id number title body isDraft isCrossRepository mergeStateStatus
         reviewDecision headRefOid
+        files(first: 100) { pageInfo { hasNextPage } nodes { path } }
         author { __typename login }
         labels(first: 50) { nodes { name } }
         reviewThreads(first: 100) { nodes { isResolved isOutdated } }
@@ -91,6 +95,12 @@ class PR:
     queue_running: bool = False
     rebase_requested: datetime | None = None
     rebase_refused: bool = False
+    files: list[str] | None = None
+
+    @property
+    def moves_scope(self) -> bool:
+        """True when merging this PR could invalidate another PR's running checks."""
+        return self.files is None or any(f.startswith(SCOPE) or f.endswith(".dart") for f in self.files)
 
     @property
     def dependabot(self) -> bool:
@@ -160,6 +170,8 @@ def from_node(node: dict[str, Any]) -> PR:
         queue_running=queue_running,
         rebase_requested=max(requested) if requested else None,
         rebase_refused=bool(refused and requested and max(refused) >= max(requested)),
+        files=None if not node.get("files") or node["files"]["pageInfo"]["hasNextPage"]
+        else [f["path"] for f in node["files"]["nodes"]],
     )
 
 
@@ -214,12 +226,16 @@ def plan(prs: list[PR], now: datetime) -> Plan:
         if p.merge_state in {"CLEAN", "HAS_HOOKS", "UNSTABLE", "BLOCKED"}
         and p.rollup in {None, "PENDING"} and now - p.head_time < STALL_AFTER
     ]
-    if ready and validating:
+    # Out-of-scope merges (docs, agent files) leave running checks valid: the
+    # rebased head reuses them (scripts/ci/already_tested.sh), so only in-scope PRs wait.
+    free = [p for p in ready if not (validating and p.moves_scope)]
+    if ready and not free:
         for pr in validating:
-            report.append((pr.number, "in flight", "checks running; merges are held so main does not move"))
+            report.append((pr.number, "in flight", "checks running; in-scope merges are held"))
         for pr in ready:
             report.append((pr.number, "queued", f"held until #{validating[0].number} finishes checks"))
         return Plan(actions, report)
+    ready = free
     if ready:
         pr = ready[0]
         actions.append(("merge", pr))
