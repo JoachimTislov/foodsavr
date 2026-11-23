@@ -53,6 +53,20 @@ void main() {
   });
 
   group('AuthController', () {
+    test(
+      'Facebook provider misconfiguration sets an actionable error',
+      () async {
+        when(
+          () => mockAuthService.signInWithFacebook(),
+        ).thenThrow(FirebaseAuthException(code: 'operation-not-allowed'));
+
+        await authController.signInWithFacebook();
+
+        expect(authController.errorMessage, 'auth.error.facebook_unavailable');
+        expect(authController.isLoading, false);
+      },
+    );
+
     test('initial state is correct', () {
       expect(authController.isLogin, true);
       expect(authController.isLoading, false);

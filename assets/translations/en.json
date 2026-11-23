@@ -1,6 +1,8 @@
 {
 	"auth": {
 		"error": {
+			"facebook_unavailable": "Facebook sign-in is unavailable. You can sign in with email instead.",
+			"facebook_failed": "Facebook sign-in failed. Try again or sign in with email.",
 			"email_already_in_use": "The account already exists for that email.",
 			"invalid_email": "The email address is not valid.",
 			"requires_recent_login": "This action requires a recent sign-in. Please sign in again and retry.",

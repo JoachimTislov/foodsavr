@@ -40,7 +40,6 @@ if [ -f .env ]; then
 fi
 
 project="${FIREBASE_PROJECT:-my-foodsavr-store}"
-graph="https://graph.facebook.com/v21.0"
 idt="https://identitytoolkit.googleapis.com/admin/v2/projects/$project"
 todo=()
 
@@ -170,7 +169,7 @@ fi
 
 step "Firebase Auth providers"
 provider() { # idp clientId clientSecret
-  local idp="$1" id="$2" secret="$3" current enabled
+  local idp="$1" id="$2" secret="$3" current enabled current_id
   current="$(api GET "$idt/defaultSupportedIdpConfigs/$idp")"
   if failed "$current" && ! printf '%s' "$current" | grep -q '"NOT_FOUND"'; then
     miss "Could not read the $idp provider config"
@@ -178,7 +177,12 @@ provider() { # idp clientId clientSecret
   fi
   enabled="$(printf '%s' "$current" | json "print(str(d.get('enabled', False)).lower())")"
   if [ "$enabled" = true ]; then
-    ok "$idp is enabled"
+    current_id="$(printf '%s' "$current" | json "print(d.get('clientId', ''))")"
+    if [ "$idp" = facebook.com ] && [ -n "$id" ] && [ "$current_id" != "$id" ]; then
+      miss "Firebase Facebook provider uses a different app ID: https://console.firebase.google.com/project/$project/authentication/providers"
+    else
+      ok "$idp is enabled"
+    fi
   elif [ -z "$id" ] || [ -z "$secret" ]; then
     case "$idp" in
       google.com) miss "$idp is disabled; run scripts/human/google/create-web-client-secret.sh, then re-run" ;;
@@ -231,40 +235,30 @@ step "Meta app"
 redirect_uri="https://$project.firebaseapp.com/__/auth/handler"
 key_hashes=()
 for sha in "${shas[@]}"; do
-  [ "${#sha}" = 40 ] && key_hashes+=("$(python3 -I -c 'import base64,sys; print(base64.b64encode(bytes.fromhex(sys.argv[1])).decode())' "$sha")")
+  [[ "$sha" =~ ^[[:xdigit:]]{40}$ ]] && key_hashes+=("$(python3 -I -c 'import base64,sys; print(base64.b64encode(bytes.fromhex(sys.argv[1])).decode())' "$sha")")
 done
-if [ -z "${FACEBOOK_APP_ID:-}" ] || [ -z "${FACEBOOK_APP_SECRET:-}" ]; then
-  miss "FACEBOOK_APP_ID/FACEBOOK_APP_SECRET missing; run scripts/human/meta/create-app-credentials.sh"
-else
-  app_token="$FACEBOOK_APP_ID|$FACEBOOK_APP_SECRET"
-  app_meta="$(curl -sS -G "$graph/$FACEBOOK_APP_ID" --data-urlencode "fields=android_key_hash" \
-    --data-urlencode "access_token@"<(printf '%s' "$app_token") || true)"
-  current_hashes=""
-  failed "$app_meta" ||
-    current_hashes="$(printf '%s' "$app_meta" | json "print('\n'.join(d.get('android_key_hash', [])))")"
-  missing_hashes=()
-  for h in "${key_hashes[@]}"; do grep -qxF "$h" <<<"$current_hashes" || missing_hashes+=("$h"); done
-  if failed "$app_meta"; then
-    # Never overwrite the list when it could not be read.
-    miss "Meta Graph API could not read the app; add key hashes manually: ${key_hashes[*]}"
-  elif [ "${#missing_hashes[@]}" = 0 ]; then
-    ok "Meta app has all Android key hashes"
-  elif [ "$check_only" = 1 ]; then
-    miss "Meta app is missing key hashes: ${missing_hashes[*]}"
-  else
-    all="$(printf '%s\n' "$current_hashes" "${missing_hashes[@]}" |
-      python3 -I -c 'import json,sys; print(json.dumps([l for l in sys.stdin.read().split() if l]))')"
-    result="$(curl -sS -X POST "$graph/$FACEBOOK_APP_ID" --data-urlencode "android_key_hash=$all" \
-      --data-urlencode "access_token@"<(printf '%s' "$app_token"))"
-    if printf '%s' "$result" | grep -q '"success": *true'; then
-      ok "Meta app key hashes updated"
-    else
-      miss "Meta API rejected key hashes; add manually: ${missing_hashes[*]}"
+if [[ "${FACEBOOK_APP_ID:-}" =~ ^[0-9]+$ ]]; then
+  dashboard="https://developers.facebook.com/apps/$FACEBOOK_APP_ID"
+  if [ -n "${FACEBOOK_APP_SECRET:-}" ]; then
+    meta_args=("$project")
+    [ "$check_only" = 0 ] || meta_args+=(--check)
+    if ! FACEBOOK_APP_ID="$FACEBOOK_APP_ID" FACEBOOK_APP_SECRET="$FACEBOOK_APP_SECRET" \
+      python3 scripts/setup/meta_app_settings.py "${meta_args[@]}"; then
+      miss "Meta Graph settings require attention"
     fi
+  else
+    miss "FACEBOOK_APP_SECRET missing; run scripts/human/meta/create-app-credentials.sh"
   fi
+  note "$dashboard/fb-login/settings/ — enable Web OAuth login and allow $redirect_uri"
+  note "$dashboard/settings/basic/ — add Android packages com.foodsavr.app and com.foodsavr.app.development (activity com.foodsavr.app.MainActivity)"
+  if [ "${#key_hashes[@]}" -gt 0 ]; then
+    note "Android signing key hashes: ${key_hashes[*]}"
+  fi
+  note "$dashboard/settings/basic/ — set the data deletion instructions URL to https://my-foodsavr-store.web.app/delete-account"
+  note "$dashboard/ — verify the app is live for public sign-in"
+else
+  miss "FACEBOOK_APP_ID missing or invalid; run scripts/human/meta/create-app-credentials.sh"
 fi
-note "Meta console (manual, check once): scripts/human/meta/create-app-credentials.sh stage 3
-      (redirect URI $redirect_uri, Android packages, Live mode)"
 
 step "Facebook client config"
 for name in FACEBOOK_APP_ID FACEBOOK_CLIENT_TOKEN; do
@@ -288,7 +282,7 @@ fi
 
 step "Summary"
 if [ "${#todo[@]}" -eq 0 ]; then
-  echo "Done. Only the one-time Meta console check (•) remains."
+  echo "API checks passed. Verify the remaining Meta dashboard settings listed above."
 else
   echo "${#todo[@]} item(s) need attention (see ✘ above)."
   exit 1

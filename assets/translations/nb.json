@@ -1,6 +1,8 @@
 {
 	"auth": {
 		"error": {
+			"facebook_unavailable": "Innlogging med Facebook er utilgjengelig. Du kan logge inn med e-post i stedet.",
+			"facebook_failed": "Innlogging med Facebook mislyktes. Prøv igjen eller logg inn med e-post.",
 			"email_already_in_use": "Kontoen finnes allerede for denne e-posten.",
 			"invalid_email": "E-postadressen er ikke gyldig.",
 			"operation_not_allowed": "Operasjonen er ikke tillatt.",

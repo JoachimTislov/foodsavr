@@ -66,16 +66,18 @@ android {
 
         // Facebook Login (flutter_facebook_auth) reads these from string resources.
         fun envValue(name: String): String =
-            System.getenv(name)?.takeIf { it.isNotBlank() }
-                ?: envProperties.getProperty(name)?.takeIf { it.isNotBlank() }
-                ?: ""
+            (System.getenv(name)?.takeIf { it.isNotBlank() }
+                ?: envProperties.getProperty(name)).orEmpty().trim()
         val facebookAppId = envValue("FACEBOOK_APP_ID")
-        if (facebookAppId.isEmpty()) {
-            logger.warn("FACEBOOK_APP_ID is not set; Facebook sign-in will fail at runtime.")
+        val facebookClientToken = envValue("FACEBOOK_CLIENT_TOKEN")
+        val facebookConfigured = facebookAppId.matches(Regex("[0-9]+")) && facebookClientToken.isNotEmpty()
+        if (!facebookConfigured) {
+            logger.warn("Facebook sign-in requires a numeric FACEBOOK_APP_ID and a FACEBOOK_CLIENT_TOKEN at build time.")
         }
+        manifestPlaceholders["facebookConfigured"] = facebookConfigured.toString()
         resValue("string", "facebook_app_id", facebookAppId)
         resValue("string", "fb_login_protocol_scheme", "fb$facebookAppId")
-        resValue("string", "facebook_client_token", envValue("FACEBOOK_CLIENT_TOKEN"))
+        resValue("string", "facebook_client_token", facebookClientToken)
 
         if (!manifestPlaceholders.containsKey("appAuthRedirectScheme")) {
             manifestPlaceholders["appAuthRedirectScheme"] = "foodsavr"

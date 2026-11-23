@@ -143,9 +143,16 @@ class UserController extends ChangeNotifier {
     _setLoading(true);
     try {
       await _authService.signInWithFacebook();
-    } catch (e) {
-      _logger.e('Facebook Sign-in error: $e');
-      _errorMessage = AuthErrorHandler.getErrorMessage(e);
+    } catch (error) {
+      final code = error is FirebaseAuthException ? error.code : null;
+      _errorMessage = switch (code) {
+        'ERROR_ABORTED_BY_USER' => null,
+        'facebook-sdk-unavailable' ||
+        'operation-not-allowed' ||
+        'unauthorized-domain' ||
+        'invalid-oauth-client-id' => _tr('auth.error.facebook_unavailable'),
+        _ => _tr('auth.error.facebook_failed'),
+      };
     } finally {
       _setLoading(false);
     }
