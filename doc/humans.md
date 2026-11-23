@@ -1,18 +1,6 @@
 # For humans
 
-You steer; agents and scripts run the system. This page lists only what needs you. Everything else is automated and documented in the scripts, skills, and [specification](../specs/source-of-truth/INDEX.md), not here ([ADR 0011](../specs/source-of-truth/decisions/0011-human-docs-cover-manual-processes-only.md)).
-
-## Start
-
-1. Clone the repository: `git clone https://github.com/JoachimTislov/foodsavr.git`.
-2. Ask an agent in the clone to run `make setup`. It probes your machine and GitHub, scaffolds local files, previews plans, and hands you the commands below that only you can run.
-3. Run only those commands. Without an agent, `make setup` runs the same guided wizard.
-
-## Manual processes
-
-Run `make human`. It shows what is missing, then lists every manual process (setup, infrastructure, secrets, the sign-in wizards) and every manual bypass of the automated pipeline (merge a PR, validate a branch, promote a channel, deploy the site), and runs the one you pick. `make human LIST=1` prints the same menu as text.
-
-One step has no script: enable Anonymous sign-in in the Firebase console, **Authentication**, **Sign-in method**.
+Run `make setup`.
 
 ## Approvals and intent
 
@@ -32,6 +20,6 @@ One step has no script: enable Anonymous sign-in in the Firebase console, **Auth
 Docs drift; look at the system instead.
 
 - `make agent-status` shows the agent system's health; `make agent-usage` shows harness quota headroom.
-- `make setup-verify` shows what is still missing from your setup.
+- `make setup LIST=1` shows what is still missing from your setup.
 - GitHub pull requests and Actions show work in flight and CI results.
 - [Implementation status](../specs/source-of-truth/status.md) shows what is built versus planned.

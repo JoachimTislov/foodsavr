@@ -9,7 +9,7 @@
 #   - Uses worktree-safe XDG local state via scripts/infra/apply-github.sh.
 
 terraform {
-  required_version = ">= 1.6"
+  required_version = ">= 1.7"
   required_providers {
     github = {
       source  = "integrations/github"
@@ -28,9 +28,7 @@ data "github_repository" "this" {
 }
 
 locals {
-  live_deploy_branch = var.release_topology == "single" ? var.default_branch : "stable"
-
-  channel_branches = (
+  channel_branches = var.channel_branches != null ? var.channel_branches : (
     var.release_topology == "single"
     ? [var.default_branch]
     : (
@@ -40,7 +38,8 @@ locals {
     )
   )
 
-  channel_refs = [for b in local.channel_branches : "refs/heads/${b}"]
+  live_deploy_branch = local.channel_branches[length(local.channel_branches) - 1]
+  channel_refs       = [for b in local.channel_branches : "refs/heads/${b}"]
 
   labels_path = (
     startswith(var.labels_file, "/")

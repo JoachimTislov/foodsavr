@@ -38,6 +38,12 @@ variable "release_topology" {
   }
 }
 
+variable "channel_branches" {
+  description = "Ordered branches from setup's release topology source."
+  type        = list(string)
+  default     = null
+}
+
 variable "enable_rulesets" {
   description = "Manage split branch rulesets. Automatically set to false on private repositories on GitHub Free."
   type        = bool

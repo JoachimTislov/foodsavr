@@ -120,3 +120,9 @@ variable "monthly_budget_usd" {
   type        = number
   default     = 0
 }
+
+variable "deploy_service_account_id" {
+  description = "Deployment service account ID. Local state recovery can adopt the legacy Hosting deploy account."
+  type        = string
+  default     = "github-deploy-live"
+}

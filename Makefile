@@ -12,20 +12,5 @@ include make/human.mk
 include scripts/github/github.mk
 
 .PHONY: help
-help:
-	@echo "Main targets:"
-	@echo "  run-dev / run-prod       Run the app (development / production flavor)"
-	@echo "  dev-chrome               Run the app in Chrome with emulators"
-	@echo "  build-apk-debug|release  Build an APK"
-	@echo "  build-web / serve-web    Build / serve the web app"
-	@echo "  check                    Analyze, format, test, locale-check"
-	@echo "  test / analyze / fmt     Individual quality steps"
-	@echo "  push                     Check and push the branch"
-	@echo "  worktree name=<issue>    Create a worktree"
-	@echo "  hooks                    Install the pre-push hook"
-	@echo "  start-firebase-emulators / kill-firebase-emulators"
-	@echo "  setup / setup-probe      Guided setup (local-dev, fork-agents, full-cloud)"
-	@echo "  human                    One menu for every manual process and pipeline bypass (LIST=1 prints it)"
-	@echo "  pr-merge / validate / promote / deploy-web / deploy-firestore-rules   Manual bypasses; see make human LIST=1"
-	@echo "  agent-status / agent-usage  Agent system health & harness quota headroom"
-	@echo "  social-auth-setup, router-setup  Legacy individual setup helpers"
+help: ## List available commands
+	@awk 'match($$0, /^[[:alnum:]_.-]+:[^#]*## /) {split($$0, entry, /:.*## /); printf "  %-27s %s\n", entry[1], entry[2]}' $(MAKEFILE_LIST)

@@ -23,7 +23,7 @@ deploy-firestore-rules:
 	echo "Deploying firestore.rules to $$project ($(ENV))..."; \
 	(cd "$$dir" && npx -y $(FIREBASE_TOOLS) deploy --only firestore:rules --project "$$project")
 
-start-firebase-emulators:
+start-firebase-emulators: ## Start Firebase emulators
 	@if ! lsof -ti :9099 -sTCP:LISTEN > /dev/null; then \
 		echo "Starting Firebase Emulators..."; \
 		firebase emulators:start --project demo-project > /tmp/firebase-emulators.log 2>&1 & \
@@ -49,7 +49,7 @@ start-firebase-emulators:
 		echo "Firebase Emulators already running"; \
 	fi
 
-kill-firebase-emulators:
+kill-firebase-emulators: ## Stop Firebase emulators
 	@if lsof -t -i:8080 -i:9199 -i:9099 -sTCP:LISTEN > /dev/null; then \
 		echo "Killing Firebase Emulators..."; \
 		lsof -t -i:8080 -i:9199 -i:9099 -sTCP:LISTEN | xargs kill -9; \

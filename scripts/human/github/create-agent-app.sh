@@ -224,14 +224,7 @@ set_repo_secret() {
   local name="$1" value="$2"
   local root
   root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-  if ( export "NEW_$name=$value"; exec python3 "$root/scripts/secrets/rotate.py" --repo "$REPO_SLUG" "$name" ) >/dev/null 2>&1; then
-    WRITTEN_SECRET+=("$name")
-    printf '  %s✓ set%s secret %s (%s)\n' "$GREEN" "$RESET" "$name" "$REPO_SLUG"
-    return 0
-  fi
-  SKIPPED+=("secret $name (store it later: scripts/secrets/rotate.py --repo $REPO_SLUG $name)")
-  warn "skipped secret $name: rotate.py could not store it; set it later"
-  return 1
+  ( export "NEW_$name=$value"; exec python3 "$root/scripts/secrets/rotate.py" --repo "$REPO_SLUG" --yes "$name" ) >/dev/null 2>&1
 }
 
 local ROLE="agent"
@@ -290,50 +283,41 @@ else
 fi
 REPO_OWNER="${REPO_SLUG%%/*}"
 REPO_NAME="${REPO_SLUG#*/}"
-# GitHub App names are globally unique across all of GitHub and capped at 34 chars.
-APP_DEFAULT_NAME="$(python3 - "$REPO_OWNER" "$REPO_NAME" "$ROLE" <<'PY'
-import re, sys
-raw = f"{sys.argv[1]}-{sys.argv[2]}-{sys.argv[3]}".lower()
-clean = re.sub(r"[^a-z0-9-]+", "-", raw).strip("-")
-print(clean[:34].rstrip("-"))
-PY
-)"
+# Preserve the role suffix when truncating and only suffix forks on a collision.
+ROOT="$(git rev-parse --show-toplevel)"
+APP_DEFAULT_NAME="$(python3 "$ROOT/scripts/setup/app_names.py" "$REPO_SLUG" "$ROLE")"
+if [[ "$(gh api "repos/$REPO_SLUG" --jq .fork 2>/dev/null)" == true ]] &&
+  gh api "apps/$APP_DEFAULT_NAME" >/dev/null 2>&1; then
+  APP_DEFAULT_NAME="$(python3 "$ROOT/scripts/setup/app_names.py" "$REPO_SLUG" "$ROLE" --owner-suffix)"
+fi
+APP_SETTINGS_URL="https://github.com/settings/apps"
+if [[ "$(gh api "repos/$REPO_SLUG" --jq .owner.type 2>/dev/null)" == Organization ]]; then
+  APP_SETTINGS_URL="https://github.com/organizations/$REPO_OWNER/settings/apps"
+fi
 WORK="$(mktemp -d)"
 chmod 700 "$WORK"
 SERVER_PID=""
 trap 'rm -rf "$WORK"; [[ -n "$SERVER_PID" ]] && kill "$SERVER_PID" 2>/dev/null; true' EXIT
 
-banner "${APP_TITLE} (${REPO_SLUG})"
-
-stage "Create the App (${APP_DEFAULT_NAME})"
-say "Permissions: ${PERMS_DESC}."
-say "Target repository: ${REPO_SLUG}"
+printf '%s\n' "$APP_TITLE for $REPO_SLUG"
 
 if (( MANUAL_URL )); then
-  say "Manual mode (--manual-url): use this when running over SSH or inside a container"
-  say "where your browser cannot reach http://127.0.0.1 on this machine."
-  open_url "https://github.com/settings/apps/new"
-  step "Name the App '${APP_DEFAULT_NAME}', set Homepage URL to 'https://github.com/${REPO_SLUG}', disable Webhook."
-  step "Grant permissions: ${PERMS_DESC}."
-  step "Click 'Create GitHub App', note the App ID and Slug, then click 'Generate a private key'."
+  open_url "$APP_SETTINGS_URL"
+  say "Open the existing App, or create $APP_DEFAULT_NAME with these permissions. ${PERMS_DESC}."
   ask MANUAL_APP_ID "App ID:"
-  ask AGENT_APP_SLUG "App Slug (from https://github.com/apps/<slug>):"
-  ask MANUAL_PEM_PATH "Path to downloaded .pem private key file:"
-  [[ -f "$MANUAL_PEM_PATH" ]] || { warn "PEM file not found: $MANUAL_PEM_PATH"; exit 1; }
-  set_repo_secret "$ID_SECRET" "$MANUAL_APP_ID" || true
-  if set_repo_secret "$KEY_SECRET" "$(cat "$MANUAL_PEM_PATH")"; then
-    note "Uploaded private key; you can now remove $MANUAL_PEM_PATH."
-  else
-    warn "Private key preserved at $MANUAL_PEM_PATH. Retry with:"
-    note "  NEW_${KEY_SECRET}=\"\$(cat '${MANUAL_PEM_PATH}')\" scripts/secrets/rotate.py --repo '${REPO_SLUG}' ${KEY_SECRET}"
-  fi
+  ask AGENT_APP_SLUG "App URL name:"
+  ask MANUAL_PEM_PATH "Path to the downloaded private key:"
+  [[ -f "$MANUAL_PEM_PATH" ]] || { warn "Download the private key from $APP_SETTINGS_URL and resume setup."; exit 1; }
+  APP_ID="$MANUAL_APP_ID"
+  PEM_PATH="$MANUAL_PEM_PATH"
 else
   STATE="$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')"
   PORT="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
-  python3 - "$PORT" "$STATE" "$REPO_SLUG" "$APP_DEFAULT_NAME" "$ROLE" "$WORK" <<'PY' &
+  python3 - "$PORT" "$STATE" "$REPO_SLUG" "$APP_DEFAULT_NAME" "$ROLE" "$WORK" "$APP_SETTINGS_URL" <<'PY' &
 import html, http.server, json, sys, urllib.parse
 
 port, state, repo, app_name, role, work = int(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6]
+settings_url = sys.argv[7]
 if role == "release-gate":
     perms = {"contents": "write", "issues": "write", "pull_requests": "write", "workflows": "write", "metadata": "read"}
 else:
@@ -348,7 +332,7 @@ manifest = {
     "default_events": [],
 }
 page = (
-    f'<form id="f" method="post" action="https://github.com/settings/apps/new?state={state}">'
+    f'<form id="f" method="post" action="{settings_url}/new?state={state}">'
     f'<input type="hidden" name="manifest" value="{html.escape(json.dumps(manifest))}"></form>'
     '<script>document.getElementById("f").submit()</script>'
 )
@@ -382,12 +366,11 @@ PY
   SERVER_PID=$!
   open_url "http://127.0.0.1:${PORT}/"
   step "GitHub shows the App form. Rename it if the name is taken, then click 'Create GitHub App'."
-  note "If you are on SSH/headless and localhost is unreachable, cancel (Ctrl-C) and re-run with --manual-url."
   say "Waiting for GitHub to send you back (up to 10 minutes)..."
   for _ in $(seq 600); do [[ -s "$WORK/code" ]] && break; sleep 1; done
   kill "$SERVER_PID" 2>/dev/null || true
   SERVER_PID=""
-  [[ -s "$WORK/code" ]] || { warn "No confirmation from GitHub; re-run the wizard (or pass --manual-url)."; exit 1; }
+  [[ -s "$WORK/code" ]] || { warn "Resume setup and choose existing if the App is already visible at $APP_SETTINGS_URL."; exit 1; }
   python3 - "$WORK" <<'PY'
 import json, os, sys, urllib.request
 
@@ -407,33 +390,37 @@ os.write(descriptor, data["pem"].encode())
 os.close(descriptor)
 PY
   AGENT_APP_SLUG="$(cat "$WORK/slug")"
-  set_repo_secret "$ID_SECRET" "$(cat "$WORK/id")" || true
-  if set_repo_secret "$KEY_SECRET" "$(cat "$WORK/pem")"; then
-    rm -f "$WORK/pem"
-  else
-    # Never lose the single-shot manifest private key on transient upload failure.
-    RECOVERY_PEM="$(mktemp "${TMPDIR:-/tmp}/foodsavr-${ROLE}-app-XXXXXX.pem")"
-    chmod 600 "$RECOVERY_PEM"
-    cp "$WORK/pem" "$RECOVERY_PEM"
-    rm -f "$WORK/pem"
-    warn "Saved private key to ${RECOVERY_PEM} (mode 0600) because upload failed."
-    note "Retry upload, then delete it:"
-    note "  NEW_${KEY_SECRET}=\"\$(cat '${RECOVERY_PEM}')\" scripts/secrets/rotate.py --repo '${REPO_SLUG}' ${KEY_SECRET} && rm -f '${RECOVERY_PEM}'"
-  fi
+  APP_ID="$(cat "$WORK/id")"
+  PEM_PATH="$WORK/pem"
+  # Keep the manifest key if installation or upload is interrupted.
+  RECOVERY_PEM="$(mktemp "${TMPDIR:-/tmp}/foodsavr-${ROLE}-app-XXXXXX.pem")"
+  cp "$PEM_PATH" "$RECOVERY_PEM"
+  PEM_PATH="$RECOVERY_PEM"
+  say "Private key saved at $PEM_PATH until setup succeeds."
 fi
 
-if [[ "$ROLE" == "agent" && -n "${AGENT_APP_SLUG:-}" ]]; then
-  GH_REPO="$REPO_SLUG" set_var AGENT_APP_SLUG "$AGENT_APP_SLUG"
-fi
-
-stage "Install the App on ${REPO_SLUG}"
+[[ "$APP_ID" =~ ^[0-9]+$ && "$AGENT_APP_SLUG" =~ ^[a-zA-Z0-9-]+$ ]] || {
+  warn "Use the App ID and URL name from $APP_SETTINGS_URL."
+  exit 1
+}
 open_url "https://github.com/apps/${AGENT_APP_SLUG}/installations/new"
-step "Choose your account, then 'Only select repositories' and pick ${REPO_NAME}. Click Install."
-pause "Installed?"
-say "App ${AGENT_APP_SLUG}[bot] (${ROLE}) is configured for ${REPO_SLUG}."
-note "Rotate later: App settings > Private keys > Generate, then scripts/secrets/rotate.py --repo ${REPO_SLUG} ${KEY_SECRET}."
+say "Install the App on $REPO_SLUG if it is not already installed."
+confirm "Installed?" || exit 1
 
-finish
+if ! set_repo_secret "$KEY_SECRET" "$(cat "$PEM_PATH")"; then
+  warn "Resume setup with the existing App and the private key at $PEM_PATH."
+  exit 1
+fi
+if ! gh variable set --repo "$REPO_SLUG" "$ID_SECRET" --body "$APP_ID" >/dev/null 2>&1; then
+  warn "Check variable access at https://github.com/$REPO_SLUG/settings/variables/actions and resume with $PEM_PATH."
+  exit 1
+fi
+if [[ "$ROLE" == agent ]]; then
+  gh variable set --repo "$REPO_SLUG" AGENT_APP_SLUG --body "$AGENT_APP_SLUG" >/dev/null
+fi
+if [[ -n "${RECOVERY_PEM:-}" ]]; then
+  rm -f "$RECOVERY_PEM"
+fi
 }
 
 run_wizard "$@"; exit

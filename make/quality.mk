@@ -1,6 +1,6 @@
 .PHONY: check _run-checks analyze fmt fix test clean locales locale-check locale-clean generate-locales 
 # Code quality commands
-check:
+check: ## Analyze, check formatting, test and validate translations
 	+@CURRENT_HASH=$$($(CHECK_HASH_CMD)); \
 	if [ -f .check.sha256 ] && [ "$$CURRENT_HASH" = "$$(cat .check.sha256)" ]; then \
 		echo "Code matches cached check. Skipping duplicate checks..."; \
@@ -12,11 +12,11 @@ check:
 
 _run-checks: analyze test locale-check fix fmt
 
-analyze: deps
+analyze: deps ## Run static analysis
 	@echo "Running Flutter analyze..."
 	@flutter analyze --fatal-infos --fatal-warnings --no-pub
 
-fmt:
+fmt: ## Format Dart code
 	@echo "Formatting Dart code..."
 	@dart format .
 
@@ -24,7 +24,7 @@ fix: deps
 	@echo "Fixing Dart code issues..."
 	@dart fix --apply
 
-test: deps
+test: deps ## Run Flutter tests
 	@echo "Checking for Dart file changes in local commits or staged changes..."
 	@FILES=$$(git --no-pager diff --name-only @{upstream}..HEAD;git --no-pager diff --name-only --staged; git --no-pager diff); \
 	if echo "$$FILES" | grep -E '\.dart$$' > /dev/null; then \
@@ -45,7 +45,7 @@ locales:
 	@echo "Extracting locales..."
 	@grep -r -o -E "'.*?'\.tr\(\)" lib/
 
-locale-check: deps
+locale-check: deps ## Check translations
 	@echo "Checking localization keys..."
 	@dart run scripts/locale/check_localizations.dart
 

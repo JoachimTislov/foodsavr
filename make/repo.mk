@@ -1,9 +1,9 @@
 .PHONY: hooks ci-local preflight worktree agent-sessions push 
-hooks:
+hooks: ## Install Git hooks
 	@git config core.hooksPath .githooks
 	@echo "pre-push hook installed: runs scripts/ci/local_ci.py"
 
-ci-local:
+ci-local: ## Run local CI checks
 	@python3 scripts/ci/local_ci.py
 
 preflight:
@@ -22,7 +22,7 @@ preflight:
 		echo "No upstream branch found, skipping behind check."; \
 	fi
 
-worktree:
+worktree: ## Create a worktree (name=<issue>)
 	@if [ -z "$(name)" ]; then \
 		echo "Error: Provide a branch name or issue number (e.g., make worktree name=123)"; \
 		exit 1; \
@@ -33,7 +33,7 @@ agent-sessions:
 	@scripts/agents/agentctl sessions $(ARGS)
 
 # Original targets
-push: deps preflight
+push: deps preflight ## Check and push the current branch
 	@if git rev-parse --verify @{upstream} >/dev/null 2>&1; then \
 		CHANGED=$$(git --no-pager diff --name-only @{upstream}..HEAD); \
 	else \

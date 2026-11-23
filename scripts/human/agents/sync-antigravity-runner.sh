@@ -217,6 +217,8 @@ run_wizard() {
 
 TOTAL_STAGES=1
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+repo_args=()
+[[ -n "${GH_REPO:-}" ]] && repo_args=(--repo "$GH_REPO" --yes)
 TOKEN_FILE="$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
 
 banner "Antigravity runner login"
@@ -231,7 +233,7 @@ fi
 warn "The runner and this machine will share the OAuth token. If authentication"
 warn "expires, run 'agy login' here and re-run this wizard."
 if confirm "Copy this Antigravity login to the GitHub runner now?"; then
-  python3 "$ROOT/scripts/secrets/rotate.py" ANTIGRAVITY_OAUTH_TOKEN_B64 && WRITTEN_SECRET+=("ANTIGRAVITY_OAUTH_TOKEN_B64")
+  python3 "$ROOT/scripts/secrets/rotate.py" "${repo_args[@]}" ANTIGRAVITY_OAUTH_TOKEN_B64 && WRITTEN_SECRET+=("ANTIGRAVITY_OAUTH_TOKEN_B64")
 else
   SKIPPED+=("ANTIGRAVITY_OAUTH_TOKEN_B64 (re-run this wizard to share the login)")
 fi
