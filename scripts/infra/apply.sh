@@ -18,6 +18,9 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 dir="$root/infra/terraform/gcp"
 env_name="${ENV:-production}"
+action="${1:-apply}"
+case "$action" in plan|apply|show) ;; *) echo "Usage: $0 [plan|apply|show]" >&2; exit 2 ;; esac
+target_repo="${GITHUB_REPOSITORY:-}"
 manifest="$(realpath "${MANIFEST:-$root/deploy/instance.yaml}")"
 
 levels() {
@@ -28,6 +31,10 @@ levels() {
 levels validate >&2
 # PROJECT_ID, REGION, TF_STATE_*, VAR_SUFFIX, EMULATOR, INFRA_OWNER, GITHUB_REPOSITORY, GH_ENVIRONMENT, ...
 eval "$(levels env --format dotenv)"
+if [ -n "$target_repo" ] && [ "$target_repo" != "$GITHUB_REPOSITORY" ]; then
+  echo "Choose a deployment manifest for $target_repo before configuring Firebase." >&2
+  exit 1
+fi
 if [ "$EMULATOR" = true ]; then
   echo "Environment $env_name runs on emulators; nothing to apply." >&2
   exit 0
@@ -45,8 +52,12 @@ levels env --format tfvars >"$tfvars"
 [ -n "${BILLING_ACCOUNT:-}" ] && printf 'billing_account = "%s"\n' "$BILLING_ACCOUNT" >>"$tfvars"
 gh_env="${GH_ENVIRONMENT:-$env_name}"
 printf 'github_environment = "%s"\n' "$gh_env" >>"$tfvars"
-[ -n "${RELEASE_TOPOLOGY:-}" ] && printf 'release_topology = "%s"\n' "$RELEASE_TOPOLOGY" >>"$tfvars"
-[ -n "${DEPLOY_BRANCH:-}" ] && printf 'deploy_branch = "%s"\n' "$DEPLOY_BRANCH" >>"$tfvars"
+topology="${RELEASE_TOPOLOGY:-full-channels}"
+branches="$(python3 "$root/scripts/setup/setupctl.py" topology "$topology")"
+integration_branch="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])[0])' "$branches")"
+deploy_branch="${DEPLOY_BRANCH:-$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])[-1])' "$branches")}"
+printf 'release_topology = "%s"\ndeploy_branch = "%s"\ntelemetry_branch = "%s"\n' \
+  "$topology" "$deploy_branch" "$integration_branch" >>"$tfvars"
 [ -n "${ALLOW_PREVIEW_REFS:-}" ] && printf 'allow_preview_refs = %s\n' "$ALLOW_PREVIEW_REFS" >>"$tfvars"
 
 account_args=()
@@ -56,7 +67,7 @@ export GOOGLE_OAUTH_ACCESS_TOKEN
 
 # Discover the management key ID, not the API key value. Templates only need
 # the project and app IDs; explicitly configured key IDs avoid this lookup.
-if [ -z "${WEB_API_KEY_ID:-}" ]; then
+if [ -z "${WEB_API_KEY_ID:-}" ] && [ "$action" != show ] && [ -z "${PLAN_FILE:-}" ]; then
   export PROJECT_ID WEB_APP_ID
   WEB_API_KEY_ID="$(python3 "$root/scripts/infra/bootstrap_support.py" api-key)"
   printf 'web_api_key_id = "%s"\n' "$WEB_API_KEY_ID" >>"$tfvars"
@@ -89,12 +100,20 @@ fi
 
 bucket="gs://$TF_STATE_BUCKET"
 bucket_exists=false
+billing_fallback=false
 if gcloud "${account_args[@]}" storage buckets describe "$bucket" --project "$PROJECT_ID" >"$work/bucket.json" 2>"$work/bucket.error"; then
   bucket_exists=true
 elif ! grep -Eq '(^|[^0-9])404([^0-9]|$)|NOT_FOUND' "$work/bucket.error"; then
-  echo "Cannot inspect Terraform state bucket; refusing to select a different backend." >&2
-  cat "$work/bucket.error" >&2
-  exit 1
+  if [[ "$backend" != gcs && "$DEPLOYMENT_LEVEL" == firebase-spark ]] &&
+    grep -Eiq '403|PERMISSION_DENIED' "$work/bucket.error" &&
+    { grep -Eiq 'accountDisabled|billing.*(disabled|not enabled|not linked)' "$work/bucket.error" ||
+      [[ "$(gcloud "${account_args[@]}" billing projects describe "$PROJECT_ID" --format='value(billingEnabled)' 2>/dev/null)" =~ ^([Ff]alse)$ ]]; }; then
+    billing_fallback=true
+  else
+    echo "Cannot inspect Terraform state bucket; refusing to select a different backend." >&2
+    cat "$work/bucket.error" >&2
+    exit 1
+  fi
 fi
 
 if [ "$backend" = auto ]; then
@@ -130,7 +149,7 @@ if [ "$backend" = gcs ]; then
       echo "Spark bootstrap cannot create GCS buckets without billing. Use TF_STATE_BACKEND=local." >&2
       exit 1
     fi
-    if [ "${1:-}" = plan ]; then
+    if [ "$action" != apply ] || [ -n "${PLAN_FILE:-}" ]; then
       echo "GCS state bucket is missing. Provision it before planning, or use TF_STATE_BACKEND=local; plan creates no bucket." >&2
       exit 1
     fi
@@ -143,13 +162,43 @@ else
   echo "Using local Terraform state: $state_path. Keep a private backup." >&2
 fi
 terraform -chdir="$dir" init -input=false "${backend_args[@]}"
-if [ "${1:-}" = plan ]; then
+if [ "$action" = show ]; then
+  terraform -chdir="$dir" show -no-color "${PLAN_FILE:?Set PLAN_FILE}"
+  exit 0
+fi
+
+if [ "$backend" = local ] && [ -z "${PLAN_FILE:-}" ] && { [ "$billing_fallback" = true ] || [ -f "$state_dir/adopt-local" ]; }; then
+  deploy_account="$(python3 "$root/scripts/infra/adopt.py" gcp "$dir" "$PROJECT_ID" "$WEB_APP_ID" \
+    "$GITHUB_REPOSITORY" "$gh_env" "$deploy_branch" "$integration_branch" \
+    "${ALLOW_PREVIEW_REFS:-false}" "$DEPLOYMENT_LEVEL" "${BILLING_ACCOUNT:-}" "${GCLOUD_ACCOUNT:-}")"
+  printf 'deploy_service_account_id = "%s"\n' "$deploy_account" >>"$tfvars"
+fi
+
+if [ "$action" = plan ]; then
   plan_args=()
   [ -n "${PLAN_OUT:-}" ] && plan_args=("-out=$PLAN_OUT")
+  [ "${TF_DETAILED_EXITCODE:-}" = 1 ] && plan_args+=("-detailed-exitcode")
   terraform -chdir="$dir" plan -input=false -var-file="$tfvars" "${plan_args[@]}"
   exit 0
 fi
-terraform -chdir="$dir" apply -var-file="$tfvars"
+if [ "$backend" = local ] && { [ "$billing_fallback" = true ] || [ -f "$state_dir/adopt-local" ]; }; then
+  if [ -z "${PLAN_FILE:-}" ]; then
+    PLAN_FILE="$work/local.tfplan"
+    terraform -chdir="$dir" plan -input=false -var-file="$tfvars" -out="$PLAN_FILE"
+    terraform -chdir="$dir" show -no-color "$PLAN_FILE"
+    read -r -p "Apply this local recovery plan? [y/N] " answer
+    [[ "$answer" =~ ^[Yy]$ ]] || exit 1
+  fi
+  terraform -chdir="$dir" show -json "$PLAN_FILE" | python3 "$root/scripts/infra/adopt.py" safe-plan
+  # Keep recovery active across interrupted applies and subsequent runs.
+  touch "$state_dir/adopt-local"
+fi
+
+if [ -n "${PLAN_FILE:-}" ]; then
+  terraform -chdir="$dir" apply "$PLAN_FILE"
+else
+  terraform -chdir="$dir" apply -var-file="$tfvars"
+fi
 
 # Per-environment variables: production uses the plain names, others a
 # suffix (e.g. GCP_DEPLOY_SERVICE_ACCOUNT_STAGING).

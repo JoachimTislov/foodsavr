@@ -218,6 +218,8 @@ run_wizard() {
 
 TOTAL_STAGES=1
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+repo_args=()
+[[ -n "${GH_REPO:-}" ]] && repo_args=(--repo "$GH_REPO" --yes)
 
 banner "Codex runner login"
 
@@ -231,7 +233,7 @@ fi
 warn "The runner and this machine will share one refresh token. If either side"
 warn "stops authenticating, run 'codex login' here and re-run this wizard."
 if confirm "Copy this Codex login to the GitHub runner now?"; then
-  python3 "$ROOT/scripts/secrets/rotate.py" CODEX_AUTH_JSON_B64 && WRITTEN_SECRET+=("CODEX_AUTH_JSON_B64")
+  python3 "$ROOT/scripts/secrets/rotate.py" "${repo_args[@]}" CODEX_AUTH_JSON_B64 && WRITTEN_SECRET+=("CODEX_AUTH_JSON_B64")
 else
   SKIPPED+=("CODEX_AUTH_JSON_B64 (re-run this wizard to share the login)")
 fi

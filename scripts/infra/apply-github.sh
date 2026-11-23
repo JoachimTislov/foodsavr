@@ -12,7 +12,7 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 source_dir="$root/infra/terraform/github"
 action="${1:-apply}"
 case "$action" in
-  plan|apply) ;;
+  plan|apply|show) ;;
   *) echo "Usage: $0 [plan|apply]" >&2; exit 2 ;;
 esac
 
@@ -69,6 +69,13 @@ trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/config"
 
 python3 "$root/scripts/infra/bootstrap_support.py" config "$source_dir" "$work/config" local "$state_path"
+if [[ "$action" != show && -z "${PLAN_FILE:-}" ]]; then
+  existing="$(python3 "$root/scripts/infra/adopt.py" github "$work/config" "$repo_slug" "$enable_rulesets")"
+  existing_var() { python3 -c 'import json, sys; print(json.loads(sys.argv[1])[sys.argv[2]])' "$existing" "$1"; }
+  RELEASE_TOPOLOGY="${RELEASE_TOPOLOGY:-$(existing_var RELEASE_TOPOLOGY)}"
+  AGENT_APP_ID="${AGENT_APP_ID:-$(existing_var AGENT_APP_ID)}"
+  RELEASE_GATE_APP_ID="${RELEASE_GATE_APP_ID:-$(existing_var RELEASE_GATE_APP_ID)}"
+fi
 echo "Using local Terraform state: $state_path" >&2
 
 tf_args=(
@@ -77,7 +84,14 @@ tf_args=(
   "-var=enable_rulesets=$enable_rulesets"
   "-var=labels_file=$root/.agents/github/labels.json"
 )
-[ -n "${RELEASE_TOPOLOGY:-}" ] && tf_args+=("-var=release_topology=$RELEASE_TOPOLOGY")
+topology="${RELEASE_TOPOLOGY:-}"
+if [ -z "$topology" ] && [ -z "${TFVARS_FILE:-}" ]; then
+  topology=single
+fi
+if [ -n "$topology" ]; then
+  branches="$(python3 "$root/scripts/setup/setupctl.py" topology "$topology")"
+  tf_args+=("-var=release_topology=$topology" "-var=channel_branches=$branches")
+fi
 [ -n "${DEFAULT_BRANCH:-}" ] && tf_args+=("-var=default_branch=$DEFAULT_BRANCH")
 [ -n "${AGENT_APP_ID:-}" ] && tf_args+=("-var=agent_app_id=$AGENT_APP_ID")
 [ -n "${RELEASE_GATE_APP_ID:-}" ] && tf_args+=("-var=release_gate_app_id=$RELEASE_GATE_APP_ID")
@@ -85,9 +99,14 @@ tf_args=(
 
 terraform -chdir="$work/config" init -input=false
 
+if [ "$action" = show ]; then
+  terraform -chdir="$work/config" show -no-color "${PLAN_FILE:?Set PLAN_FILE}"
+  exit 0
+fi
 if [ "$action" = plan ]; then
   plan_args=()
   [ -n "${PLAN_OUT:-}" ] && plan_args=("-out=$PLAN_OUT")
+  [ "${TF_DETAILED_EXITCODE:-}" = 1 ] && plan_args+=("-detailed-exitcode")
   terraform -chdir="$work/config" plan -input=false "${tf_args[@]}" "${plan_args[@]}"
   exit 0
 fi

@@ -32,6 +32,7 @@ import re
 import shutil
 import subprocess
 import sys
+from tempfile import NamedTemporaryFile
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -39,14 +40,24 @@ UPSTREAM_REPO = "JoachimTislov/foodsavr"
 INSTANCE_LOCAL_PATH = Path(".agents/instance.local.json")
 
 PROFILES = ("local-dev", "fork-agents", "full-cloud")
-TOPOLOGIES = ("single", "two-stage", "full-channels")
-FIREBASE_PLANS = ("spark", "blaze")
+# Promotion owns the channel graph. Setup consumes it without copying branch names.
+sys.path.insert(0, str(ROOT / "scripts/github"))
+from promote_release import TOPOLOGIES, TOPOLOGY_CHANNELS  # noqa: E402
 
-TOPOLOGY_BRANCHES: dict[str, list[str]] = {
-    "single": ["develop"],
-    "two-stage": ["develop", "stable"],
-    "full-channels": ["develop", "daily", "weekly", "stable"],
-}
+FIREBASE_PLANS = ("spark", "blaze")
+INTEGRATION_BRANCH = next(
+    source for channels in TOPOLOGY_CHANNELS.values() for source in channels.values() if source not in channels
+)
+
+
+def ordered_branches(channels: dict[str, str]) -> list[str]:
+    branches = [INTEGRATION_BRANCH]
+    while child := next((target for target, source in channels.items() if source == branches[-1]), None):
+        branches.append(child)
+    return branches
+
+
+TOPOLOGY_BRANCHES = {name: ordered_branches(channels) for name, channels in TOPOLOGY_CHANNELS.items()}
 
 HARNESS_AUTH_SECRETS = (
     "CLAUDE_CODE_OAUTH_TOKEN",
@@ -59,6 +70,10 @@ AGENT_ENV_VARS = (
     "AGENT_SESSION_ID",
     "CLAUDECODE",
     "CODEX_CI",
+    "CODEX_THREAD_ID",
+    "CODEX_SANDBOX",
+    "AGENT_RUNNER",
+    "T3CODE_THREAD_ID",
     "ANTIGRAVITY_CLI",
     "CI",
     "GITHUB_ACTIONS",
@@ -140,7 +155,10 @@ def save_instance_local(payload: dict[str, Any], root: Path = ROOT) -> Path:
     path = root / INSTANCE_LOCAL_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     merged = {**load_instance_local(root), **payload, "updated_at": datetime.now(timezone.utc).isoformat()}
-    path.write_text(json.dumps(merged, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    with NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as temporary:
+        json.dump(merged, temporary, indent=2, sort_keys=True)
+        temporary.write("\n")
+    Path(temporary.name).replace(path)
     return path
 
 
@@ -192,6 +210,8 @@ def probe_environment(
         "default_branch": None,
         "rulesets_supported": None,
         "needs_fork": False,
+        "is_fork": False,
+        "config_readable": False,
         "branches": [],
         "variables": {},
         "secret_names": [],
@@ -215,6 +235,7 @@ def probe_environment(
                 gh_info["is_admin"] = bool(perms.get("admin"))
                 gh_info["private"] = bool(repo_json.get("private"))
                 gh_info["default_branch"] = repo_json.get("default_branch")
+                gh_info["is_fork"] = bool(repo_json.get("fork"))
                 gh_info["needs_fork"] = not gh_info["is_admin"]
 
                 # Ruleset availability check (private repos on GitHub Free return 403/404)
@@ -225,7 +246,7 @@ def probe_environment(
                     gh_info["rulesets_supported"] = True
 
                 br_proc = _run(
-                    ["gh", "api", f"repos/{target_repo}/branches?per_page=100", "--jq", ".[].name"],
+                    ["gh", "api", f"repos/{target_repo}/branches?per_page=100", "--paginate", "--jq", ".[].name"],
                     cwd=root,
                 )
                 if br_proc.returncode == 0:
@@ -250,6 +271,7 @@ def probe_environment(
                         ["gh", "secret", "list", "--repo", target_repo, "--json", "name"],
                         cwd=root,
                     )
+                    gh_info["config_readable"] = var_proc.returncode == sec_proc.returncode == 0
                     if sec_proc.returncode == 0:
                         try:
                             gh_info["secret_names"] = sorted(
@@ -347,7 +369,7 @@ def build_plan(
         })
 
     if not probe["tools"].get("terraform"):
-        blockers.append("Install Terraform >= 1.6 (https://developer.hashicorp.com/terraform/install).")
+        blockers.append("Install Terraform >= 1.7 (https://developer.hashicorp.com/terraform/install).")
 
     if needs_fork:
         human_actions.append({
@@ -381,7 +403,7 @@ def build_plan(
     if not has_agent_app or needs_fork:
         human_actions.append({
             "id": "create-agent-app",
-            "title": "Create untrusted author GitHub App (<owner>-<repo>-agent)",
+            "title": "Create untrusted author GitHub App",
             "command": f"scripts/human/github/create-agent-app.sh --role agent --repo {effective_repo}",
             "reason": "Used by agent-implement.yml; no workflows:write or ruleset bypass.",
         })
@@ -389,11 +411,11 @@ def build_plan(
     has_release_gate_app = (
         ("RELEASE_GATE_APP_PRIVATE_KEY" in secrets_present)
         and ("RELEASE_GATE_APP_ID" in vars_present or "RELEASE_GATE_APP_ID" in secrets_present)
-    ) or ("MERGE_GATE_TOKEN" in secrets_present)
+    )
     if not has_release_gate_app or needs_fork:
         human_actions.append({
             "id": "create-release-gate-app",
-            "title": "Create trusted Release-Gate GitHub App (<owner>-<repo>-release-gate)",
+            "title": "Create trusted Release-Gate GitHub App",
             "command": f"scripts/human/github/create-agent-app.sh --role release-gate --repo {effective_repo}",
             "reason": "Used by merge-gate.yml and promote.yml; sole app allowed on the PR-gate ruleset bypass.",
         })
@@ -730,7 +752,7 @@ def verify_profile(
             f"admin on {gh.get('target_repo') or 'unknown'}",
             f"python3 scripts/setup/setupctl.py fork --upstream {UPSTREAM_REPO} --yes",
         )
-        add("terraform-cli", bool(tools.get("terraform")), "terraform binary installed", "Install terraform >= 1.6")
+        add("terraform-cli", bool(tools.get("terraform")), "terraform binary installed", "Install Terraform >= 1.7")
 
         vars_present = gh.get("variables") or {}
         secrets_present = set(gh.get("secret_names") or [])
@@ -755,9 +777,8 @@ def verify_profile(
             (
                 ("RELEASE_GATE_APP_PRIVATE_KEY" in secrets_present)
                 and ("RELEASE_GATE_APP_ID" in vars_present or "RELEASE_GATE_APP_ID" in secrets_present)
-            )
-            or ("MERGE_GATE_TOKEN" in secrets_present),
-            "RELEASE_GATE_APP_* (or legacy MERGE_GATE_TOKEN)",
+            ),
+            "RELEASE_GATE_APP_ID + RELEASE_GATE_APP_PRIVATE_KEY",
             f"scripts/human/github/create-agent-app.sh --role release-gate --repo {gh.get('target_repo') or '<owner>/<repo>'}",
         )
         add(
@@ -827,44 +848,6 @@ def _print_verify_text(report: dict[str, Any]) -> None:
             print(f"         Fix: {chk['remediation']}")
 
 
-def _run_wizard(args: argparse.Namespace) -> int:
-    if is_unattended_agent_env() or not sys.stdin.isatty():
-        print("setupctl wizard requires an interactive human terminal. Use `probe` / `plan` / `scaffold-local` instead.", file=sys.stderr)
-        return 2
-    probe = probe_environment(repo=args.repo)
-    _print_probe_text(probe)
-    print("\nSelect setup profile:")
-    print("  1) local-dev   - Zero cloud accounts/secrets; run Flutter app & tests locally")
-    print("  2) fork-agents - Personal fork/repo + GitHub rulesets + autonomous CI agents")
-    print("  3) full-cloud  - Everything in fork-agents + Firebase/GCP Hosting + WIF")
-    choice = input("Profile [1/2/3] (default 1): ").strip() or "1"
-    profile_map = {"1": "local-dev", "2": "fork-agents", "3": "full-cloud"}
-    profile = profile_map.get(choice, "local-dev")
-
-    topology = probe["recommendations"]["default_topology"]
-    if profile != "local-dev":
-        print("\nSelect release branch topology:")
-        print("  1) single        - develop only (recommended for personal forks)")
-        print("  2) two-stage     - develop -> release")
-        print("  3) full-channels - develop -> nightly -> beta -> stable -> release")
-        default_idx = {"single": "1", "two-stage": "2", "full-channels": "3"}[topology]
-        t_choice = input(f"Topology [1/2/3] (default {default_idx}): ").strip() or default_idx
-        topology = {"1": "single", "2": "two-stage", "3": "full-channels"}.get(t_choice, topology)
-
-    scaffold_result = scaffold_local(profile=profile, topology=topology, repo=probe["github"].get("target_repo"))
-    print(f"\nLocal scaffold complete: created={scaffold_result['created']} skipped={scaffold_result['skipped']}")
-
-    plan = build_plan(
-        probe_environment(repo=args.repo),
-        profile=profile,
-        topology=topology,
-        write_dir=ROOT / ".agents/state/setup",
-    )
-    print("")
-    _print_plan_text(plan)
-    return 0
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -911,8 +894,13 @@ def main(argv: list[str] | None = None) -> int:
     p_verify.add_argument("--offline", action="store_true")
     p_verify.add_argument("-o", "--output", choices=("text", "json"), default="text")
 
+    p_topology = sub.add_parser("topology", help="Print ordered release branches as JSON")
+    p_topology.add_argument("name", choices=TOPOLOGIES)
+
     p_wizard = sub.add_parser("wizard", help="Interactive human terminal setup menu (make setup)")
     p_wizard.add_argument("--repo", default=None)
+    p_wizard.add_argument("--profile", choices=PROFILES)
+    p_wizard.add_argument("--list", action="store_true", help="List incomplete steps without changing setup")
 
     args = parser.parse_args(argv)
     try:
@@ -991,8 +979,14 @@ def main(argv: list[str] | None = None) -> int:
                 _print_verify_text(report)
             return 0 if report["ready"] else 1
 
+        if args.command == "topology":
+            print(json.dumps(TOPOLOGY_BRANCHES[args.name]))
+            return 0
+
         if args.command == "wizard":
-            return _run_wizard(args)
+            from wizard import run_wizard
+
+            return run_wizard(args)
     except (ValueError, PermissionError, RuntimeError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

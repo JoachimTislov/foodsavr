@@ -79,6 +79,22 @@ if name == 'dart':
             print('project_id = "demo-proj"\\nweb_api_key_id = "key-id"')
 elif name == 'gcloud':
     if 'print-access-token' in args: print('test-token')
+    elif args[:2] == ['billing', 'projects']:
+        print(os.environ.get('FAKE_BILLING_ENABLED', ''))
+    elif args[:2] == ['projects', 'describe']:
+        print('{"projectNumber": "123"}')
+    elif args[:2] == ['services', 'list']:
+        print('[{"config":{"name":"iam.googleapis.com"}}]')
+    elif 'list' in args and 'workload-identity-pools' in args:
+        name = 'projects/123/locations/global/workloadIdentityPools/github'
+        if 'providers' in args:
+            name += '/providers/github-oidc'
+        print(json.dumps([{'name': name}]))
+    elif 'service-accounts' in args and 'list' in args:
+        email = 'github-hosting-deploy@demo-proj.iam.gserviceaccount.com'
+        print(json.dumps([{'name': f'projects/demo-proj/serviceAccounts/{email}', 'email': email}]))
+    elif 'get-iam-policy' in args:
+        print('{"bindings":[]}')
     elif 'describe' in args:
         status = os.environ['FAKE_BUCKET']
         if status == 'exists': print('{}')
@@ -92,10 +108,25 @@ elif name == 'terraform':
     directory = pathlib.Path(args[0].split('=', 1)[1])
     with open(os.environ['FAKE_CONFIG_LOG'], 'a') as out:
         out.write((directory / 'main.tf').read_text())
+        if (directory / 'adopt.tf').is_file():
+            out.write((directory / 'adopt.tf').read_text())
+        if args[1] == 'plan' and any(a.startswith('-var-file=') for a in args):
+            var_file = next(a.split('=', 1)[1] for a in args if a.startswith('-var-file='))
+            out.write(pathlib.Path(var_file).read_text())
 elif name == 'gh':
     if args[:2] == ['auth', 'token']:
         print('fake-gh-token')
     elif args[:1] == ['api']:
+        endpoint = args[-1]
+        if '/labels?' in endpoint:
+            print(json.dumps([[{'name': 'TYPE/BUG'}, {'name': 'user-custom'}]]))
+            sys.exit(0)
+        if '/actions/variables?' in endpoint:
+            print('[{"variables":[]}]')
+            sys.exit(0)
+        if '/environments?' in endpoint:
+            print('[{"environments":[]}]')
+            sys.exit(0)
         endpoint = args[1]
         if endpoint.endswith('/rulesets'):
             sys.exit(0 if os.environ.get('FAKE_RULESETS_OK', 'true') == 'true' else 1)
@@ -113,6 +144,8 @@ class BackendTests(unittest.TestCase):
         self.xdg_state = self.root / 'xdg-state'
         for directory in [
             'scripts/infra',
+            'scripts/setup',
+            'scripts/github',
             'infra/terraform/gcp',
             'infra/terraform/github',
             '.agents/github',
@@ -121,8 +154,10 @@ class BackendTests(unittest.TestCase):
             'bin',
         ]:
             (self.root / directory).mkdir(parents=True)
-        for name in ['apply.sh', 'apply-github.sh', 'bootstrap_support.py']:
+        for name in ['apply.sh', 'apply-github.sh', 'bootstrap_support.py', 'adopt.py']:
             shutil.copy2(HERE / name, self.root / 'scripts/infra' / name)
+        for name in ('scripts/setup/setupctl.py', 'scripts/github/promote_release.py', 'scripts/github/checks.py'):
+            shutil.copy2(REPO / name, self.root / name)
         for stack in ('gcp', 'github'):
             for tf_file in (REPO / 'infra/terraform' / stack).glob('*.tf'):
                 shutil.copy2(tf_file, self.root / 'infra/terraform' / stack / tf_file.name)
@@ -204,6 +239,20 @@ class BackendTests(unittest.TestCase):
             self.assertIn('refusing to select a different backend', result.stderr)
             self.assertFalse((self.root / 'config.log').exists())
 
+    def test_billing_403_adopts_existing_cloud_resources_in_local_plan(self):
+        result = self.run_plan(FAKE_BUCKET='403 PERMISSION_DENIED', FAKE_BILLING_ENABLED='False')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        config = (self.root / 'config.log').read_text()
+        self.assertIn('backend "local"', config)
+        self.assertIn('to = google_iam_workload_identity_pool.github', config)
+        self.assertIn('to = google_iam_workload_identity_pool_provider.github', config)
+        self.assertIn('to = google_service_account.deploy_live', config)
+        self.assertIn('deploy_service_account_id = "github-hosting-deploy"', config)
+        self.assertFalse(self.expected_gcp_state().exists())
+        calls = (self.root / 'calls.jsonl').read_text()
+        self.assertNotIn('"apply"', calls)
+        self.assertNotIn('"import"', calls)
+
     def test_local_override_refuses_existing_remote(self):
         result = self.run_plan(TF_STATE_BACKEND='local', FAKE_BUCKET='exists')
         self.assertNotEqual(result.returncode, 0)
@@ -244,6 +293,9 @@ class BackendTests(unittest.TestCase):
         config = (self.root / 'config.log').read_text()
         self.assertIn(str(expected_state), config)
         calls = (self.root / 'calls.jsonl').read_text()
+        self.assertIn('github_issue_label.managed[each.key]', config)
+        self.assertIn('TYPE/BUG', config)
+        self.assertIn('contains(keys(local.existing_labels), lower(name))', config)
         self.assertIn('-var=enable_rulesets=false', calls)
         self.assertIn('-var=release_topology=single', calls)
 
@@ -280,7 +332,8 @@ class TerraformRootStructureTests(unittest.TestCase):
 
     def test_gcp_root_splits_deploy_and_telemetry_service_accounts(self):
         gcp_main = (REPO / 'infra/terraform/gcp/main.tf').read_text()
-        self.assertIn('account_id   = "github-deploy-live"', gcp_main)
+        self.assertIn('account_id   = var.deploy_service_account_id', gcp_main)
+        self.assertIn('default     = "github-deploy-live"', (REPO / 'infra/terraform/gcp/variables.tf').read_text())
         self.assertIn('account_id   = "github-telemetry-ro"', gcp_main)
         self.assertIn('attribute.repo_ref_env', gcp_main)
         self.assertIn('attribute.repo_ref', gcp_main)

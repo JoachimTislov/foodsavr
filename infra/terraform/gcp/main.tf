@@ -194,7 +194,7 @@ resource "google_iam_workload_identity_pool_provider" "github" {
 
 resource "google_service_account" "deploy_live" {
   provider     = google-beta
-  account_id   = "github-deploy-live"
+  account_id   = var.deploy_service_account_id
   display_name = "GitHub Actions: Firebase Hosting deploy (scoped)"
 
   lifecycle {

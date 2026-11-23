@@ -229,7 +229,12 @@ pause "Start?"
 claude setup-token
 ask_secret CLAUDE_CODE_OAUTH_TOKEN "Paste the token it printed:"
 [[ "$CLAUDE_CODE_OAUTH_TOKEN" == sk-ant-* ]] || { warn "That does not look like a Claude token; re-run the wizard."; exit 1; }
-set_secret CLAUDE_CODE_OAUTH_TOKEN "$CLAUDE_CODE_OAUTH_TOKEN"
+if [[ -n "${GH_REPO:-}" ]]; then
+  NEW_CLAUDE_CODE_OAUTH_TOKEN="$CLAUDE_CODE_OAUTH_TOKEN" \
+    python3 "${BASH_SOURCE[0]%/*}/../../secrets/rotate.py" --repo "$GH_REPO" --yes CLAUDE_CODE_OAUTH_TOKEN
+else
+  set_secret CLAUDE_CODE_OAUTH_TOKEN "$CLAUDE_CODE_OAUTH_TOKEN"
+fi
 note "Clear this terminal's scrollback: the token was printed above."
 
 finish
