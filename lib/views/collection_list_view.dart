@@ -8,6 +8,7 @@ import '../service_locator.dart';
 import '../services/collection_service.dart';
 import '../utils/collection_types.dart';
 import '../widgets/collection/collection_card.dart';
+import '../widgets/common/master_detail_layout.dart';
 import '../widgets/common/retry_scaffold.dart';
 import 'collection_detail_view.dart';
 import 'collection_form_view.dart';
@@ -23,6 +24,7 @@ class CollectionListView extends StatefulWidget {
 class _CollectionListViewState extends State<CollectionListView> {
   late final CollectionService _collectionService;
   late final CollectionListController _controller;
+  Collection? _selected;
 
   @override
   void initState() {
@@ -52,7 +54,7 @@ class _CollectionListViewState extends State<CollectionListView> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    return RetryScaffold(
+    final master = RetryScaffold(
       errorMessage: 'collection.loadError'.tr(),
       onRefresh: _fetchCollections,
       fetchOnInit: true,
@@ -138,9 +140,33 @@ class _CollectionListViewState extends State<CollectionListView> {
         ),
       ),
     );
+    final selected = _selected;
+    return ListenableBuilder(
+      listenable: _controller,
+      builder: (context, _) => MasterDetailLayout(
+        enabled: _controller.collections.isNotEmpty,
+        master: master,
+        detail: selected == null
+            ? null
+            : CollectionDetailView(
+                key: ValueKey(selected.id),
+                collection: selected,
+                onChanged: _onSelectedChanged,
+              ),
+      ),
+    );
+  }
+
+  void _onSelectedChanged(Collection? collection) {
+    setState(() => _selected = collection);
+    _fetchCollections();
   }
 
   void _navigateToCollectionDetail(Collection collection) {
+    if (MasterDetailLayout.isSplit(context)) {
+      setState(() => _selected = collection);
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => CollectionDetailView(collection: collection),

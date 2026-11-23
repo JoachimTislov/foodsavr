@@ -29,6 +29,7 @@ A new feature follows that order: model → interface → repository → service
 - **One widget per file.** Extract widgets as classes, never private `_buildX()` builders; centralize duplicated markup and logic in `lib/widgets/common/`.
 - **Inject, never instantiate.** Constructor injection with `@injectable`; depend on `i_*` interfaces; call `getIt<T>()` only at the top of a view or in `main.dart`.
 - **Firestore transactions return data.** Update application state after the transaction completes, never inside it.
+- **Layouts adapt to the window width.** Branch on `WindowSize` (compact, medium, expanded), never on the platform; bottom navigation on compact, a navigation rail beyond; list-and-detail screens use `MasterDetailLayout` on expanded; cap page content with `ContentConstraint`/`SliverContentConstraint` inside the scroll view; keep the compact layout unchanged.
 - **Lightweight forms are bottom sheets.** Simple create/edit forms use `showModalBottomSheet` behind a static `show()`; full routes are for complex views.
 - **Material 3 through the theme.** Colors from `ColorScheme.fromSeed`; component styles and typography in the central `ThemeData` (`lib/utils/app_theme.dart`, `lib/constants/material3_config.dart`); light, dark, and system modes.
 - **No hard-coded values.** Constants in `lib/constants/`; user-facing strings through `easy_localization`.

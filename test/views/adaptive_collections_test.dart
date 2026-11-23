@@ -1,0 +1,126 @@
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:foodsavr/controllers/preferences_controller.dart';
+import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:foodsavr/models/collection_model.dart';
+import 'package:foodsavr/service_locator.dart';
+import 'package:foodsavr/services/collection_service.dart';
+import 'package:foodsavr/services/product_service.dart';
+import 'package:foodsavr/utils/collection_types.dart';
+import 'package:foodsavr/views/collection_detail_view.dart';
+import 'package:foodsavr/views/collection_list_view.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class _Auth extends Mock implements IAuthService {}
+
+class _Products extends Mock implements ProductService {}
+
+class _Collections extends Mock implements CollectionService {}
+
+class _Preferences extends ChangeNotifier implements PreferencesController {
+  @override
+  int get expiringSoonDays => 5;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+const _pantry = Collection(
+  id: 'c1',
+  name: 'Pantry',
+  productIds: [],
+  userId: 'user',
+);
+const _fridge = Collection(
+  id: 'c2',
+  name: 'Fridge',
+  productIds: [],
+  userId: 'user',
+);
+
+void main() {
+  setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
+    EasyLocalization.logger.enableLevels = [];
+    await EasyLocalization.ensureInitialized();
+  });
+
+  setUp(() async {
+    await getIt.reset();
+    final auth = _Auth();
+    when(() => auth.getUserId()).thenReturn('user');
+    final collections = _Collections();
+    when(
+      () => collections.getCollectionsForUser('user'),
+    ).thenAnswer((_) async => [_pantry, _fridge]);
+    when(() => collections.getCollection(any())).thenAnswer(
+      (i) async => i.positionalArguments.first == 'c1' ? _pantry : _fridge,
+    );
+    getIt
+      ..registerSingleton<IAuthService>(auth)
+      ..registerSingleton<CollectionService>(collections)
+      ..registerSingleton<ProductService>(_Products())
+      ..registerSingleton<PreferencesController>(_Preferences());
+  });
+
+  tearDown(() => getIt.reset());
+
+  Future<void> pump(WidgetTester tester, double width) async {
+    // The test font (Ahem) is far wider than the real one.
+    tester.platformDispatcher.textScaleFactorTestValue = 0.3;
+    addTearDown(tester.platformDispatcher.clearAllTestValues);
+    tester.view.physicalSize = Size(width, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      EasyLocalization(
+        supportedLocales: const [Locale('en')],
+        path: 'assets/translations',
+        child: const MaterialApp(
+          home: CollectionListView(typeFilter: CollectionType.inventory),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  for (final width in [400.0, 700.0]) {
+    testWidgets('tapping a collection opens a page at $width px', (
+      tester,
+    ) async {
+      await pump(tester, width);
+      expect(find.text('Pantry'), findsOneWidget);
+
+      await tester.tap(find.text('Pantry'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CollectionDetailView), findsOneWidget);
+      expect(find.text('Fridge'), findsNothing);
+    });
+  }
+
+  testWidgets('expanded width shows list and detail side by side', (
+    tester,
+  ) async {
+    await pump(tester, 1300);
+    expect(find.byType(CollectionDetailView), findsNothing);
+    expect(find.byIcon(Icons.touch_app_outlined), findsOneWidget);
+
+    await tester.tap(find.text('Fridge'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CollectionDetailView), findsOneWidget);
+    expect(find.text('Pantry'), findsOneWidget);
+    // The list stays visible next to the detail header.
+    expect(find.text('Fridge'), findsNWidgets(2));
+    expect(find.byIcon(Icons.arrow_back), findsNothing);
+
+    await tester.tap(find.text('Pantry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pantry'), findsNWidgets(2));
+    expect(find.text('Fridge'), findsOneWidget);
+  });
+}

@@ -4,9 +4,11 @@ import 'package:go_router/go_router.dart';
 import 'package:watch_it/watch_it.dart';
 
 import 'product_form_view.dart';
+import '../constants/adaptive_layout.dart';
 import '../constants/product_categories.dart';
 import '../controllers/preferences_controller.dart';
 import '../models/product_model.dart';
+import '../widgets/common/content_constraint.dart';
 import '../widgets/product/product_details_card.dart';
 import '../service_locator.dart';
 import '../services/collection_service.dart';
@@ -16,7 +18,11 @@ import '../interfaces/i_auth_service.dart';
 class ProductDetailView extends WatchingStatefulWidget {
   final Product product;
 
-  const ProductDetailView({super.key, required this.product});
+  /// When set, the view is embedded beside a list: it has no back button and
+  /// calls this instead of popping once the product was deleted.
+  final VoidCallback? onDeleted;
+
+  const ProductDetailView({super.key, required this.product, this.onDeleted});
 
   @override
   State<ProductDetailView> createState() => _ProductDetailViewState();
@@ -86,182 +92,185 @@ class _ProductDetailViewState extends State<ProductDetailView> {
     final statusIcon = status.getIcon();
 
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(automaticallyImplyLeading: widget.onDeleted == null),
       body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.name,
-                    style: theme.textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 28,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (product.category != null)
-                    Chip(
-                      label: Text(product.category!),
-                      labelStyle: theme.textTheme.labelLarge,
-                      backgroundColor: colorScheme.secondaryContainer,
-                      avatar: Icon(
-                        ProductCategory.getIcon(product.category),
-                        size: 20,
-                        color: colorScheme.onSecondaryContainer,
-                      ),
-                    ),
-                  const SizedBox(height: 24),
-                  // Status banner
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    margin: const EdgeInsets.only(bottom: 24),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: statusColor.withValues(alpha: 0.5),
-                        width: 2,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(statusIcon, color: statusColor, size: 32),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                statusMessage,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  color: statusColor,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              if (product.daysUntilExpiration != null)
-                                Text(
-                                  product.daysUntilExpiration! < 0
-                                      ? 'product.expiredDaysAgo'.tr(
-                                          namedArgs: {
-                                            'days':
-                                                '${product.daysUntilExpiration!.abs()}',
-                                          },
-                                        )
-                                      : 'product.daysRemaining'.tr(
-                                          namedArgs: {
-                                            'days':
-                                                '${product.daysUntilExpiration}',
-                                          },
-                                        ),
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: statusColor,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Description section
-                  if (product.description.isNotEmpty) ...[
+        child: ContentConstraint(
+          maxWidth: AdaptiveLayout.detailMaxWidth,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      'product.description'.tr(),
-                      style: theme.textTheme.titleLarge?.copyWith(
+                      product.name,
+                      style: theme.textTheme.displaySmall?.copyWith(
                         fontWeight: FontWeight.w600,
+                        fontSize: 28,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      product.description,
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                        height: 1.5,
+                    if (product.category != null)
+                      Chip(
+                        label: Text(product.category!),
+                        labelStyle: theme.textTheme.labelLarge,
+                        backgroundColor: colorScheme.secondaryContainer,
+                        avatar: Icon(
+                          ProductCategory.getIcon(product.category),
+                          size: 20,
+                          color: colorScheme.onSecondaryContainer,
+                        ),
+                      ),
+                    const SizedBox(height: 24),
+                    // Status banner
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.only(bottom: 24),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: statusColor.withValues(alpha: 0.5),
+                          width: 2,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(statusIcon, color: statusColor, size: 32),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  statusMessage,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    color: statusColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                if (product.daysUntilExpiration != null)
+                                  Text(
+                                    product.daysUntilExpiration! < 0
+                                        ? 'product.expiredDaysAgo'.tr(
+                                            namedArgs: {
+                                              'days':
+                                                  '${product.daysUntilExpiration!.abs()}',
+                                            },
+                                          )
+                                        : 'product.daysRemaining'.tr(
+                                            namedArgs: {
+                                              'days':
+                                                  '${product.daysUntilExpiration}',
+                                            },
+                                          ),
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: statusColor,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                  if (_isLoadingInventories)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 12),
-                      child: LinearProgressIndicator(),
-                    )
-                  else if (_inventoryNames != null &&
-                      _inventoryNames!.isNotEmpty) ...[
-                    const SizedBox(height: 12),
+                    // Description section
+                    if (product.description.isNotEmpty) ...[
+                      Text(
+                        'product.description'.tr(),
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        product.description,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                    if (_isLoadingInventories)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 12),
+                        child: LinearProgressIndicator(),
+                      )
+                    else if (_inventoryNames != null &&
+                        _inventoryNames!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.inventory_2_outlined,
+                            size: 16,
+                            color: colorScheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'product.availableIn'.tr(
+                                namedArgs: {
+                                  'inventories': _inventoryNames!.join(', '),
+                                },
+                              ),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 32),
+                    // Details section
                     Row(
                       children: [
-                        Icon(
-                          Icons.inventory_2_outlined,
-                          size: 16,
-                          color: colorScheme.primary,
-                        ),
-                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'product.availableIn'.tr(
-                              namedArgs: {
-                                'inventories': _inventoryNames!.join(', '),
-                              },
-                            ),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.primary,
+                            'product.details'.tr(),
+                            style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
+                        IconButton(
+                          icon: const Icon(Icons.edit),
+                          onPressed: () async {
+                            final result = await ProductFormView.show(
+                              context,
+                              product: _currentProduct,
+                            );
+                            if (result == true && mounted) {
+                              final updatedProduct = await _productService
+                                  .getProductById(_currentProduct.id);
+                              if (updatedProduct != null) {
+                                setState(() {
+                                  _currentProduct = updatedProduct;
+                                });
+                                _loadInventories();
+                              }
+                            }
+                          },
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.delete, color: colorScheme.error),
+                          onPressed: () => _showDeleteConfirmation(product),
+                        ),
                       ],
                     ),
+                    const SizedBox(height: 16),
+                    ProductDetailsCard(product: product),
+                    const SizedBox(height: 32),
                   ],
-                  const SizedBox(height: 32),
-                  // Details section
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'product.details'.tr(),
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.edit),
-                        onPressed: () async {
-                          final result = await ProductFormView.show(
-                            context,
-                            product: _currentProduct,
-                          );
-                          if (result == true && mounted) {
-                            final updatedProduct = await _productService
-                                .getProductById(_currentProduct.id);
-                            if (updatedProduct != null) {
-                              setState(() {
-                                _currentProduct = updatedProduct;
-                              });
-                              _loadInventories();
-                            }
-                          }
-                        },
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.delete, color: colorScheme.error),
-                        onPressed: () => _showDeleteConfirmation(product),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  ProductDetailsCard(product: product),
-                  const SizedBox(height: 32),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -293,7 +302,12 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                     ),
                   ),
                 );
-                context.pop(true);
+                final onDeleted = widget.onDeleted;
+                if (onDeleted == null) {
+                  context.pop(true);
+                } else {
+                  onDeleted();
+                }
               } catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
