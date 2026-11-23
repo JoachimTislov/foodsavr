@@ -103,6 +103,26 @@ class PromoteDecisionTest(unittest.TestCase):
         )
         self.assertEqual(d.action, "promote")
 
+    def test_effective_run_evaluation_leaves_single_runs_unchanged(self):
+        def run(name, conclusion="SUCCESS"):
+            node = check_run(name, conclusion=conclusion, workflow="Validation")
+            node["startedAt"] = "2026-11-21T12:00:00Z"
+            node["checkSuite"]["workflowRun"]["databaseId"] = 100
+            return node
+
+        self.assertIn("databaseId", promote.COMMIT_ROLLUP_QUERY)
+        self.assertIn("startedAt", promote.COMMIT_ROLLUP_QUERY)
+        ok = promote.decide_promotion(
+            "abcdef1", "1234567", True, [run("Detect changed areas"), run("Check & Test")],
+            source_branch="nightly", target_branch="beta",
+        )
+        self.assertEqual(ok.action, "promote")
+        failed = promote.decide_promotion(
+            "abcdef1", "1234567", True, [run("Detect changed areas"), run("Check & Test", "CANCELLED")],
+            source_branch="nightly", target_branch="beta",
+        )
+        self.assertEqual(failed.action, "blocked")
+
     def test_develop_promotes_without_duplicate_develop_push_checks_but_blocks_failures(self):
         d_ok = promote.decide_promotion("abcdef1", "1234567", True, [], source_branch="develop", target_branch="nightly")
         self.assertEqual(d_ok.action, "promote")

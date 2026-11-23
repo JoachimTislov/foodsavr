@@ -71,7 +71,7 @@ query($owner: String!, $name: String!, $sha: GitObjectID!) {
           contexts(first: 100) {
             nodes {
               __typename
-              ... on CheckRun { name status conclusion checkSuite { app { slug } workflowRun { workflow { name } } } }
+              ... on CheckRun { name status conclusion startedAt checkSuite { app { slug } workflowRun { databaseId workflow { name } } } }
               ... on StatusContext { context state }
             }
           }

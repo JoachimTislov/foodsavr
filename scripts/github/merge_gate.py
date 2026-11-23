@@ -85,7 +85,7 @@ query($owner: String!, $name: String!, $cursor: String) {
         }
         commits(last: 1) { nodes { commit { committedDate statusCheckRollup { contexts(first: 100) { nodes {
           __typename
-          ... on CheckRun { name status conclusion startedAt checkSuite { app { slug } workflowRun { workflow { name } } } }
+          ... on CheckRun { name status conclusion startedAt checkSuite { app { slug } workflowRun { databaseId workflow { name } } } }
           ... on StatusContext { context state }
         } } } } } }
         timelineItems(itemTypes: [LABELED_EVENT, UNLABELED_EVENT], last: 50) {

@@ -30,6 +30,11 @@ def _is_skipped(context: dict[str, Any]) -> bool:
     return context.get("status") == "COMPLETED" and context.get("conclusion") == "SKIPPED"
 
 
+def _workflow_run_id(context: dict[str, Any]) -> int | None:
+    value = ((context.get("checkSuite") or {}).get("workflowRun") or {}).get("databaseId")
+    return int(value) if value is not None else None
+
+
 def _started(context: dict[str, Any]) -> datetime | None:
     value = context.get("startedAt")
     return datetime.fromisoformat(value.replace("Z", "+00:00")) if value else None
@@ -42,6 +47,10 @@ def effective_runs(contexts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     (label-only events create newer runs whose jobs are skipped); when every run of a key is
     skipped, the latest skipped one is used. A key with any run lacking startedAt keeps all of
     its runs, so callers whose query omits startedAt evaluate every run as before.
+
+    A CANCELLED run is dropped when a newer run of the same workflow (higher workflow-run
+    databaseId on this head) exists: concurrency cancellation supersedes it, even if the newer
+    run skipped that job. A CANCELLED run with no newer workflow run still counts as cancelled.
     """
     groups: dict[tuple[str | None, ...], list[dict[str, Any]]] = {}
     for c in contexts:
@@ -56,7 +65,23 @@ def effective_runs(contexts: list[dict[str, Any]]) -> list[dict[str, Any]]:
         pool = executed or list(zip(times, runs))
         latest = max(t for t, _ in pool)
         keep.extend(c for t, c in pool if t == latest)
-    return [c for c in contexts if any(c is k for k in keep)]
+    newest: dict[str | None, int] = {}
+    for c in contexts:
+        run_id = _workflow_run_id(c)
+        if c.get("__typename") == "CheckRun" and run_id is not None:
+            name = _workflow_name(c)
+            newest[name] = max(newest.get(name, run_id), run_id)
+
+    def superseded(c: dict[str, Any]) -> bool:
+        run_id = _workflow_run_id(c)
+        return (
+            c.get("__typename") == "CheckRun"
+            and c.get("conclusion") == "CANCELLED"
+            and run_id is not None
+            and run_id < newest[_workflow_name(c)]
+        )
+
+    return [c for c in contexts if any(c is k for k in keep) and not superseded(c)]
 
 
 def rollup_state(contexts: list[dict[str, Any]]) -> str | None:
