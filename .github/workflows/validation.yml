@@ -9,7 +9,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Label events other than merge/auto get their own group so they never cancel a running validation.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}${{ (github.event.action == 'labeled' && github.event.label.name != 'merge/auto') && format('-label-{0}', github.run_id) || '' }}
   # See ci-checks.yml: Dependabot runs are not cancelled by their own rebases.
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
 
