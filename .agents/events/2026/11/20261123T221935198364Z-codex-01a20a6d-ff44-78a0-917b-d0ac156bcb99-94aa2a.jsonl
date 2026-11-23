@@ -1,0 +1,1 @@
+{"event": "Verified the combined topology and #417 operator defaults locally. Waiting on #417 required CI and Validation before rebasing #416.", "prs": ["#416"], "session_id": "codex:01a20a6d-ff44-78a0-917b-d0ac156bcb99", "stream": "ledger", "timestamp": "2026-11-23T22:19:35+00:00"}
