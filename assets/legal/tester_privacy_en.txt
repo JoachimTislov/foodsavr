@@ -1,0 +1,9 @@
+Draft for human review · FoodSavr test environment
+
+This privacy notice covers the FoodSavr test environment. It may contain real personal data. Norwegian law and the GDPR apply.
+
+Firebase handles sign-in and stores information such as your email address, inventory entries, collections and preferences. FoodSavr uses this data to run the app and test its features. Barcode lookups are sent to Open Food Facts. If you connect a supported grocery store in the mobile app, FoodSavr stores the connection tokens on your device.
+
+Test data may be reset. Use /delete-account to delete your account. Contact the operator with questions or requests about your personal data.
+
+Operator: the owner of FoodSavr, acting as a private person in Norway. The dedicated contact mailbox is pending. Draft placeholder: legal-contact@placeholder.invalid.

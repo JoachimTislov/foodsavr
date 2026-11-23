@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:foodsavr/controllers/preferences_controller.dart';
 import 'package:foodsavr/controllers/user_controller.dart';
 import 'package:http/http.dart' as http;
@@ -17,6 +18,8 @@ import 'interfaces/i_auth_service.dart';
 import 'interfaces/i_error_reporter.dart';
 import 'routes/go_router.dart';
 import 'service_locator.dart';
+import 'services/web_access.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'utils/theme_notifier.dart';
 import 'utils/app_scroll_behavior.dart';
 import 'utils/app_theme.dart';
@@ -50,6 +53,7 @@ void main() async {
     );
   }
   WidgetsFlutterBinding.ensureInitialized();
+  usePathUrlStrategy();
   const recaptchaKey = String.fromEnvironment('RECAPTCHA_ENTERPRISE_SITE_KEY');
   prepareAppCheckStorage(
     enterpriseSiteKey: Config.useEmulators ? null : recaptchaKey,
@@ -138,6 +142,11 @@ void main() async {
   // Start syncing the signed-in user's preferences from app start.
   getIt<PreferencesController>();
 
+  final webAccess =
+      kIsWeb && !Config.useEmulators && Config.webAccessCode.isNotEmpty
+      ? WebAccess(Config.webAccessCode, getIt<SharedPreferencesWithCache>())
+      : null;
+
   runApp(
     EasyLocalization(
       supportedLocales: const [enLocale, nbLocale],
@@ -146,7 +155,11 @@ void main() async {
       startLocale: enLocale,
       useFallbackTranslations: true,
       child: MyApp(
-        router: createAppRouter(getIt<IAuthService>(), getIt<UserController>()),
+        router: createAppRouter(
+          getIt<IAuthService>(),
+          getIt<UserController>(),
+          webAccess: webAccess,
+        ),
       ),
     ),
   );

@@ -9,6 +9,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/controllers/dashboard_controller.dart';
 import 'package:foodsavr/controllers/preferences_controller.dart';
 import 'package:foodsavr/controllers/user_controller.dart';
+import 'package:foodsavr/features/third_party_integration/oauth_controller.dart';
+import 'package:foodsavr/features/third_party_integration/services/oauth_service.dart';
+import 'package:foodsavr/services/secure_storage_service.dart';
+import 'package:foodsavr/views/settings_view.dart';
+import 'package:foodsavr/widgets/common/app_navigation_rail.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/interfaces/i_collection_repository.dart'; // Explicitly import ICollectionRepository
 import 'package:foodsavr/interfaces/i_product_repository.dart';
@@ -17,6 +22,11 @@ import 'package:foodsavr/models/collection_model.dart'; // Added Collection mode
 import 'package:foodsavr/models/product_model.dart'; // Added Product model import
 import 'package:foodsavr/routes/go_router.dart';
 import 'package:foodsavr/service_locator.dart';
+import 'package:foodsavr/services/web_access.dart';
+import 'package:foodsavr/views/auth_view.dart';
+import 'package:foodsavr/views/delete_account_view.dart';
+import 'package:foodsavr/views/legal_document_view.dart';
+import 'package:foodsavr/views/web_access_view.dart';
 import 'package:foodsavr/services/collection_service.dart'; // Import CollectionService
 import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/utils/shelf_life.dart';
@@ -31,6 +41,8 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import 'helpers/in_memory_preferences_repository.dart';
+
+class _MockSecureStorage extends Mock implements SecureStorage {}
 
 class _MockShelfLifeService extends Mock implements ShelfLifeService {}
 
@@ -83,7 +95,7 @@ class _FakeAuthService implements IAuthService {
   User? get currentUser => null;
 
   @override
-  String? getUserId() => _userId;
+  String? getUserId() => _userId == null ? null : _MockUser().uid;
   @override
   Future<UserCredential> signIn({
     required String email,
@@ -104,7 +116,8 @@ class _FakeAuthService implements IAuthService {
   }
 
   @override
-  Future<void> deleteAccount() async {}
+  Future<void> deleteAccount({bool reauthenticate = false, String? password}) =>
+      signOut();
 
   @override
   Future<void> signOut() async {
@@ -186,7 +199,6 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       await EasyLocalization.ensureInitialized();
       await getIt.reset();
-
       authService = _FakeAuthService();
       mockProductValidator = _MockIValidatorProduct();
       mockCollectionValidator = _MockIValidatorCollection();
@@ -194,6 +206,12 @@ void main() {
       getIt.registerSingleton<SharedPreferencesWithCache>(prefs);
       getIt.registerSingleton<ThemeNotifier>(ThemeNotifier(prefs));
       getIt.registerSingleton<IAuthService>(authService);
+      final logger = Logger(level: Level.off);
+      getIt.registerSingleton<Logger>(logger);
+      getIt.registerLazySingleton<OAuthController>(
+        () =>
+            OAuthController(OAuthService(logger, _MockSecureStorage()), logger),
+      );
 
       userController = UserController(
         authService,
@@ -209,25 +227,32 @@ void main() {
           Logger(level: Level.off),
         ),
       );
+      final collections = _FakeCollectionRepository();
+      when(() => collections.getCollections(any())).thenAnswer((_) async => []);
       getIt.registerLazySingleton<CollectionService>(
         () => CollectionService(
-          _FakeCollectionRepository(),
+          collections,
           mockCollectionValidator,
           Logger(level: Level.off),
         ),
       );
-      getIt.registerFactory<UserController>(() => userController);
+      getIt.registerFactory<UserController>(
+        () => UserController(authService, Logger(level: Level.off)),
+      );
+      getIt.registerLazySingleton<PreferencesController>(
+        () => PreferencesController(
+          authService,
+          InMemoryPreferencesRepository(),
+          getIt<CollectionService>(),
+          logger,
+        ),
+      );
       getIt.registerLazySingleton<DashboardController>(
         () => DashboardController(
           authService,
           getIt<ProductService>(),
           getIt<CollectionService>(),
-          PreferencesController(
-            authService,
-            InMemoryPreferencesRepository(),
-            getIt<CollectionService>(),
-            Logger(level: Level.off),
-          ),
+          getIt<PreferencesController>(),
           Logger(level: Level.off),
         ),
       );
@@ -239,46 +264,101 @@ void main() {
       await getIt.reset();
     });
 
-    testWidgets(
-      'redirects from landing page to main screen after authentication',
-      (tester) async {
-        final originalOnError = FlutterError.onError;
-        FlutterError.onError = (details) {
-          final message = details.exceptionAsString();
-          if (message.contains('A RenderFlex overflowed')) {
-            return;
-          }
-          originalOnError?.call(details);
-        };
-        addTearDown(() {
-          FlutterError.onError = originalOnError;
-        });
+    testWidgets('public routes and deletion sign-in bypass the web code', (
+      tester,
+    ) async {
+      final onError = FlutterError.onError;
+      FlutterError.onError = (details) {
+        if (details.exceptionAsString().contains('A RenderFlex overflowed')) {
+          return;
+        }
+        onError?.call(details);
+      };
+      addTearDown(() => FlutterError.onError = onError);
+      tester.view.physicalSize = const Size(1200, 1800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final prefs = getIt<SharedPreferencesWithCache>();
+      final access = WebAccess('fixture-code', prefs);
+      addTearDown(access.dispose);
+      router.dispose();
+      router = createAppRouter(authService, userController, webAccess: access);
+      await tester.pumpWidget(
+        EasyLocalization(
+          supportedLocales: const [Locale('en'), Locale('nb')],
+          path: 'assets/translations',
+          fallbackLocale: const Locale('en'),
+          child: _TestApp(router: router),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        tester.view.physicalSize = const Size(1400, 2200);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+      expect(find.byType(WebAccessView), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'wrong');
+      await tester.tap(find.byType(FilledButton));
+      await tester.pumpAndSettle();
+      expect(find.text('That code is incorrect.'), findsOneWidget);
 
-        await tester.pumpWidget(
-          EasyLocalization(
-            supportedLocales: const [Locale('en'), Locale('nb')],
-            path: 'assets/translations',
-            fallbackLocale: const Locale('en'),
-            child: _TestApp(router: router),
-          ),
-        );
-        await tester.pumpAndSettle();
+      for (final path in ['/privacy', '/terms']) {
+        router.go(path);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(find.byType(LegalDocumentView), findsOneWidget);
+      }
+      router.go('/delete-account');
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Sign in to the account you want to delete.'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Sign in'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AuthView), findsOneWidget);
 
-        expect(find.byType(LandingPageView), findsOneWidget);
-        expect(find.text('Continue as guest'), findsOneWidget);
+      authService.signInForTest('uid-123');
+      await tester.pumpAndSettle();
+      expect(find.byType(DeleteAccountView), findsOneWidget);
+      expect(find.text('Delete Account'), findsNWidgets(2));
 
-        authService.signInForTest('uid-123');
-        await tester.pumpAndSettle();
+      router.go('/dashboard');
+      await tester.pumpAndSettle();
+      expect(find.byType(WebAccessView), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'fixture-code');
+      await tester.tap(find.byType(FilledButton));
+      await tester.pumpAndSettle();
+      expect(find.byType(DashboardView), findsOneWidget);
 
-        expect(find.byType(DashboardView), findsOneWidget);
-        expect(find.byType(LandingPageView), findsNothing);
-      },
-    );
+      router.go('/settings');
+      await tester.pumpAndSettle();
+      expect(find.byType(AppNavigationRail), findsOneWidget);
+      expect(find.widgetWithText(SettingsView, 'BEHAVIOR'), findsOneWidget);
+
+      final remembered = WebAccess('fixture-code', prefs);
+      final rotated = WebAccess('new-fixture-code', prefs);
+      addTearDown(remembered.dispose);
+      addTearDown(rotated.dispose);
+      expect(remembered.isLocked, isFalse);
+      expect(rotated.isLocked, isTrue);
+      router.go('/delete-account');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(FilledButton));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(FilledButton, 'Yes, Delete Account'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Your account was deleted.'), findsOneWidget);
+      await tester.tap(find.text('Back to FoodSavr'));
+      await tester.pumpAndSettle();
+      expect(find.byType(LandingPageView), findsOneWidget);
+      expect(find.text('Continue as guest'), findsOneWidget);
+
+      authService.signInForTest('uid-123');
+      await tester.pumpAndSettle();
+      expect(find.byType(DashboardView), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
   });
 
   tearDownAll(() {

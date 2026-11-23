@@ -23,6 +23,12 @@ class SecureStorage {
   Future<void> write(Provider provider, Key key, String? v) async =>
       await _storage.write(key: _key(provider, key), value: v);
 
+  Future<void> clearStoreTokens() async {
+    for (final provider in Provider.values) {
+      await clear(provider);
+    }
+  }
+
   Future<void> clear(Provider provider) async {
     for (var key in Key.values) {
       await _storage.delete(key: _key(provider, key));

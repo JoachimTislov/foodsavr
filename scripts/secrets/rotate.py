@@ -20,6 +20,7 @@ Generators (registry `generate`):
 
 Sinks (registry `sinks`):
   github   `gh secret set NAME` (value on stdin)
+  github-variable  `gh variable set NAME` (public values only, on stdin)
   env      NAME='value' in the repo-root .env (written atomically, mode 600)
   command  `sink_command` with the value on stdin and SECRET_NAME set
 
@@ -67,7 +68,8 @@ ALPHABETS = {
 }
 GENERATORS = {"random", "command", "sync", "manual"}
 ENCODINGS = {"raw", "base64"}
-SINKS = {"github", "env", "command"}
+GITHUB_SINKS = {"github": "secret", "github-variable": "variable"}
+SINKS = {*GITHUB_SINKS, "env", "command"}
 
 
 @dataclass
@@ -96,6 +98,8 @@ class Secret:
         unknown = set(self.sinks) - SINKS
         if unknown:
             raise ValueError(f"{self.name}: unknown sinks {sorted(unknown)}")
+        if "github-variable" in self.sinks and not self.public:
+            raise ValueError(f"{self.name}: GitHub variable sink requires a public value")
         if self.generate == "command" and not self.command:
             raise ValueError(f"{self.name}: generate=command needs `command`")
         if self.generate == "sync" and not (self.sync_file or self.command):
@@ -246,11 +250,11 @@ def check_github_mutation_guard(
     origin_slug: str | None = None,
     yes: bool = False,
 ) -> str | None:
-    """Return an error string if a GitHub secret write should be blocked, else None."""
+    """Return an error string if a GitHub credential or variable write should be blocked, else None."""
     if interactive is None:
         interactive = sys.stdin.isatty()
     if any(env.get(var) for var in AGENT_ENV_VARS) and not interactive:
-        return "refusing unattended GitHub secret write from an agent harness environment; run interactively as a human"
+        return "refusing unattended GitHub credential or variable write from an agent harness environment; run interactively as a human"
     if repo and origin_slug and repo.casefold() != origin_slug.casefold() and not yes:
         if not interactive:
             return f"target --repo {repo!r} differs from origin {origin_slug!r}; re-run interactively or pass --yes"
@@ -264,8 +268,8 @@ def push(secret: Secret, value: str, *, env_path: Path, repo: str | None = None,
     done: list[str] = []
     for sink in secret.sinks:
         try:
-            if sink == "github":
-                cmd = ["gh", "secret", "set", secret.name]
+            if sink in GITHUB_SINKS:
+                cmd = ["gh", GITHUB_SINKS[sink], "set", secret.name]
                 if repo:
                     cmd.extend(["--repo", repo])
                 run(cmd, input=value, text=True, check=True)
@@ -372,7 +376,7 @@ def main(argv: list[str] | None = None) -> int:
             filtered.append(dataclasses.replace(secret, sinks=kept))
         selected = filtered
 
-    if not args.dry_run and any("github" in s.sinks for s in selected):
+    if not args.dry_run and any(GITHUB_SINKS.keys() & set(s.sinks) for s in selected):
         guard_error = check_github_mutation_guard(
             args.repo,
             origin_slug=origin_repo_slug(),
@@ -391,7 +395,7 @@ def main(argv: list[str] | None = None) -> int:
         label = f"{secret.name} ({secret.generate} -> {', '.join(secret.sinks)})"
         verb = "sync" if secret.generate == "sync" else "rotate"
         if args.dry_run:
-            target = f" [{args.repo}]" if args.repo and "github" in secret.sinks else ""
+            target = f" [{args.repo}]" if args.repo and GITHUB_SINKS.keys() & set(secret.sinks) else ""
             print(f"would {verb} {label}{target}")
             continue
         try:

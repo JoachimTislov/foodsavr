@@ -4,8 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/features/third_party_integration/models/connection_model.dart';
 import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:foodsavr/features/third_party_integration/services/oauth_service.dart';
+import 'package:foodsavr/services/secure_storage_service.dart';
 import 'package:foodsavr/features/third_party_integration/interfaces/i_oauth_service.dart';
 import 'package:foodsavr/service_locator.dart';
+import 'package:foodsavr/routes/routes.dart';
+import 'package:foodsavr/views/legal_document_view.dart';
+import 'package:go_router/go_router.dart';
 import 'package:foodsavr/controllers/preferences_controller.dart';
 import 'package:foodsavr/controllers/pwa_install_controller.dart';
 import 'package:foodsavr/models/collection_model.dart';
@@ -22,6 +27,8 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../helpers/in_memory_preferences_repository.dart';
+
+class _MockSecureStorage extends Mock implements SecureStorage {}
 
 class _MockAuthService extends Mock implements IAuthService {}
 
@@ -60,6 +67,15 @@ class _TestWrapper extends StatelessWidget {
   final Widget child;
 
   const _TestWrapper({required this.child});
+
+  static Widget withRouter(BuildContext context, GoRouter router) {
+    return MaterialApp.router(
+      localizationsDelegates: context.localizationDelegates,
+      supportedLocales: context.supportedLocales,
+      locale: context.locale,
+      routerConfig: router,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -219,6 +235,33 @@ void main() async {
       );
     });
 
+    testWidgets('settings renders at web width without a native WebView', (
+      tester,
+    ) async {
+      await getIt.unregister<OAuthController>();
+      getIt.registerLazySingleton<OAuthController>(
+        () => OAuthController(
+          OAuthService(getIt<Logger>(), _MockSecureStorage()),
+          getIt<Logger>(),
+        ),
+      );
+
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            child: const _TestWrapper(child: SettingsView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Settings'), findsOneWidget);
+        expect(find.text('BEHAVIOR'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    });
+
     testWidgets('renders all settings sections', (tester) async {
       await tester.runAsync(() async {
         await tester.pumpWidget(
@@ -313,71 +356,48 @@ void main() async {
       });
     });
 
-    testWidgets('shows legal dialog for Terms of Service', (tester) async {
+    testWidgets('settings links open the public legal routes', (tester) async {
+      final router = GoRouter(
+        initialLocation: '/settings',
+        routes: [
+          GoRoute(path: '/settings', builder: (_, _) => const SettingsView()),
+          GoRoute(path: '/terms', builder: const TermsRoute().build),
+          GoRoute(path: '/privacy', builder: const PrivacyRoute().build),
+          GoRoute(
+            path: '/delete-account',
+            builder: (_, _) => const Placeholder(),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
       await tester.runAsync(() async {
         await tester.pumpWidget(
           EasyLocalization(
             supportedLocales: const [Locale('en'), Locale('nb')],
             path: 'assets/translations',
             fallbackLocale: const Locale('en'),
-            child: const _TestWrapper(child: SettingsView()),
+            child: Builder(
+              builder: (context) => _TestWrapper.withRouter(context, router),
+            ),
           ),
         );
         await tester.pumpAndSettle();
 
-        // Tap on Terms of Service
-        await tester.tap(find.text('Terms of Service'));
+        for (final (label, title) in [
+          ('Terms of Service', 'Terms of Service'),
+          ('Privacy Policy', 'Privacy Notice'),
+        ]) {
+          await tester.tap(find.text(label));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 500));
+          expect(find.widgetWithText(LegalDocumentView, title), findsOneWidget);
+          router.pop();
+          await tester.pumpAndSettle();
+        }
+        await tester.tap(find.text('Delete Account'));
         await tester.pumpAndSettle();
-
-        // Should see dialog with Terms of Service title
-        expect(
-          find.widgetWithText(AlertDialog, 'Terms of Service'),
-          findsOneWidget,
-        );
-
-        // Should have Close button
-        expect(find.text('Close'), findsOneWidget);
-
-        // Close the dialog
-        await tester.tap(find.text('Close'));
-        await tester.pumpAndSettle();
-
-        // Dialog should be closed
-        expect(
-          find.widgetWithText(AlertDialog, 'Terms of Service'),
-          findsNothing,
-        );
-      });
-    });
-
-    testWidgets('shows legal dialog for Privacy Policy', (tester) async {
-      await tester.runAsync(() async {
-        await tester.pumpWidget(
-          EasyLocalization(
-            supportedLocales: const [Locale('en'), Locale('nb')],
-            path: 'assets/translations',
-            fallbackLocale: const Locale('en'),
-            child: const _TestWrapper(child: SettingsView()),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        // Tap on Privacy Policy
-        await tester.tap(find.text('Privacy Policy'));
-        await tester.pumpAndSettle();
-
-        // Should see dialog with Privacy Notice title
-        expect(
-          find.widgetWithText(AlertDialog, 'Privacy Notice'),
-          findsOneWidget,
-        );
-
-        // Should have Close button
-        expect(find.text('Close'), findsOneWidget);
-
-        // Close the dialog
-        await tester.tap(find.text('Close'));
-        await tester.pumpAndSettle();
+        expect(find.byType(Placeholder), findsOneWidget);
       });
     });
 

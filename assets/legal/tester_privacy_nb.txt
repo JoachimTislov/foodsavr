@@ -1,0 +1,9 @@
+Utkast til manuell gjennomgang · FoodSavrs testmiljø
+
+Denne personvernerklæringen gjelder FoodSavrs testmiljø. Miljøet kan inneholde ekte personopplysninger. Norsk lov og personvernforordningen (GDPR) gjelder.
+
+Firebase håndterer innlogging og lagrer opplysninger som e-postadresse, varer, samlinger og innstillinger. FoodSavr bruker opplysningene til å drive appen og teste funksjonene. Strekkodeoppslag sendes til Open Food Facts. Hvis du kobler til en støttet dagligvarebutikk i mobilappen, lagrer FoodSavr tilkoblingstokener på enheten din.
+
+Testdata kan bli slettet. Bruk /delete-account for å slette kontoen din. Kontakt den ansvarlige hvis du har spørsmål eller forespørsler om personopplysningene dine.
+
+Ansvarlig: eieren av FoodSavr, som privatperson i Norge. En egen kontaktadresse kommer. Plassholder i utkastet: legal-contact@placeholder.invalid.

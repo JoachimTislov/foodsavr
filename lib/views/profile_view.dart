@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:watch_it/watch_it.dart';
 
+import '../constants/public_routes.dart';
 import '../controllers/user_controller.dart';
 
 class ProfileView extends WatchingWidget {
@@ -104,10 +105,7 @@ class ProfileView extends WatchingWidget {
                       icon: Icons.delete_outline,
                       label: 'profile.delete_account'.tr(),
                       isDestructive: true,
-                      onTap: () => _showDeleteAccountConfirmation(
-                        context,
-                        authController,
-                      ),
+                      onTap: () => context.push(PublicRoutes.deleteAccount),
                     ),
                   ],
                 ),
@@ -184,82 +182,6 @@ class ProfileView extends WatchingWidget {
               }
             },
           ),
-        ),
-      ),
-    );
-  }
-
-  void _showDeleteAccountConfirmation(
-    BuildContext context,
-    UserController controller,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 24),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const Icon(
-              Icons.warning_amber_rounded,
-              color: Colors.red,
-              size: 48,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'profile.delete_account'.tr(),
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'profile.delete_account_description'.tr(),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                await controller.deleteAccount(); // Call controller method
-              },
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size.fromHeight(56),
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              child: Text('profile.deleteAccountConfirmation'.tr()),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                minimumSize: const Size.fromHeight(56),
-              ),
-              child: Text('common.cancel'.tr()),
-            ),
-          ],
         ),
       ),
     );

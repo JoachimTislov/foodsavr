@@ -242,14 +242,43 @@ class UserController extends ChangeNotifier {
     }
   }
 
-  Future<void> deleteAccount() async {
-    if (_isLoading) return;
+  String? _deletionReauthenticationUid;
+
+  bool get deletionRequiresReauthentication =>
+      _deletionReauthenticationUid != null &&
+      _deletionReauthenticationUid == _user?.uid;
+
+  bool get deletionRequiresPassword =>
+      _user?.providerData.any(
+        (provider) => provider.providerId == EmailAuthProvider.PROVIDER_ID,
+      ) ??
+      false;
+
+  Future<bool> deleteAccount({
+    bool reauthenticate = false,
+    String? password,
+  }) async {
+    final uid = _user?.uid;
+    if (_isLoading || uid == null || _authService.getUserId() != uid) {
+      return false;
+    }
     _setLoading(true);
     try {
-      await _authService.deleteAccount();
-    } catch (e) {
-      _logger.e('Delete account error: $e');
+      await _authService.deleteAccount(
+        reauthenticate: reauthenticate,
+        password: password,
+      );
+      _deletionReauthenticationUid = null;
+      return true;
+    } catch (error, stackTrace) {
+      if (error is FirebaseAuthException &&
+          error.code == 'requires-recent-login') {
+        _deletionReauthenticationUid = uid;
+        return false;
+      }
+      _logger.e('Delete account failed', error: error, stackTrace: stackTrace);
       _errorMessage = _tr('profile.error_delete_account');
+      return false;
     } finally {
       _setLoading(false);
     }

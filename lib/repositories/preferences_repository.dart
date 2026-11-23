@@ -23,6 +23,7 @@ class PreferencesRepository implements IPreferencesRepository {
   /// not write its (older) backend value to that account's cache.
   final Map<String, int> _writeSequences = {};
   final Map<String, UserPreferences> _pendingWrites = {};
+  final Set<String> _deleting = {};
 
   Future<void> _cacheWrites = Future<void>.value();
 
@@ -118,15 +119,35 @@ class PreferencesRepository implements IPreferencesRepository {
 
   @override
   Future<void> save(String userId, UserPreferences preferences) async {
+    if (_deleting.contains(userId)) return;
     final sequence = (_writeSequences[userId] ?? 0) + 1;
     _writeSequences[userId] = sequence;
     _pendingWrites[userId] = preferences;
     await _cache(userId, preferences, pending: true);
+    if (_deleting.contains(userId)) return;
     await _doc(userId).set(preferences.toJson(), SetOptions(merge: true));
     // Confirmed; a newer save keeps its own pending entry.
     if (sequence == _writeSequences[userId]) {
       _pendingWrites.remove(userId);
       await _cache(userId, preferences);
+    }
+  }
+
+  @override
+  Future<void> deleteForUser(String userId) async {
+    _deleting.add(userId);
+    _writeSequences.update(
+      userId,
+      (sequence) => sequence + 1,
+      ifAbsent: () => 1,
+    );
+    try {
+      await _cacheWrites;
+      await _doc(userId).delete();
+      _pendingWrites.remove(userId);
+      await _updateCache((users) => users.remove(userId));
+    } finally {
+      _deleting.remove(userId);
     }
   }
 
@@ -142,10 +163,16 @@ class PreferencesRepository implements IPreferencesRepository {
     String userId,
     UserPreferences preferences, {
     bool pending = false,
-  }) {
+  }) => _updateCache((users) {
+    users[userId] = {'preferences': preferences.toJson(), 'pending': pending};
+  });
+
+  Future<void> _updateCache(
+    void Function(Map<String, Map<String, dynamic>>) update,
+  ) {
     final write = _cacheWrites.then<void>((_) async {
       final users = _readCacheEntries();
-      users[userId] = {'preferences': preferences.toJson(), 'pending': pending};
+      update(users);
       await _prefs.setString(
         PreferencesConfig.cacheKey,
         jsonEncode({'users': users}),

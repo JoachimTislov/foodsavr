@@ -21,6 +21,12 @@ class InMemoryPreferencesRepository implements IPreferencesRepository {
   }
 
   @override
+  Future<void> deleteForUser(String userId) async {
+    cache.remove(userId);
+    remote.remove(userId);
+  }
+
+  @override
   Future<void> save(String userId, UserPreferences preferences) async {
     cache[userId] = preferences;
     remote[userId] = preferences;

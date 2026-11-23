@@ -25,6 +25,7 @@ name: Firebase Hosting
 # Auth is keyless (Workload Identity Federation, see infra/terraform).
 # Variables:
 #   FIREBASE_HOSTING_ENABLED        explicit owner opt-in; unset/false skips all deploys
+#   WEB_ACCESS_CODE                  optional public code compiled into the hosted app
 # Variables set by scripts/infra/apply.sh (non-production environments use
 # a suffix, e.g. GCP_DEPLOY_SERVICE_ACCOUNT_STAGING):
 #   GCP_WORKLOAD_IDENTITY_PROVIDER  required to deploy (missing fails the job when enabled)
@@ -173,6 +174,7 @@ jobs:
           WEB_ENV_B64: ${{ secrets.WEB_ENV_B64 }}
           ANDROID_APK_URL: ${{ vars.ANDROID_APK_URL }}
           RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars[format('RECAPTCHA_ENTERPRISE_SITE_KEY{0}', needs.resolve.outputs.suffix)] }}
+          WEB_ACCESS_CODE: ${{ vars.WEB_ACCESS_CODE }}
           FIREBASE_PLAN: ${{ vars.FIREBASE_PLAN }}
           ERROR_REPORTER: ${{ vars.ERROR_REPORTER }}
           ERROR_COLLECTOR_ENDPOINT: ${{ vars.ERROR_COLLECTOR_ENDPOINT }}

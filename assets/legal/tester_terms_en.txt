@@ -1,0 +1,7 @@
+Draft for human review · FoodSavr tester terms
+
+This environment is for testing. You may use real data, but there is no guarantee it will be kept. Test data may be reset at any time. Keep your own copy of anything you need to keep.
+
+You must be 18 or older to create an account. Use /delete-account to delete your account.
+
+FoodSavr is operated by its owner as a private person in Norway. Norwegian law applies. The dedicated contact mailbox is pending. Draft placeholder: legal-contact@placeholder.invalid.
