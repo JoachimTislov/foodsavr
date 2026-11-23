@@ -6,7 +6,7 @@ expenses.
 { .vision-intro }
 
 [Explore the specification](../specs/source-of-truth/INDEX.md){ .md-button .md-button--primary }
-[Start contributing](../doc/getting_started.md){ .md-button }
+[Run or steer the project](../doc/humans.md){ .md-button }
 
 ## The problem we want to solve
 
@@ -78,8 +78,8 @@ The specification links directly to authoritative
 [MCP contract](../specs/source-of-truth/contracts/mcp-tools.yaml). Those files
 remain the source for their structures.
 
-For development, use the [setup guide](../doc/getting_started.md),
-[test strategy](../doc/test-strategy.md), and
+To run or steer the project, read [For humans](../doc/humans.md). For
+development, see the [test strategy](../doc/test-strategy.md) and
 [contribution guidelines](../CONTRIBUTING.md). Older research and planning
-material remains available through the [documentation overview](../doc/introduction.md)
-and search; planned ideas there aren't claims of shipped behavior.
+material remains available through search; planned ideas there aren't claims
+of shipped behavior.
