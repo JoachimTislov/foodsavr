@@ -1,5 +1,7 @@
 # FoodSavr
 
+> Running or steering the project? Read [For humans](doc/humans.md): the manual processes and nothing else.
+
 [![Project Status: WIP – Work in Progress](https://img.shields.io/badge/status-WIP-orange.svg)](https://wip.badge.style) [![Format, Analyze, Check Localizations and Run Tests](https://github.com/JoachimTislov/foodsavr/actions/workflows/ci-checks.yml/badge.svg)](https://github.com/JoachimTislov/foodsavr/actions/workflows/ci-checks.yml) [![codecov](https://codecov.io/gh/JoachimTislov/foodsavr/branch/main/graph/badge.svg)](https://codecov.io/gh/JoachimTislov/foodsavr)
 
 `FoodSavr` is a mobile application designed to help you reduce food 
@@ -34,11 +36,11 @@ what you have and what you need.
 
 ## Getting Started
 
-Want to tinker with the code? Check out the **[Getting Started guide](./doc/getting_started.md)** for instructions on how to set up your dev environment.
+Clone the repository and ask an agent to run `make setup`, or run it yourself. [For humans](doc/humans.md) lists the few steps that need you.
 
 ## How to Contribute
 
-Contributors must start with the [source-of-truth index](specs/source-of-truth/INDEX.md) before using the documentation below.
+Agents start with the [source-of-truth index](specs/source-of-truth/INDEX.md).
 
 Got an idea or want to fix something? Awesome! We have a few guidelines for contributing that are pretty different from most projects, especially regarding AI-assisted code.
 
@@ -53,8 +55,6 @@ This license allows for any non-commercial use, but you may not use the
 software for commercial purposes.
 
 ---
-
-For a complete overview of all project documentation, start with the [Documentation Introduction](./doc/introduction.md).
 
 ## Documentation
 

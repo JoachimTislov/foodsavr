@@ -49,9 +49,9 @@ nav:
           - Authoritative shapes: specs/source-of-truth/decisions/0004-truth-in-shapes.md
           - Automated integration: specs/source-of-truth/decisions/0006-automated-integration-of-revertable-changes.md
           - Develop and fast-forward deploy: specs/source-of-truth/decisions/0007-develop-integration-branch-and-fast-forward-deploy.md
+          - Human docs scope: specs/source-of-truth/decisions/0011-human-docs-cover-manual-processes-only.md
   - Contributor guides:
-      - Documentation overview: doc/introduction.md
-      - Getting started: doc/getting_started.md
+      - For humans: doc/humans.md
       - Test strategy: doc/test-strategy.md
       - Contributing: CONTRIBUTING.md
       - Coding standards: coding-standards.md
