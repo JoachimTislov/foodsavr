@@ -47,7 +47,8 @@ jobs:
       skip: ${{ steps.classify.outputs.skip }}
       required_tier: ${{ steps.classify.outputs.required_tier }}
       head_sha: ${{ steps.classify.outputs.head_sha }}
-      installed: ${{ steps.providers.outputs.installed }}
+      executed_tier: ${{ steps.plan.outputs.tier }}
+      run_model: ${{ steps.plan.outputs.run_model }}
     steps:
       - name: Checkout trusted control plane
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -95,48 +96,66 @@ jobs:
           echo "required_tier=${req_tier}" >> "$GITHUB_OUTPUT"
           echo "head_sha=${head_sha}" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - name: Check model credentials
+        id: credentials
         if: steps.classify.outputs.skip == 'false' && steps.classify.outputs.required_tier != 'exempt'
+        env:
+          HAS_PROVIDER: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.CODEX_AUTH_JSON_B64 != '' || secrets.ANTIGRAVITY_OAUTH_TOKEN_B64 != '' || secrets.GEMINI_API_KEY != '' }}
+        run: echo "configured=$HAS_PROVIDER" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: steps.credentials.outputs.configured == 'true'
         with:
           node-version: 22
 
-      - name: Install available provider CLIs
+      - name: Install configured provider CLIs
         id: providers
-        if: steps.classify.outputs.skip == 'false' && steps.classify.outputs.required_tier != 'exempt'
+        if: steps.credentials.outputs.configured == 'true'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           CODEX_AUTH_JSON_B64: ${{ secrets.CODEX_AUTH_JSON_B64 }}
+          ANTIGRAVITY_OAUTH_TOKEN_B64: ${{ secrets.ANTIGRAVITY_OAUTH_TOKEN_B64 }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: bash scripts/agents/install-ci-providers.sh
+
+      - name: Plan the executable review tier
+        id: plan
+        if: steps.credentials.outputs.configured != ''
+        env:
+          REQ_TIER: ${{ steps.classify.outputs.required_tier }}
+          PROVIDERS: ${{ steps.providers.outputs.providers }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          installed=0
-          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
-            npm install --global @anthropic-ai/claude-code@2.1.326; installed=1
+          provider_args=()
+          read -r -a providers <<< "$PROVIDERS"
+          for provider in "${providers[@]}"; do provider_args+=(--provider "$provider"); done
+          plan="$(python3 scripts/github/pr_review.py prepare-review --required-tier "$REQ_TIER" \
+            --workflow ".agents/state/workflows/integrate-pr-${PR_NUMBER}.json" "${provider_args[@]}")"
+          tier="$(jq -r '.tier' <<< "$plan")"
+          run_model="$(jq -r '.run_model' <<< "$plan")"
+          echo "tier=$tier" >> "$GITHUB_OUTPUT"
+          echo "run_model=$run_model" >> "$GITHUB_OUTPUT"
+          if [[ "$run_model" == false ]]; then
+            echo "Model review skipped. No executable provider is configured or has quota. Deterministic review tier is fast." >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "$tier" != "$REQ_TIER" && "$REQ_TIER" != human ]]; then
+            echo "Review tier capped from $REQ_TIER to $tier for the available providers." >> "$GITHUB_STEP_SUMMARY"
           fi
-          if [ -n "$CODEX_AUTH_JSON_B64" ]; then
-            npm install --global @openai/codex@0.169.0
-            install -d -m 700 "$HOME/.codex"
-            umask 077; echo "$CODEX_AUTH_JSON_B64" | base64 -d > "$HOME/.codex/auth.json"; installed=1
-          fi
-          echo "installed=${installed}" >> "$GITHUB_OUTPUT"
 
       # The only step that runs a model. GH_TOKEN is deliberately not set here, and the
       # job token is read-only, so injected instructions cannot write to the repository.
       - name: Execute adaptive integrate-pr review workflow
-        if: steps.classify.outputs.skip == 'false' && steps.classify.outputs.required_tier != 'exempt'
+        if: steps.plan.outputs.run_model == 'true'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          INSTALLED: ${{ steps.providers.outputs.installed }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          if [ "$INSTALLED" = "1" ]; then
-            scripts/agents/agentctl workflow run ".agents/state/workflows/integrate-pr-${PR_NUMBER}.json" \
-              --execute --provider auto > ".agents/state/pr-${PR_NUMBER}-result.json" || true
-          else
-            scripts/agents/agentctl workflow run ".agents/state/workflows/integrate-pr-${PR_NUMBER}.json" \
-              > ".agents/state/pr-${PR_NUMBER}-result.json" || true
-          fi
+          scripts/agents/agentctl workflow run ".agents/state/workflows/integrate-pr-${PR_NUMBER}.json" \
+            --execute > ".agents/state/pr-${PR_NUMBER}-result.json" || true
 
       - name: Remove provider credentials
         if: always()
-        run: rm -rf "$HOME/.codex"
+        run: rm -f "$HOME/.codex/auth.json" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
 
       - name: Upload review state
         if: always() && steps.classify.outputs.skip == 'false'
@@ -187,7 +206,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ needs.review.outputs.head_sha }}
           REQ_TIER: ${{ needs.review.outputs.required_tier }}
-          INSTALLED: ${{ needs.review.outputs.installed }}
+          EXECUTED_TIER: ${{ needs.review.outputs.executed_tier }}
+          RUN_MODEL: ${{ needs.review.outputs.run_model }}
         run: |
           [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || { echo "PR_NUMBER must be an integer"; exit 1; }
           [[ "$HEAD_SHA" =~ ^[0-9a-f]{7,40}$ ]] || { echo "invalid head sha"; exit 1; }
@@ -203,22 +223,20 @@ jobs:
               --status approved --provider policy-exempt --model none
             exit 0
           fi
-          status_arg=()
-          if [ "$REQ_TIER" = "human" ]; then
-            status_arg=(--status commented)
-          elif [ "$INSTALLED" = "1" ]; then
-            # record-review derives the status from the run result and the agent VERDICT line.
-            status_arg=()
-          elif [ "$REQ_TIER" = "fast" ]; then
-            status_arg=(--status approved --provider deterministic-gate --model policy-verifier)
+          outcome=()
+          if [[ "$RUN_MODEL" == true ]]; then
+            outcome=(--workflow-result ".agents/state/pr-${PR_NUMBER}-result.json")
           else
-            # No model ran: a deterministic gate cannot satisfy a standard or deep tier.
-            status_arg=(--status commented --provider deterministic-gate --model policy-verifier)
+            outcome=(--status approved --provider deterministic-gate --model policy-verifier
+              --summary "Deterministic classification completed. Model review was skipped because no provider could run it.")
+          fi
+          if [[ "$REQ_TIER" == human ]]; then
+            outcome+=(--status commented)
           fi
           python3 scripts/github/pr_review.py record-review "${common[@]}" \
-            --workflow-result ".agents/state/pr-${PR_NUMBER}-result.json" \
+            --tier "$EXECUTED_TIER" --capacity-cap \
             --output-markdown ".agents/state/pr-${PR_NUMBER}-review.md" \
-            "${status_arg[@]}"
+            "${outcome[@]}"
           gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file ".agents/state/pr-${PR_NUMBER}-review.md"
 
       - name: Persist review history to the history branch

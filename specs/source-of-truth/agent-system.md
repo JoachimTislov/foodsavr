@@ -47,7 +47,11 @@ scripts/agents/agentctl router status
 scripts/agents/agentctl router matrix
 ```
 
-`.agents/runners/router.json` routes each step's `work_type` and `tier` to policy-safe `(provider, model)` pairs, defaulting to the deterministic local classifier (`decision_provider.enabled: false`) unless an OpenAI-compatible decision endpoint is configured via `ROUTER_BASE_URL`, `ROUTER_API_KEY`, and `ROUTER_MODEL` (`make router-setup`, `make router-check`).
+`make agent-usage` and executing workflows share a one-minute quota cache. A run filters for policy-safe providers, skips exhausted subscriptions, and prefers measured headroom. API-key providers follow measured subscriptions, and failed probes leave quota unknown. The work type and requested tier select a model on the chosen provider. Explicit provider selection still checks exhaustion.
+
+`.agents/runners/router.json` defines model routing. The local deterministic router is the default. An enabled OpenAI-compatible decision endpoint can resolve a route when quota does not establish a preferred provider, subject to the workflow network policy. HTTP 401, 402, or 429 disables the remote router for the rest of the run and uses local routing. When no provider can execute a step, the run records a manual handoff and stops.
+
+Run `make agent-status` for service health, one recovery action per degraded component, quotas, and recent activity. Use `scripts/agents/agentctl status -o json` for automation or `--offline` to skip remote probes.
 
 ### 2.3 Local Verification & Pre-Push Gate
 
@@ -56,8 +60,8 @@ scripts/agents/agentctl router matrix
 
 ### 2.4 Issue-to-PR Lifecycle & PR Readiness
 
-1. **Automated implementation**: When the repository owner labels an issue `triage/ready-for-agent`, `.github/workflows/agent-implement.yml` executes `implement-issue.json` inside an unprivileged `implement` job (`network: none`), verifies analyze/localization/tests on the exported patch, and hands the patch to a separate `publish` job that commits with `Agent-Session:` and opens a PR.
-2. **Adaptive automated review**: Opening a non-draft PR, marking a draft PR `ready_for_review`, or pushing new commits (`synchronize`) triggers `.github/workflows/agent-review.yml` on same-repository branches. The workflow classifies the PR via `scripts/github/pr_review.py classify`, pre-stages `.agents/state/pr-<N>.json` and `.agents/state/pr-<N>.md`, runs `integrate-pr.json` at the required model tier, records the outcome on the `agent-review-history` branch (`scripts/github/review_history.sh`; the merge gate and classifier fetch it, and `.agents/reviews/history.jsonl` on main is only a seed), and posts a head-bound attestation comment as `github-actions[bot]` (`<!-- agent-review: {"pr": N, "head_sha": "...", "tier": "...", "status": "approved"} -->`). The PR author never counts as its own attester, and a run only attests `approved` when an agent step ends with a `VERDICT: APPROVE` line; without a model, only the `fast` tier gets a deterministic approval and other tiers stay `commented` until a real review runs. History records are never an attestation source. The model runs in a separate read-only `review` job; the `publish` job holds write permissions, never runs a model, and re-fetches history itself. Exempt PRs record an outcome without a comment.
+1. **Automated implementation**. `.github/workflows/agent-implement.yml` checks for a model login and the agent GitHub App before scheduling implementation. With both configured, it executes `implement-issue.json` in an unprivileged job, verifies the exported patch, and hands it to a separate job that commits with `Agent-Session` and opens a PR.
+2. **Adaptive automated review**. `.github/workflows/agent-review.yml` classifies the PR and selects the highest executable tier up to the requested tier. A model approval requires `VERDICT: APPROVE` from the verification step. When model execution is unavailable, the workflow records a deterministic `fast` policy review. The trusted Actions comment binds the approval to the PR and head SHA and records the requested tier, executed tier, and any capacity cap. A human review requirement still needs formal maintainer approval. The write-enabled job posts the attestation and separately records the outcome on the `agent-review-history` branch. History supports tier learning.
 3. **PR readiness signal**: `.github/workflows/merge-gate.yml` triggers `dispatch` on `opened` (when `!draft`), `ready_for_review`, and `labeled` (`merge/auto`) for same-repository branches (forks are ignored), and also wakes when `"Agent review"` completes, reconciling the serialized gate on `main` and reporting ready PRs (`awaiting opt-in`, `held`, or `untrusted`).
 4. **Opt-in auto-integration**: Applying `merge/auto` to a two-way-door PR hands the branch to `scripts/github/merge_gate.py` ([ADR 0006](decisions/0006-automated-integration-of-revertable-changes.md)). Before resuming manual work on an opted-in branch, remove `merge/auto` and fetch because the gate may have rebased it.
 
@@ -67,7 +71,7 @@ scripts/agents/agentctl router matrix
 
 Auto-merging (`merge/auto` execution and Dependabot patch/minor auto-labeling) in `scripts/github/merge_gate.py` enforces **trusted-author-only** eligibility (`is_trusted_author`) and **head-bound adaptive review tier compliance** (`scripts/github/pr_review.py`):
 
-- **Denied**: Cross-repo fork PRs (`isCrossRepository`), draft PRs, unknown authors, non-collaborator associations (`NONE`, `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, `FIRST_TIMER`, `MANNEQUIN`), unallowlisted bots, truncated review threads (`reviewThreads.pageInfo.hasNextPage`), and PRs lacking a passing review attestation at `>= required_tier` for the exact `headRefOid`.
+- **Denied**: Cross-repo fork PRs (`isCrossRepository`), draft PRs, unknown authors, non-collaborator associations (`NONE`, `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, `FIRST_TIMER`, `MANNEQUIN`), unallowlisted bots, truncated review threads (`reviewThreads.pageInfo.hasNextPage`), and PRs lacking an approval for the exact `headRefOid` at the required tier or with a capacity cap attested by `github-actions[bot]`. Security-sensitive paths and `risk/security` require a human merge.
 - **Allowed human authors**: Non-fork PRs opened by the repository owner (`OWNER`) or trusted repository maintainers (`MEMBER`, `COLLABORATOR`).
 - **Allowed bots**: `dependabot[bot]`, `github-actions[bot]`, and an optional agent GitHub App slug configured via repository variable `AGENT_APP_SLUG` (or `--trusted-bot`).
 - **Adaptive review tiers**:

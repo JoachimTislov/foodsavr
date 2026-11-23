@@ -70,8 +70,8 @@ CI and local automated workflows invoke vendor harnesses directly (`claude`, `co
 
 - **Claude (`claude`)**: queries `get_usage` via stream-json control protocol for `five_hour` (session) and `seven_day` (weekly) utilization and reset timestamps.
 - **Codex (`codex`)**: queries `codex app-server` JSON-RPC `account/rateLimits/read` for `primary` and `secondary` windows.
-- **Antigravity (`agy`)**: queries `v1internal:retrieveUserQuotaSummary` (fallback `fetchAvailableModels`) using `~/.gemini/antigravity-cli/antigravity-oauth-token` (or treats `GEMINI_API_KEY` as API-key/unmetered).
-- **Routing rule**: skip any harness with an exhausted active window (`used_percent >= threshold` and `resets_at > now`), then select the policy-safe installed harness with the highest remaining headroom (`min(100 - used_percent)` across blocking windows), failing open to unprobed or API-key harnesses so a transient quota-endpoint error never blocks CI.
+- **Antigravity (`agy`)**: queries `v1internal:retrieveUserQuotaSummary` (fallback `fetchAvailableModels`) using `~/.gemini/antigravity-cli/antigravity-oauth-token` (or uses API-key mode with `GEMINI_API_KEY`). If Google rejects the saved login, `agy models` refreshes it through the native CLI. A login that still fails needs owner sign-in.
+- **Routing rule**: skip any harness with an exhausted active window (`used_percent >= threshold` and `resets_at > now`), then select the policy-safe installed harness with the highest remaining headroom (`min(100 - used_percent)` across blocking windows), then rank API-key and unknown-quota harnesses in that order. Cache normalized probe results for one minute. Use task routing to choose the model for the selected harness.
 
 ## Considered options
 

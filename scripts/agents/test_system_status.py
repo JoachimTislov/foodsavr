@@ -307,7 +307,8 @@ class TestObserveAgentSystem(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(proc_strict.returncode, 1)
-            self.assertIn("RemoteRouterBlocked", proc_strict.stdout)
+            self.assertIn("decision-router — degraded.", proc_strict.stdout)
+            self.assertNotIn("Reconcile", proc_strict.stdout)
 
 
 if __name__ == "__main__":

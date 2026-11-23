@@ -9,6 +9,7 @@ import stat
 import sys
 import tempfile
 import unittest
+import urllib.error
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -23,6 +24,42 @@ def _write_exec(path: Path, body: str) -> Path:
     path.write_text(body, encoding="utf-8")
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
     return path
+
+
+class AntigravityRefreshTest(unittest.TestCase):
+    def test_expired_login_is_refreshed_by_the_native_cli(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            token_path = home / ".gemini/antigravity-cli/antigravity-oauth-token"
+            token_path.parent.mkdir(parents=True)
+            token_path.write_text(json.dumps({"token": {"access_token": "expired"}}))
+            _write_exec(
+                home / "agy",
+                f"#!{sys.executable}\n"
+                "from pathlib import Path\n"
+                f"Path({str(token_path)!r}).write_text("
+                + repr(json.dumps({"token": {"access_token": "refreshed"}})) + ")\n",
+            )
+
+            def quota(url, token, payload, timeout):
+                if token == "expired":
+                    raise urllib.error.HTTPError(url, 401, "Unauthorized", {}, None)
+                return {"buckets": [{"remainingFraction": 0.8}]}
+
+            env = {**os.environ, "HOME": tmp, "PATH": tmp}
+            result = hu.probe_antigravity(env=env, now=NOW, http_post=quota)
+            self.assertEqual(result.min_remaining_percent(NOW), 80.0)
+
+    def test_rejected_login_reports_one_owner_action(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            token_path = Path(tmp) / "token"
+            token_path.write_text('{"access_token": "invalid"}')
+
+            def quota(url, token, payload, timeout):
+                raise urllib.error.HTTPError(url, 403, "Forbidden", {}, None)
+
+            result = hu.probe_antigravity(token_path=token_path, now=NOW, http_post=quota)
+            self.assertEqual(result.error, "Owner action: sign in again with agy.")
 
 
 class UsageWindowTest(unittest.TestCase):
@@ -257,6 +294,25 @@ class RankingTest(unittest.TestCase):
         self.assertEqual(eligible, [])
         self.assertTrue(meta["all_exhausted"])
         self.assertEqual(set(meta["skipped"]), {"claude", "codex"})
+
+
+class QuotaCacheTest(unittest.TestCase):
+    def test_reuses_quota_until_expiry_or_account_change(self):
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(hu, "probe_provider") as probe:
+            probe.side_effect = [
+                hu.HarnessUsageSnapshot("codex", "ok", (hu.UsageWindow("5h", "5h", used),))
+                for used in (8, 17, 30)
+            ]
+            env = {"HOME": tmp, "OPENAI_API_KEY": "first"}
+            options = {"cache_dir": Path(tmp), "env": env}
+            self.assertEqual(hu.probe_all(["codex"], now=NOW, **options)["codex"].min_remaining_percent(NOW), 92)
+            self.assertEqual(hu.probe_all(["codex"], now=NOW, **options)["codex"].min_remaining_percent(NOW), 92)
+            env["OPENAI_API_KEY"] = "second"
+            self.assertEqual(hu.probe_all(["codex"], now=NOW, **options)["codex"].min_remaining_percent(NOW), 83)
+            later = NOW + timedelta(minutes=2)
+            self.assertEqual(hu.probe_all(["codex"], now=later, **options)["codex"].min_remaining_percent(later), 70)
 
 
 class ResolveStepRouteQuotaTest(unittest.TestCase):

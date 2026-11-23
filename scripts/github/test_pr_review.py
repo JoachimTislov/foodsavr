@@ -3,13 +3,17 @@
 
 from __future__ import annotations
 
+import argparse
+import contextlib
 import importlib.util
+import io
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("pr_review", ROOT / "scripts/github/pr_review.py")
@@ -204,6 +208,35 @@ class ClassifyTierTest(unittest.TestCase):
         self.assertTrue(any("inc-abc123" in r for r in res.escalation_reasons))
 
 
+class PrepareReviewTest(unittest.TestCase):
+    def test_deep_review_uses_highest_executable_tier(self):
+        import agentctl
+
+        specs = agentctl.provider_specs()
+        claude = specs["claude"]
+        claude["models"].pop("claude-opus-5-5")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "workflow.json"
+            path.write_text(pr_review.DEFAULT_WORKFLOW.read_text())
+            args = argparse.Namespace(workflow=str(path), required_tier="deep", provider=["claude", "codex"])
+            codex = agentctl.hu.HarnessUsageSnapshot(
+                "codex", "ok", (agentctl.hu.UsageWindow("5h", "5h", 99),),
+            )
+            output = io.StringIO()
+            with patch.object(agentctl, "provider_specs", return_value=specs), \
+                 patch.object(agentctl, "available_providers", return_value=args.provider), \
+                 patch.object(agentctl, "provider_is_safe", return_value=True), \
+                 patch.object(agentctl.hu, "probe_all", return_value={"codex": codex}), \
+                 contextlib.redirect_stdout(output):
+                self.assertEqual(pr_review.cmd_prepare_review(args), 0)
+
+            self.assertEqual(json.loads(output.getvalue()), {"tier": "balanced", "run_model": True})
+            verify = json.loads(path.read_text())["steps"][-1]
+            self.assertEqual(verify["tier"], "balanced")
+            self.assertEqual(verify["providers"], ["claude"])
+            self.assertEqual(verify["model"], "claude-sonnet-5-5")
+
+
 class AttestationAndHistoryStoreTest(unittest.TestCase):
     def test_format_and_parse_attestation_round_trip(self):
         cls = pr_review.classify_pr(
@@ -235,6 +268,25 @@ class AttestationAndHistoryStoreTest(unittest.TestCase):
         self.assertEqual(parsed["provider"], "claude")
         self.assertEqual(parsed["model"], "claude-opus-5-5")
         self.assertEqual(parsed["session_id"], "sess-42")
+
+    def test_cap_requires_a_trusted_head_bound_actions_attestation(self):
+        marker = '<!-- agent-review: ' + json.dumps({
+            "pr": 50, "head_sha": "abcdef123456", "status": "approved",
+            "required_tier": "deep", "tier": "fast", "cap_reason": "provider-capacity",
+        }) + ' -->'
+
+        def approved(author, head="abcdef123456", required="deep"):
+            return pr_review.evaluate_review_attestation(
+                pr_number=50, head_sha=head, required_tier=required, owner="owner",
+                comments=[{"body": marker, "author": author, "authorAssociation": "OWNER"}],
+            )[0]
+
+        actions = {"__typename": "Bot", "login": "github-actions[bot]"}
+        self.assertTrue(approved(actions))
+        self.assertFalse(approved(actions, head="123456abcdef"))
+        self.assertFalse(approved(actions, required="human"))
+        self.assertFalse(approved({"__typename": "User", "login": "owner"}))
+        self.assertFalse(approved({"__typename": "Bot", "login": "dependabot[bot]"}))
 
     def test_evaluate_review_attestation_via_comment_review_and_history(self):
         marker = pr_review.format_attestation_marker(

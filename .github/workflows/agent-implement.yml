@@ -34,7 +34,7 @@ env:
   HEALING_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.healing_mode == true }}
 
 jobs:
-  implement:
+  capabilities:
     # Owner can trigger any issue; automated healing_mode dispatch from monitoring
     # workflows is restricted to bot actors on issues carrying a healing fingerprint.
     if: >-
@@ -44,6 +44,26 @@ jobs:
        (github.event_name == 'workflow_dispatch' &&
         inputs.healing_mode == true &&
         endsWith(github.actor, '[bot]')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      ready: ${{ steps.credentials.outputs.ready }}
+    steps:
+      - name: Check implementation credentials
+        id: credentials
+        env:
+          HAS_PROVIDER: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.CODEX_AUTH_JSON_B64 != '' || secrets.ANTIGRAVITY_OAUTH_TOKEN_B64 != '' || secrets.GEMINI_API_KEY != '' }}
+          HAS_APP: ${{ (vars.AGENT_APP_ID != '' || secrets.AGENT_APP_ID != '') && secrets.AGENT_APP_PRIVATE_KEY != '' }}
+        run: |
+          if [[ "$HAS_PROVIDER" != true || "$HAS_APP" != true ]]; then
+            echo "Agent implementation skipped. Configure a model login and the agent GitHub App." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  implement:
+    needs: capabilities
+    if: needs.capabilities.outputs.ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 75
     permissions:
@@ -80,40 +100,14 @@ jobs:
         with:
           node-version: 22
 
-      # Harness tokens, not API keys: install only the CLIs whose login is
-      # configured; the router then picks the first policy-safe one installed.
-      - name: Install provider CLIs with harness logins (versions verified in .agents/runners/providers.json)
+      - name: Install configured provider CLIs
+        id: providers
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           CODEX_AUTH_JSON_B64: ${{ secrets.CODEX_AUTH_JSON_B64 }}
           ANTIGRAVITY_OAUTH_TOKEN_B64: ${{ secrets.ANTIGRAVITY_OAUTH_TOKEN_B64 }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          installed=0
-          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
-            npm install --global @anthropic-ai/claude-code@2.1.326; installed=1
-          fi
-          if [ -n "$CODEX_AUTH_JSON_B64" ]; then
-            npm install --global @openai/codex@0.169.0
-            install -d -m 700 "$HOME/.codex"
-            umask 077; echo "$CODEX_AUTH_JSON_B64" | base64 -d > "$HOME/.codex/auth.json"; installed=1
-          fi
-          if [ -n "$ANTIGRAVITY_OAUTH_TOKEN_B64" ] || [ -n "$GEMINI_API_KEY" ]; then
-            curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- --skip-aliases --skip-path
-            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-            install -d -m 700 "$HOME/.gemini/antigravity-cli"
-            if [ -n "$ANTIGRAVITY_OAUTH_TOKEN_B64" ]; then
-              umask 077; echo "$ANTIGRAVITY_OAUTH_TOKEN_B64" | base64 -d > "$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
-              printf '{"agentMode":"auto","toolPermission":"proceed-in-sandbox","enableTerminalSandbox":true}\n' > "$HOME/.gemini/antigravity-cli/settings.json"
-            else
-              printf '{"modelProvider":"gemini","agentMode":"auto","toolPermission":"proceed-in-sandbox","enableTerminalSandbox":true}\n' > "$HOME/.gemini/antigravity-cli/settings.json"
-            fi
-            installed=1
-          fi
-          if [ "$installed" = 0 ]; then
-            echo "No harness login configured: run scripts/secrets/rotate.py CLAUDE_CODE_OAUTH_TOKEN (or CODEX_AUTH_JSON_B64 / ANTIGRAVITY_OAUTH_TOKEN_B64 / GEMINI_API_KEY)."
-            exit 1
-          fi
+        run: bash scripts/agents/install-ci-providers.sh
 
       - name: Prepare issue context
         env:
@@ -135,12 +129,23 @@ jobs:
           ROUTER_API_KEY: ${{ secrets.ROUTER_API_KEY }}
           ROUTER_MODEL: ${{ vars.ROUTER_MODEL || secrets.ROUTER_MODEL }}
           AGENT_POLICY_FILE: .agents/policies/agent-implement.json
-          AGENT_QUOTA_ROUTING: "1"
+          PROVIDERS: ${{ steps.providers.outputs.providers }}
         run: |
-          scripts/agents/agentctl workflow run .agents/state/workflows/implement-issue.json \
-            --execute --provider auto --quota-aware > .agents/state/result.json || true
-          rm -f "$HOME/.codex/auth.json" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
-          jq '{status, run_id, session_ids, patch, steps: [.steps[] | {id, status, provider, reason}]}' .agents/state/result.json || true
+          jq --arg roster "$PROVIDERS" '
+            ($roster | split(" ")) as $configured |
+            .steps[].providers |= map(select(. as $name | $configured | index($name) != null))
+          ' .agents/state/workflows/implement-issue.json > .agents/state/workflows/configured-implement.json
+          scripts/agents/agentctl workflow run .agents/state/workflows/configured-implement.json \
+            --execute > .agents/state/result.json || true
+          jq '{status, run_id, session_ids, patch, steps: [.steps[] | {id, status, provider, reason}]}' .agents/state/result.json
+          reason="$(jq -r '.reason // empty' .agents/state/result.json)"
+          if [[ "$reason" == "Manual step required"* ]]; then
+            echo "$reason" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Remove provider credentials
+        if: always()
+        run: rm -f "$HOME/.codex/auth.json" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
 
       - name: Apply patch
         id: patch
@@ -229,24 +234,8 @@ jobs:
       pull-requests: write
       issues: write
     steps:
-      # The agent GitHub App (scripts/human/github/create-agent-app.sh) gives the bot its
-      # own identity and a one-hour token whose pushes and PRs trigger CI. Without
-      # it, the job falls back to the Actions token.
-      - name: Check agent App configuration
-        id: app-config
-        env:
-          AGENT_APP_ID: ${{ vars.AGENT_APP_ID || secrets.AGENT_APP_ID }}
-          AGENT_APP_PRIVATE_KEY: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
-        run: |
-          if [ -n "$AGENT_APP_ID" ] && [ -n "$AGENT_APP_PRIVATE_KEY" ]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Agent App not configured; publishing with the Actions token (run scripts/human/github/create-agent-app.sh)."
-          fi
-
       - name: Mint agent App token
         id: app
-        if: steps.app-config.outputs.configured == 'true'
         uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ vars.AGENT_APP_ID || secrets.AGENT_APP_ID }}
@@ -266,7 +255,7 @@ jobs:
       - name: Commit, push, and open PR
         if: needs.implement.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
           APP_SLUG: ${{ steps.app.outputs.app-slug }}
           SESSION: ${{ needs.implement.outputs.session }}
           VERIFY: ${{ needs.implement.outputs.verify }}
@@ -278,14 +267,9 @@ jobs:
           if [ "$HEALING_MODE" = "true" ]; then
             python3 scripts/monitoring/check_healing_patch.py --git-cached
           fi
-          if [ -n "$APP_SLUG" ]; then
-            bot="${APP_SLUG}[bot]"
-            bot_id="$(gh api "/users/${bot}" --jq .id)"
-            ci_note="Pushed by ${bot}, so CI runs on this PR."
-          else
-            bot="github-actions[bot]"; bot_id=41898282
-            ci_note="Opened with the Actions token, which does not trigger workflows: push a commit or re-run checks to start CI (or set up the agent App)."
-          fi
+          bot="${APP_SLUG}[bot]"
+          bot_id="$(gh api "/users/${bot}" --jq .id)"
+          ci_note="Pushed by ${bot}, so CI runs on this PR."
           git config user.name "$bot"
           git config user.email "${bot_id}+${bot}@users.noreply.github.com"
           git switch -c "$BRANCH"
@@ -332,7 +316,7 @@ jobs:
       - name: Report to the issue
         if: always()
         env:
-          GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
           CHANGED: ${{ needs.implement.outputs.changed }}
           STATUS: ${{ needs.implement.outputs.status }}
           VERIFY: ${{ needs.implement.outputs.verify }}

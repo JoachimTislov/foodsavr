@@ -401,7 +401,10 @@ def observe_agent_system(
             components.append(_remote_unavailable("ci-runners", "agent-implement", "CIRunnersReady", "GitHubAPIError", sec_err))
         else:
             auth_present = [s for s in ci["providerAuthSecretsAnyOf"] if s in secret_names]
-            app_missing = [s for s in ci["agentAppSecretsAllOf"] if s not in secret_names]
+            app_missing = [
+                s for s in ci["agentAppSecretsAllOf"]
+                if s not in secret_names and not (s == "AGENT_APP_ID" and (variables or {}).get(s))
+            ]
             reasons: list[str] = []
             msgs: list[str] = []
             rems: list[str] = []
@@ -411,7 +414,7 @@ def observe_agent_system(
                 rems.append("Run one of scripts/human/agents/{login-claude-runner,sync-codex-runner,sync-antigravity-runner}.sh")
             if app_missing:
                 reasons.append("MissingAgentApp")
-                msgs.append(f"missing {', '.join(app_missing)} (GITHUB_TOKEN PRs skip CI & merge/auto)")
+                msgs.append(f"missing {', '.join(app_missing)}")
                 rems.append("Run scripts/human/github/create-agent-app.sh")
             if reasons:
                 components.append(_component(
@@ -430,15 +433,18 @@ def observe_agent_system(
         if secret_names is None:
             components.append(_remote_unavailable("ci-runners", "merge-gate", "MergeGateReady", "GitHubAPIError", sec_err))
         else:
-            mg_missing = [s for s in ci["mergeGateSecretsAllOf"] if s not in secret_names]
+            release_app = "RELEASE_GATE_APP_PRIVATE_KEY" in secret_names and (
+                "RELEASE_GATE_APP_ID" in secret_names or bool((variables or {}).get("RELEASE_GATE_APP_ID"))
+            )
+            has_gate_credentials = release_app or all(s in secret_names for s in ci["mergeGateSecretsAllOf"])
             ok_mg, mg_runs, _ = raw["merge_runs"]
             conclusion, run_id = _latest_run_conclusion(mg_runs) if ok_mg else (None, None)
-            if mg_missing:
+            if not has_gate_credentials:
                 components.append(_component(
                     "ci-runners", "merge-gate", "0/1", "NotReady", "MissingMergeGateToken",
-                    f"Missing secret(s): {', '.join(mg_missing)}",
+                    "Release-Gate App and legacy token are unconfigured.",
                     condition_type="MergeGateReady", owner="owner",
-                    remediation="Run `scripts/secrets/rotate.py MERGE_GATE_TOKEN`.",
+                    remediation="Configure the Release-Gate App or MERGE_GATE_TOKEN.",
                 ))
             elif conclusion in {"failure", "timed_out", "startup_failure"}:
                 components.append(_component(
@@ -703,6 +709,50 @@ def observe_agent_system(
             "reconcile": reconcile,
         },
     }
+
+
+def render_summary(report: dict[str, Any], *, namespace: str | None = None) -> str:
+    status = report["status"]
+    components = [
+        component for component in status["components"]
+        if component["reason"] != "OfflineMode" and (namespace is None or component["namespace"] == namespace)
+    ]
+    lines = [f"Agents for {report['metadata']['name']}" + (" (offline)" if status["offline"] else "")]
+    ready = [component["name"] for component in components if component["status"] == "Ready"]
+    if ready:
+        lines.append("Working: " + ", ".join(ready))
+    for component in components:
+        if component["status"] == "Ready":
+            continue
+        action = component["remediation"] or next(
+            (item["action"] for item in component.get("remediations", [])), None,
+        )
+        detail = " ".join(component["message"].split())
+        state = {"NotReady": "unavailable"}.get(component["status"], component["status"].lower())
+        lines.append(f"  {component['name']} — {state}. {detail}" + (f" {action}" if action else ""))
+    if "quotas" in status:
+        quotas = status["quotas"]
+        lines.append("Quota")
+        for name in (*status["provider_order"], *(name for name in quotas if name not in status["provider_order"])):
+            quota = quotas[name]
+            if quota["status"] == "ok" and quota["min_remaining_percent"] is not None:
+                detail = f"{quota['min_remaining_percent']:g}% remaining"
+                if quota["exhausted"]:
+                    detail += " (paused until reset)"
+            elif quota["status"] == "unmetered":
+                detail = "API key, subscription quota unavailable"
+            else:
+                detail = "unknown"
+                if quota.get("error"):
+                    detail += f". {' '.join(quota['error'].split())}"
+            lines.append(f"  {name} — {detail}")
+    activity = status.get("activity", [])
+    lines.append("Recent activity" if activity else "No recent agent activity.")
+    for entry in activity:
+        detail = " ".join(entry.get("detail", "").split())
+        task = " ".join(entry["task"].split())
+        lines.append(f"  {task} — {entry['state']}" + (f". {detail}" if detail else ""))
+    return "\n".join(lines)
 
 
 def render_table(report: dict[str, Any], *, wide: bool = False, namespace: str | None = None) -> str:
