@@ -15,6 +15,54 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
 
 jobs:
+  # `Validation result` is a commit status, not a check run: GitHub counts a
+  # skipped required check run as passing, but a status that is never posted
+  # stays pending. See scripts/ci/validation_status.py.
+  validation-hold:
+    name: Validation status (hold)
+    if: github.event_name == 'pull_request' && github.event.action != 'labeled' && !contains(github.event.pull_request.labels.*.name, 'merge/auto')
+    permissions:
+      contents: read
+      statuses: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: scripts/ci
+      - name: Post pending Validation result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PR_ACTION: ${{ github.event.action }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+        run: python3 scripts/ci/validation_status.py hold
+
+  validation-start:
+    name: Validation status (start)
+    if: (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'merge/auto')) && (github.event.action != 'labeled' || github.event.label.name == 'merge/auto')
+    permissions:
+      contents: read
+      statuses: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: scripts/ci
+      - name: Post pending Validation result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+        run: python3 scripts/ci/validation_status.py start
+
   changes:
     name: Detect changed areas
     if: (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'merge/auto')) && (github.event.action != 'labeled' || github.event.label.name == 'merge/auto')
@@ -304,3 +352,27 @@ jobs:
         if: steps.rules_secret.outputs.available == 'true'
         working-directory: firestore-rules
         run: npx jest --ci
+
+  validation-result:
+    name: Validation status (result)
+    needs: [validation-start, changes, web-smoke, android-smoke, firestore-rules]
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'merge/auto')) && (github.event.action != 'labeled' || github.event.label.name == 'merge/auto') }}
+    permissions:
+      contents: read
+      statuses: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: scripts/ci
+      - name: Post final Validation result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: python3 scripts/ci/validation_status.py final
