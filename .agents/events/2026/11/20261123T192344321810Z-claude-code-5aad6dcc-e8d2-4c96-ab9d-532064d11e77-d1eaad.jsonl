@@ -1,0 +1,1 @@
+{"commits": ["2b613f4f705278bcf0133011c54bba623362b7ba"], "harness": "claude-code", "issues": [], "provider": "anthropic", "prs": [], "session_id": "claude-code:5aad6dcc-e8d2-4c96-ab9d-532064d11e77", "sources": [], "started_at": "2026-11-23T19:22:22+00:00", "status": "active", "stream": "sessions", "summary": "Fix merge-gate CANCELLED-superseded check evaluation (checks.py)"}
