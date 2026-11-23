@@ -114,12 +114,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p .agents/state/workflows
-          gh issue view "$ISSUE" --json number,title,body,labels \
-            --jq '"# Issue #\(.number): \(.title)\n\nLabels: \([.labels[].name] | join(", "))\n\n\(.body)"' \
-            > ".agents/state/issue-${ISSUE}.md"
+          gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json number,title,body,labels \
+            > ".agents/state/issue-${ISSUE}.json"
+          jq -r '"# Issue #\(.number): \(.title)\n\nLabels: \([.labels[].name] | join(", "))\n\n\(.body)"' \
+            ".agents/state/issue-${ISSUE}.json" > ".agents/state/issue-${ISSUE}.md"
           jq --arg file ".agents/state/issue-${ISSUE}.md" --arg issue "#${ISSUE}" \
-            '.context.files += [$file] | .references.issues = [$issue]' \
-            .agents/workflows/implement-issue.json > .agents/state/workflows/implement-issue.json
+            --slurpfile metadata ".agents/state/issue-${ISSUE}.json" '
+            [$metadata[0].labels[].name] as $labels |
+            .context.files += [$file] | .references.issues = [$issue] |
+            .steps[] |= (
+              if $labels | index("risk/security") then .work_type = "security" | .tier = "deep"
+              elif $labels | index("type/documentation") then .work_type = "documentation"
+              elif $labels | index("type/dependency") then .work_type = "refactoring"
+              else . end
+            )
+          ' .agents/workflows/implement-issue.json > .agents/state/workflows/implement-issue.json
 
       - name: Run implement-issue workflow
         env:
