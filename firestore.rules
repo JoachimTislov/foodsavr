@@ -1,0 +1,191 @@
+rules_version = '2';
+
+// FoodSavr Firestore security rules. Default deny; each block
+// below maps to a path the app uses. Admin = uid listed in roles/admins.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- helpers ------------------------------------------------------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // roles/admins is a single document whose field names are admin uids
+    // (seeded by SeedingService.seedUserDocument). Only evaluated when a
+    // rule needs it, because every get() is a billed read.
+    function isAdmin() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/roles/admins) &&
+        get(/databases/$(database)/documents/roles/admins).data
+          .get(request.auth.uid, false) == true;
+    }
+
+    // Safe field accessors: a missing field yields a default instead of an
+    // evaluation error.
+    function isGlobalDoc(data) {
+      return data.get('isGlobal', false) == true;
+    }
+
+    function ownerOf(data) {
+      return data.get('userId', null);
+    }
+
+    // A field that is absent, null, or a string of at most maxLen chars.
+    function optionalString(data, field, maxLen) {
+      return data.get(field, null) == null ||
+        (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    // ---- products: personal (userId == uid) and global catalog --------
+    // Global catalog documents have isGlobal == true and userId == 'global'.
+    // registryType 'personal' | 'current' are the per-user scopes.
+
+    function validPersonalProduct(data) {
+      return ownerOf(data) == request.auth.uid &&
+        !isGlobalDoc(data) &&
+        data.get('registryType', 'current') in ['current', 'personal'] &&
+        data.get('name', '') is string &&
+        data.get('name', '').size() <= 200;
+    }
+
+    function validGlobalProduct(data) {
+      return isGlobalDoc(data) &&
+        ownerOf(data) == 'global' &&
+        data.get('name', '') is string &&
+        data.get('name', '').size() <= 200;
+    }
+
+    match /products/{productId} {
+      // get and list: own documents or any global catalog document. Queries
+      // must constrain userId == uid or isGlobal == true to be allowed.
+      allow read: if signedIn() &&
+        (ownerOf(resource.data) == request.auth.uid ||
+         isGlobalDoc(resource.data));
+
+      // Owners create personal products only; userId is fixed to the caller.
+      allow create: if signedIn() &&
+        (validPersonalProduct(request.resource.data) ||
+         (validGlobalProduct(request.resource.data) && isAdmin()));
+
+      // userId and isGlobal cannot change. Owners edit their own personal
+      // documents; admins edit global catalog documents.
+      allow update: if signedIn() &&
+        ((ownerOf(resource.data) == request.auth.uid &&
+          !isGlobalDoc(resource.data) &&
+          validPersonalProduct(request.resource.data)) ||
+         (isGlobalDoc(resource.data) &&
+          validGlobalProduct(request.resource.data) &&
+          isAdmin()));
+
+      allow delete: if signedIn() &&
+        ((ownerOf(resource.data) == request.auth.uid &&
+          !isGlobalDoc(resource.data)) ||
+         (isGlobalDoc(resource.data) && isAdmin()));
+    }
+
+    // ---- collections: per-user inventories and shopping lists ---------
+
+    function validCollection(data) {
+      return ownerOf(data) == request.auth.uid &&
+        data.get('name', '') is string &&
+        data.get('name', '').size() <= 200 &&
+        data.get('productIds', []) is list;
+    }
+
+    match /collections/{collectionId} {
+      allow read: if isOwner(ownerOf(resource.data));
+      allow create: if signedIn() && validCollection(request.resource.data);
+      // userId cannot change: it must equal the caller before and after.
+      allow update: if isOwner(ownerOf(resource.data)) &&
+        validCollection(request.resource.data);
+      allow delete: if isOwner(ownerOf(resource.data));
+    }
+
+    // ---- users/{uid}/**: per-account data (settings/preferences) ------
+
+    match /users/{userId}/{path=**} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // ---- owners/{uid}/rawEvents: create-only event inbox (ADR 0005) ---
+    // The owner can create a new event and read one by id (idempotency
+    // check). Events can never be changed or deleted from a client.
+
+    function validRawEvent(eventId, ownerId, data) {
+      return data.keys().hasAll(['id', 'ownerId', 'source', 'externalId',
+                                 'occurredAt', 'payload', 'schemaVersion']) &&
+        data.keys().hasOnly(['id', 'ownerId', 'source', 'provider',
+                             'externalId', 'occurredAt', 'receivedAt',
+                             'payload', 'schemaVersion', 'processedSeq']) &&
+        data.id == eventId &&
+        data.ownerId == ownerId &&
+        data.source in ['receipt', 'loyaltyApi', 'order', 'barcode',
+                        'freeText', 'userCommand'] &&
+        data.externalId is string &&
+        data.occurredAt is timestamp &&
+        data.get('receivedAt', request.time) == request.time &&
+        data.payload is map &&
+        data.schemaVersion is int && data.schemaVersion >= 1 &&
+        data.get('processedSeq', null) == null;
+    }
+
+    match /owners/{ownerId}/rawEvents/{eventId} {
+      allow get: if isOwner(ownerId);
+      allow create: if isOwner(ownerId) &&
+        validRawEvent(eventId, ownerId, request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // ---- runtime_errors: create-only error reports --------------------
+    // Written by SparkFirestoreErrorReporter; read by the monitoring poller
+    // with service credentials, which bypass these rules.
+
+    match /runtime_errors/{errorId} {
+      allow create: if signedIn() &&
+        request.resource.data.keys().hasOnly(['status', 'platform',
+          'environment', 'deployment_level', 'error_type', 'message',
+          'reason', 'fatal', 'stack_frames', 'occurred_at',
+          'occurrence_count']) &&
+        request.resource.data.keys().hasAll(['status', 'platform',
+          'error_type', 'message', 'fatal', 'occurred_at']) &&
+        request.resource.data.status == 'new' &&
+        request.resource.data.occurrence_count == 1 &&
+        request.resource.data.fatal is bool &&
+        request.resource.data.platform is string &&
+        request.resource.data.platform.size() <= 32 &&
+        request.resource.data.error_type is string &&
+        request.resource.data.error_type.size() <= 200 &&
+        request.resource.data.message is string &&
+        request.resource.data.message.size() <= 500 &&
+        optionalString(request.resource.data, 'reason', 200) &&
+        optionalString(request.resource.data, 'environment', 64) &&
+        optionalString(request.resource.data, 'deployment_level', 64) &&
+        request.resource.data.get('stack_frames', []) is list &&
+        request.resource.data.get('stack_frames', []).size() <= 20 &&
+        request.resource.data.occurred_at is string &&
+        request.resource.data.occurred_at.size() <= 40;
+      allow read, update, delete: if false;
+    }
+
+    // ---- admin registry ----------------------------------------------
+    // Admins can read it; nobody can write it from a client. Manage it with
+    // the console or Admin SDK / REST with service credentials.
+
+    match /roles/{roleDoc} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ---- default deny (also the effect of no match) -------------------
+    // _migrations and any other path is reachable only with service
+    // credentials, which bypass rules.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

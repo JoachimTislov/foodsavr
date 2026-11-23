@@ -2382,11 +2382,11 @@ class ArchiveTest(unittest.TestCase):
         env_file = self.dir / ".env"
         codecov_value = fake_token("", 16)
         env_file.write_text(f"CODECOV_TOKEN='{codecov_value}'\nFIREBASE_CLI_TOKEN=short\nFACEBOOK_CLIENT_TOKEN=publicvalue123\nUNLISTED=zzzzzzzzzzzz\n")
-        secrets = self.sa.registry_secrets(ROOT / "scripts/secrets/registry.toml", {"FIRESTORE_RULES_B64": "env-supplied-value"}, [env_file])
-        self.assertEqual(secrets, {"CODECOV_TOKEN": codecov_value, "FIRESTORE_RULES_B64": "env-supplied-value"})  # public, short, unlisted ignored
+        secrets = self.sa.registry_secrets(ROOT / "scripts/secrets/registry.toml", {"CODEX_AUTH_JSON_B64": "env-supplied-value"}, [env_file])
+        self.assertEqual(secrets, {"CODECOV_TOKEN": codecov_value, "CODEX_AUTH_JSON_B64": "env-supplied-value"})  # public, short, unlisted ignored
         redactor = self.sa.Redactor(secrets)
         out = redactor.text(f"a {codecov_value} b env-supplied-value c publicvalue123 d short")
-        self.assertEqual(out, "a [REDACTED:CODECOV_TOKEN] b [REDACTED:FIRESTORE_RULES_B64] c publicvalue123 d short")
+        self.assertEqual(out, "a [REDACTED:CODECOV_TOKEN] b [REDACTED:CODEX_AUTH_JSON_B64] c publicvalue123 d short")
         self.assertEqual(redactor.scan(out), [])
 
     def test_env_dump_and_pem_inside_json_strings_stay_valid_jsonl(self) -> None:
