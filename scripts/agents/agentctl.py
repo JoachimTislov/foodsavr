@@ -49,6 +49,7 @@ INDEX = configured_path("AGENT_SESSION_INDEX", ROOT / el.LEGACY_SESSIONS_REL)
 REPO_ROOT = ROOT
 SCHEMA = configured_path("AGENT_KNOWLEDGE_SCHEMA", ROOT / ".agents/knowledge/schema.sql")
 DATABASE = configured_path("AGENT_KNOWLEDGE_DB", ROOT / ".agents/state/knowledge.sqlite3")
+QUOTA_CACHE = ROOT / ".agents/state/quota"
 RUNNERS = configured_path("AGENT_RUNNERS_FILE", ROOT / ".agents/runners/providers.json")
 POLICY = configured_path("AGENT_POLICY_FILE", ROOT / ".agents/policies/default.json")
 ROUTER = configured_path("AGENT_ROUTER_FILE", ROOT / ".agents/runners/router.json")
@@ -1638,7 +1639,7 @@ def _best_model_for_provider(
                 continue
             score = 0
             if meta.get("tier") == profile.tier.value:
-                score += 4
+                score += 8
             if profile.work_type.value in meta.get("work_types", []):
                 score += 3
             if meta.get("reasoning_effort") == profile.reasoning_effort:
@@ -1706,7 +1707,7 @@ def select_local_model_route(
             tier_match = _best_model_for_provider(spec, profile, None)
             if tier_match and models.get(tier_match, {}).get("tier") == profile.tier.value:
                 pref_model = tier_match
-        elif isinstance(models, dict) and models and pref_model not in models:
+        if isinstance(models, dict) and models and pref_model not in models:
             pref_model = _best_model_for_provider(spec, profile, None) or pref_model
         return (
             pref_provider,
@@ -2229,6 +2230,46 @@ def _local_system_snapshot() -> ss.LocalSnapshot:
     )
 
 
+def agent_activity(runs: Path, ref: datetime) -> list[dict[str, str]]:
+    activity = []
+    latest_workflows = set()
+    recent = []
+    for path in runs.glob("*/result.json"):
+        try:
+            run = load_json(path)
+        except ValueError:
+            continue
+        started = hu.parse_iso(run.get("started_at"))
+        if started and 0 <= (ref - started).total_seconds() <= 86400:
+            recent.append((started, path, run))
+    for _, path, run in sorted(recent, reverse=True):
+        try:
+            workflow = run["workflow_id"]
+            state = run["status"]
+            if state == "running":
+                marker = load_json(path.parent / "active.json")
+                os.kill(int(marker["pid"]), 0)
+                activity.append({"state": state, "task": workflow})
+                continue
+            if state == "planned" or workflow in latest_workflows:
+                continue
+            latest_workflows.add(workflow)
+            if state in {"failed", "unavailable", "awaiting_acceptance"}:
+                reason = run.get("reason") or next(
+                    (step.get("reason") or step.get("route_reason") for step in run.get("steps", [])
+                     if step.get("status") in {"failed", "unavailable", "awaiting_acceptance"}),
+                    None,
+                )
+                activity.append({"state": state, "task": workflow, "detail": str(reason or "see agentctl runs list")})
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    for session in reversed(records(INDEX)):
+        started = hu.parse_iso(session.get("started_at"))
+        if session.get("status") == "active" and started and 0 <= (ref - started).total_seconds() < 86400:
+            activity.append({"state": "registered", "task": str(session.get("summary") or session["session_id"])})
+    return activity[:5]
+
+
 def status_command(args: argparse.Namespace) -> int:
     manifest_path = Path(args.manifest).expanduser() if getattr(args, "manifest", None) else SYSTEM
     manifest = load_json(manifest_path)
@@ -2238,6 +2279,13 @@ def status_command(args: argparse.Namespace) -> int:
         return 1
     report = ss.observe_agent_system(ROOT, manifest, _local_system_snapshot(), offline=bool(args.offline))
     ns = getattr(args, "namespace", None)
+    ref = hu.utc_now()
+    if not args.offline:
+        quota = hu.probe_all(cache_dir=QUOTA_CACHE, now=ref)
+        recommended, _ = hu.rank_providers_by_quota(list(quota), quota, now=ref)
+        report["status"]["quotas"] = {name: snap.to_dict(ref) for name, snap in quota.items()}
+        report["status"]["provider_order"] = recommended
+    report["status"]["activity"] = agent_activity(Path(args.database).expanduser().parent / "runs", ref)
     if args.output == "json":
         payload = report
         if ns:
@@ -2251,8 +2299,10 @@ def status_command(args: argparse.Namespace) -> int:
                 },
             }
         print(json.dumps(payload, indent=2, sort_keys=True))
+    elif args.output == "wide":
+        print(ss.render_table(report, wide=True, namespace=ns))
     else:
-        print(ss.render_table(report, wide=(args.output == "wide"), namespace=ns))
+        print(ss.render_summary(report, namespace=ns))
     if args.strict:
         comps = report["status"]["components"]
         if ns:
@@ -2265,7 +2315,7 @@ def status_command(args: argparse.Namespace) -> int:
 def usage_command(args: argparse.Namespace) -> int:
     providers = args.provider or list(hu.SUPPORTED_PROVIDERS)
     ref = hu.utc_now()
-    snapshots = hu.probe_all(providers, timeout=float(args.timeout), now=ref)
+    snapshots = hu.probe_all(providers, timeout=float(args.timeout), now=ref, cache_dir=QUOTA_CACHE)
     ranked, meta = hu.rank_providers_by_quota(list(dict.fromkeys(providers)), snapshots, threshold=float(args.threshold), now=ref)
     if args.json:
         payload = {
@@ -2350,6 +2400,10 @@ def resolve_step_route(
     """Resolve provider + model decision for one step using work-profile inference and policy-safe constraints."""
     profile = infer_work_profile(workflow, step, router)
     if explicit_provider is not None:
+        if quota_snapshots is not None:
+            eligible, _ = hu.rank_providers_by_quota([explicit_provider], quota_snapshots)
+            if not eligible:
+                return None, profile, "all-providers-quota-exhausted"
         provider_name, model_name, rationale, source = select_local_model_route(
             profile, safe, specs, router, step, explicit_provider=explicit_provider, explicit_model=explicit_model,
         )
@@ -2371,12 +2425,21 @@ def resolve_step_route(
         eligible, qmeta = hu.rank_providers_by_quota(pref_ordered, quota_snapshots)
         if qmeta["all_exhausted"]:
             return None, profile, "all-providers-quota-exhausted"
-        if qmeta["has_live_quota"] and eligible:
+        requested_model = explicit_model or step.get("model")
+        if requested_model:
+            matches = [name for name in eligible if requested_model in specs.get(name, {}).get("models", {})]
+            # An exhausted matching provider must never redirect its model identifier to another harness.
+            if not matches and any(requested_model in specs.get(name, {}).get("models", {}) for name in safe):
+                return None, profile, "requested-model-quota-exhausted"
+            eligible = matches or eligible
+        if eligible and qmeta["headroom"].get(eligible[0]) is not None:
             chosen = eligible[0]
-            requested_model = explicit_model or (step.get("model") if isinstance(step.get("model"), str) else None)
-            chosen_model = _best_model_for_provider(specs.get(chosen, {}), profile, requested_model) or "default"
-            rem = qmeta["headroom"].get(chosen)
-            rem_label = f"{rem:.0f}pct" if isinstance(rem, (int, float)) else "unmetered"
+            _, chosen_model, _, _ = select_local_model_route(
+                profile, [chosen], specs, router, step, explicit_model=explicit_model,
+            )
+            chosen_model = chosen_model or "default"
+            rem = qmeta["headroom"][chosen]
+            rem_label = "unmetered" if quota_snapshots[chosen].status == "unmetered" else f"{rem:.0f}pct"
             skipped_note = f"; skipped exhausted={sorted(qmeta['skipped'])}" if qmeta["skipped"] else ""
             decision = RouteDecision(
                 provider=chosen,
@@ -2413,7 +2476,7 @@ def resolve_step_route(
         profile, candidate_pool, specs, router, step, explicit_model=explicit_model,
     )
     if provider_name is None:
-        return None, profile, "no-available-policy-safe-provider"
+        return None, profile, remote_reason if remote_reason.startswith("external-router-http-") else "no-available-policy-safe-provider"
     decision = RouteDecision(
         provider=provider_name,
         model=model_name or "default",
@@ -2693,6 +2756,7 @@ def router_decide(args: argparse.Namespace) -> int:
         router,
         policy,
         explicit_model=getattr(args, "model", None),
+        quota_snapshots=hu.probe_all(safe, cache_dir=QUOTA_CACHE),
     )
     model_candidates = build_model_candidates(candidates, specs, safe)
     output = {
@@ -3392,7 +3456,7 @@ def write_provider_artifact(path: Path, provider: str, output: str, exit_code: i
     path.chmod(0o600)
 
 
-def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: str, artifact: str | None = None, references: dict[str, list[str]] | None = None) -> str:
+def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: str, artifact: str | None = None, references: dict[str, list[str]] | None = None, *, reason: str | None = None) -> str:
     ledger = ledger_path()
     identity = tr.detect_session()
     written = append_ledger(ledger, {
@@ -3404,6 +3468,7 @@ def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: st
         "status": status,
         "artifact": artifact or f".agents/state/runs/{run_id}/result.json",
         "references": references or {},
+        **({"reason": reason} if reason else {}),
     })
     return f"{path_reference(written)}#{run_id}"
 
@@ -3577,7 +3642,12 @@ def external_route_decision(
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             body = json.loads(response.read(128 * 1024))
-    except (OSError, ValueError, KeyError, IndexError, urllib.error.URLError):
+    except urllib.error.HTTPError as exc:
+        exc.close()
+        if exc.code in {401, 402, 429}:
+            return None, f"external-router-http-{exc.code}-using-local-routing"
+        return None, "external-router-failed-using-fallback"
+    except (OSError, ValueError, KeyError, IndexError):
         return None, "external-router-failed-using-fallback"
     try:
         parsed = RouteDecision.from_payload(
@@ -3689,16 +3759,17 @@ def workflow_run(args: argparse.Namespace) -> int:
     }
     if explicit_model:
         result["model"] = explicit_model
-    quota_aware = bool(getattr(args, "quota_aware", False)) or os.environ.get("AGENT_QUOTA_ROUTING", "").strip() == "1"
-    quota_snapshots: dict[str, hu.HarnessUsageSnapshot] | None = None
-    if quota_aware and provider is None:
-        step_providers = [
-            p for s in workflow["steps"] for p in (s.get("providers") or list(specs))
-            if p in hu.SUPPORTED_PROVIDERS
-        ]
-        if step_providers:
-            quota_snapshots = hu.probe_all(list(dict.fromkeys(step_providers)))
+    def workflow_quotas() -> dict[str, hu.HarnessUsageSnapshot]:
+        candidates = list(dict.fromkeys(
+            name for step in workflow["steps"] for name in (step.get("providers") or list(specs))
+            if name in hu.SUPPORTED_PROVIDERS and (provider is None or name == provider)
+        ))
+        safe = [name for name in available_providers(candidates, specs) if provider_is_safe(name, workflow, specs)]
+        return hu.probe_all(safe, cache_dir=QUOTA_CACHE)
+
     if not args.execute:
+        probe = getattr(args, "quota_aware", False) or os.environ.get("AGENT_QUOTA_ROUTING") == "1"
+        quota_snapshots = workflow_quotas() if probe else None
         planned_steps = []
         for step in workflow["steps"]:
             candidates = step.get("providers") or list(specs)
@@ -3759,6 +3830,7 @@ def workflow_run(args: argparse.Namespace) -> int:
         return 1
     result["status"] = "running"
     write_result(run_dir / "result.json", result)
+    quota_snapshots = workflow_quotas()
     try:
         resolved_context = resolve_workflow_context(workflow, database)
     except (OSError, ValueError, sqlite3.Error) as error:
@@ -3834,8 +3906,11 @@ def workflow_run(args: argparse.Namespace) -> int:
         else:
             decision, profile, route_reason = resolve_step_route(
                 workflow, step, [selected], specs, router, policy,
-                explicit_provider=selected, explicit_model=explicit_model,
+                explicit_provider=selected, explicit_model=explicit_model, quota_snapshots=quota_snapshots,
             )
+            selected = decision.provider if decision else None
+        if route_reason.startswith("external-router-http-"):
+            router = {**router, "decision_provider": {**router["decision_provider"], "enabled": False}}
         selected_model = (
             decision.model
             if decision and (decision.model != "default" or specs.get(selected or "", {}).get("default_model"))
@@ -3851,22 +3926,22 @@ def workflow_run(args: argparse.Namespace) -> int:
             "selected_model": selected_model,
         })
         if selected is None:
+            reason = f"Manual step required for {step_id}: no executable provider ({route_reason})."
+            result["reason"] = reason
             result["steps"].append({
                 "id": step_id,
                 "status": "unavailable",
                 "acceptance_results": [],
-                "reason": "no available provider satisfies the workflow policy",
-                "route_reason": route_reason or "no-available-policy-safe-provider",
+                "reason": reason,
+                "route_reason": route_reason,
                 "work_type": profile.work_type.value,
                 "tier": profile.tier.value,
                 "reasoning_effort": reasoning_effort,
                 "selected_model": selected_model,
             })
-            append_event(events_path, {"type": "step.completed", "step_id": step_id, "status": "unavailable"})
+            append_event(events_path, {"type": "step.completed", "step_id": step_id, "status": "unavailable", "reason": reason})
             had_failure = True
-            if step.get("on_failure", "stop") != "continue":
-                break
-            continue
+            break
         if not provider_is_safe(selected, workflow, specs):
             result["steps"].append({
                 "id": step_id,
@@ -4034,7 +4109,7 @@ def workflow_run(args: argparse.Namespace) -> int:
     result["ledger_refs"].append(append_ledger_event(
         run_id, workflow["id"], ",".join(result["providers"]) or "none", result["status"],
         path_reference(run_dir / "result.json"),
-        workflow.get("references"),
+        workflow.get("references"), reason=result.get("reason"),
     ))
     write_result(run_dir / "result.json", result)
     print(json.dumps(result, indent=2, sort_keys=True))
@@ -4217,7 +4292,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_show = run_commands.add_parser("show")
     run_show.add_argument("run_id")
     commands.add_parser("doctor")
-    status_parser = commands.add_parser("status", help="observe AgentSystem desired vs live state (Kubernetes-style)")
+    status_parser = commands.add_parser("status", help="show agent health, quota, and activity")
     status_parser.add_argument("-o", "--output", choices=["table", "wide", "json"], default="table")
     status_parser.add_argument("-n", "--namespace", choices=list(ss.VALID_NAMESPACES))
     status_parser.add_argument("--offline", action="store_true", help="skip remote GitHub/GCS probes (safe for CI)")
@@ -4241,7 +4316,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--provider", default="auto")
     run.add_argument("--model", help="override selected provider model ID")
     run.add_argument("--execute", action="store_true")
-    run.add_argument("--quota-aware", action="store_true", help="probe live harness quota limits and pick highest remaining headroom")
+    run.add_argument("--quota-aware", action="store_true", help="include quota probes in a dry run (always enabled for execution)")
     run.add_argument("--capture-raw", action="store_true", help="persist redacted raw provider output; disabled by default policy")
     cancel = workflow_commands.add_parser("cancel")
     cancel.add_argument("run_id")

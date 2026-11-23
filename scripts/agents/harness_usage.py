@@ -15,22 +15,27 @@ headroom without introducing a third-party model proxy.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import platform
 import select
 import shutil
 import subprocess
+import tempfile
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
 DEFAULT_TIMEOUT_SECONDS = 5.0
 DEFAULT_EXHAUSTION_THRESHOLD = 95.0
+CACHE_SECONDS = 60
+ANTIGRAVITY_RELOGIN = "Owner action: sign in again with agy."
 ANTIGRAVITY_ENDPOINTS = (
     "https://daily-cloudcode-pa.googleapis.com",
     "https://cloudcode-pa.googleapis.com",
@@ -536,68 +541,78 @@ def probe_antigravity(
             fetched_at=iso_utc(ref),
             error="antigravity OAuth token file not found",
         )
-    try:
-        token_data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        return HarnessUsageSnapshot(
-            provider="antigravity",
-            status="error",
-            auth_mode="subscription",
-            fetched_at=iso_utc(ref),
-            error=f"failed to parse antigravity token file: {exc}",
-        )
-    access_token = ""
-    if isinstance(token_data, dict):
-        if isinstance(token_data.get("access_token"), str):
-            access_token = token_data["access_token"].strip()
-        elif isinstance(token_data.get("token"), dict) and isinstance(token_data["token"].get("access_token"), str):
-            access_token = token_data["token"]["access_token"].strip()
+    access_token = _antigravity_access_token(path)
     if not access_token:
-        return HarnessUsageSnapshot(
-            provider="antigravity",
-            status="error",
-            auth_mode="subscription",
-            fetched_at=iso_utc(ref),
-            error="antigravity token file missing access_token",
-        )
+        return HarnessUsageSnapshot("antigravity", "error", fetched_at=iso_utc(ref), error=ANTIGRAVITY_RELOGIN)
 
-    last_error = "no endpoints tried"
-    per_call_timeout = max(1.0, min(timeout, 10.0))
-    for endpoint in ANTIGRAVITY_ENDPOINTS:
-        try:
-            summary_payload = http_post(f"{endpoint}/v1internal:retrieveUserQuotaSummary", access_token, {}, per_call_timeout)
-            windows = parse_antigravity_quota_summary(summary_payload, now=ref)
-            if windows:
-                return HarnessUsageSnapshot(
-                    provider="antigravity",
-                    status="ok",
-                    windows=tuple(windows),
-                    auth_mode="subscription",
-                    fetched_at=iso_utc(ref),
+    deadline = time.monotonic() + timeout
+    windows, auth_rejected, error = _antigravity_windows(http_post, access_token, deadline, ref)
+    if not windows and auth_rejected and path == _default_antigravity_token_path({**environ, "ANTIGRAVITY_OAUTH_TOKEN_FILE": ""}):
+        # The native CLI owns OAuth refresh. Its model listing does not start an agent run.
+        binary = shutil.which("agy", path=environ.get("PATH"))
+        if binary:
+            try:
+                subprocess.run(
+                    [binary, "models"], env=dict(environ), stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout, check=True,
                 )
-        except (OSError, ValueError, urllib.error.URLError) as exc:
-            last_error = str(exc)
-        try:
-            models_payload = http_post(f"{endpoint}/v1internal:fetchAvailableModels", access_token, {}, per_call_timeout)
-            windows = parse_antigravity_available_models(models_payload, now=ref)
-            if windows:
-                return HarnessUsageSnapshot(
-                    provider="antigravity",
-                    status="ok",
-                    windows=tuple(windows),
-                    auth_mode="subscription",
-                    fetched_at=iso_utc(ref),
+            except (OSError, subprocess.SubprocessError):
+                pass
+            refreshed = _antigravity_access_token(path)
+            if refreshed and refreshed != access_token:
+                windows, auth_rejected, error = _antigravity_windows(
+                    http_post, refreshed, time.monotonic() + timeout, ref,
                 )
-        except (OSError, ValueError, urllib.error.URLError) as exc:
-            last_error = str(exc)
-
+    if windows:
+        return HarnessUsageSnapshot("antigravity", "ok", tuple(windows), fetched_at=iso_utc(ref))
     return HarnessUsageSnapshot(
-        provider="antigravity",
-        status="error",
-        auth_mode="subscription",
-        fetched_at=iso_utc(ref),
-        error=f"antigravity quota probe failed: {last_error}",
+        "antigravity", "error", fetched_at=iso_utc(ref),
+        error=ANTIGRAVITY_RELOGIN if auth_rejected else error,
     )
+
+
+def _antigravity_access_token(path: Path) -> str:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    if not isinstance(data, dict):
+        return ""
+    token = data.get("token", data)
+    value = token.get("access_token") if isinstance(token, dict) else None
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _antigravity_windows(
+    http_post: Callable[[str, str, dict[str, Any], float], dict[str, Any]],
+    token: str,
+    deadline: float,
+    now: datetime,
+) -> tuple[list[UsageWindow], bool, str]:
+    auth_rejected = False
+    error = "Antigravity returned no quota windows."
+    for endpoint in ANTIGRAVITY_ENDPOINTS:
+        for method, parse in (
+            ("retrieveUserQuotaSummary", parse_antigravity_quota_summary),
+            ("fetchAvailableModels", parse_antigravity_available_models),
+        ):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return [], auth_rejected, "Antigravity quota probe timed out."
+            try:
+                windows = parse(http_post(f"{endpoint}/v1internal:{method}", token, {}, remaining), now=now)
+            except urllib.error.HTTPError as exc:
+                error = f"Antigravity quota probe returned HTTP {exc.code}."
+                auth_rejected |= exc.code in {401, 403}
+                exc.close()
+                if exc.code == 401:
+                    return [], True, error
+            except (OSError, ValueError):
+                error = "Antigravity quota probe could not read quota."
+            else:
+                if windows:
+                    return windows, False, ""
+    return [], auth_rejected, error
 
 
 def _read_json_rpc_response(
@@ -675,8 +690,8 @@ def probe_codex(
             error=f"{command} binary not on PATH",
         )
     home = Path(environ.get("HOME") or Path.home())
-    codex_auth = home / ".codex" / "auth.json"
-    if not codex_auth.is_file() and environ.get("OPENAI_API_KEY", "").strip():
+    codex_auth = Path(environ.get("CODEX_HOME") or home / ".codex").expanduser() / "auth.json"
+    if not codex_auth.is_file() and any(environ.get(key, "").strip() for key in ("OPENAI_API_KEY", "CODEX_API_KEY")):
         return HarnessUsageSnapshot(
             provider="codex",
             status="unmetered",
@@ -731,14 +746,12 @@ def probe_codex(
             error="timed out waiting for codex account/rateLimits/read",
         )
     if "error" in response:
-        err = response["error"]
-        msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
         return HarnessUsageSnapshot(
             provider="codex",
             status="error",
             auth_mode="subscription",
             fetched_at=iso_utc(ref),
-            error=f"codex rateLimits error: {msg}",
+            error="Codex rejected the usage request.",
         )
     windows, plan_type = parse_codex_rate_limits(response)
     if not windows:
@@ -780,7 +793,8 @@ def probe_claude(
         )
     if environ.get("ANTHROPIC_API_KEY", "").strip() and not environ.get("CLAUDE_CODE_OAUTH_TOKEN", "").strip():
         home = Path(environ.get("HOME") or Path.home())
-        if not (home / ".claude" / ".credentials.json").is_file():
+        config = Path(environ.get("CLAUDE_CONFIG_DIR") or home / ".claude").expanduser()
+        if not (config / ".credentials.json").is_file():
             return HarnessUsageSnapshot(
                 provider="claude",
                 status="unmetered",
@@ -842,7 +856,7 @@ def probe_claude(
             status="error",
             auth_mode="subscription",
             fetched_at=iso_utc(ref),
-            error=f"claude get_usage error: {resp_body.get('error', 'unknown')}",
+            error="Claude rejected the usage request.",
         )
     windows = parse_claude_usage(response)
     if not windows:
@@ -885,18 +899,71 @@ def probe_provider(
     )
 
 
+def _quota_cache_key(provider: str, env: Mapping[str, str]) -> str:
+    home = Path(env.get("HOME") or Path.home())
+    codex_home = Path(env.get("CODEX_HOME") or home / ".codex").expanduser()
+    claude_home = Path(env.get("CLAUDE_CONFIG_DIR") or home / ".claude").expanduser()
+    files, keys = {
+        "claude": ([claude_home / ".credentials.json"], ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"]),
+        "codex": ([codex_home / "auth.json"], ["CODEX_API_KEY", "OPENAI_API_KEY"]),
+        "antigravity": ([_default_antigravity_token_path(env)], ["GEMINI_API_KEY"]),
+    }[provider]
+    identity: list[Any] = [provider, str(home), env.get("PATH")]
+    identity.extend(env.get(key) for key in keys)
+    for path in files:
+        identity.append(str(path))
+        try:
+            stat = path.stat()
+            identity.append([stat.st_dev, stat.st_ino, stat.st_mtime_ns, stat.st_size])
+        except OSError:
+            pass
+    return hashlib.sha256(json.dumps(identity).encode()).hexdigest()
+
+
 def probe_all(
     providers: list[str] | tuple[str, ...] = SUPPORTED_PROVIDERS,
     *,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
     env: Mapping[str, str] | None = None,
     now: datetime | None = None,
+    cache_dir: Path | None = None,
 ) -> dict[str, HarnessUsageSnapshot]:
     ref = now or utc_now()
-    return {
-        provider: probe_provider(provider, timeout=timeout, env=env, now=ref)
-        for provider in dict.fromkeys(providers)
-    }
+    environ = os.environ if env is None else env
+
+    def probe(provider: str) -> HarnessUsageSnapshot:
+        if cache_dir is None or provider not in SUPPORTED_PROVIDERS:
+            return probe_provider(provider, timeout=timeout, env=environ, now=ref)
+        cache_path = cache_dir / f"{provider}.json"
+        cache_key = _quota_cache_key(provider, environ)
+        try:
+            data = json.loads(cache_path.read_text(encoding="utf-8"))
+            if data["key"] == cache_key and 0 <= ref.timestamp() - data["checked_at"] < CACHE_SECONDS:
+                cached = data["snapshot"]
+                cached["windows"] = tuple(UsageWindow(**window) for window in cached["windows"])
+                return HarnessUsageSnapshot(**cached)
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+        result = probe_provider(provider, timeout=timeout, env=environ, now=ref)
+        # Refresh can replace a credential during the probe. Persist only normalized quota data.
+        data = {"key": _quota_cache_key(provider, environ), "checked_at": ref.timestamp(), "snapshot": asdict(result)}
+        try:
+            cache_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=cache_dir, delete=False) as temp:
+                temporary = Path(temp.name)
+                try:
+                    json.dump(data, temp)
+                    temp.close()
+                    temporary.replace(cache_path)
+                finally:
+                    temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return result
+
+    names = list(dict.fromkeys(providers))
+    with ThreadPoolExecutor(max_workers=len(SUPPORTED_PROVIDERS)) as executor:
+        return dict(zip(names, executor.map(probe, names)))
 
 
 # ---------------------------------------------------------------------------

@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 from unittest.mock import patch
 
@@ -612,6 +613,40 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(worktree_cwds[0], worktree_cwds[1])
             self.assertTrue(str(worktree_cwds[0]).endswith("/worktree"))
 
+    def test_workflow_execution_uses_quota_by_default_and_stops_when_exhausted(self) -> None:
+        module = load_agentctl_module()
+        workflow = json.loads(WORKFLOW.read_text())
+        workflow["steps"][0]["on_failure"] = "continue"
+        quota = {
+            name: module.hu.HarnessUsageSnapshot(name, "ok", (module.hu.UsageWindow("5h", "5h", 99),))
+            for name in ("codex", "claude")
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "workflow.json"
+            path.write_text(json.dumps(workflow))
+            output = io.StringIO()
+            with patch.object(module, "available_providers", return_value=list(quota)), \
+                 patch.object(module, "provider_is_safe", return_value=True), \
+                 patch.object(module.hu, "probe_all", return_value=quota) as probe, \
+                 patch.object(module, "resolve_workflow_context", return_value=""), \
+                 patch.object(module, "provider_command") as command, \
+                 patch.object(module, "append_ledger_event", return_value="ledger#quota") as ledger, \
+                 contextlib.redirect_stdout(output):
+                status = module.workflow_run(argparse.Namespace(
+                    path=str(path), provider="auto", execute=True, database=str(root / "knowledge.sqlite3"),
+                ))
+
+            self.assertEqual(status, 1)
+            result = json.loads(output.getvalue())
+            self.assertEqual(len(result["steps"]), 1)
+            self.assertIn("Manual step required", result["reason"])
+            self.assertEqual(result["steps"][0]["route_reason"], "all-providers-quota-exhausted")
+            probe.assert_called_once()
+            command.assert_not_called()
+            ledger.assert_called_once()
+            self.assertEqual(ledger.call_args.kwargs["reason"], result["reason"])
+
     def test_execute_retries_and_records_attempt_outcomes(self) -> None:
         module = load_agentctl_module()
         workflow = {
@@ -1138,6 +1173,25 @@ class AgentctlTest(unittest.TestCase):
                     )
                 self.assertIsNone(rejected)
                 self.assertEqual(reject_reason, "external-router-returned-invalid-provider")
+
+    def test_jev_auth_and_credit_failures_use_the_local_router(self) -> None:
+        module = load_agentctl_module()
+        router = module.load_json(module.ROUTER)
+        router["decision_provider"].update(enabled=True, always_consult=True, allow_control_plane_on_none=True)
+        workflow = {"id": "test", "objective": "Review documentation", "permissions": {"network": "none"}}
+        step = {"id": "review", "role": "reviewer", "prompt": "Review the spec", "tier": "deep"}
+        env = {"ROUTER_BASE_URL": "https://router.example", "ROUTER_API_KEY": "fixture"}
+        for code in (401, 402, 429):
+            with self.subTest(code=code), patch.dict(os.environ, env), patch.object(
+                module.urllib.request, "urlopen",
+                side_effect=urllib.error.HTTPError(env["ROUTER_BASE_URL"], code, "fixture", {}, None),
+            ):
+                decision, _, reason = module.resolve_step_route(
+                    workflow, step, ["codex"], module.provider_specs(), router, quota_snapshots={},
+                )
+                self.assertEqual(decision.provider if decision else None, "codex")
+                self.assertEqual(decision.model if decision else None, "gpt-6.1-terra")
+                self.assertEqual(reason, f"external-router-http-{code}-using-local-routing")
 
     def test_router_matrix_decide_and_workflow_plan_expose_models(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
