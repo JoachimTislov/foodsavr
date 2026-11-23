@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 QUEUE_CHECK = "Detect changed areas"
@@ -15,13 +16,55 @@ IGNORED_WORKFLOWS = {
 FAILED = {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"}
 
 
+def _workflow_name(context: dict[str, Any]) -> str | None:
+    return (((context.get("checkSuite") or {}).get("workflowRun") or {}).get("workflow") or {}).get("name")
+
+
+def _key(context: dict[str, Any]) -> tuple[str | None, ...]:
+    if context.get("__typename") == "StatusContext":
+        return ("status", context.get("context"))
+    return ("run", _workflow_name(context), context.get("name"))
+
+
+def _is_skipped(context: dict[str, Any]) -> bool:
+    return context.get("status") == "COMPLETED" and context.get("conclusion") == "SKIPPED"
+
+
+def _started(context: dict[str, Any]) -> datetime | None:
+    value = context.get("startedAt")
+    return datetime.fromisoformat(value.replace("Z", "+00:00")) if value else None
+
+
+def effective_runs(contexts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep the run that decides each check: workflow and check name, or status context name.
+
+    The latest run by startedAt wins, but a SKIPPED run never supersedes a run that executed
+    (label-only events create newer runs whose jobs are skipped); when every run of a key is
+    skipped, the latest skipped one is used. A key with any run lacking startedAt keeps all of
+    its runs, so callers whose query omits startedAt evaluate every run as before.
+    """
+    groups: dict[tuple[str | None, ...], list[dict[str, Any]]] = {}
+    for c in contexts:
+        groups.setdefault(_key(c), []).append(c)
+    keep: list[dict[str, Any]] = []
+    for runs in groups.values():
+        times = [_started(c) for c in runs]
+        if len(runs) == 1 or any(t is None for t in times):
+            keep.extend(runs)
+            continue
+        executed = [(t, c) for t, c in zip(times, runs) if not _is_skipped(c)]
+        pool = executed or list(zip(times, runs))
+        latest = max(t for t, _ in pool)
+        keep.extend(c for t, c in pool if t == latest)
+    return [c for c in contexts if any(c is k for k in keep)]
+
+
 def rollup_state(contexts: list[dict[str, Any]]) -> str | None:
     """Aggregate head checks like GitHub's rollup, excluding metadata workflows."""
     states = []
-    for c in contexts:
+    for c in effective_runs(contexts):
         if c.get("__typename") == "CheckRun":
-            workflow = (((c.get("checkSuite") or {}).get("workflowRun") or {}).get("workflow") or {}).get("name")
-            if workflow in IGNORED_WORKFLOWS:
+            if _workflow_name(c) in IGNORED_WORKFLOWS:
                 continue
             states.append(
                 "PENDING"
@@ -55,7 +98,7 @@ def _is_trusted_queue_check(context: dict[str, Any]) -> bool:
 
 def queue_check_state(contexts: list[dict[str, Any]]) -> tuple[bool, bool]:
     """Return (completed_success, running) for the merge-queue Validation entrypoint."""
-    runs = [c for c in contexts if _is_trusted_queue_check(c)]
+    runs = effective_runs([c for c in contexts if _is_trusted_queue_check(c)])
     ok = any(c.get("status") == "COMPLETED" and c.get("conclusion") == "SUCCESS" for c in runs)
     running = any(c.get("status") != "COMPLETED" for c in runs)
     return ok, running
