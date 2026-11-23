@@ -1,0 +1,1 @@
+{"commits": ["8d0de0a97a8cbdd296080518c4c272eabcb7c26c"], "harness": "claude-code", "issues": [], "provider": "anthropic", "prs": ["#414"], "session_id": "claude-code:43f028a6-cfa6-44a7-9ec1-0ca5ea983ad4", "sources": [], "started_at": "2026-11-23T19:44:58+00:00", "status": "active", "stream": "sessions", "summary": "Restructure human docs to manual processes only (ADR 0011)"}
