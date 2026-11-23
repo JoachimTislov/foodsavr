@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
+import contextlib
 import importlib.util
+import io
 import os
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -198,6 +202,8 @@ class ChainedPromotionTest(unittest.TestCase):
             pushed.append((repo, sha, branch))
 
         with patch.object(promote, "git", side_effect=fake_git), \
+                patch.object(promote, "remote_branches", return_value={"beta", "stable", "release"}), \
+                patch.object(promote, "fetch_branches"), \
                 patch.object(promote, "is_ancestor", return_value=True), \
                 patch.object(promote, "fetch_commit_contexts", return_value=[check_run("Detect changed areas")]) as fetch, \
                 patch.object(promote, "fast_forward_branch", side_effect=fake_push), \
@@ -213,6 +219,112 @@ class ChainedPromotionTest(unittest.TestCase):
                 ("JoachimTislov/foodsavr", refs["origin/beta"], "release"),
             ],
         )
+
+
+def run_git(cwd, *args):
+    return subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+class MainWithRemoteTest(unittest.TestCase):
+    """Exercise main() against a temporary bare remote and a clone (no network)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        root = Path(self._tmp.name)
+        self.remote = root / "remote.git"
+        self.work = root / "work"
+        run_git(root, "init", "--bare", "-b", "develop", str(self.remote))
+        run_git(root, "clone", str(self.remote), str(self.work))
+        run_git(self.work, "checkout", "-b", "develop")
+        (self.work / "f").write_text("1")
+        run_git(self.work, "add", "f")
+        run_git(self.work, "commit", "-m", "one")
+        self.old = run_git(self.work, "rev-parse", "HEAD")
+        (self.work / "f").write_text("2")
+        run_git(self.work, "commit", "-am", "two")
+        self.new = run_git(self.work, "rev-parse", "HEAD")
+        run_git(self.work, "push", "origin", "develop")
+
+    def push_branch(self, name, sha):
+        run_git(self.work, "push", "origin", f"{sha}:refs/heads/{name}")
+
+    def run_main(self, *argv, topology="full-channels"):
+        out = io.StringIO()
+        pushed: list[tuple[str, str]] = []
+        cwd = os.getcwd()
+        os.chdir(self.work)
+        try:
+            with patch.object(promote, "fetch_commit_contexts", return_value=[check_run("Detect changed areas")]), \
+                    patch.object(promote, "fast_forward_branch", side_effect=lambda r, sha, b, t: pushed.append((b, sha))), \
+                    patch.dict(os.environ, {"GH_TOKEN": "t", "GITHUB_STEP_SUMMARY": ""}, clear=False), \
+                    contextlib.redirect_stdout(out):
+                code = promote.main(["--repo", "o/r", "--topology", topology, *argv])
+        finally:
+            os.chdir(cwd)
+        return code, out.getvalue(), pushed
+
+    def test_daily_schedule_with_release_missing_promotes_nightly(self):
+        self.push_branch("nightly", self.old)
+        code, out, pushed = self.run_main("--schedule", "0 4 * * *", "--apply")
+        self.assertEqual(code, 0)
+        self.assertEqual(pushed, [("nightly", self.new)])
+        self.assertNotIn("missing", out)
+
+    def test_biweekly_schedule_with_release_missing_promotes_stable_and_reports_release(self):
+        self.push_branch("beta", self.new)
+        self.push_branch("stable", self.old)
+        code, out, pushed = self.run_main("--schedule", "0 6 1,15 * *", "--apply")
+        self.assertEqual(code, 0)
+        self.assertEqual(pushed, [("stable", self.new)])
+        self.assertIn("stable -> release: missing", out)
+        self.assertIn("::warning::", out)
+        self.assertIn("owner action", out)
+
+    def test_biweekly_schedule_skips_dependent_step_when_source_missing(self):
+        self.push_branch("stable", self.old)
+        self.push_branch("release", self.old)
+        code, out, pushed = self.run_main("--schedule", "0 6 1,15 * *", "--apply")
+        self.assertEqual(code, 0)
+        self.assertEqual(pushed, [])
+        self.assertIn("beta -> stable: missing", out)
+        self.assertIn("stable -> release: skipped", out)
+
+    def test_manual_target_release_missing_fails(self):
+        self.push_branch("stable", self.new)
+        code, out, pushed = self.run_main("--target-branch", "release", "--apply")
+        self.assertEqual(code, 1)
+        self.assertEqual(pushed, [])
+        self.assertIn("::error::", out)
+        self.assertIn("'release'", out)
+
+    def test_existing_branches_promote_chain_and_dry_run_does_not_push(self):
+        self.push_branch("beta", self.new)
+        self.push_branch("stable", self.old)
+        self.push_branch("release", self.old)
+        code, out, pushed = self.run_main("--schedule", "0 6 1,15 * *", "--apply")
+        self.assertEqual(code, 0)
+        self.assertEqual(pushed, [("stable", self.new), ("release", self.new)])
+        code, out, pushed = self.run_main("--schedule", "0 6 1,15 * *")
+        self.assertEqual(code, 0)
+        self.assertEqual(pushed, [])
+        self.assertIn("stable -> release: promote", out)
+
+    def test_existing_branch_not_ancestor_still_blocks(self):
+        run_git(self.work, "checkout", "-q", "--orphan", "other")
+        run_git(self.work, "commit", "-q", "--allow-empty", "-m", "x")
+        other = run_git(self.work, "rev-parse", "HEAD")
+        self.push_branch("nightly", other)
+        code, out, pushed = self.run_main("--schedule", "0 4 * * *", "--apply")
+        self.assertEqual(code, 1)
+        self.assertEqual(pushed, [])
+        self.assertIn("blocked", out)
 
 
 if __name__ == "__main__":

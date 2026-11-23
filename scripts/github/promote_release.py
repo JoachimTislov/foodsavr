@@ -8,7 +8,9 @@ Topologies (ADR 0007, ADR 0008, configured via ``RELEASE_TOPOLOGY``):
 
 Dry run by default; ``--apply`` pushes each verified source commit to
 ``refs/heads/<target>`` using ``GH_TOKEN`` (never creating merge commits and
-never force-pushing).
+never force-pushing). It fetches only the branches the resolved steps need and
+never creates branches: scheduled runs skip steps with a missing branch (and
+steps depending on them) with a warning; manual runs fail on a missing branch.
 """
 
 from __future__ import annotations
@@ -83,7 +85,7 @@ query($owner: String!, $name: String!, $sha: GitObjectID!) {
 
 @dataclass(frozen=True)
 class Decision:
-    action: str  # "promote" | "noop" | "pending" | "blocked"
+    action: str  # "promote" | "noop" | "pending" | "blocked" | "missing" | "skipped"
     detail: str
 
 
@@ -174,6 +176,32 @@ def git(*args: str) -> str:
     if result.returncode != 0:
         raise RuntimeError(f"git {args[0]} failed: {result.stderr.strip()}")
     return result.stdout.strip()
+
+
+def remote_branches(remote: str, branches: list[str]) -> set[str]:
+    """Return the subset of ``branches`` that exist as heads on ``remote``."""
+    if not branches:
+        return set()
+    output = git("ls-remote", "--heads", remote, *branches)
+    found: set[str] = set()
+    for line in output.splitlines():
+        ref = line.split("\t", 1)[-1]
+        if ref.startswith("refs/heads/") and ref[len("refs/heads/") :] in branches:
+            found.add(ref[len("refs/heads/") :])
+    return found
+
+
+def fetch_branches(remote: str, branches: list[str]) -> None:
+    """Fetch exactly ``branches`` (which must exist on ``remote``) without tags."""
+    if branches:
+        git("fetch", "--no-tags", remote, *(f"+refs/heads/{b}:refs/remotes/{remote}/{b}" for b in branches))
+
+
+def missing_detail(branch: str, remote: str) -> str:
+    return (
+        f"branch '{branch}' does not exist on {remote}; "
+        "creating channel branches is an owner action (this workflow never creates branches)"
+    )
 
 
 def is_ancestor(ancestor: str, descendant: str) -> bool:
@@ -268,12 +296,44 @@ def main(argv: list[str] | None = None) -> int:
         print("GH_TOKEN (Release-Gate App token or MERGE_GATE_TOKEN) is required with --apply", file=sys.stderr)
         return 1
 
+    scheduled = bool(args.schedule)
+    needed = list(dict.fromkeys(branch for step in steps for branch in step))
+    existing = remote_branches(args.remote, needed)
+    fetch_branches(args.remote, [b for b in needed if b in existing])
+
     effective_shas: dict[str, str] = {}
     context_cache: dict[str, list[dict[str, Any]]] = {}
     decisions: list[Decision] = []
     sections: list[str] = []
+    problems: list[str] = []
+    unavailable: set[str] = set()
 
     for source_branch, target_branch in steps:
+        label = f"{source_branch} -> {target_branch}"
+        absent = [b for b in (source_branch, target_branch) if b not in existing]
+        if absent:
+            decision = Decision("missing", "; ".join(missing_detail(b, args.remote) for b in absent))
+            unavailable.add(target_branch)
+        elif source_branch in unavailable:
+            decision = Decision(
+                "skipped",
+                f"source '{source_branch}' was not promoted earlier in this run; skipping to avoid promoting a stale commit",
+            )
+            unavailable.add(target_branch)
+        else:
+            decision = None
+
+        if decision is not None:
+            decisions.append(decision)
+            problems.append(f"- `{label}`: `{decision.action}`: {decision.detail}")
+            sections.append(
+                f"## Promote {label}\n\n- **Status:** `{decision.action}`\n- **Detail:** {decision.detail}\n"
+            )
+            print(f"{label}: {decision.action}: {decision.detail}")
+            level = "warning" if scheduled else "error"
+            print(f"::{level}::Promote {label} {decision.action}: {decision.detail}")
+            continue
+
         source_sha = effective_shas.get(source_branch) or git("rev-parse", f"{args.remote}/{source_branch}")
         target_sha = effective_shas.get(target_branch) or git("rev-parse", f"{args.remote}/{target_branch}")
         ancestor = is_ancestor(target_sha, source_sha)
@@ -295,7 +355,7 @@ def main(argv: list[str] | None = None) -> int:
         decisions.append(decision)
 
         section = (
-            f"## Promote {source_branch} -> {target_branch}\n\n"
+            f"## Promote {label}\n\n"
             f"- **Status:** `{decision.action}`\n"
             f"- **Detail:** {decision.detail}\n"
         )
@@ -307,9 +367,12 @@ def main(argv: list[str] | None = None) -> int:
             effective_shas[target_branch] = source_sha
             section += "- **Result:** dry-run (not pushed)\n"
         sections.append(section)
-        print(f"{source_branch} -> {target_branch}: {decision.action}: {decision.detail}")
+        print(f"{label}: {decision.action}: {decision.detail}")
         if decision.action in {"blocked", "pending"}:
             break
+
+    if problems:
+        sections.append("## Missing or skipped steps\n\n" + "\n".join(problems) + "\n")
 
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary_path:
@@ -317,6 +380,8 @@ def main(argv: list[str] | None = None) -> int:
             handle.write("\n".join(sections) + "\n")
 
     if any(d.action == "blocked" for d in decisions):
+        return 1
+    if not scheduled and any(d.action in {"missing", "skipped"} for d in decisions):
         return 1
     if args.strict_pending and any(d.action == "pending" for d in decisions):
         return 1

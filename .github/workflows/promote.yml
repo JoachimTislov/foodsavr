@@ -7,6 +7,9 @@ name: Promote release channels
 #   full-channels — develop -> nightly (daily 04:00 UTC) -> beta (Mon 05:00 UTC)
 #                   -> stable -> release (1st & 15th 06:00 UTC)
 #
+# The script fetches only the branches each step needs; a missing channel
+# branch is skipped with a warning on schedule and fails a manual run.
+#
 # Never creates merge commits and never force-pushes. Pushing with the
 # Release-Gate GitHub App token (or legacy MERGE_GATE_TOKEN) triggers
 # downstream deployment workflows on `release`.
@@ -82,15 +85,6 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-
-      - name: Fetch active topology branches
-        if: env.RELEASE_TOPOLOGY != 'single'
-        run: |
-          if [ "$RELEASE_TOPOLOGY" = "two-stage" ]; then
-            git fetch --no-tags origin develop release
-          else
-            git fetch --no-tags origin develop nightly beta stable release
-          fi
 
       - name: Promote release channel (fast-forward only)
         if: env.RELEASE_TOPOLOGY != 'single'
