@@ -2,31 +2,38 @@
 set -euo pipefail
 
 output='lib/firebase_options.dart'
-if [ -z "${FIREBASE_OPTIONS_B64:-}" ]; then
-  if [ -s "$output" ]; then
-    echo "::warning::FIREBASE_OPTIONS_B64 is missing; preserving the existing Firebase options file."
-    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-      echo '⚠️ FIREBASE_OPTIONS_B64 missing; preserved the existing Firebase configuration.' >> "$GITHUB_STEP_SUMMARY"
-    fi
+if [[ -n "${FIREBASE_OPTIONS_B64:-}" ]]; then
+  temp_dir=$(mktemp -d lib/.firebase-options.XXXXXX)
+  candidate="$temp_dir/firebase_options.dart"
+  trap 'if [[ -f "$candidate" ]]; then unlink "$candidate"; fi; rmdir "$temp_dir"' EXIT
+  if printf '%s' "$FIREBASE_OPTIONS_B64" | base64 --decode > "$candidate" 2>/dev/null &&
+      grep -q 'class DefaultFirebaseOptions' "$candidate" &&
+      dart format "$candidate" >/dev/null 2>&1; then
+    mv "$candidate" "$output"
     exit 0
   fi
-  cat > "$output" <<'EOF'
-// Placeholder used when CI does not provide Firebase credentials.
+fi
+
+if [[ "${1:-}" == --require-real ]]; then
+  echo '::error::FIREBASE_OPTIONS_B64 must contain valid Firebase options for remote Android delivery.' >&2
+  exit 1
+fi
+
+if [[ ! -s "$output" ]]; then
+  cat > "$output" <<'DART'
+// Compile-only placeholder for CI without usable Firebase options.
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 
 class DefaultFirebaseOptions {
-  static FirebaseOptions get currentPlatform => throw UnsupportedError(
-    'FirebaseOptions are not configured for this CI run');
+  static FirebaseOptions get currentPlatform =>
+      throw UnsupportedError('FirebaseOptions are not configured for this CI run');
 }
-EOF
-  echo '::warning::FIREBASE_OPTIONS_B64 is missing; using a compile-only Firebase placeholder.'
-  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-    echo '⚠️ FIREBASE_OPTIONS_B64 missing; Firebase-dependent runtime checks may be unavailable.' >> "$GITHUB_STEP_SUMMARY"
-  fi
-  exit 0
+DART
+  dart format "$output" >/dev/null
 fi
-
-if ! printf '%s' "$FIREBASE_OPTIONS_B64" | base64 --decode > "$output" || [ ! -s "$output" ]; then
-  echo '::error::FIREBASE_OPTIONS_B64 is present but is not valid non-empty base64.'
-  exit 1
+message='Usable FIREBASE_OPTIONS_B64 is unavailable. Kept existing options or used a compile-only placeholder.'
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+  printf '%s\n' "$message" >> "$GITHUB_STEP_SUMMARY"
+else
+  printf '%s\n' "$message"
 fi
