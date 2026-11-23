@@ -176,19 +176,20 @@ class BackendTests(unittest.TestCase):
             'TF_STATE_BUCKET': 'demo-proj-tfstate', 'TF_STATE_PREFIX': 'firebase',
             'DEPLOYMENT_LEVEL': 'firebase-spark', 'VAR_SUFFIX': '',
         }
+        home = self.root / 'home'
+        home.mkdir()
         self.env = {
-            **os.environ,
-            'PATH': str(self.root / 'bin') + os.pathsep + os.environ['PATH'],
+            'PATH': str(self.root / 'bin') + os.pathsep + os.environ.get('PATH', '/usr/bin:/bin'),
+            'HOME': str(home),
             'XDG_STATE_HOME': str(self.xdg_state),
+            'TMPDIR': str(self.root),
             'FAKE_LOG': str(self.root / 'calls.jsonl'),
             'FAKE_CONFIG_LOG': str(self.root / 'config.log'),
             'FAKE_CONFIG': json.dumps(config),
             'FAKE_BUCKET': '404 NOT_FOUND',
             'ENV': 'production',
+            'MANIFEST': str(self.root / 'deploy/instance.yaml'),
         }
-        self.env.pop('MANIFEST', None)
-        self.env.pop('TF_STATE_BACKEND', None)
-        self.env.pop('GITHUB_TOKEN', None)
 
     def expected_gcp_state(self):
         return (
@@ -260,6 +261,11 @@ class BackendTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('backend "local"', (self.root / 'config.log').read_text())
+
+    def test_mismatched_github_repository_rejects_wrong_manifest(self):
+        result = self.run_plan(GITHUB_REPOSITORY='JoachimTislov/foodsavr')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Choose a deployment manifest for JoachimTislov/foodsavr', result.stderr)
 
     def test_local_override_refuses_existing_remote(self):
         result = self.run_plan(TF_STATE_BACKEND='local', FAKE_BUCKET='exists')
