@@ -1,5 +1,7 @@
 # Cloud Firestore Security Rules for foodsavr
 
+> This document describes an earlier design. The tracked `firestore.rules` and [ADR 0010](../../../specs/source-of-truth/decisions/0010-track-firestore-rules-during-test-phase.md) are authoritative.
+
 ### Summary
 
 This document defines the security rules for the `foodsavr` Cloud Firestore database. These rules are essential for protecting user data and ensuring that users can only perform actions they are authorized to. The rules follow a default-deny policy, meaning that access is denied unless a rule explicitly grants it. Security is enforced by checking user authentication status, user roles, and data ownership.

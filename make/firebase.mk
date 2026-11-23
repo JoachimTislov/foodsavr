@@ -1,11 +1,30 @@
-.PHONY: firebase-options firebase-rules start-firebase-emulators kill-firebase-emulators view-emulator locale-seed rules-test remote-seed 
+.PHONY: firebase-options deploy-firestore-rulesstart-firebase-emulators kill-firebase-emulators view-emulator locale-seed rules-test remote-seed 
 firebase-options:
 	@base64 -w 0 lib/firebase_options.dart | gh secret set FIREBASE_OPTIONS_B64
 	@base64 -w 0 lib/firebase_options.dart | gh secret set FIREBASE_OPTIONS_B64 --app dependabot
 
-firebase-rules:
-	@base64 -w 0 firestore.rules | gh secret set FIRESTORE_RULES_B64
-	@base64 -w 0 firestore.rules | gh secret set FIRESTORE_RULES_B64 --app dependabot
+# Manual deploy of the tracked firestore.rules (ADR 0010) to the Firebase
+# project of one environment in deploy/instance.yaml. Deploys stay manual until
+# the release pipeline deploys rules. Requires a prior `firebase login`.
+# Usage: make deploy-firestore-rules ENV=production
+FIREBASE_TOOLS ?= firebase-tools@15
+deploy-firestore-rules:
+	@if [ -z "$(ENV)" ]; then \
+		echo "Usage: make deploy-firestore-rules ENV=<environment> (see deploy/instance.yaml)" >&2; \
+		exit 1; \
+	fi
+	@project=$$(cd packages/foodsavr_deploy && dart pub get > /dev/null && \
+		dart run bin/levels.dart env --env "$(ENV)" --format dotenv | sed -n "s/^PROJECT_ID='\(.*\)'/\1/p"); \
+	if [ -z "$$project" ]; then \
+		echo "Environment '$(ENV)' has no Firebase project in deploy/instance.yaml" >&2; \
+		exit 1; \
+	fi; \
+	dir=$$(mktemp -d); \
+	trap 'rm -rf "$$dir"' EXIT; \
+	cp firestore.rules "$$dir/firestore.rules"; \
+	printf '{"firestore":{"rules":"firestore.rules"}}\n' > "$$dir/firebase.json"; \
+	echo "Deploying firestore.rules to $$project ($(ENV))..."; \
+	(cd "$$dir" && npx -y $(FIREBASE_TOOLS) deploy --only firestore:rules --project "$$project")
 
 start-firebase-emulators:
 	@if ! lsof -ti :9099 -sTCP:LISTEN > /dev/null; then \
