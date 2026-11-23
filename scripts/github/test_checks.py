@@ -22,7 +22,7 @@ def at(minutes):
     return (T0 + timedelta(minutes=minutes)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def run(conclusion, minutes=0, name="Check & Test", workflow="Validation", status="COMPLETED", started=True):
+def run(conclusion, minutes=0, name="Check & Test", workflow="Validation", status="COMPLETED", started=True, run_id=None):
     c = {
         "__typename": "CheckRun",
         "name": name,
@@ -32,6 +32,8 @@ def run(conclusion, minutes=0, name="Check & Test", workflow="Validation", statu
     }
     if started:
         c["startedAt"] = at(minutes)
+    if run_id is not None:
+        c["checkSuite"]["workflowRun"]["databaseId"] = run_id
     return c
 
 
@@ -99,6 +101,46 @@ class EffectiveRunTest(unittest.TestCase):
         self.assertEqual(checks.queue_check_state([q("SUCCESS", 0), q(None, 1, status="IN_PROGRESS")]), (False, True))
 
 
+HOLD = "Validation status (hold)"
+
+
+def pr409_sequence():
+    """Push starts run A (hold executes), labeling starts run B which cancels A and skips hold."""
+    return [
+        run("CANCELLED", 0, name=HOLD, run_id=100),
+        run("SKIPPED", 2, name=HOLD, run_id=101),
+        run("SUCCESS", 0, name="Detect changed areas", run_id=100),
+        run("SUCCESS", 3, name="Detect changed areas", run_id=101),
+        run("SUCCESS", 1, run_id=100),
+        run("SUCCESS", 4, run_id=101),
+    ]
+
+
+class SupersededCancelledTest(unittest.TestCase):
+    def test_pr409_sequence_is_success(self):
+        self.assertEqual(checks.rollup_state(pr409_sequence()), "SUCCESS")
+        self.assertEqual(checks.rollup_state(list(reversed(pr409_sequence()))), "SUCCESS")
+
+    def test_cancelled_without_newer_workflow_run_fails(self):
+        self.assertEqual(checks.rollup_state([run("CANCELLED", 0, run_id=100), run("SUCCESS", 1, name="b", run_id=100)]), "FAILURE")
+
+    def test_newer_run_of_other_workflow_does_not_supersede(self):
+        runs = [run("CANCELLED", 0, run_id=100), run("SUCCESS", 1, workflow="CI", run_id=200)]
+        self.assertEqual(checks.rollup_state(runs), "FAILURE")
+
+    def test_older_run_of_same_workflow_does_not_hide_cancelled(self):
+        runs = [run("SUCCESS", 0, name="b", run_id=100), run("CANCELLED", 1, run_id=101)]
+        self.assertEqual(checks.rollup_state(runs), "FAILURE")
+
+    def test_failure_is_never_superseded(self):
+        runs = [run("FAILURE", 0, run_id=100), run("SKIPPED", 1, run_id=101)]
+        self.assertEqual(checks.rollup_state(runs), "FAILURE")
+
+    def test_missing_run_id_keeps_old_behavior(self):
+        runs = [run("CANCELLED", 0, name=HOLD), run("SKIPPED", 2, name=HOLD, run_id=101)]
+        self.assertEqual(checks.rollup_state(runs), "FAILURE")
+
+
 class GatePlanTest(unittest.TestCase):
     def merged(self, *contexts):
         from test_merge_gate import NOW, pr
@@ -114,6 +156,9 @@ class GatePlanTest(unittest.TestCase):
 
     def test_gate_query_requests_started_at(self):
         self.assertIn("conclusion startedAt", gate.QUERY)
+
+    def test_gate_query_requests_workflow_run_id(self):
+        self.assertIn("workflowRun { databaseId", gate.QUERY)
 
 
 if __name__ == "__main__":

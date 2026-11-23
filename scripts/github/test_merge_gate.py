@@ -292,6 +292,13 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(actions([pr(1, state="UNSTABLE")]), [("merge", 1)])
         self.assertEqual(actions([pr(1, rollup="PENDING", state="BLOCKED")]), [])
 
+    def test_merges_pr409_shape_cancelled_hold_superseded_by_label_run(self):
+        from test_checks import pr409_sequence
+
+        rollup = gate.rollup_state(pr409_sequence())
+        self.assertEqual(rollup, "SUCCESS")
+        self.assertEqual(actions([pr(409, rollup=rollup)]), [("merge", 409)])
+
     def test_waits_for_queue_validation_before_merging(self):
         waiting = pr(1, queue_ok=False, head_time=NOW - timedelta(hours=2), labeled_at=NOW - timedelta(minutes=2))
         self.assertEqual(actions([waiting, pr(2, state="BEHIND")]), [])
