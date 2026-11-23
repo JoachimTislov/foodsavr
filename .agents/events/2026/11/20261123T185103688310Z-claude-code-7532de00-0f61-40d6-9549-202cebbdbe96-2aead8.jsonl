@@ -1,0 +1,1 @@
+{"commits": ["47a30a9403da41ba902fc973fe129144df6fc902"], "event": "fixed E2E collections spec for provisioned default inventory (#334); verified locally 8/8; opened PR", "prs": ["#409"], "session_id": "claude-code:7532de00-0f61-40d6-9549-202cebbdbe96", "stream": "ledger", "timestamp": "2026-11-23T18:51:03+00:00"}
