@@ -18,6 +18,13 @@ val envProperties = Properties().apply {
     }
 }
 
+val bundledEnvProperties = Properties().apply {
+    val bundledEnvFile = rootProject.file("../assets/.env")
+    if (bundledEnvFile.isFile) {
+        bundledEnvFile.inputStream().use { load(it) }
+    }
+}
+
 val signingProperties = Properties().apply {
     val signingFile = rootProject.file("key.properties")
     if (signingFile.exists()) {
@@ -64,10 +71,12 @@ android {
         manifestPlaceholders["EMULATOR_HOST"] = emulatorHost
         resValue("string", "EMULATOR_HOST", emulatorHost)
 
-        // Facebook Login (flutter_facebook_auth) reads these from string resources.
+        // Release builds get these public values from assets/.env via prepare_android.py.
+        // The Meta SDK reads them from Android string resources.
         fun envValue(name: String): String =
             (System.getenv(name)?.takeIf { it.isNotBlank() }
-                ?: envProperties.getProperty(name)).orEmpty().trim()
+                ?: envProperties.getProperty(name)?.takeIf { it.isNotBlank() }
+                ?: bundledEnvProperties.getProperty(name)).orEmpty().trim()
         val facebookAppId = envValue("FACEBOOK_APP_ID")
         val facebookClientToken = envValue("FACEBOOK_CLIENT_TOKEN")
         val facebookConfigured = facebookAppId.matches(Regex("[0-9]+")) && facebookClientToken.isNotEmpty()
