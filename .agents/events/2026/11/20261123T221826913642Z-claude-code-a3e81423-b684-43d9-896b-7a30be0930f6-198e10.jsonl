@@ -1,0 +1,1 @@
+{"commits": ["7286733a503498ed297d0caf2db87a9308650267"], "harness": "claude-code", "issues": [], "provider": "anthropic", "prs": [], "session_id": "claude-code:a3e81423-b684-43d9-896b-7a30be0930f6", "sources": [], "started_at": "2026-11-23T22:03:16+00:00", "status": "active", "stream": "sessions", "summary": "Adaptive wide-screen layout (breakpoints, rail, master-detail)"}
