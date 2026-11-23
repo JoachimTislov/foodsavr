@@ -328,3 +328,5 @@
 {"event": "opened draft PR for ADR 0008 and AgentSystem status", "prs": ["#396"], "session_id": "antigravity:ae823dd7-cb39-490f-843d-cf817acabf7c", "timestamp": "2026-11-22T18:16:38+00:00"}
 {"event": "committed promote missing-channel fix", "session_id": "claude-code:60acddb6-e61e-4865-9066-b781bff10d5a", "timestamp": "2026-11-23T17:37:04+00:00"}
 {"event": "opened PR", "prs": ["#404"], "session_id": "claude-code:60acddb6-e61e-4865-9066-b781bff10d5a", "timestamp": "2026-11-23T17:38:54+00:00"}
+{"commits": ["08a48d9285152692a399a7f36c4366f7ab641ab2"], "event": "Implemented #398: label-event concurrency isolation, effective-run check evaluation, tests, spec bullet", "issues": ["#398"], "session_id": "claude-code:19513e0c-355d-4369-976a-d7d7fc4c717d", "timestamp": "2026-11-23T17:44:55+00:00"}
+{"event": "opened PR", "issues": ["#398"], "prs": ["#405"], "session_id": "claude-code:19513e0c-355d-4369-976a-d7d7fc4c717d", "timestamp": "2026-11-23T17:46:42+00:00"}
