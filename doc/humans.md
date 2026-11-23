@@ -10,25 +10,9 @@ You steer; agents and scripts run the system. This page lists only what needs yo
 
 ## Manual processes
 
-Each row is something an agent must not do for you (browser consent, console clicks, secrets, one-way changes).
+Run `make human`. It shows what is missing, then lists every manual process (setup, infrastructure, secrets, the sign-in wizards) and every manual bypass of the automated pipeline (merge a PR, validate a branch, promote a channel, deploy the site), and runs the one you pick. `make human LIST=1` prints the same menu as text.
 
-| Process | Command |
-| --- | --- |
-| Fork upstream (contributors; GitHub secrets are owner-only) | `python3 scripts/setup/setupctl.py fork --upstream <owner>/foodsavr --yes` |
-| Create missing channel branches | `python3 scripts/setup/setupctl.py ensure-branches --repo <owner>/<repo> --topology <topology> --yes` |
-| Create the GitHub Apps | `scripts/human/github/create-agent-app.sh --role agent --repo <owner>/<repo>`, then again with `--role release-gate` |
-| Apply rulesets, environments, labels, variables | `make infra-github-apply` |
-| Apply the GCP and Firebase stack | `make infra-gcp-apply` |
-| Log in the Firebase CLI for CI | `scripts/human/firebase/login-cli-token.sh` |
-| Log in CI agent harnesses | `scripts/human/agents/login-claude-runner.sh`, `sync-codex-runner.sh`, `sync-antigravity-runner.sh` |
-| Google sign-in client secret | `scripts/human/google/create-web-client-secret.sh`, `rotate-web-client-secret.sh` |
-| Facebook sign-in credentials | `scripts/human/meta/create-app-credentials.sh`, `rotate-app-secret.sh`, then `make social-auth-setup` |
-| Codecov upload token | `scripts/human/codecov/rotate-upload-token.sh` |
-| Any other secret | `scripts/secrets/rotate.py NAME` (never `gh secret set` or editing `.env`; after a leak, rotate the whole group with `--group`) |
-| Enable Anonymous sign-in | Firebase console, **Authentication**, **Sign-in method** (no script) |
-| Enable GitHub Actions on a fork, last | `gh api -X PUT repos/<owner>/<repo>/actions/permissions -F enabled=true` |
-
-Run `ls scripts/human/*/` for the current scripts; each header names what it does and why it needs you.
+One step has no script: enable Anonymous sign-in in the Firebase console, **Authentication**, **Sign-in method**.
 
 ## Approvals and intent
 

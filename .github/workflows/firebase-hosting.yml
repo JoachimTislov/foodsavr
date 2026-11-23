@@ -11,6 +11,12 @@ name: Firebase Hosting
 # the manifest declares a cloud staging environment, else production.
 # Independent of the Android Drive/Play workflows.
 #
+# Build and deploy logic lives in scripts/web/deploy_web.py, shared with the
+# manual bypass `make deploy-web ENV=<env> [TARGET=live|preview]`, which runs
+# the same steps with your own firebase login. When enabled but the deploy
+# configuration is missing, the job fails (no silent green) and names both the
+# bypass and the fix (`make infra-gcp-apply ENV=<env>`).
+#
 # Storage budget (scripts/web/hosting_storage_guard.py, before each deploy):
 # previews are deleted oldest-first above 8 GB and skipped if they would
 # not fit; live deploys may also delete live versions older than the 3
@@ -21,8 +27,8 @@ name: Firebase Hosting
 #   FIREBASE_HOSTING_ENABLED        explicit owner opt-in; unset/false skips all deploys
 # Variables set by scripts/infra/apply.sh (non-production environments use
 # a suffix, e.g. GCP_DEPLOY_SERVICE_ACCOUNT_STAGING):
-#   GCP_WORKLOAD_IDENTITY_PROVIDER  required to deploy (else skipped)
-#   GCP_DEPLOY_SERVICE_ACCOUNT      required to deploy (else skipped)
+#   GCP_WORKLOAD_IDENTITY_PROVIDER  required to deploy (missing fails the job when enabled)
+#   GCP_DEPLOY_SERVICE_ACCOUNT      required to deploy (missing fails the job when enabled)
 #   RECAPTCHA_ENTERPRISE_SITE_KEY   optional; App Check web site key (public)
 #   ANDROID_APK_URL                 optional; /android redirects here
 # Secrets:
@@ -134,121 +140,62 @@ jobs:
       DEPLOY_SA: ${{ vars[format('GCP_DEPLOY_SERVICE_ACCOUNT{0}', needs.resolve.outputs.suffix)] }}
       HAS_DEPLOY_CONFIG: ${{ vars[format('GCP_WORKLOAD_IDENTITY_PROVIDER{0}', needs.resolve.outputs.suffix)] != '' && vars[format('GCP_DEPLOY_SERVICE_ACCOUNT{0}', needs.resolve.outputs.suffix)] != '' }}
     steps:
-      - name: Skip without deploy configuration
+      - name: Require deploy configuration
         if: ${{ env.HAS_DEPLOY_CONFIG != 'true' }}
+        env:
+          SUFFIX: ${{ needs.resolve.outputs.suffix }}
         run: |
-          echo "::warning::GCP_WORKLOAD_IDENTITY_PROVIDER/GCP_DEPLOY_SERVICE_ACCOUNT (suffix '${{ needs.resolve.outputs.suffix }}') missing; run ENV=$FLAVOR scripts/infra/apply.sh. Skipping Firebase Hosting deploy."
-          echo '⚠️ Firebase Hosting deploy skipped: run scripts/infra/apply.sh.' >> "$GITHUB_STEP_SUMMARY"
+          msg="FIREBASE_HOSTING_ENABLED=true but GCP_WORKLOAD_IDENTITY_PROVIDER/GCP_DEPLOY_SERVICE_ACCOUNT (suffix '$SUFFIX') are missing, so nothing was deployed. Deploy now: make deploy-web ENV=$FLAVOR. Fix the pipeline: make infra-gcp-apply ENV=$FLAVOR."
+          echo "::error::$msg"
+          echo "❌ $msg" >> "$GITHUB_STEP_SUMMARY"
+          exit 1
 
       - name: Checkout code
-        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' }}
         uses: actions/checkout@v6
         with:
           persist-credentials: false
 
       - name: Authenticate to Google Cloud (keyless)
-        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' }}
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
           service_account: ${{ env.DEPLOY_SA }}
 
       - name: Set up Flutter
-        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' }}
         uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.47.6
           channel: stable
           cache: true
 
-      - name: Generate web configuration
-        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' }}
+      - name: Build web
         env:
           WEB_ENV_B64: ${{ secrets.WEB_ENV_B64 }}
           ANDROID_APK_URL: ${{ vars.ANDROID_APK_URL }}
-        run: |
-          npx -y "$FIREBASE_TOOLS" apps:sdkconfig WEB "$WEB_APP_ID" --project "$PROJECT_ID" --json \
-            | python3 scripts/web/write_web_config.py
-          if [ -n "$WEB_ENV_B64" ]; then
-            printf '%s' "$WEB_ENV_B64" | base64 --decode > assets/.env
-          else
-            echo "::warning::WEB_ENV_B64 is missing; deploying with an empty assets/.env."
-            : > assets/.env
-          fi
-
-      - name: Build web
-        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' }}
-        env:
           RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars[format('RECAPTCHA_ENTERPRISE_SITE_KEY{0}', needs.resolve.outputs.suffix)] }}
           FIREBASE_PLAN: ${{ vars.FIREBASE_PLAN }}
           ERROR_REPORTER: ${{ vars.ERROR_REPORTER }}
           ERROR_COLLECTOR_ENDPOINT: ${{ vars.ERROR_COLLECTOR_ENDPOINT }}
-        run: |
-          flutter pub get
-          dart run build_runner build --delete-conflicting-outputs
-          flutter create . --platforms web
-          defines=("--dart-define=FLAVOR=$FLAVOR")
-          if [ -n "$RECAPTCHA_ENTERPRISE_SITE_KEY" ]; then
-            defines+=("--dart-define=RECAPTCHA_ENTERPRISE_SITE_KEY=$RECAPTCHA_ENTERPRISE_SITE_KEY")
-          else
-            echo "::warning::RECAPTCHA_ENTERPRISE_SITE_KEY is missing; App Check uses a placeholder key."
-          fi
-          if [ -n "$ERROR_REPORTER" ]; then
-            defines+=("--dart-define=ERROR_REPORTER=$ERROR_REPORTER")
-          fi
-          if [ -n "$ERROR_COLLECTOR_ENDPOINT" ]; then
-            defines+=("--dart-define=ERROR_COLLECTOR_ENDPOINT=$ERROR_COLLECTOR_ENDPOINT")
-          fi
-          build_flags=(--release)
-          if [ "$FIREBASE_PLAN" = "blaze" ] && [ "$TARGET" = "live" ]; then
-            build_flags+=(--source-maps)
-          fi
-          flutter build web "${build_flags[@]}" "${defines[@]}"
+        run: python3 scripts/web/deploy_web.py build
 
       - name: Upload web source maps (Blaze)
-        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' && env.TARGET == 'live' && vars.FIREBASE_PLAN == 'blaze' }}
-        run: |
-          npx -y "$FIREBASE_TOOLS" crashlytics:sourcemap:upload --app "$WEB_APP_ID" --clean build/web
+        if: ${{ env.TARGET == 'live' && vars.FIREBASE_PLAN == 'blaze' }}
+        run: python3 scripts/web/deploy_web.py sourcemaps
 
       - name: Check Hosting storage budget
         id: budget
-        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' }}
         env:
           BRANCH: ${{ github.ref_name }}
-        run: |
-          channel=$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-' | cut -c1-27 | sed 's/^-*//;s/-*$//')
-          digest=$(printf '%s' "$BRANCH" | sha256sum | cut -c1-12)
-          channel="${channel:-branch}-$digest"
-          echo "channel=$channel" >> "$GITHUB_OUTPUT"
-          set +e
-          keep=""; [ "$TARGET" = preview ] && keep="$channel"
-          KEEP_CHANNEL="$keep" python3 scripts/web/hosting_storage_guard.py "$TARGET" "$(du -sb build/web | cut -f1)"
-          code=$?
-          set -e
-          if [ "$code" = 3 ]; then echo "fits=false" >> "$GITHUB_OUTPUT"; exit 0; fi
-          [ "$code" = 0 ] && echo "fits=true" >> "$GITHUB_OUTPUT"
-          exit "$code"
+        run: python3 scripts/web/deploy_web.py guard
 
       - name: Deploy preview channel
-        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' && env.TARGET == 'preview' && steps.budget.outputs.fits == 'true' }}
+        if: ${{ env.TARGET == 'preview' && steps.budget.outputs.fits == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ github.ref_name }}
           EXPIRES: ${{ inputs.expires }}
-        run: |
-          [[ "$EXPIRES" =~ ^[0-9]+[hdw]$ ]] || { echo "::error::expires must look like 4h, 1d or 2w"; exit 1; }
-          channel="${{ steps.budget.outputs.channel }}"
-          url=$(npx -y "$FIREBASE_TOOLS" hosting:channel:deploy "$channel" --expires "$EXPIRES" \
-            --project "$PROJECT_ID" --json | python3 -c 'import json,sys; print(next(iter(json.load(sys.stdin)["result"].values()))["url"])')
-          echo "Preview: $url" | tee -a "$GITHUB_STEP_SUMMARY"
-          pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
-          if [ -n "$pr" ]; then
-            gh pr comment "$pr" --repo "$GITHUB_REPOSITORY" --edit-last --create-if-none \
-              --body "🔥 Firebase Hosting preview (expires in $EXPIRES): $url"
-          fi
+        run: python3 scripts/web/deploy_web.py deploy
 
       - name: Deploy live
-        if: ${{ env.HAS_DEPLOY_CONFIG == 'true' && env.TARGET == 'live' }}
-        run: |
-          npx -y "$FIREBASE_TOOLS" deploy --only hosting --project "$PROJECT_ID" --non-interactive
-          echo "Live ($FLAVOR): https://$SITE_ID.web.app" >> "$GITHUB_STEP_SUMMARY"
+        if: ${{ env.TARGET == 'live' }}
+        run: python3 scripts/web/deploy_web.py deploy

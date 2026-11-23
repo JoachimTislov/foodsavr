@@ -41,7 +41,8 @@ class LocalCiTest(unittest.TestCase):
         self.assertEqual(ci.groups_for(["lib/main.dart"]), ["dart"])
         self.assertEqual(ci.groups_for(["specs/source-of-truth/status.md"]), ["agents", "docs"])
         self.assertEqual(ci.groups_for([".github/workflows/merge-gate.yml"]), ["agents", "workflows"])
-        self.assertEqual(ci.groups_for(["Makefile"]), [])
+        self.assertEqual(ci.groups_for(["Makefile"]), ["agents"])
+        self.assertEqual(ci.groups_for(["README.md"]), ["docs"])
 
     def test_group_paths_match_their_workflows(self):
         self.assertEqual(set(ci.GROUPS["agents"].paths), first_paths("agent-system.yml"))

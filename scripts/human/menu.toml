@@ -1,0 +1,336 @@
+# Menu of `make human`: the single source for every manual process and pipeline bypass.
+#
+# Entries are `make` targets. The interactive scripts under scripts/human/<domain>/*.sh are
+# discovered from their headers by scripts/human/humanctl.py and need no entry here.
+# scripts/human/test_humanctl.py fails when an entry names a missing make target or script,
+# and when a target declared in make/bypass.mk is neither listed here nor in `excluded`.
+#
+# Entry fields:
+#   id        unique, kebab-case
+#   group     one of [[group]].id
+#   title     one line
+#   target    make target
+#   step      pipeline step or workflow it bypasses ("" for a manual process)
+#   needs     what it needs from you
+#   vars      prompts: name, prompt, required, default, choices
+#   dry_assign / apply_assign   make variables for the first (dry) and the confirmed run, e.g.
+#             apply_assign = "APPLY=1" runs once as a dry run, asks, then runs with APPLY=1
+
+excluded = []  # bypass.mk targets deliberately kept out of the menu (target names)
+
+[[group]]
+id = "setup"
+title = "Setup and credentials"
+
+[[group]]
+id = "merge"
+title = "Merge and validation"
+
+[[group]]
+id = "release"
+title = "Release, deploy and publish"
+
+[[group]]
+id = "observe"
+title = "Monitoring and healing"
+
+[[group]]
+id = "scripts"
+title = "Human-only wizards (scripts/human)"
+
+# --- setup and credentials --------------------------------------------------
+
+[[entry]]
+id = "setup"
+group = "setup"
+title = "Setup wizard (local-dev, fork-agents, full-cloud)"
+target = "setup"
+step = ""
+needs = "gh login; a browser for consent steps"
+
+[[entry]]
+id = "setup-verify"
+group = "setup"
+title = "Verify the setup of a profile"
+target = "setup-verify"
+step = ""
+needs = "gh login for the cloud profiles"
+vars = [{ name = "PROFILE", prompt = "Profile", choices = ["local-dev", "fork-agents", "full-cloud"], default = "full-cloud" }]
+
+[[entry]]
+id = "setup-fork"
+group = "setup"
+title = "Fork upstream (contributors; GitHub secrets are owner-only)"
+target = "setup-fork"
+step = ""
+needs = "gh login"
+vars = [{ name = "UPSTREAM", prompt = "Upstream (owner/foodsavr)", required = true }]
+apply_assign = "YES=1"
+
+[[entry]]
+id = "setup-branches"
+group = "setup"
+title = "Create the missing release channel branches"
+target = "setup-branches"
+step = "promote.yml"
+needs = "gh login with push rights"
+vars = [
+  { name = "REPO", prompt = "Repository (owner/repo)", required = true },
+  { name = "TOPOLOGY", prompt = "Topology", choices = ["single", "two-stage", "full-channels"], required = true },
+]
+apply_assign = "YES=1"
+
+[[entry]]
+id = "setup-enable-actions"
+group = "setup"
+title = "Enable GitHub Actions on a fork (do this last)"
+target = "setup-enable-actions"
+step = ""
+needs = "gh login with admin rights on the fork"
+vars = [{ name = "REPO", prompt = "Repository (owner/repo)", required = true }]
+
+[[entry]]
+id = "social-auth-setup"
+group = "setup"
+title = "Configure Google and Facebook sign-in in Firebase"
+target = "social-auth-setup"
+step = ""
+needs = "firebase and gcloud login; the secrets from the Google and Meta wizards"
+
+[[entry]]
+id = "agent-status"
+group = "setup"
+title = "Agent system health and owner actions"
+target = "agent-status"
+step = ""
+needs = "gh login"
+
+[[entry]]
+id = "infra-github-plan"
+group = "setup"
+title = "Plan the GitHub infrastructure (rulesets, variables)"
+target = "infra-github-plan"
+step = "ci-ruleset"
+needs = "gh admin login, terraform"
+
+[[entry]]
+id = "infra-github-apply"
+group = "setup"
+title = "Apply the GitHub infrastructure (rulesets, variables)"
+target = "infra-github-apply"
+step = "ci-ruleset"
+needs = "gh admin login, terraform"
+
+[[entry]]
+id = "infra-gcp-plan"
+group = "setup"
+title = "Plan the cloud infrastructure (deploy identity, App Check)"
+target = "infra-gcp-plan"
+step = "firebase-hosting"
+needs = "gcloud login, terraform"
+vars = [{ name = "ENV", prompt = "Environment (deploy/instance.yaml)", default = "production" }]
+
+[[entry]]
+id = "infra-gcp-apply"
+group = "setup"
+title = "Apply the cloud infrastructure; sets the Hosting deploy variables"
+target = "infra-gcp-apply"
+step = "firebase-hosting"
+needs = "gcloud owner login, terraform, gh login"
+vars = [{ name = "ENV", prompt = "Environment (deploy/instance.yaml)", default = "production" }]
+
+[[entry]]
+id = "secrets-rotate"
+group = "setup"
+title = "Rotate or set secrets through scripts/secrets/rotate.py"
+target = "secrets-rotate"
+step = ""
+needs = "gh login; hidden prompts for manual secrets"
+vars = [
+  { name = "NAMES", prompt = "Secret names, space separated (empty lists the registry)" },
+  { name = "GROUP", prompt = "Or a whole group after a leak (empty for none)" },
+]
+dry_assign = "DRY_RUN=1"
+apply_assign = "DRY_RUN="
+
+# --- merge and validation ---------------------------------------------------
+
+[[entry]]
+id = "ci-check"
+group = "merge"
+title = "Run the local CI mirror (analyze, format, test, locale-check)"
+target = "check"
+step = "ci-checks.yml / Check & Test"
+needs = "Flutter (CI's pinned version is provisioned)"
+
+[[entry]]
+id = "validate"
+group = "merge"
+title = "Dispatch the full Validation workflow on a branch"
+target = "validate"
+step = "validation.yml"
+needs = "gh login; the branch pushed"
+vars = [{ name = "REF", prompt = "Branch (empty: current)" }]
+
+[[entry]]
+id = "pr-merge"
+group = "merge"
+title = "Merge a PR when required checks and Validation result are green (skips the review tier)"
+target = "pr-merge"
+step = "merge-gate.yml"
+needs = "gh login with merge rights"
+vars = [{ name = "PR", prompt = "PR number", required = true }]
+apply_assign = "APPLY=1"
+
+[[entry]]
+id = "merge-gate"
+group = "merge"
+title = "Run one merge-gate reconcile pass with your login"
+target = "merge-gate"
+step = "merge-gate.yml"
+needs = "gh login with merge rights"
+apply_assign = "APPLY=1"
+
+[[entry]]
+id = "agent-review"
+group = "merge"
+title = "Re-run the adaptive agent review on a PR"
+target = "agent-review"
+step = "agent-review.yml"
+needs = "gh login"
+vars = [{ name = "PR", prompt = "PR number", required = true }]
+
+[[entry]]
+id = "dispatch"
+group = "merge"
+title = "Dispatch any workflow that has workflow_dispatch"
+target = "dispatch"
+step = "any workflow"
+needs = "gh login"
+vars = [
+  { name = "WORKFLOW", prompt = "Workflow file (for example ci-checks.yml)", required = true },
+  { name = "REF", prompt = "Ref to run on", required = true },
+  { name = "INPUTS", prompt = "Inputs as key=value, space separated (empty for none)" },
+]
+
+# --- release, deploy and publish --------------------------------------------
+
+[[entry]]
+id = "promote"
+group = "release"
+title = "Fast-forward a release channel"
+target = "promote"
+step = "promote.yml"
+needs = "gh login that may push the channel branch; DISPATCH=1 uses the Actions token instead"
+vars = [
+  { name = "CHANNEL", prompt = "Channel", choices = ["nightly", "beta", "stable", "release"], required = true },
+  { name = "SOURCE", prompt = "Source branch (empty: the channel's default)" },
+  { name = "DISPATCH", prompt = "Run promote.yml on Actions instead of locally (1 or empty)" },
+]
+apply_assign = "APPLY=1"
+
+[[entry]]
+id = "build-remote"
+group = "release"
+title = "Run a release artifact build on Actions"
+target = "build-remote"
+step = "build-web.yml / build-android.yml"
+needs = "gh login"
+vars = [
+  { name = "PLATFORM", prompt = "Platform", choices = ["web", "android"], required = true },
+  { name = "REF", prompt = "Ref (empty: current branch)" },
+]
+
+[[entry]]
+id = "release-candidate"
+group = "release"
+title = "Produce the web release candidate artifact"
+target = "release-candidate"
+step = "release-gated.yml"
+needs = "gh login"
+vars = [{ name = "REF", prompt = "Ref (empty: release)" }]
+
+[[entry]]
+id = "deploy-web"
+group = "release"
+title = "Build the web app locally and deploy it to Firebase Hosting"
+target = "deploy-web"
+step = "firebase-hosting.yml"
+needs = "firebase login; gh login for Actions variables; Flutter is provisioned"
+vars = [
+  { name = "ENV", prompt = "Environment (deploy/instance.yaml)", default = "production", required = true },
+  { name = "TARGET", prompt = "Target", choices = ["live", "preview"], default = "live" },
+  { name = "EXPIRES", prompt = "Preview lifetime (preview only, empty: 4h)" },
+  { name = "WEB_ENV_FILE", prompt = "File for assets/.env, served publicly (empty: none)" },
+]
+dry_assign = "PLAN=1"
+apply_assign = "YES=1"
+
+[[entry]]
+id = "deploy-firestore-rules"
+group = "release"
+title = "Deploy the tracked firestore.rules"
+target = "deploy-firestore-rules"
+step = "firestore rules (ADR 0010)"
+needs = "firebase login with access to the project"
+vars = [{ name = "ENV", prompt = "Environment (deploy/instance.yaml)", default = "production", required = true }]
+
+[[entry]]
+id = "android-apk"
+group = "release"
+title = "Deliver the Android test APK to Google Drive"
+target = "android-apk"
+step = "android-drive-test.yml"
+needs = "gh login; with LOCAL=1 GOOGLE_DRIVE_FOLDER_ID, GOOGLE_DRIVE_OAUTH_JSON and lib/firebase_options.dart"
+vars = [
+  { name = "REF", prompt = "Ref (empty: release)" },
+  { name = "LOCAL", prompt = "Build and upload from this machine (1 or empty)" },
+]
+
+[[entry]]
+id = "docs-build"
+group = "release"
+title = "Build and check the documentation site locally"
+target = "docs-build"
+step = "docs-pages.yml / build"
+needs = "Python; docs tools are installed on demand"
+
+[[entry]]
+id = "docs-publish"
+group = "release"
+title = "Publish the documentation to GitHub Pages"
+target = "docs-publish"
+step = "docs-pages.yml / deploy"
+needs = "gh login; Pages publishing only works from Actions"
+vars = [{ name = "REF", prompt = "Ref (empty: release)" }]
+
+# --- monitoring and healing -------------------------------------------------
+
+[[entry]]
+id = "deployment-poll"
+group = "observe"
+title = "Poll an environment's usage against its level limits"
+target = "deployment-poll"
+step = "deployment-level.yml / poll"
+needs = "gcloud login with monitoring access"
+vars = [{ name = "ENV", prompt = "Environment (deploy/instance.yaml)", default = "production", required = true }]
+
+[[entry]]
+id = "monitor-web"
+group = "observe"
+title = "Probe the live site and route failures through fault intake"
+target = "monitor-web"
+step = "web-monitor.yml"
+needs = "Node and Playwright (installed on first run); gh login"
+vars = [{ name = "URL", prompt = "URL (empty: MONITOR_TARGET_URL)" }]
+apply_assign = "APPLY=1"
+
+# --- variants of discovered scripts (script + args instead of target) -------
+
+[[entry]]
+id = "github/create-release-gate-app"
+group = "scripts"
+title = "Create the Release-Gate GitHub App (merge gate and promotion)"
+script = "scripts/human/github/create-agent-app.sh"
+args = "--role release-gate"
+needs = "GitHub creates and installs an App only after the signed-in owner confirms in the browser."
