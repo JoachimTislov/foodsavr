@@ -24,6 +24,8 @@ environment:
 
 # Flutter sdk license: BSD-3-Clause
 dependencies:
+  flutter_web_plugins:
+    sdk: flutter
   flutter:
     sdk: flutter
   flutter_localizations:

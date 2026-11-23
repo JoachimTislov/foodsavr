@@ -82,8 +82,13 @@ def check_expires(expires: str) -> str:
     return expires
 
 
-def build_defines(flavor: str, recaptcha: str = "", reporter: str = "", endpoint: str = "") -> list[str]:
+def build_defines(flavor: str, recaptcha: str = "", reporter: str = "", endpoint: str = "", *,
+                  access_code: str = "", legal_environment: str = "") -> list[str]:
     defines = [f"--dart-define=FLAVOR={flavor}"]
+    if access_code:
+        defines.append(f"--dart-define=WEB_ACCESS_CODE={access_code}")
+    if legal_environment:
+        defines.append(f"--dart-define=LEGAL_ENVIRONMENT={legal_environment}")
     if recaptcha:
         defines.append(f"--dart-define=RECAPTCHA_ENTERPRISE_SITE_KEY={recaptcha}")
     else:
@@ -145,6 +150,9 @@ def cmd_build() -> None:
         os.environ.get("RECAPTCHA_ENTERPRISE_SITE_KEY", ""),
         os.environ.get("ERROR_REPORTER", ""),
         os.environ.get("ERROR_COLLECTOR_ENDPOINT", ""),
+        access_code=os.environ.get("WEB_ACCESS_CODE", ""),
+        # ADR 0010: the current FoodSavr cloud project is for testing.
+        legal_environment="test" if project == "my-foodsavr-store" else "",
     )
     run(["flutter", "build", "web", *build_flags(os.environ.get("FIREBASE_PLAN", ""), target), *defines])
     write_release_metadata(ROOT / "build/web", revision)

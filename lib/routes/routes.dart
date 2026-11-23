@@ -15,7 +15,10 @@ import 'package:foodsavr/views/splash_view.dart';
 import 'package:foodsavr/views/transfer_management_view.dart';
 import 'package:go_router/go_router.dart';
 
+import '../constants/legal_docs.dart';
+import '../constants/public_routes.dart';
 import '../controllers/list_query.dart';
+import '../views/legal_document_view.dart';
 import '../models/product_model.dart';
 
 part 'routes.g.dart';
@@ -38,8 +41,30 @@ class AuthRoute extends GoRouteData with $AuthRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) {
     final mode = state.uri.queryParameters['mode'] ?? 'login';
-    return AuthView(isLogin: mode == 'login');
+    final deletionOnly = PublicRoutes.isDeletionSignIn(state.uri);
+    return AuthView(
+      isLogin: deletionOnly || mode == 'login',
+      deletionOnly: deletionOnly,
+    );
   }
+}
+
+@TypedGoRoute<PrivacyRoute>(path: PublicRoutes.privacy)
+class PrivacyRoute extends GoRouteData with $PrivacyRoute {
+  const PrivacyRoute();
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const LegalDocumentView(document: LegalDoc.privacy);
+}
+
+@TypedGoRoute<TermsRoute>(path: PublicRoutes.terms)
+class TermsRoute extends GoRouteData with $TermsRoute {
+  const TermsRoute();
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const LegalDocumentView(document: LegalDoc.terms);
 }
 
 @TypedGoRoute<SplashRoute>(path: '/splash')

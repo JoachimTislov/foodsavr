@@ -7,6 +7,9 @@ class Config {
       appFlavor ??
       String.fromEnvironment('FLAVOR', defaultValue: 'development');
 
+  static const webAccessCode = String.fromEnvironment('WEB_ACCESS_CODE');
+  static const legalEnvironment = String.fromEnvironment('LEGAL_ENVIRONMENT');
+
   static bool get isDevelopment => environment == 'development';
   static bool get isProduction => environment == 'production';
   static bool get useEmulators => isDevelopment;

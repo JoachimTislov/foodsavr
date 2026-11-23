@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
@@ -10,8 +9,10 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 
+import '../interfaces/i_account_data_repository.dart';
 import '../interfaces/i_auth_service.dart';
 import '../interfaces/i_error_reporter.dart';
+import 'secure_storage_service.dart';
 
 @LazySingleton(as: IAuthService)
 class AuthService implements IAuthService {
@@ -20,7 +21,8 @@ class AuthService implements IAuthService {
   final FacebookAuth _facebookAuth;
   final bool _supportsPersistence;
   final bool _isWeb;
-  final FirebaseFirestore _firestore;
+  final IAccountDataRepository _accountDataRepository;
+  final SecureStorage _secureStorage;
   final CollectionService _collectionService;
   final Logger _logger;
   final IErrorReporter _errorReporter;
@@ -31,7 +33,8 @@ class AuthService implements IAuthService {
     required FacebookAuth facebookAuth,
     @Named('supportsPersistence') required bool supportsPersistence,
     @Named('isWeb') required bool isWeb,
-    required FirebaseFirestore firestore,
+    required IAccountDataRepository accountDataRepository,
+    required SecureStorage secureStorage,
     required CollectionService collectionService,
     required Logger logger,
     required IErrorReporter errorReporter,
@@ -39,7 +42,8 @@ class AuthService implements IAuthService {
        _facebookAuth = facebookAuth,
        _supportsPersistence = supportsPersistence,
        _isWeb = isWeb,
-       _firestore = firestore,
+       _accountDataRepository = accountDataRepository,
+       _secureStorage = secureStorage,
        _collectionService = collectionService,
        _logger = logger,
        _errorReporter = errorReporter;
@@ -146,6 +150,11 @@ class AuthService implements IAuthService {
     if (_isWeb) {
       return _signInWithPopup(GoogleAuthProvider());
     }
+    final credential = await _googleCredential();
+    return _authenticate(() => _firebaseAuth.signInWithCredential(credential));
+  }
+
+  Future<OAuthCredential> _googleCredential() async {
     await (_googleSignInInitialization ??= _initializeGoogleSignIn());
     final GoogleSignInAccount googleUser;
     try {
@@ -160,15 +169,9 @@ class AuthService implements IAuthService {
       rethrow;
     }
 
-    // Obtain the auth details from the request
-    final GoogleSignInAuthentication googleAuth = googleUser.authentication;
-
-    // Create a new credential
-    final credential = GoogleAuthProvider.credential(
-      idToken: googleAuth.idToken,
+    return GoogleAuthProvider.credential(
+      idToken: googleUser.authentication.idToken,
     );
-
-    return _authenticate(() => _firebaseAuth.signInWithCredential(credential));
   }
 
   Future<void> _initializeGoogleSignIn() async {
@@ -213,6 +216,11 @@ class AuthService implements IAuthService {
   }
 
   Future<UserCredential> _signInWithFacebookSdk() async {
+    final credential = await _facebookCredential();
+    return _authenticate(() => _firebaseAuth.signInWithCredential(credential));
+  }
+
+  Future<OAuthCredential> _facebookCredential() async {
     final LoginResult result;
     try {
       result = await _facebookAuth.login();
@@ -239,8 +247,7 @@ class AuthService implements IAuthService {
       throw FirebaseAuthException(code: 'facebook-sdk-failed');
     }
 
-    final credential = FacebookAuthProvider.credential(token);
-    return _authenticate(() => _firebaseAuth.signInWithCredential(credential));
+    return FacebookAuthProvider.credential(token);
   }
 
   Future<UserCredential> _signInWithPopup(AuthProvider provider) async {
@@ -318,73 +325,66 @@ class AuthService implements IAuthService {
   }
 
   Future<void> _cleanupAndSignOutAnonymousUser(User user) async {
-    Object? cleanupError;
-    StackTrace? cleanupStackTrace;
     try {
-      await _deleteDocumentsForUser(
-        collectionName: 'products',
-        userId: user.uid,
-      );
-      await _deleteDocumentsForUser(
-        collectionName: 'collections',
-        userId: user.uid,
-      );
-      await user.delete();
-    } catch (e, st) {
-      cleanupError = e;
-      cleanupStackTrace = st;
+      await _deleteUser(user);
     } finally {
       await _firebaseAuth.signOut();
-    }
-    if (cleanupError != null) {
-      Error.throwWithStackTrace(cleanupError, cleanupStackTrace!);
     }
   }
 
   @override
-  Future<void> deleteAccount() async {
-    final currentUser = _firebaseAuth.currentUser;
-    if (currentUser == null) {
-      return;
-    }
-    if (currentUser.isAnonymous) {
-      return _cleanupAndSignOutAnonymousUser(currentUser);
-    }
-    await currentUser.delete();
-    try {
-      await _deleteDocumentsForUser(
-        collectionName: 'products',
-        userId: currentUser.uid,
-      );
-      await _deleteDocumentsForUser(
-        collectionName: 'collections',
-        userId: currentUser.uid,
-      );
-    } catch (e, s) {
-      _logger.e(
-        'Failed to clean up documents for deleted user ${currentUser.uid}',
-        error: e,
-        stackTrace: s,
-      );
-    }
-    _logger.i('User account deleted: ${currentUser.uid}');
+  Future<void> deleteAccount({
+    bool reauthenticate = false,
+    String? password,
+  }) async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) return;
+    if (reauthenticate) await _reauthenticate(user, password);
+    await _deleteUser(user);
   }
 
-  Future<void> _deleteDocumentsForUser({
-    required String collectionName,
-    required String userId,
-  }) async {
-    final snapshot = await _firestore
-        .collection(collectionName)
-        .where('userId', isEqualTo: userId)
-        .get();
-    if (snapshot.docs.isEmpty) {
-      return;
+  Future<void> _deleteUser(User user) async {
+    _requireCurrentUser(user);
+    await _accountDataRepository.deleteForUser(user.uid);
+    _requireCurrentUser(user);
+    await _secureStorage.clearStoreTokens();
+    _requireCurrentUser(user);
+    await user.delete();
+    _logger.i('User account deleted: ${user.uid}');
+  }
+
+  void _requireCurrentUser(User user) {
+    if (_firebaseAuth.currentUser?.uid != user.uid) {
+      throw FirebaseAuthException(code: 'user-mismatch');
     }
-    final batch = _firestore.batch();
-    for (final doc in snapshot.docs) {
-      batch.delete(doc.reference);
+  }
+
+  Future<void> _reauthenticate(User user, String? password) async {
+    final providers = user.providerData.map((info) => info.providerId).toSet();
+    if (providers.contains(EmailAuthProvider.PROVIDER_ID) &&
+        user.email != null) {
+      if (password == null) {
+        throw FirebaseAuthException(code: 'requires-recent-login');
+      }
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(email: user.email!, password: password),
+      );
+    } else if (providers.contains(GoogleAuthProvider.PROVIDER_ID)) {
+      if (_isWeb) {
+        await user.reauthenticateWithPopup(GoogleAuthProvider());
+      } else {
+        await user.reauthenticateWithCredential(await _googleCredential());
+      }
+    } else if (providers.contains(FacebookAuthProvider.PROVIDER_ID)) {
+      if (_isWeb) {
+        await user.reauthenticateWithPopup(FacebookAuthProvider());
+      } else {
+        await user.reauthenticateWithCredential(await _facebookCredential());
+      }
+    } else {
+      throw FirebaseAuthException(
+        code: 'operation-not-allowed-in-current-mode',
+      );
     }
-    await batch.commit();
   }
 }

@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:foodsavr/constants/preferences_config.dart';
 import 'package:foodsavr/controllers/pwa_install_controller.dart';
 import 'package:foodsavr/injection.dart';
+import 'package:foodsavr/services/web_access.dart';
 import 'package:foodsavr/utils/theme_notifier.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
@@ -45,6 +46,7 @@ abstract class RegisterModule {
             ThemeNotifier.kThemeModeKey,
             PwaInstallController.kDismissedKey,
             PreferencesConfig.cacheKey,
+            WebAccess.preferenceKey,
           },
         ),
       );

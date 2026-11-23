@@ -212,7 +212,12 @@
 		"danger_zone": "Danger Zone",
 		"deleteAccountConfirmation": "Yes, Delete Account",
 		"delete_account": "Delete Account",
-		"delete_account_description": "Permanently delete your account and all associated data. This action cannot be undone.",
+		"delete_account_description": "Delete your account, inventories, collections and preferences. This action cannot be undone.",
+		"account_deleted": "Your account was deleted.",
+		"back_to_foodsavr": "Back to FoodSavr",
+		"sign_in_to_delete": "Sign in to the account you want to delete.",
+		"sign_in_to_delete_button": "Sign in",
+		"verify_and_delete": "Verify and delete",
 		"error_delete_account": "Failed to delete account. Please try again.",
 		"error_sign_out": "Failed to sign out. Please try again.",
 		"forgot_password": "Forgot Password",
@@ -299,5 +304,13 @@
 			"title": "Install FoodSavr"
 		},
 		"installed_snackbar": "FoodSavr installed successfully."
+	},
+	"webAccess": {
+		"code": "Access code",
+		"invalid": "That code is incorrect.",
+		"continue": "Continue"
+	},
+	"legal": {
+		"load_error": "This document could not be loaded."
 	}
 }

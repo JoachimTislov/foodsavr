@@ -3,7 +3,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../constants/legal_docs.dart';
+import '../constants/public_routes.dart';
+import '../widgets/auth/public_page_links.dart';
 import '../service_locator.dart';
 import '../controllers/user_controller.dart';
 import '../utils/config.dart';
@@ -16,9 +17,10 @@ import '../widgets/auth/social_auth_section.dart';
 import '../widgets/auth/terms_and_privacy_checkbox.dart';
 
 class AuthView extends StatefulWidget {
-  const AuthView({super.key, this.isLogin = true});
+  const AuthView({super.key, this.isLogin = true, this.deletionOnly = false});
 
   final bool isLogin;
+  final bool deletionOnly;
 
   @override
   State<AuthView> createState() => _AuthViewState();
@@ -37,8 +39,8 @@ class _AuthViewState extends State<AuthView> {
     super.initState();
     _controller = getIt<UserController>();
     _controller.isLogin = widget.isLogin;
-    _privacyRecognizer.onTap = _showPrivacyNotice;
-    _termsRecognizer.onTap = _showTermsOfService;
+    _privacyRecognizer.onTap = () => context.push(PublicRoutes.privacy);
+    _termsRecognizer.onTap = () => context.push(PublicRoutes.terms);
 
     if (Config.isDevelopment) {
       _emailController.text = Config.testUserEmail;
@@ -70,46 +72,6 @@ class _AuthViewState extends State<AuthView> {
 
   void _signInWithFacebook() async {
     await _controller.signInWithFacebook();
-  }
-
-  Future<void> _showPrivacyNotice() async {
-    final content = await LegalDocs.privacyNotice();
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('common.privacy_notice'.tr()),
-          content: SingleChildScrollView(child: Text(content)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('common.close'.tr()),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _showTermsOfService() async {
-    final content = await LegalDocs.termsOfService();
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('common.terms_of_service'.tr()),
-          content: SingleChildScrollView(child: Text(content)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('common.close'.tr()),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   @override
@@ -172,20 +134,22 @@ class _AuthViewState extends State<AuthView> {
                       onFacebookPressed: _signInWithFacebook,
                     ),
                     const SizedBox(height: 24.0),
-                    AuthToggleButton(
-                      isLogin: _controller.isLogin,
-                      onPressed: _controller.isLoading
-                          ? null
-                          : () {
-                              _controller.isLogin = !_controller.isLogin;
-                              _emailController.clear();
-                              _passwordController.clear();
-                              final mode = _controller.isLogin
-                                  ? 'login'
-                                  : 'signup';
-                              context.go('/auth?mode=$mode');
-                            },
-                    ),
+                    if (!widget.deletionOnly)
+                      AuthToggleButton(
+                        isLogin: _controller.isLogin,
+                        onPressed: _controller.isLoading
+                            ? null
+                            : () {
+                                _controller.isLogin = !_controller.isLogin;
+                                _emailController.clear();
+                                _passwordController.clear();
+                                final mode = _controller.isLogin
+                                    ? 'login'
+                                    : 'signup';
+                                context.go('/auth?mode=$mode');
+                              },
+                      ),
+                    const PublicPageLinks(),
                   ],
                 );
               },
@@ -197,10 +161,12 @@ class _AuthViewState extends State<AuthView> {
   }
 
   Widget _buildLoginOptions() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Checkbox(
               value: _controller.rememberMe,

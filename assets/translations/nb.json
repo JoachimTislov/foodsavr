@@ -212,7 +212,12 @@
 		"danger_zone": "Faresone",
 		"deleteAccountConfirmation": "Ja, slett konto",
 		"delete_account": "Slett konto",
-		"delete_account_description": "Slett kontoen din og alle tilknyttede data permanent. Denne handlingen kan ikke angres.",
+		"delete_account_description": "Slett kontoen din, varelagrene, samlingene og innstillingene dine. Handlingen kan ikke angres.",
+		"account_deleted": "Kontoen din er slettet.",
+		"back_to_foodsavr": "Tilbake til FoodSavr",
+		"sign_in_to_delete": "Logg inn på kontoen du vil slette.",
+		"sign_in_to_delete_button": "Logg inn",
+		"verify_and_delete": "Bekreft og slett",
 		"error_delete_account": "Klarte ikke å slette konto. Vennligst prøv igjen.",
 		"error_sign_out": "Klarte ikke å logge ut. Vennligst prøv igjen.",
 		"forgot_password": "Glemt passord",
@@ -299,5 +304,13 @@
 			"title": "Installer FoodSavr"
 		},
 		"installed_snackbar": "FoodSavr ble installert."
+	},
+	"webAccess": {
+		"code": "Tilgangskode",
+		"invalid": "Koden er feil.",
+		"continue": "Fortsett"
+	},
+	"legal": {
+		"load_error": "Dokumentet kunne ikke lastes inn."
 	}
 }

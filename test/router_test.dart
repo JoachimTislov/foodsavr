@@ -62,7 +62,10 @@ class _FakeAuthService implements IAuthService {
   }
 
   @override
-  Future<void> deleteAccount() async {}
+  Future<void> deleteAccount({
+    bool reauthenticate = false,
+    String? password,
+  }) async {}
 
   @override
   Future<void> signOut() async {

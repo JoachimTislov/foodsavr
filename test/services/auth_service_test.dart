@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
@@ -9,6 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_collection_repository.dart';
 import 'package:foodsavr/interfaces/i_error_reporter.dart';
+import 'package:foodsavr/interfaces/i_account_data_repository.dart';
+import 'package:foodsavr/services/secure_storage_service.dart';
 import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/utils/collection_types.dart';
@@ -21,7 +22,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  late MockFirebaseFirestore mockFirestore;
+  late MockAccountDataRepository dataRepository;
+  late MockSecureStorage secureStorage;
   late MockFirebaseAuth mockFirebaseAuth;
   late MockGoogleSignIn mockGoogleSignIn;
   late MockFacebookAuth mockFacebookAuth;
@@ -38,7 +40,10 @@ void main() {
   });
 
   setUp(() {
-    mockFirestore = MockFirebaseFirestore();
+    dataRepository = MockAccountDataRepository();
+    when(() => dataRepository.deleteForUser(any())).thenAnswer((_) async {});
+    secureStorage = MockSecureStorage();
+    when(() => secureStorage.clearStoreTokens()).thenAnswer((_) async {});
     mockFirebaseAuth = MockFirebaseAuth();
     mockGoogleSignIn = MockGoogleSignIn();
     mockFacebookAuth = MockFacebookAuth();
@@ -56,7 +61,8 @@ void main() {
       facebookAuth: mockFacebookAuth,
       supportsPersistence: true,
       isWeb: false,
-      firestore: mockFirestore,
+      accountDataRepository: dataRepository,
+      secureStorage: secureStorage,
       collectionService: mockCollectionService,
       logger: mockLogger,
       errorReporter: errorReporter,
@@ -73,7 +79,8 @@ void main() {
         facebookAuth: mockFacebookAuth,
         supportsPersistence: true,
         isWeb: true,
-        firestore: mockFirestore,
+        accountDataRepository: dataRepository,
+        secureStorage: secureStorage,
         collectionService: mockCollectionService,
         logger: mockLogger,
         errorReporter: errorReporter,
@@ -195,7 +202,8 @@ void main() {
         facebookAuth: mockFacebookAuth,
         supportsPersistence: false,
         isWeb: true,
-        firestore: mockFirestore,
+        accountDataRepository: dataRepository,
+        secureStorage: secureStorage,
         collectionService: collections,
         logger: mockLogger,
         errorReporter: errorReporter,
@@ -651,16 +659,80 @@ void main() {
       verifyZeroInteractions(errorReporter);
     });
 
-    test('deleteAccount deletes the Firebase account', () async {
-      const uid = 'some-uid';
-      final mockUser = MockUser();
-      when(() => mockFirebaseAuth.currentUser).thenReturn(mockUser);
-      when(() => mockUser.isAnonymous).thenReturn(false);
-      when(() => mockUser.uid).thenReturn(uid);
-      when(() => mockUser.delete()).thenAnswer((_) async {});
+    test('deletion cleans up before Firebase Auth removes the user', () async {
+      final user = MockUser();
+      when(() => mockFirebaseAuth.currentUser).thenReturn(user);
+      when(() => user.isAnonymous).thenReturn(false);
+      when(() => user.uid).thenReturn('some-uid');
+      when(() => user.delete()).thenAnswer((_) async {});
       await authService.deleteAccount();
-      verify(() => mockUser.delete()).called(1);
+      verifyInOrder([
+        () => dataRepository.deleteForUser('some-uid'),
+        () => user.delete(),
+      ]);
     });
+
+    test('deletion keeps the account when cleanup fails', () async {
+      final user = MockUser();
+      when(() => mockFirebaseAuth.currentUser).thenReturn(user);
+      when(() => user.isAnonymous).thenReturn(false);
+      when(() => user.uid).thenReturn('some-uid');
+      when(() => dataRepository.deleteForUser('some-uid')).thenThrow(
+        FirebaseException(plugin: 'cloud_firestore', code: 'permission-denied'),
+      );
+
+      await expectLater(
+        authService.deleteAccount(),
+        throwsA(isA<FirebaseException>()),
+      );
+      verifyNever(() => user.delete());
+    });
+
+    test('recent-login failure can be retried with the same account', () async {
+      final user = MockUser();
+      final passwordProvider = MockUserInfo();
+      when(() => passwordProvider.providerId).thenReturn('password');
+      when(() => mockFirebaseAuth.currentUser).thenReturn(user);
+      when(() => user.isAnonymous).thenReturn(false);
+      when(() => user.uid).thenReturn('some-uid');
+      when(() => user.email).thenReturn('user@example.com');
+      when(() => user.providerData).thenReturn([passwordProvider]);
+      var verified = false;
+      when(() => user.delete()).thenAnswer((_) async {
+        if (!verified) {
+          throw FirebaseAuthException(code: 'requires-recent-login');
+        }
+      });
+      when(() => user.reauthenticateWithCredential(any())).thenAnswer((
+        _,
+      ) async {
+        verified = true;
+        return mockUserCredential;
+      });
+
+      await expectLater(
+        authService.deleteAccount(),
+        throwsA(
+          isA<FirebaseAuthException>().having(
+            (e) => e.code,
+            'code',
+            'requires-recent-login',
+          ),
+        ),
+      );
+      await authService.deleteAccount(
+        reauthenticate: true,
+        password: 'password',
+      );
+
+      verifyInOrder([
+        () => user.delete(),
+        () => user.reauthenticateWithCredential(any()),
+        () => dataRepository.deleteForUser('some-uid'),
+        () => user.delete(),
+      ]);
+    });
+
     test('deleteAccount with no current user does nothing', () async {
       when(() => mockFirebaseAuth.currentUser).thenReturn(null);
       await authService.deleteAccount();
@@ -730,7 +802,12 @@ class MockAccessToken extends Mock implements AccessToken {}
 
 class MockFacebookAuth extends Mock implements FacebookAuth {}
 
-class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
+class MockAccountDataRepository extends Mock
+    implements IAccountDataRepository {}
+
+class MockSecureStorage extends Mock implements SecureStorage {}
+
+class MockUserInfo extends Mock implements UserInfo {}
 
 class MockFirebaseAuth extends Mock implements FirebaseAuth {}
 

@@ -21,53 +21,51 @@ class OAuthService implements IOAuthService {
   bool _exchanging = false;
 
   @override
-  late WebViewController webViewController;
-
-  OAuthService(this._logger, this._secureStorage) {
-    webViewController =
-        WebViewController.fromPlatformCreationParams(
-            const PlatformWebViewControllerCreationParams(),
-          )
-          ..setJavaScriptMode(JavaScriptMode.unrestricted)
-          ..setNavigationDelegate(
-            NavigationDelegate(
-              onWebResourceError: (error) {
-                final result = _attempt?.result;
-                if (error.isForMainFrame == true &&
-                    !_exchanging &&
-                    result != null &&
-                    !result.isCompleted) {
-                  result.completeError(const OAuthAuthorizationException());
-                }
-              },
-              onNavigationRequest: (request) async {
-                final attempt = _attempt;
-                final uri = Uri.tryParse(request.url);
-                if (attempt == null) return NavigationDecision.prevent;
-                if (uri == null || !attempt.util.matchesRedirect(uri)) {
-                  return NavigationDecision.navigate;
-                }
-                if (!request.isMainFrame ||
-                    _exchanging ||
-                    attempt.result.isCompleted) {
-                  return NavigationDecision.prevent;
-                }
-
-                _exchanging = true;
-                try {
-                  final code = attempt.util.authorizationCode(uri);
-                  await _fetchToken(attempt.provider, attempt.util, code);
-                  attempt.result.complete();
-                } catch (_) {
-                  attempt.result.completeError(
-                    const OAuthAuthorizationException(),
-                  );
-                }
+  late final WebViewController webViewController =
+      WebViewController.fromPlatformCreationParams(
+          const PlatformWebViewControllerCreationParams(),
+        )
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onWebResourceError: (error) {
+              final result = _attempt?.result;
+              if (error.isForMainFrame == true &&
+                  !_exchanging &&
+                  result != null &&
+                  !result.isCompleted) {
+                result.completeError(const OAuthAuthorizationException());
+              }
+            },
+            onNavigationRequest: (request) async {
+              final attempt = _attempt;
+              final uri = Uri.tryParse(request.url);
+              if (attempt == null) return NavigationDecision.prevent;
+              if (uri == null || !attempt.util.matchesRedirect(uri)) {
+                return NavigationDecision.navigate;
+              }
+              if (!request.isMainFrame ||
+                  _exchanging ||
+                  attempt.result.isCompleted) {
                 return NavigationDecision.prevent;
-              },
-            ),
-          );
-  }
+              }
+
+              _exchanging = true;
+              try {
+                final code = attempt.util.authorizationCode(uri);
+                await _fetchToken(attempt.provider, attempt.util, code);
+                attempt.result.complete();
+              } catch (_) {
+                attempt.result.completeError(
+                  const OAuthAuthorizationException(),
+                );
+              }
+              return NavigationDecision.prevent;
+            },
+          ),
+        );
+
+  OAuthService(this._logger, this._secureStorage);
 
   Future<void> _fetchToken(
     Provider provider,
@@ -147,6 +145,7 @@ class OAuthService implements IOAuthService {
 
   @override
   Future<List<Connection>> getConnections() async {
+    if (WebViewPlatform.instance == null) return [];
     var connections = <Connection>[];
     for (final provider in Provider.values) {
       if (!provider.isSupported()) continue;

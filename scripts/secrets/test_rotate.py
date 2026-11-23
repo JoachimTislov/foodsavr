@@ -169,6 +169,16 @@ class PushTest(unittest.TestCase):
             secret = rotate.Secret("S", generate="sync", sync_file="~/secret.txt", encode="base64")
             self.assertEqual(rotate.generate(secret, env={"HOME": str(home)}), "aGVsbG8Kd29ybGQ=")
 
+    def test_public_code_uses_github_variable_sink(self):
+        secret = rotate.load_registry()["WEB_ACCESS_CODE"]
+        run = MagicMock()
+        rotate.push(secret, "example-code", env_path=Path("/nonexistent"),
+                    repo="alice/foodsavr", run=run)
+        run.assert_called_once_with(
+            ["gh", "variable", "set", "WEB_ACCESS_CODE", "--repo", "alice/foodsavr"],
+            input="example-code", text=True, check=True,
+        )
+
     def test_github_mutation_guard_blocks_agent_env_and_cross_repo_without_tty(self):
         err_agent = rotate.check_github_mutation_guard(
             "alice/foodsavr", env={"AGENT_SESSION_ID": "test:1"}, interactive=False, origin_slug="alice/foodsavr",

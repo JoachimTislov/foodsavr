@@ -20,7 +20,7 @@ class OAuthConnectionsList extends StatelessWidget {
       builder: (context, _) {
         final connections = controller.connections;
         if (connections.isEmpty) {
-          return Text('No connections');
+          return const SizedBox.shrink();
         }
 
         final colorScheme = Theme.of(context).colorScheme;

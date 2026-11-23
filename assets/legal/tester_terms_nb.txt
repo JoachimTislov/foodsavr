@@ -1,0 +1,7 @@
+Utkast til manuell gjennomgang · FoodSavrs testvilkår
+
+Dette miljøet er for testing. Du kan bruke ekte data, men det er ingen garanti for at de blir beholdt. Testdata kan bli slettet når som helst. Ta vare på en egen kopi av opplysninger du vil beholde.
+
+Du må ha fylt 18 år for å opprette en konto. Bruk /delete-account for å slette kontoen din.
+
+FoodSavr drives av eieren som privatperson i Norge. Norsk lov gjelder. En egen kontaktadresse kommer. Plassholder i utkastet: legal-contact@placeholder.invalid.

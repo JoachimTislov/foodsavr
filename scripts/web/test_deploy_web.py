@@ -51,6 +51,17 @@ class PureTest(unittest.TestCase):
             "--dart-define=ERROR_COLLECTOR_ENDPOINT=https://e",
         ])
 
+    def test_hosted_access_and_legal_environment_defines(self):
+        self.assertEqual(
+            dw.build_defines("production", "key", access_code="fixture-code", legal_environment="test"),
+            [
+                "--dart-define=FLAVOR=production",
+                "--dart-define=WEB_ACCESS_CODE=fixture-code",
+                "--dart-define=LEGAL_ENVIRONMENT=test",
+                "--dart-define=RECAPTCHA_ENTERPRISE_SITE_KEY=key",
+            ],
+        )
+
     def test_source_maps_only_for_live_blaze(self):
         self.assertEqual(dw.build_flags("blaze", "live"), ["--release", "--source-maps"])
         self.assertEqual(dw.build_flags("blaze", "preview"), ["--release"])

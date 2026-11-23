@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:logger/logger.dart';
 import 'package:watch_it/watch_it.dart';
 
-import '../constants/legal_docs.dart';
+import '../constants/public_routes.dart';
 import '../constants/preferences_config.dart';
 import '../controllers/preferences_controller.dart';
 import '../controllers/pwa_install_controller.dart';
@@ -156,20 +156,17 @@ class _SettingsViewState extends State<SettingsView> {
                     _SettingsTile(
                       icon: Icons.description_outlined,
                       title: 'settings.terms_of_service'.tr(),
-                      onTap: () => _showLegalDoc(
-                        context,
-                        title: 'common.terms_of_service'.tr(),
-                        loadContent: LegalDocs.termsOfService,
-                      ),
+                      onTap: () => context.push(PublicRoutes.terms),
                     ),
                     _SettingsTile(
                       icon: Icons.privacy_tip_outlined,
                       title: 'settings.privacy_policy'.tr(),
-                      onTap: () => _showLegalDoc(
-                        context,
-                        title: 'common.privacy_notice'.tr(),
-                        loadContent: LegalDocs.privacyNotice,
-                      ),
+                      onTap: () => context.push(PublicRoutes.privacy),
+                    ),
+                    _SettingsTile(
+                      icon: Icons.delete_outline,
+                      title: 'profile.delete_account'.tr(),
+                      onTap: () => context.push(PublicRoutes.deleteAccount),
                     ),
                     _SettingsTile(
                       icon: Icons.info_outline,
@@ -183,28 +180,6 @@ class _SettingsViewState extends State<SettingsView> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Future<void> _showLegalDoc(
-    BuildContext context, {
-    required String title,
-    required Future<String> Function() loadContent,
-  }) async {
-    final content = await loadContent();
-    if (!context.mounted) return;
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: SingleChildScrollView(child: Text(content)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('common.close'.tr()),
-          ),
-        ],
       ),
     );
   }

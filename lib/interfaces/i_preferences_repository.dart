@@ -15,4 +15,6 @@ abstract class IPreferencesRepository {
   /// Caches [preferences] locally first, then writes them to the backend with
   /// merge semantics (last write wins per key).
   Future<void> save(String userId, UserPreferences preferences);
+
+  Future<void> deleteForUser(String userId);
 }
