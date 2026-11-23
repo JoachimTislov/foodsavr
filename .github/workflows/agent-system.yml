@@ -44,7 +44,7 @@ on:
       - 'doc/**'
       - '.github/workflows/agent-system.yml'
   push:
-    branches: [nightly, beta, stable, release]
+    branches: [daily, weekly, stable]
     paths: *agent-paths
   schedule:
     - cron: '17 3 * * 1'

@@ -3,14 +3,14 @@
 
 Topologies (ADR 0007, ADR 0008, configured via ``RELEASE_TOPOLOGY``):
   - ``single``:        ``develop`` only (promotions cleanly no-op).
-  - ``two-stage``:     ``develop -> release`` (biweekly schedule or manual).
-  - ``full-channels``: ``develop -> nightly -> beta -> stable -> release``.
+  - ``two-stage``:     ``develop -> stable`` (biweekly schedule or manual).
+  - ``full-channels``: ``develop -> daily -> weekly -> stable``.
 
 Dry run by default; ``--apply`` pushes each verified source commit to
 ``refs/heads/<target>`` using ``GH_TOKEN`` (never creating merge commits and
 never force-pushing). It fetches only the branches the resolved steps need and
-never creates branches: scheduled runs skip steps with a missing branch (and
-steps depending on them) with a warning; manual runs fail on a missing branch.
+requires the target branch to exist. Scheduled runs skip missing branches,
+and manual runs report them as errors.
 """
 
 from __future__ import annotations
@@ -31,25 +31,24 @@ from checks import QUEUE_CHECK, queue_check_state, rollup_state  # noqa: E402
 TOPOLOGIES = ("single", "two-stage", "full-channels")
 
 CHANNELS: dict[str, str] = {
-    "nightly": "develop",
-    "beta": "nightly",
-    "stable": "beta",
-    "release": "stable",
+    "daily": "develop",
+    "weekly": "daily",
+    "stable": "weekly",
 }
 
 TOPOLOGY_CHANNELS: dict[str, dict[str, str]] = {
     "single": {},
-    "two-stage": {"release": "develop"},
+    "two-stage": {"stable": "develop"},
     "full-channels": CHANNELS,
 }
 
 SCHEDULE_PROMOTIONS: dict[str, list[tuple[str, str]]] = {
-    # Daily nightly cut: develop -> nightly
-    "0 4 * * *": [("develop", "nightly")],
-    # Weekly beta cut (Mondays): nightly -> beta
-    "0 5 * * 1": [("nightly", "beta")],
-    # Biweekly stable + production release cut (1st & 15th): beta -> stable -> release
-    "0 6 1,15 * *": [("beta", "stable"), ("stable", "release")],
+    # Daily cut: develop -> daily
+    "0 4 * * *": [("develop", "daily")],
+    # Weekly cut (Mondays): daily -> weekly
+    "0 5 * * 1": [("daily", "weekly")],
+    # Stable production cut (1st & 15th): weekly -> stable
+    "0 6 1,15 * *": [("weekly", "stable")],
 }
 
 TOPOLOGY_SCHEDULE_PROMOTIONS: dict[str, dict[str, list[tuple[str, str]]]] = {
@@ -57,7 +56,7 @@ TOPOLOGY_SCHEDULE_PROMOTIONS: dict[str, dict[str, list[tuple[str, str]]]] = {
     "two-stage": {
         "0 4 * * *": [],
         "0 5 * * 1": [],
-        "0 6 1,15 * *": [("develop", "release")],
+        "0 6 1,15 * *": [("develop", "stable")],
     },
     "full-channels": SCHEDULE_PROMOTIONS,
 }
@@ -85,7 +84,7 @@ query($owner: String!, $name: String!, $sha: GitObjectID!) {
 
 @dataclass(frozen=True)
 class Decision:
-    action: str  # "promote" | "noop" | "pending" | "blocked" | "missing" | "skipped"
+    action: str  # "promote" | "noop" | "pending" | "blocked" | "missing"
     detail: str
 
 
@@ -110,7 +109,7 @@ def resolve_steps(
         return list(steps)
 
     channels = TOPOLOGY_CHANNELS[topology]
-    target = target_branch or "release"
+    target = target_branch or "stable"
     if target not in channels:
         raise ValueError(
             f"Unsupported target channel {target!r} for topology {topology!r} "
@@ -128,21 +127,20 @@ def decide_promotion(
     ancestor: bool,
     contexts: list[dict[str, Any]],
     *,
-    source_branch: str = "nightly",
-    target_branch: str = "beta",
+    source_branch: str = "daily",
+    target_branch: str = "weekly",
+    topology: str = "full-channels",
+    target_ahead: bool = False,
 ) -> Decision:
     """Pure promotion gate decision for a candidate source SHA.
 
-    Checks do not re-run on pushes to ``develop`` (PRs into ``develop`` are
-    ruleset-gated, and pushing to ``nightly`` runs the release-branch CI
-    suite). Therefore only ``develop -> nightly`` allows fast-forward when no
-    checks have failed or are pending on ``source_sha``. All other promotions
-    (including ``nightly -> beta -> stable -> release`` and any direct
-    ``develop -> release`` bypass) require a green rollup and completed
-    ``Detect changed areas`` on ``source_sha``.
+    The first cut from develop starts release-branch CI. Later cuts and
+    direct jumps in the full topology require green Validation on the source.
     """
     if source_sha == target_sha:
         return Decision("noop", f"{target_branch} is already at {target_sha[:7]}")
+    if target_ahead:
+        return Decision("noop", f"{target_branch} ({target_sha[:7]}) is ahead of {source_branch} ({source_sha[:7]})")
     if not ancestor:
         return Decision(
             "blocked",
@@ -156,7 +154,8 @@ def decide_promotion(
     if rollup == "PENDING":
         return Decision("pending", f"checks still running on {source_sha[:7]}")
 
-    if not (source_branch == "develop" and target_branch == "nightly"):
+    first_cut = source_branch == "develop" and TOPOLOGY_CHANNELS[topology].get(target_branch) == "develop"
+    if not first_cut:
         if rollup is None:
             return Decision("pending", f"checks missing on {source_sha[:7]}")
         queue_ok, queue_running = queue_check_state(contexts)
@@ -297,95 +296,44 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     scheduled = bool(args.schedule)
-    needed = list(dict.fromkeys(branch for step in steps for branch in step))
+    (source_branch, target_branch), = steps
+    label = f"{source_branch} -> {target_branch}"
+    needed = [source_branch, target_branch]
     existing = remote_branches(args.remote, needed)
-    fetch_branches(args.remote, [b for b in needed if b in existing])
-
-    effective_shas: dict[str, str] = {}
-    context_cache: dict[str, list[dict[str, Any]]] = {}
-    decisions: list[Decision] = []
-    sections: list[str] = []
-    problems: list[str] = []
-    unavailable: set[str] = set()
-
-    for source_branch, target_branch in steps:
-        label = f"{source_branch} -> {target_branch}"
-        absent = [b for b in (source_branch, target_branch) if b not in existing]
-        if absent:
-            decision = Decision("missing", "; ".join(missing_detail(b, args.remote) for b in absent))
-            unavailable.add(target_branch)
-        elif source_branch in unavailable:
-            decision = Decision(
-                "skipped",
-                f"source '{source_branch}' was not promoted earlier in this run; skipping to avoid promoting a stale commit",
-            )
-            unavailable.add(target_branch)
-        else:
-            decision = None
-
-        if decision is not None:
-            decisions.append(decision)
-            problems.append(f"- `{label}`: `{decision.action}`: {decision.detail}")
-            sections.append(
-                f"## Promote {label}\n\n- **Status:** `{decision.action}`\n- **Detail:** {decision.detail}\n"
-            )
-            print(f"{label}: {decision.action}: {decision.detail}")
-            level = "warning" if scheduled else "error"
-            print(f"::{level}::Promote {label} {decision.action}: {decision.detail}")
-            continue
-
-        source_sha = effective_shas.get(source_branch) or git("rev-parse", f"{args.remote}/{source_branch}")
-        target_sha = effective_shas.get(target_branch) or git("rev-parse", f"{args.remote}/{target_branch}")
+    absent = [b for b in needed if b not in existing]
+    if absent:
+        decision = Decision("missing", ". ".join(missing_detail(b, args.remote) for b in absent))
+    else:
+        fetch_branches(args.remote, needed)
+        source_sha = git("rev-parse", f"refs/remotes/{args.remote}/{source_branch}")
+        target_sha = git("rev-parse", f"refs/remotes/{args.remote}/{target_branch}")
         ancestor = is_ancestor(target_sha, source_sha)
-        if source_sha == target_sha or not ancestor:
-            contexts: list[dict[str, Any]] = []
-        else:
-            if source_sha not in context_cache:
-                context_cache[source_sha] = fetch_commit_contexts(args.repo, source_sha)
-            contexts = context_cache[source_sha]
-
+        target_ahead = not ancestor and is_ancestor(source_sha, target_sha)
+        contexts = fetch_commit_contexts(args.repo, source_sha) if ancestor and source_sha != target_sha else []
         decision = decide_promotion(
-            source_sha,
-            target_sha,
-            ancestor,
-            contexts,
+            source_sha, target_sha, ancestor, contexts,
             source_branch=source_branch,
             target_branch=target_branch,
+            topology=args.topology,
+            target_ahead=target_ahead,
         )
-        decisions.append(decision)
 
-        section = (
-            f"## Promote {label}\n\n"
-            f"- **Status:** `{decision.action}`\n"
-            f"- **Detail:** {decision.detail}\n"
-        )
-        if decision.action == "promote" and args.apply:
+    detail = f"{label}: {decision.action}: {decision.detail}"
+    if decision.action == "promote":
+        if args.apply:
             fast_forward_branch(args.repo, source_sha, target_branch, token)
-            effective_shas[target_branch] = source_sha
-            section += f"- **Result:** fast-forwarded `{target_branch}` to `{source_sha}`\n"
-        elif decision.action == "promote":
-            effective_shas[target_branch] = source_sha
-            section += "- **Result:** dry-run (not pushed)\n"
-        sections.append(section)
-        print(f"{label}: {decision.action}: {decision.detail}")
-        if decision.action in {"blocked", "pending"}:
-            break
-
-    if problems:
-        sections.append("## Missing or skipped steps\n\n" + "\n".join(problems) + "\n")
-
+        else:
+            detail += " (dry run)"
+    print(detail)
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary_path:
         with open(summary_path, "a", encoding="utf-8") as handle:
-            handle.write("\n".join(sections) + "\n")
+            handle.write(detail + "\n")
 
-    if any(d.action == "blocked" for d in decisions):
+    if decision.action == "missing" and not scheduled:
+        print(f"::error::{detail}")
         return 1
-    if not scheduled and any(d.action in {"missing", "skipped"} for d in decisions):
-        return 1
-    if args.strict_pending and any(d.action == "pending" for d in decisions):
-        return 1
-    return 0
+    return int(decision.action == "blocked" or (args.strict_pending and decision.action == "pending"))
 
 
 if __name__ == "__main__":

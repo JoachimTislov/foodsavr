@@ -35,7 +35,7 @@ locals {
   effective_deploy_branch = (
     var.deploy_branch != ""
     ? var.deploy_branch
-    : (var.release_topology == "single" ? "develop" : "release")
+    : (var.release_topology == "single" ? "develop" : "stable")
   )
 
   deploy_wif_member = (

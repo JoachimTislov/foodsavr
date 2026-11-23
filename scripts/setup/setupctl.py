@@ -44,8 +44,8 @@ FIREBASE_PLANS = ("spark", "blaze")
 
 TOPOLOGY_BRANCHES: dict[str, list[str]] = {
     "single": ["develop"],
-    "two-stage": ["develop", "release"],
-    "full-channels": ["develop", "nightly", "beta", "stable", "release"],
+    "two-stage": ["develop", "stable"],
+    "full-channels": ["develop", "daily", "weekly", "stable"],
 }
 
 HARNESS_AUTH_SECRETS = (
@@ -599,36 +599,65 @@ def ensure_branches(
         raise RuntimeError(f"Cannot resolve default branch '{default_branch}' on {repo}: {ref_proc.stderr.strip()}")
     base_sha = ref_proc.stdout.strip()
 
-    br_proc = _run(["gh", "api", f"repos/{repo}/branches?per_page=100", "--jq", ".[].name"], cwd=root)
-    existing = set(line.strip() for line in br_proc.stdout.splitlines() if line.strip()) if br_proc.returncode == 0 else set()
+    br_proc = _run(
+        ["gh", "api", "--paginate", f"repos/{repo}/branches?per_page=100",
+         "--jq", '.[] | [.name, .commit.sha] | @tsv'],
+        cwd=root,
+    )
+    if br_proc.returncode != 0:
+        raise RuntimeError(f"Cannot list branches on {repo}: {br_proc.stderr.strip()}")
+    existing = dict(line.split("\t", 1) for line in br_proc.stdout.splitlines() if line)
+    legacy = {"daily": "nightly", "weekly": "beta"}
+    stable_sha = existing.get("stable")
+
+    def includes(descendant: str, ancestor: str) -> bool:
+        if ancestor == descendant:
+            return True
+        result = _run(
+            ["gh", "api", f"repos/{repo}/compare/{ancestor}...{descendant}", "--jq", ".status"],
+            cwd=root,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"Cannot compare {ancestor} and {descendant}: {result.stderr.strip()}")
+        return result.stdout.strip() in {"ahead", "identical"}
 
     required = [b for b in TOPOLOGY_BRANCHES[topology] if b != default_branch]
     created: list[str] = []
     already_present: list[str] = []
+    seeds: dict[str, dict[str, str]] = {}
     for branch in required:
         if branch in existing:
             already_present.append(branch)
             continue
-        if dry_run:
-            created.append(branch)
-            continue
-        post_proc = _run(
-            [
-                "gh",
-                "api",
-                "-X",
-                "POST",
-                f"repos/{repo}/git/refs",
-                "-f",
-                f"ref=refs/heads/{branch}",
-                "-f",
-                f"sha={base_sha}",
-            ],
-            cwd=root,
-        )
-        if post_proc.returncode != 0:
-            raise RuntimeError(f"Failed creating branch '{branch}' on {repo}: {post_proc.stderr.strip()}")
+
+        seed = default_branch
+        sha = base_sha
+        old_branch = legacy.get(branch)
+        old_sha = existing.get(old_branch) if old_branch else None
+        if (old_sha and includes(base_sha, old_sha)
+                and (not stable_sha or includes(old_sha, stable_sha))):
+            seed, sha = old_branch, old_sha
+        if branch == "stable" and topology == "full-channels":
+            sha = existing.get("weekly") or seeds["weekly"]["sha"]
+            seed = "weekly"
+
+        if not dry_run:
+            post_proc = _run(
+                ["gh", "api", "-X", "POST", f"repos/{repo}/git/refs",
+                 "-f", f"ref=refs/heads/{branch}", "-f", f"sha={sha}"],
+                cwd=root,
+            )
+            if post_proc.returncode != 0:
+                # A concurrent setup may have created this ref since the listing.
+                ref = _run(["gh", "api", f"repos/{repo}/git/ref/heads/{branch}",
+                            "--jq", ".object.sha"], cwd=root)
+                if ref.returncode != 0 or not ref.stdout.strip():
+                    raise RuntimeError(f"Failed creating branch '{branch}' on {repo}: {post_proc.stderr.strip()}")
+                existing[branch] = ref.stdout.strip()
+                already_present.append(branch)
+                continue
         created.append(branch)
+        seeds[branch] = {"source": seed, "sha": sha}
 
     return {
         "repo": repo,
@@ -637,6 +666,8 @@ def ensure_branches(
         "base_sha": base_sha,
         "created": created,
         "already_present": already_present,
+        "seeds": seeds,
+        "legacy_present": sorted(existing.keys() & {"nightly", "beta", "release"}),
         "dry_run": dry_run,
     }
 
@@ -952,7 +983,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.output == "json":
                 print(json.dumps(res, indent=2, sort_keys=True))
             else:
-                print(f"Repo: {res['repo']} | Created: {res['created']} | Present: {res['already_present']}")
+                print(f"Repo: {res['repo']} | {'Would create' if args.dry_run else 'Created'}: "
+                      f"{res['seeds']} | Present: {res['already_present']} | Legacy: {res['legacy_present']}")
             return 0
 
         if args.command == "fork":

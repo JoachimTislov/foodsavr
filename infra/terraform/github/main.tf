@@ -28,15 +28,15 @@ data "github_repository" "this" {
 }
 
 locals {
-  live_deploy_branch = var.release_topology == "single" ? var.default_branch : "release"
+  live_deploy_branch = var.release_topology == "single" ? var.default_branch : "stable"
 
   channel_branches = (
     var.release_topology == "single"
     ? [var.default_branch]
     : (
       var.release_topology == "two-stage"
-      ? [var.default_branch, "release"]
-      : [var.default_branch, "nightly", "beta", "stable", "release"]
+      ? [var.default_branch, "stable"]
+      : [var.default_branch, "daily", "weekly", "stable"]
     )
   )
 

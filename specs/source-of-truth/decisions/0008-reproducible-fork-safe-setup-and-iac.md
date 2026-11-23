@@ -4,6 +4,8 @@
 
 Accepted (explicit owner intent, November 22, 2026). Amends [ADR 0003](0003-autonomous-execution-boundary.md), [ADR 0005](0005-deployment-levels.md), [ADR 0006](0006-automated-integration-of-revertable-changes.md), and [ADR 0007](0007-develop-integration-branch-and-fast-forward-deploy.md).
 
+The November 23, 2026 amendment to [ADR 0007](0007-develop-integration-branch-and-fast-forward-deploy.md#amendment--november-23-2026) defines the current branch names.
+
 ## Context
 
 FoodSavr's operational state (GitHub rulesets, Actions variables, channel branches, labels, WIF bindings, secrets, and CI harness auth) grew across imperative bash scripts, committed upstream defaults (`JoachimTislov/foodsavr`, `my-foodsavr-store`), and write-only secrets. That created three problems:
