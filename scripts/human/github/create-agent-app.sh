@@ -416,7 +416,11 @@ if ! gh variable set --repo "$REPO_SLUG" "$ID_SECRET" --body "$APP_ID" >/dev/nul
   exit 1
 fi
 if [[ "$ROLE" == agent ]]; then
-  gh variable set --repo "$REPO_SLUG" AGENT_APP_SLUG --body "$AGENT_APP_SLUG" >/dev/null
+  GH_REPO="$REPO_SLUG" set_var AGENT_APP_SLUG "$AGENT_APP_SLUG" >/dev/null
+  if [[ "$(gh variable get AGENT_APP_SLUG --repo "$REPO_SLUG")" != "$AGENT_APP_SLUG" ]]; then
+    warn "Check variable access at https://github.com/$REPO_SLUG/settings/variables/actions and resume with $PEM_PATH."
+    exit 1
+  fi
 fi
 if [[ -n "${RECOVERY_PEM:-}" ]]; then
   rm -f "$RECOVERY_PEM"

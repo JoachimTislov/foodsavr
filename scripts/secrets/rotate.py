@@ -58,6 +58,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+from firebase_options import validate as validate_firebase_options  # noqa: E402
+
 REGISTRY = Path(__file__).with_name("registry.toml")
 NAME_PATTERN = re.compile(r"[A-Z_][A-Z0-9_]*")
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -68,6 +71,7 @@ ALPHABETS = {
 }
 GENERATORS = {"random", "command", "sync", "manual"}
 ENCODINGS = {"raw", "base64"}
+SYNC_VALIDATORS = {"firebase-options": lambda value: validate_firebase_options(value, syntax=True)}
 GITHUB_SINKS = {"github": "secret", "github-variable": "variable"}
 SINKS = {*GITHUB_SINKS, "env", "command"}
 
@@ -83,6 +87,7 @@ class Secret:
     alphabet: str = "urlsafe"
     command: str | None = None
     sync_file: str | None = None
+    sync_validate: str | None = None
     encode: str = "raw"
     sink_command: str | None = None
     hint: str | None = None
@@ -104,6 +109,10 @@ class Secret:
             raise ValueError(f"{self.name}: generate=command needs `command`")
         if self.generate == "sync" and not (self.sync_file or self.command):
             raise ValueError(f"{self.name}: generate=sync needs `sync_file` or `command`")
+        if self.sync_validate and (
+            self.generate != "sync" or not self.sync_file or self.sync_validate not in SYNC_VALIDATORS
+        ):
+            raise ValueError(f"{self.name}: sync_validate requires a supported validator and sync_file.")
         if self.encode not in ENCODINGS:
             raise ValueError(f"{self.name}: unknown encode {self.encode!r}")
         if "command" in self.sinks and not self.sink_command:
@@ -121,6 +130,7 @@ FIELD_TYPES = {
     "alphabet": str,
     "command": str,
     "sync_file": str,
+    "sync_validate": str,
     "encode": str,
     "sink_command": str,
     "hint": str,
@@ -174,6 +184,10 @@ def generate(secret: Secret, *, env=os.environ, prompt=getpass.getpass, interact
     if secret.generate == "sync" and secret.sync_file:
         source = _resolve_sync_path(secret.sync_file, env=env, root=root)
         raw_bytes = source.read_bytes()
+        if not raw_bytes.strip():
+            raise ValueError(f"{secret.name}: sync source is empty.")
+        if secret.sync_validate:
+            SYNC_VALIDATORS[secret.sync_validate](raw_bytes)
         if secret.encode == "base64":
             value = base64.b64encode(raw_bytes).decode("ascii")
         else:
