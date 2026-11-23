@@ -1,0 +1,1 @@
+{"commits": ["1c6c0ec2319dd840cc143e935383add11f27a770"], "event": "Isolated BackendTests environment in scripts/infra/test_bootstrap.py from host GITHUB_REPOSITORY", "prs": ["#422"], "session_id": "antigravity:6813c034-c8b4-4e7a-a099-d5a578edcbcb", "stream": "ledger", "timestamp": "2026-11-23T22:50:45+00:00"}
