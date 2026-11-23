@@ -1,4 +1,4 @@
-.PHONY: firebase-options deploy-firestore-rulesstart-firebase-emulators kill-firebase-emulators view-emulator locale-seed rules-test remote-seed 
+.PHONY: firebase-options deploy-firestore-rules start-firebase-emulators kill-firebase-emulators view-emulator locale-seed rules-test remote-seed 
 firebase-options:
 	@base64 -w 0 lib/firebase_options.dart | gh secret set FIREBASE_OPTIONS_B64
 	@base64 -w 0 lib/firebase_options.dart | gh secret set FIREBASE_OPTIONS_B64 --app dependabot
