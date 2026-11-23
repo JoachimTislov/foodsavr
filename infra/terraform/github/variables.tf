@@ -29,7 +29,7 @@ variable "manage_default_branch" {
 }
 
 variable "release_topology" {
-  description = "Release channel topology: single (develop only), two-stage (develop -> release), or full-channels (develop -> nightly -> beta -> stable -> release)."
+  description = "Release channel topology: single (develop only), two-stage (develop -> stable), or full-channels (develop -> daily -> weekly -> stable)."
   type        = string
   default     = "single"
   validation {

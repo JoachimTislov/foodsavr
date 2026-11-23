@@ -29,7 +29,7 @@ variable "release_topology" {
 }
 
 variable "deploy_branch" {
-  description = "Optional branch override allowed to impersonate github-deploy-live (defaults to develop in single topology, else release)."
+  description = "Optional branch override allowed to impersonate github-deploy-live (defaults to develop in single topology, else stable)."
   type        = string
   default     = ""
 }

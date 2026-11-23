@@ -4,6 +4,8 @@
 
 Accepted (explicit owner intent, 2026-11-22: #292 — introduce `develop` as the integration branch, keep expensive feedback loops in the merge queue, rename `main` to `release` as the deployment branch, forbid merge commits everywhere, and promote green commits via periodic fast-forward channels `nightly`, `beta`, `stable`, and `release`). Amends [ADR 0003](0003-autonomous-execution-boundary.md) and [ADR 0006](0006-automated-integration-of-revertable-changes.md).
 
+The November 23, 2026 amendment below supersedes the original channel names, schedules, and deployment branch.
+
 ## Context
 
 Under ADR 0006, every PR targeted `main`, every PR push ran expensive emulator/Playwright/build workflows, and every merged PR immediately triggered deployment pipelines (`firebase-hosting.yml`, `release-gated.yml`, `docs-pages.yml`). Separating integration from release channels lets contributors iterate against fast checks on `develop`, gates expensive checks in the merge queue, eliminates stale-`main` divergence noise, and provides periodic release cadences (`nightly`, `beta`, `stable`, `release`).
@@ -47,3 +49,16 @@ Two GitHub constraints shape the design:
 - No merge commits are ever created on `develop` or any release branch, and every channel points to an exact commit tested on `develop`.
 - `promote.yml` halts visibly if `MERGE_GATE_TOKEN` is missing/expired or if a channel ever diverges from its upstream.
 - `already_tested.sh` recognizes exact-SHA successes so fast-forwarded `release` pushes skip redundant `ci-checks.yml` and `validation.yml` work while keeping `release-gated.yml` satisfied.
+
+
+## Amendment — November 23, 2026
+
+The owner approved `develop → daily → weekly → stable`. Each cut advances one channel by fast-forward:
+
+- `daily` advances from `develop` at 04:00 UTC every day.
+- `weekly` advances from `daily` at 05:00 UTC every Monday.
+- `stable` advances from `weekly` at 06:00 UTC on the 1st and 15th of each month. It is the final channel and the production deployment branch.
+
+`RELEASE_TOPOLOGY=full-channels` uses all three cuts. The `two-stage` topology cuts directly from `develop` to `stable` on the stable schedule. The `single` topology uses `develop` only. A first cut can start release-branch CI on a SHA whose PR passed integration and has no failing or pending checks. Later cuts require green Validation on the source SHA.
+
+Channel setup can seed missing `daily` and `weekly` refs from `nightly` and `beta` when those commits are in `develop` and at or ahead of any existing `stable` ref. Setup uses `develop` when a legacy seed cannot meet those conditions. It preserves and reports existing legacy branches. The channel rulesets, production environment policy, and live WIF branch binding follow the active topology.

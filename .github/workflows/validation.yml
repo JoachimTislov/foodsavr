@@ -2,7 +2,7 @@ name: Validation
 
 on:
   push:
-    branches: [nightly, beta, stable, release]
+    branches: [daily, weekly, stable]
   pull_request:
     branches: [develop]
     types: [opened, synchronize, reopened, labeled]

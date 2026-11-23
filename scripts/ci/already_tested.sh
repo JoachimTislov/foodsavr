@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sets skip=true when HEAD (a push to a release branch) already succeeded for
+# Sets skip=true when HEAD (a push to daily, weekly, or stable) already succeeded for
 # this commit SHA, or has the exact tree of a merged PR's head commit on which
 # workflow $1 already succeeded. Rebase merges rewrite SHAs but keep the tree
 # when the PR was up to date, and fast-forward promotions preserve the SHA.

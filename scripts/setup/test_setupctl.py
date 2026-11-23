@@ -139,7 +139,7 @@ class PlanAndVerifyTest(unittest.TestCase):
             repo="alice/foodsavr",
             login="alice",
             is_admin=True,
-            branches=["develop", "release"],
+            branches=["develop", "stable"],
             variables={"AGENT_APP_ID": "111", "RELEASE_GATE_APP_ID": "222"},
             secret_names=["AGENT_APP_PRIVATE_KEY", "RELEASE_GATE_APP_PRIVATE_KEY", "CLAUDE_CODE_OAUTH_TOKEN"],
             local_ok=True,
@@ -184,15 +184,23 @@ class MutationGuardTest(unittest.TestCase):
     def test_ensure_branches_dry_run_creates_only_missing_and_never_deletes(self):
         def fake_run(argv, **kwargs):
             if "git/ref/heads/develop" in " ".join(argv):
-                return subprocess.CompletedProcess(argv, 0, "abc1234\n", "")
+                return subprocess.CompletedProcess(argv, 0, "develop-sha\n", "")
             if "branches?per_page=100" in " ".join(argv):
-                return subprocess.CompletedProcess(argv, 0, "develop\nnightly\n", "")
+                return subprocess.CompletedProcess(argv, 0, "develop\tdevelop-sha\nnightly\tnightly-sha\nbeta\tbeta-sha\nstable\tstable-sha\nrelease\trelease-sha\n", "")
+            if "compare/" in " ".join(argv):
+                state = "behind" if "stable-sha...beta-sha" in " ".join(argv) else "ahead"
+                return subprocess.CompletedProcess(argv, 0, state + "\n", "")
             raise AssertionError(f"Unexpected mutating call: {argv}")
 
         with patch.object(setupctl, "_run", side_effect=fake_run):
             res = setupctl.ensure_branches(repo="alice/foodsavr", topology="full-channels", dry_run=True)
-        self.assertEqual(res["created"], ["beta", "stable", "release"])
-        self.assertEqual(res["already_present"], ["nightly"])
+        self.assertEqual(res["created"], ["daily", "weekly"])
+        self.assertEqual(res["already_present"], ["stable"])
+        self.assertEqual(res["seeds"], {
+            "daily": {"source": "nightly", "sha": "nightly-sha"},
+            "weekly": {"source": "develop", "sha": "develop-sha"},
+        })
+        self.assertEqual(res["legacy_present"], ["beta", "nightly", "release"])
 
 
 if __name__ == "__main__":

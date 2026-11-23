@@ -4,7 +4,7 @@ name: Firebase Hosting
 # deploys it to that environment's Firebase Hosting site. Project, web app,
 # site and FLAVOR come from the manifest (`levels env`), so forks only edit
 # the manifest. Deployments are disabled unless the owner explicitly sets
-# FIREBASE_HOSTING_ENABLED=true. Once enabled, pushes to release deploy production
+# FIREBASE_HOSTING_ENABLED=true. Once enabled, pushes to stable deploy production
 # live. Previews are manual only: Actions -> Firebase Hosting -> Run workflow on
 # a branch (target: preview) deploys a short-lived channel (default 4h) named
 # after the branch and comments on its PR; environment `auto` picks staging when
@@ -36,7 +36,7 @@ name: Firebase Hosting
 
 on:
   push:
-    branches: [release, develop]
+    branches: [stable, develop]
     paths:
       - "lib/**"
       - "web/**"
@@ -81,7 +81,7 @@ jobs:
     if: >-
       vars.FIREBASE_HOSTING_ENABLED == 'true' &&
       (github.event_name != 'push' ||
-       github.ref == 'refs/heads/release' ||
+       github.ref == 'refs/heads/stable' ||
        (github.ref == 'refs/heads/develop' &&
         (vars.RELEASE_TOPOLOGY == 'single' ||
          (vars.RELEASE_TOPOLOGY == '' && github.repository != 'JoachimTislov/foodsavr'))))

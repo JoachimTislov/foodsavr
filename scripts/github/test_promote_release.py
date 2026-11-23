@@ -27,9 +27,9 @@ def check_run(name, status="COMPLETED", conclusion="SUCCESS", workflow=None):
 
 class PromoteDecisionTest(unittest.TestCase):
     def test_noop_when_shas_match(self):
-        d = promote.decide_promotion("abcdef1", "abcdef1", True, [], source_branch="develop", target_branch="nightly")
+        d = promote.decide_promotion("abcdef1", "abcdef1", True, [], source_branch="develop", target_branch="daily")
         self.assertEqual(d.action, "noop")
-        self.assertIn("nightly", d.detail)
+        self.assertIn("daily", d.detail)
 
     def test_blocks_non_fast_forward(self):
         d = promote.decide_promotion(
@@ -37,12 +37,12 @@ class PromoteDecisionTest(unittest.TestCase):
             "1234567",
             False,
             [check_run("Detect changed areas")],
-            source_branch="beta",
+            source_branch="weekly",
             target_branch="stable",
         )
         self.assertEqual(d.action, "blocked")
         self.assertIn("stable", d.detail)
-        self.assertIn("beta", d.detail)
+        self.assertIn("weekly", d.detail)
 
     def test_blocks_on_failed_check_or_status_context(self):
         d = promote.decide_promotion(
@@ -98,8 +98,8 @@ class PromoteDecisionTest(unittest.TestCase):
             "1234567",
             True,
             [check_run("Detect changed areas"), check_run("Web smoke test", conclusion="SKIPPED")],
-            source_branch="nightly",
-            target_branch="beta",
+            source_branch="daily",
+            target_branch="weekly",
         )
         self.assertEqual(d.action, "promote")
 
@@ -114,17 +114,17 @@ class PromoteDecisionTest(unittest.TestCase):
         self.assertIn("startedAt", promote.COMMIT_ROLLUP_QUERY)
         ok = promote.decide_promotion(
             "abcdef1", "1234567", True, [run("Detect changed areas"), run("Check & Test")],
-            source_branch="nightly", target_branch="beta",
+            source_branch="daily", target_branch="weekly",
         )
         self.assertEqual(ok.action, "promote")
         failed = promote.decide_promotion(
             "abcdef1", "1234567", True, [run("Detect changed areas"), run("Check & Test", "CANCELLED")],
-            source_branch="nightly", target_branch="beta",
+            source_branch="daily", target_branch="weekly",
         )
         self.assertEqual(failed.action, "blocked")
 
     def test_develop_promotes_without_duplicate_develop_push_checks_but_blocks_failures(self):
-        d_ok = promote.decide_promotion("abcdef1", "1234567", True, [], source_branch="develop", target_branch="nightly")
+        d_ok = promote.decide_promotion("abcdef1", "1234567", True, [], source_branch="develop", target_branch="daily")
         self.assertEqual(d_ok.action, "promote")
         d_fail = promote.decide_promotion(
             "abcdef1",
@@ -132,46 +132,45 @@ class PromoteDecisionTest(unittest.TestCase):
             True,
             [check_run("Check & Test", conclusion="FAILURE")],
             source_branch="develop",
-            target_branch="nightly",
+            target_branch="daily",
         )
         self.assertEqual(d_fail.action, "blocked")
         d_missing_on_channel = promote.decide_promotion(
-            "abcdef1", "1234567", True, [], source_branch="nightly", target_branch="beta"
+            "abcdef1", "1234567", True, [], source_branch="daily", target_branch="weekly"
         )
         self.assertEqual(d_missing_on_channel.action, "pending")
-        d_direct_release_missing = promote.decide_promotion(
-            "abcdef1", "1234567", True, [], source_branch="develop", target_branch="release"
+        d_direct_stable_missing = promote.decide_promotion(
+            "abcdef1", "1234567", True, [], source_branch="develop", target_branch="stable"
         )
-        self.assertEqual(d_direct_release_missing.action, "pending")
+        self.assertEqual(d_direct_stable_missing.action, "pending")
         d_spoofed_app = promote.decide_promotion(
             "abcdef1",
             "1234567",
             True,
             [{"__typename": "CheckRun", "name": "Detect changed areas", "status": "COMPLETED", "conclusion": "SUCCESS",
               "checkSuite": {"app": {"slug": "spoofed-app"}}}],
-            source_branch="nightly",
-            target_branch="beta",
+            source_branch="daily",
+            target_branch="weekly",
         )
         self.assertEqual(d_spoofed_app.action, "pending")
 
 
 class ResolveStepsTest(unittest.TestCase):
     def test_schedule_resolution(self):
-        self.assertEqual(promote.resolve_steps(schedule="0 4 * * *"), [("develop", "nightly")])
-        self.assertEqual(promote.resolve_steps(schedule="0 5 * * 1"), [("nightly", "beta")])
+        self.assertEqual(promote.resolve_steps(schedule="0 4 * * *"), [("develop", "daily")])
+        self.assertEqual(promote.resolve_steps(schedule="0 5 * * 1"), [("daily", "weekly")])
         self.assertEqual(
             promote.resolve_steps(schedule="0 6 1,15 * *"),
-            [("beta", "stable"), ("stable", "release")],
+            [("weekly", "stable")],
         )
 
     def test_manual_channel_resolution(self):
-        self.assertEqual(promote.resolve_steps(target_branch="nightly"), [("develop", "nightly")])
-        self.assertEqual(promote.resolve_steps(target_branch="beta", source_branch="default"), [("nightly", "beta")])
-        self.assertEqual(promote.resolve_steps(target_branch="stable"), [("beta", "stable")])
-        self.assertEqual(promote.resolve_steps(target_branch="release"), [("stable", "release")])
+        self.assertEqual(promote.resolve_steps(target_branch="daily"), [("develop", "daily")])
+        self.assertEqual(promote.resolve_steps(target_branch="weekly", source_branch="default"), [("daily", "weekly")])
+        self.assertEqual(promote.resolve_steps(target_branch="stable"), [("weekly", "stable")])
         self.assertEqual(
-            promote.resolve_steps(target_branch="release", source_branch="develop"),
-            [("develop", "release")],
+            promote.resolve_steps(target_branch="stable", source_branch="develop"),
+            [("develop", "stable")],
         )
 
     def test_invalid_inputs_rejected(self):
@@ -182,63 +181,27 @@ class ResolveStepsTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             promote.resolve_steps(target_branch="stable", source_branch="stable")
         with self.assertRaises(ValueError):
-            promote.resolve_steps(target_branch="nightly", topology="two-stage")
+            promote.resolve_steps(target_branch="daily", topology="two-stage")
         with self.assertRaises(ValueError):
             promote.resolve_steps(topology="unknown")
 
     def test_single_and_two_stage_topologies(self):
         self.assertEqual(promote.resolve_steps(schedule="0 4 * * *", topology="single"), [])
-        self.assertEqual(promote.resolve_steps(target_branch="release", topology="single"), [])
+        self.assertEqual(promote.resolve_steps(target_branch="stable", topology="single"), [])
         self.assertEqual(promote.resolve_steps(schedule="0 4 * * *", topology="two-stage"), [])
         self.assertEqual(promote.resolve_steps(schedule="0 5 * * 1", topology="two-stage"), [])
         self.assertEqual(
             promote.resolve_steps(schedule="0 6 1,15 * *", topology="two-stage"),
-            [("develop", "release")],
+            [("develop", "stable")],
         )
         self.assertEqual(
-            promote.resolve_steps(target_branch="release", topology="two-stage"),
-            [("develop", "release")],
+            promote.resolve_steps(target_branch="stable", topology="two-stage"),
+            [("develop", "stable")],
         )
 
     def test_single_topology_main_is_clean_noop_without_token(self):
         code = promote.main(["--repo", "alice/foodsavr", "--topology", "single", "--schedule", "0 4 * * *", "--apply"])
         self.assertEqual(code, 0)
-
-
-class ChainedPromotionTest(unittest.TestCase):
-    def test_biweekly_schedule_chains_stable_into_release(self):
-        refs = {
-            "origin/beta": "bbbbbbb000000000000000000000000000000000",
-            "origin/stable": "aaaaaaa000000000000000000000000000000000",
-            "origin/release": "aaaaaaa000000000000000000000000000000000",
-        }
-        pushed: list[tuple[str, str, str]] = []
-
-        def fake_git(*args):
-            self.assertEqual(args[0], "rev-parse")
-            return refs[args[1]]
-
-        def fake_push(repo, sha, branch, token):
-            pushed.append((repo, sha, branch))
-
-        with patch.object(promote, "git", side_effect=fake_git), \
-                patch.object(promote, "remote_branches", return_value={"beta", "stable", "release"}), \
-                patch.object(promote, "fetch_branches"), \
-                patch.object(promote, "is_ancestor", return_value=True), \
-                patch.object(promote, "fetch_commit_contexts", return_value=[check_run("Detect changed areas")]) as fetch, \
-                patch.object(promote, "fast_forward_branch", side_effect=fake_push), \
-                patch.dict(os.environ, {"GH_TOKEN": "test-token"}, clear=False):
-            code = promote.main(["--repo", "JoachimTislov/foodsavr", "--schedule", "0 6 1,15 * *", "--apply"])
-
-        self.assertEqual(code, 0)
-        self.assertEqual(fetch.call_count, 1)
-        self.assertEqual(
-            pushed,
-            [
-                ("JoachimTislov/foodsavr", refs["origin/beta"], "stable"),
-                ("JoachimTislov/foodsavr", refs["origin/beta"], "release"),
-            ],
-        )
 
 
 def run_git(cwd, *args):
@@ -290,57 +253,52 @@ class MainWithRemoteTest(unittest.TestCase):
             os.chdir(cwd)
         return code, out.getvalue(), pushed
 
-    def test_daily_schedule_with_release_missing_promotes_nightly(self):
+    def test_daily_schedule_only_needs_develop_and_daily(self):
+        self.push_branch("daily", self.old)
         self.push_branch("nightly", self.old)
         code, out, pushed = self.run_main("--schedule", "0 4 * * *", "--apply")
         self.assertEqual(code, 0)
-        self.assertEqual(pushed, [("nightly", self.new)])
+        self.assertEqual(pushed, [("daily", self.new)])
         self.assertNotIn("missing", out)
 
-    def test_biweekly_schedule_with_release_missing_promotes_stable_and_reports_release(self):
-        self.push_branch("beta", self.new)
+    def test_biweekly_schedule_promotes_stable_only(self):
+        self.push_branch("weekly", self.new)
         self.push_branch("stable", self.old)
         code, out, pushed = self.run_main("--schedule", "0 6 1,15 * *", "--apply")
         self.assertEqual(code, 0)
         self.assertEqual(pushed, [("stable", self.new)])
-        self.assertIn("stable -> release: missing", out)
-        self.assertIn("::warning::", out)
-        self.assertIn("owner action", out)
 
-    def test_biweekly_schedule_skips_dependent_step_when_source_missing(self):
+    def test_schedule_skips_missing_source(self):
         self.push_branch("stable", self.old)
-        self.push_branch("release", self.old)
         code, out, pushed = self.run_main("--schedule", "0 6 1,15 * *", "--apply")
         self.assertEqual(code, 0)
         self.assertEqual(pushed, [])
-        self.assertIn("beta -> stable: missing", out)
-        self.assertIn("stable -> release: skipped", out)
+        self.assertIn("weekly -> stable: missing", out)
 
-    def test_manual_target_release_missing_fails(self):
-        self.push_branch("stable", self.new)
-        code, out, pushed = self.run_main("--target-branch", "release", "--apply")
+    def test_manual_target_stable_missing_fails(self):
+        self.push_branch("weekly", self.new)
+        code, out, pushed = self.run_main("--target-branch", "stable", "--apply")
         self.assertEqual(code, 1)
         self.assertEqual(pushed, [])
         self.assertIn("::error::", out)
-        self.assertIn("'release'", out)
+        self.assertIn("'stable'", out)
 
-    def test_existing_branches_promote_chain_and_dry_run_does_not_push(self):
-        self.push_branch("beta", self.new)
-        self.push_branch("stable", self.old)
-        self.push_branch("release", self.old)
-        code, out, pushed = self.run_main("--schedule", "0 6 1,15 * *", "--apply")
-        self.assertEqual(code, 0)
-        self.assertEqual(pushed, [("stable", self.new), ("release", self.new)])
-        code, out, pushed = self.run_main("--schedule", "0 6 1,15 * *")
-        self.assertEqual(code, 0)
-        self.assertEqual(pushed, [])
-        self.assertIn("stable -> release: promote", out)
+    def test_dry_run_does_not_push_and_ahead_target_is_noop(self):
+        self.push_branch("daily", self.old)
+        code, out, pushed = self.run_main("--schedule", "0 4 * * *")
+        self.assertEqual((code, pushed), (0, []))
+        self.assertIn("develop -> daily: promote", out)
+
+        self.push_branch("weekly", self.new)
+        code, out, pushed = self.run_main("--schedule", "0 5 * * 1", "--apply")
+        self.assertEqual((code, pushed), (0, []))
+        self.assertIn("is ahead", out)
 
     def test_existing_branch_not_ancestor_still_blocks(self):
         run_git(self.work, "checkout", "-q", "--orphan", "other")
         run_git(self.work, "commit", "-q", "--allow-empty", "-m", "x")
         other = run_git(self.work, "rev-parse", "HEAD")
-        self.push_branch("nightly", other)
+        self.push_branch("daily", other)
         code, out, pushed = self.run_main("--schedule", "0 4 * * *", "--apply")
         self.assertEqual(code, 1)
         self.assertEqual(pushed, [])

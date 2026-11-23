@@ -3,37 +3,37 @@ name: Promote release channels
 # Periodic and manual fast-forward promotions along the configured release
 # topology (ADR 0007, ADR 0008, controlled by vars.RELEASE_TOPOLOGY):
 #   single        — develop only (workflow cleanly no-ops)
-#   two-stage     — develop -> release (biweekly 1st & 15th 06:00 UTC or manual)
-#   full-channels — develop -> nightly (daily 04:00 UTC) -> beta (Mon 05:00 UTC)
-#                   -> stable -> release (1st & 15th 06:00 UTC)
+#   two-stage     — develop -> stable (biweekly 1st & 15th 06:00 UTC or manual)
+#   full-channels — develop -> daily (04:00 UTC) -> weekly (Mon 05:00 UTC)
+#                   -> stable (1st & 15th 06:00 UTC)
 #
 # The script fetches only the branches each step needs; a missing channel
-# branch is skipped with a warning on schedule and fails a manual run. A missing
+# branch is reported and skipped on schedule and fails a manual run. A missing
 # gate token fails both (no silent green); `make promote` is the manual bypass.
 #
 # Never creates merge commits and never force-pushes. Pushing with the
 # Release-Gate GitHub App token (or legacy MERGE_GATE_TOKEN) triggers
-# downstream deployment workflows on `release`.
+# downstream deployment workflows on `stable`.
 
 on:
   schedule:
-    # Daily nightly cut: develop -> nightly
+    # Daily cut: develop -> daily
     - cron: '0 4 * * *'
-    # Weekly beta cut (Mondays): nightly -> beta
+    # Weekly cut (Mondays): daily -> weekly
     - cron: '0 5 * * 1'
-    # Biweekly stable + production release cut (1st & 15th): beta -> stable -> release
+    # Stable production cut (1st & 15th): weekly -> stable
     - cron: '0 6 1,15 * *'
   workflow_dispatch:
     inputs:
       channel:
         description: "Target release channel to fast-forward"
         type: choice
-        options: [release, nightly, beta, stable]
-        default: release
+        options: [daily, weekly, stable]
+        default: stable
       source:
         description: "Source branch (default follows active RELEASE_TOPOLOGY)"
         type: choice
-        options: [default, develop, nightly, beta, stable]
+        options: [default, develop, daily, weekly]
         default: default
       dry_run:
         description: "Preview promotion without pushing"

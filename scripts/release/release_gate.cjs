@@ -1,7 +1,7 @@
 // Only the latest push run for the exact source commit can authorize release.
 function latestRun(runs, path) {
   return runs
-    .filter(run => run.path === path && run.event === 'push' && run.head_branch === 'release')
+    .filter(run => run.path === path && run.event === 'push' && run.head_branch === 'stable')
     .sort((a, b) => b.id - a.id || b.run_attempt - a.run_attempt)[0];
 }
 

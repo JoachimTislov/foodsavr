@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const {decision} = require('./release_gate.cjs');
 const paths = ['ci', 'validation', 'android'];
 const run = (path, extra = {}) => ({
-  path, id: 1, run_attempt: 1, event: 'push', head_branch: 'release',
+  path, id: 1, run_attempt: 1, event: 'push', head_branch: 'stable',
   status: 'completed', conclusion: 'success', ...extra,
 });
 
