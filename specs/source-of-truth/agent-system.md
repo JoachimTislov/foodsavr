@@ -24,9 +24,9 @@ Every coding or documentation session registers and logs its actions so work rem
      --harness <harness> \
      --summary '...'
    ```
-   Update with `--issue '#N'`, `--pr '#N'`, or `--commit <sha>` as artifacts are created. Records upsert into `.agents/sessions/index.jsonl`.
+   Update with `--issue '#N'`, `--pr '#N'`, or `--commit <sha>` as artifacts are created. Each registration is a `sessions` event file under `.agents/events/`; the session index is folded from the events at read time (latest record per session wins).
 2. **Commit trailer**: Every agent commit includes `Agent-Session: <harness>:<id>`. List commits for a session with `scripts/agents/agentctl sessions commits <harness>:<id>`.
-3. **Ledger events**: Append one-line UTF-8 JSON entries to `.agents/ledger.jsonl` and validate all `.jsonl` files with `python3 scripts/agents/check_logs.py`.
+3. **Ledger events**: `scripts/agents/agentctl log` writes each event as its own file, `.agents/events/<YYYY>/<MM>/<UTC timestamp>-<session slug>-<6 hex>.jsonl`, holding one UTF-8 JSON object with a `"stream": "ledger"` or `"sessions"` field (#397). No two branches share a log file, so logging never makes a PR conflict. The legacy `.agents/ledger.jsonl` and `.agents/sessions/index.jsonl` are frozen: writers never append to them (and no check fails when in-flight branches still do), readers read them before the events, ordered by timestamp. `AGENT_EVENTS_DIR` relocates the events; a custom `AGENT_LEDGER_FILE` or `AGENT_SESSION_INDEX` file is a single-file mode for tests and CI scratch copies. Label sync ignores log-only paths for `area/agents`. Validate all logs, including event files, with `python3 scripts/agents/check_logs.py`.
 4. **Context lookup**: Run `scripts/agents/agentctl context "<query>"` or `scripts/agents/agentctl sessions find` before resuming prior work.
 
 ### 2.2 Declarative Workflows & Model Routing
@@ -82,7 +82,7 @@ Auto-merging (`merge/auto` execution and Dependabot patch/minor auto-labeling) i
 `scripts/github/pr_review.py` and `.agents/reviews/history.jsonl` (strict single-line UTF-8 JSONL validated by `scripts/agents/check_logs.py`) form a closed-loop learning system when post-merge regressions occur:
 
 - **History-driven escalation**: `classify` inspects prior `incident` records in `.agents/reviews/history.jsonl` sharing a changed file path, or both a functional area and a risk signature, with the PR. If a cheaper tier (`exempt`, `fast`, `balanced`) previously missed a regression on those paths or areas, `required_tier` automatically escalates to `deep` (or `human` if `deep` missed it) and surfaces `recommended_static_checks`.
-- **Incident investigation**: `python3 scripts/github/pr_review.py investigate [--range <A..B>] [--path <file_or_dir>] [--pr <N>]` correlates git commits and merge commits with `.agents/reviews/history.jsonl`, `.agents/sessions/index.jsonl`, and `.agents/ledger.jsonl`.
+- **Incident investigation**: `python3 scripts/github/pr_review.py investigate [--range <A..B>] [--path <file_or_dir>] [--pr <N>]` correlates git commits and merge commits with `.agents/reviews/history.jsonl`, the session index, and the ledger (legacy files plus `.agents/events/`).
 - **Dual-level bisect learning**: `python3 scripts/github/pr_review.py bisect-learn --good <rev> --bad <rev> --test-cmd "<cmd>"` runs `git bisect start --first-parent` to find the culprit merge commit and, when `--bisect-branch` is active (default) on a multi-parent merge, bisects `merge-base(P1, P2)..P2` to isolate the exact feature-branch commit. It maps the culprit to its PR and original `review_tier`, records `would_deeper_tier_catch` only when the owner supplies `--deeper-review-caught yes|no` (otherwise `null`, unknown), and appends an `incident` record to `.agents/reviews/history.jsonl`. The bisect runs in a throwaway worktree, never the caller's checkout, and fails instead of reporting the starting revision when git cannot conclude. `.github/workflows/agent-incident.yml` runs it on `workflow_dispatch` and persists the incident to the history branch.
 
 ### 3.3 Runner Infrastructure Strategy (GitHub Actions Baseline)

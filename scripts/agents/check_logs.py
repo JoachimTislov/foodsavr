@@ -4,6 +4,9 @@
 Also enforces traceability (#271): ledger events at or after
 `traceability.CUTOFF` carry a `session_id` that resolves in the session index
 (or is the human marker); older lines are grandfathered and never edited.
+
+New records are one file each under `.agents/events/` (#397); the legacy
+`.agents/ledger.jsonl` and `.agents/sessions/index.jsonl` are frozen but still validated.
 """
 
 from __future__ import annotations
@@ -14,6 +17,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import event_log as el  # noqa: E402
 import traceability as tr  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -66,11 +70,41 @@ def traceability_errors(name: str, records: list[dict], sessions: list[dict], is
     return errors
 
 
+def session_index(root: Path) -> list[dict]:
+    """Registered sessions: the frozen legacy index plus session events, folded (duplicates are legal)."""
+    rows = tr.read_jsonl(root / INDEX)
+    rows += [{k: v for k, v in row.items() if k != "stream"} for row in el.read_events(root / el.EVENTS_REL, "sessions")]
+    return tr.fold_records(rows)
+
+
+def check_event(root: Path, name: str, sessions: list[dict]) -> list[str]:
+    """Validate one `.agents/events/` file: format, required fields, traceability."""
+    path = Path(name)
+    try:
+        text = (root / path).read_text(encoding="utf-8")
+    except (OSError, ValueError) as error:
+        return [f"{name}: {error}"]
+    errors = el.event_errors(name, text, path)
+    if errors:
+        return errors
+    record = json.loads(text)
+    stream = record["stream"]
+    return traceability_errors(name, [{k: v for k, v in record.items() if k != "stream"}], sessions, stream == "ledger")
+
+
 def check(root: Path, paths: list[str]) -> list[str]:
     errors = []
     sessions: list[dict] | None = None
     for name in paths:
         path = Path(name)
+        if el.is_event_path(path):
+            if path.suffix != ".jsonl":
+                errors.append(f"{name}: repository logs must use .jsonl")
+            else:
+                if sessions is None:
+                    sessions = session_index(root)
+                errors.extend(check_event(root, name, sessions))
+            continue
         is_ledger = path.stem.endswith("ledger") and path.suffix == ".jsonl" and path.parts[0] == ".agents"
         is_index = path == INDEX
         is_log = (
@@ -90,7 +124,7 @@ def check(root: Path, paths: list[str]) -> list[str]:
                 continue
             if is_ledger or is_index:
                 if sessions is None:
-                    sessions = tr.fold_records(tr.read_jsonl(root / INDEX))  # duplicate lines are legal (merge=union)
+                    sessions = session_index(root)
                 rows = tr.read_jsonl(root / path)
                 errors.extend(traceability_errors(name, tr.fold_records(rows) if is_index else rows, sessions, is_ledger))
     return errors

@@ -42,6 +42,20 @@ class LabelRulesTest(unittest.TestCase):
         self.assertNotIn("area/web", labels)
         self.assertFalse(any(label.startswith("status/") for label in labels))
 
+    def test_agent_log_files_do_not_count_toward_area_agents(self):
+        pull = {"number": 3, "title": "Add recipe screen", "is_pull_request": True, "labels": []}
+        logs = [
+            ".agents/events/2026/11/20261123T101530123456Z-t3-code-abc-1a2b3c.jsonl",
+            ".agents/ledger.jsonl",
+            ".agents/sessions/index.jsonl",
+        ]
+        app = self.module.classify(pull, ["lib/recipes/model.dart", *logs], [], [], self.config)
+        self.assertIn("area/app", app)
+        self.assertNotIn("area/agents", app)
+        self.assertFalse({label for label in self.module.classify(pull, logs, [], [], self.config) if label.startswith("area/")})
+        real = self.module.classify(pull, [*logs, ".agents/skills/commit/SKILL.md"], [], [], self.config)
+        self.assertIn("area/agents", real)
+
     def test_issue_keeps_manual_area_and_risk_labels_across_syncs(self):
         expected = {"area/web", "area/agents", "risk/security", "area/ci", "type/task"}
         labels = {"area/web", "area/agents", "risk/security", "ci"}

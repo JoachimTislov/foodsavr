@@ -14,6 +14,6 @@ metadata:
 5. End the message with trailers:
    - `Agent-Session`, the session ID registered with `scripts/agents/agentctl sessions register`. The `prepare-commit-msg` hook (`make hooks`) writes it once, listing each harness once with its session IDs. It links the commit to its session: `scripts/agents/agentctl sessions commits <harness>:<session-id>`.
    - The co-author trailer your harness requires.
-6. Commit, then log the event in [.agents/ledger.jsonl](../../ledger.jsonl) and add the SHA to the session record (`sessions register --session-id ... --commit <sha>`; records upsert).
+6. Commit, then log the event (`agentctl log '...' --commit <sha>`, one new file under [.agents/events/](../../events/)) and add the SHA to the session record (`sessions register --session-id ... --commit <sha>`; the latest record per session wins). Never append to the frozen `.agents/ledger.jsonl` or `.agents/sessions/index.jsonl`.
 7. Push after each completed task (`make push`), unless the user asked otherwise.
 8. Never merge to update a branch; rebase onto the base and push with `--force-with-lease`.

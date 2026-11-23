@@ -33,6 +33,7 @@
     {"label": "type/dependency", "patterns": ["^\\s*(build|deps?|dependency)(\\(|:|\\s)", "\\bdependabot\\b", "\\bbump\\b"]},
     {"label": "type/task", "patterns": ["^\\s*(chore|task|refactor|ci)(\\(|:|\\s)"]}
   ],
+  "ignored_paths": [".agents/events/", ".agents/ledger.jsonl", ".agents/sessions/index.jsonl"],
   "path_rules": [
     {"label": "area/agents", "patterns": [".agents/", "AGENTS.md", "CLAUDE.md", "GEMINI.md", "scripts/agents/"]},
     {"label": "area/ci", "patterns": [".github/", "Makefile", "scripts/ci/"]},

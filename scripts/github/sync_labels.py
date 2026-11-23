@@ -75,6 +75,8 @@ def classify(item: dict[str, Any], files: list[str], checks: list[dict[str, Any]
     type_label = type_label or next((rule["label"] for rule in type_rules if matches(item.get("title", ""), rule["patterns"])), None)
     type_label = type_label or ("type/task" if item.get("is_pull_request") else "type/task")
     labels.add(type_label)
+    # Agent event logs and the frozen legacy logs ride along with every PR; they say nothing about its area.
+    files = [path for path in files if not path.startswith(tuple(config.get("ignored_paths", [])))]
     area_matches = {
         rule["label"] for rule in config.get("path_rules", [])
         if any(matches(path, rule["patterns"]) for path in files)

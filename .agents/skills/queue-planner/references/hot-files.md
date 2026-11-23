@@ -2,7 +2,7 @@
 
 Files that several lanes tend to touch, and how a batch splits them. Updated by step 8 of the queue planner after each batch; the last update names its source batch.
 
-Last updated: batch 1 observations (2026-11-22), recorded while planning batch 2.
+Last updated: batch 1 observations (2026-11-22), recorded while planning batch 2; agent logs are no longer hot (#397).
 
 To refresh the candidate list, count recent touches on `develop`:
 
@@ -21,7 +21,8 @@ The count finds files; the conventions below are what the history does not show.
 | `specs/source-of-truth/status.md`, `data-model.md`, `schemas/*.json`, `contracts/*` | One owning lane per file per batch. A shape change ships in the PR that changes the code (ADR 0004), so two lanes that change one schema are serialized, never parallel. |
 | `pubspec.yaml`, `pubspec.lock` | One lane per batch adds or bumps dependencies. |
 | `test/support/`, `test/helpers/` (shared fakes) | The lane that creates a fake owns it for the batch. Other lanes keep fakes local to their test file and move to the shared one after it merges. |
-| `.agents/ledger.jsonl`, `.agents/sessions/index.jsonl`, `specs/source-of-truth/sync-ledger.jsonl` | Append-only. A rebase conflict keeps both sides in timestamp order; `python3 scripts/agents/check_logs.py` validates. |
+| `specs/source-of-truth/sync-ledger.jsonl` | Append-only. A rebase conflict keeps both sides in timestamp order; `python3 scripts/agents/check_logs.py` validates. |
+| `.agents/events/`, `.agents/ledger.jsonl`, `.agents/sessions/index.jsonl` | Not hot (#397): every agent log record is its own event file, so lanes never share a log file. The two legacy files are frozen; a lane that appends to one is a defect. |
 
 ## Hot files without a seam
 

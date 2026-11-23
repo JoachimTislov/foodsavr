@@ -1,0 +1,1 @@
+{"commits": [], "harness": "claude-code", "issues": ["#397"], "provider": "anthropic", "prs": [], "session_id": "claude-code:379406bb-9075-464b-9a78-724336b5ddfc", "sources": [], "started_at": "2026-11-23T17:51:14+00:00", "status": "active", "stream": "sessions", "summary": "Implement per-event agent logs so logging PRs never conflict (#397)"}

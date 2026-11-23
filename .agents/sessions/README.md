@@ -47,10 +47,17 @@ scripts/agents/agentctl trace '#300'           # why does this exist? (also SHA,
 - Each traced session lists how to reopen it (`claude --resume <id>`,
   `codex resume <id>`, a GitHub run URL) and whether its transcript is local
   (path only; contents are never read). Table: `LOCATORS` in `traceability.py`.
-- Logs are append-only and `merge=union` in `.gitattributes`. Session writers
-  append a line only when the record changed (`--status completed` stamps `ended_at`); readers fold duplicate
-  `session_id` lines (arrays union, latest scalar wins, attempts kept);
-  only `agentctl maintain` compacts (`heal` never rewrites tracked logs, so CI stays clean). Do not hand-edit old lines.
+- Logs are per-event files (#397): every ledger event and session registration is its own
+  `.agents/events/<YYYY>/<MM>/<UTC timestamp>-<session slug>-<6 hex>.jsonl` holding one JSON
+  object (its record plus `"stream": "ledger"` or `"sessions"`), so branches never edit the same
+  file and never conflict. Session writers add an event only when the record changed
+  (`--status completed` stamps `ended_at`); readers fold the session events (arrays union, latest
+  scalar wins, attempts kept) and order ledger events by timestamp. Never hand-edit or delete events.
+- `.agents/ledger.jsonl` and `.agents/sessions/index.jsonl` are frozen: readers keep reading them
+  before the events, writers never append to them, and `agentctl maintain` never rewrites them.
+  Their `merge=union` attribute stays for in-flight branches created before the change; no check
+  fails when they change. `AGENT_EVENTS_DIR` selects another events directory; a custom
+  `AGENT_SESSION_INDEX` or `AGENT_LEDGER_FILE` file (tests, CI scratch copies) is single-file mode and is appended to directly.
 - `trace --infer` (opt-in) also guesses sessions whose `started_at`..`ended_at` window brackets the commit and whose refs overlap; results are labelled `inferred`, are never evidence for doctor coverage, and are never stored as projection edges.
 - Ledger events on or after `traceability.CUTOFF` need a registered
   `session_id` (`check_logs.py`); older lines are grandfathered.
@@ -109,29 +116,29 @@ scripts/agents/agentctl context 'current app status and open work'
 ```
 
 The JSON output is intended for harness adapters and orchestration scripts.
-The JSONL index is a compact session snapshot: repeated provider session IDs
-are upserted with an `attempts` history so the relational projection retains a
-single primary-key row. `agentctl query` searches the SQLite knowledge projection. It does not call
+The session index is folded at read time from the legacy index and the session
+events: repeated provider session IDs are upserted with an `attempts` history so
+the relational projection retains a single primary-key row. `agentctl query` searches the SQLite knowledge projection. It does not call
 provider APIs or expose credentials. Rebuild it with
 `scripts/agents/agentctl knowledge rebuild` after checkout or source changes.
 
 ## Record contract
 
-Each JSONL line must contain `session_id`, `provider`, `harness`, `started_at`,
-`status`, and `summary`. `issues`, `prs`, `sources`, and `commits` are arrays
+Each session record (a legacy index line or a `sessions` event) must contain `session_id`, `provider`, `harness`, `started_at`,
+`status`, and `summary`; a `ledger` event needs `timestamp`, `session_id`, and `event` (or `type`). `issues`, `prs`, `sources`, and `commits` are arrays
 of references. Use the provider's real session ID; do not replace it with a
 human label. Link every issue, pull request, and external source relevant to
 the session in the record and the corresponding ledger entry.
 
 ## Repository event logs
 
-Append repository events to [the ledger](../ledger.jsonl) as JSON objects with
-`timestamp` (UTC) and `event`; include session IDs and issue, PR, source, and
-commit references when available. Record changes, commits, pushes, replies,
+Record repository events with `agentctl log`, which writes a ledger event under
+[.agents/events/](../events/) as a JSON object with `timestamp` (UTC) and `event`; it
+includes session IDs and issue, PR, source, and commit references when available. Record changes, commits, pushes, replies,
 and unresolved blockers. Keep transcripts and credentials outside the repository.
 Workflow completions use structured run, workflow, provider, status, artifact,
-and reference fields. The ledger is append-only; the session index remains an
-upserted snapshot with attempt history. Rebuild the SQLite projection after
+and reference fields. The ledger is append-only (history before #397 lives in the frozen
+[ledger](../ledger.jsonl)); the session index remains an upserted snapshot with attempt history. Rebuild the SQLite projection after
 source changes with `scripts/agents/agentctl knowledge rebuild`.
 
 The format rule in [AGENTS.md](../../AGENTS.md) covers all repository logs.
