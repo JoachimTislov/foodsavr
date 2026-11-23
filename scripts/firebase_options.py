@@ -60,7 +60,15 @@ def fingerprint(path, project, web_app):
 
 def render(configs):
     def dart_string(value):
-        return json.dumps(value, ensure_ascii=False).replace("$", "\\$")
+        escaped = (
+            value.replace("\\", "\\\\")
+            .replace("'", "\\'")
+            .replace("$", "\\$")
+            .replace("\r", "\\r")
+            .replace("\n", "\\n")
+            .replace("\t", "\\t")
+        )
+        return f"'{escaped}'"
 
     declarations = []
     for platform, config in configs.items():
@@ -73,18 +81,25 @@ def render(configs):
         declarations.append(f"  static const FirebaseOptions {platform} = FirebaseOptions(\n{args}  );\n")
 
     mobile = "defaultTargetPlatform == TargetPlatform.android" if "android" in configs else ""
-    imports = "kIsWeb, defaultTargetPlatform, TargetPlatform" if mobile else "kIsWeb"
+    imports = (
+        "import 'package:flutter/foundation.dart'\n"
+        "    show kIsWeb, defaultTargetPlatform, TargetPlatform;\n\n"
+        if mobile
+        else "import 'package:flutter/foundation.dart' show kIsWeb;\n\n"
+    )
     branches = "    if (kIsWeb) return web;\n"
     if mobile:
         branches += f"    if ({mobile}) return android;\n"
     return (
         "// Generated from the Firebase project.\n"
         "import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;\n"
-        f"import 'package:flutter/foundation.dart' show {imports};\n\n"
+        f"{imports}"
         "class DefaultFirebaseOptions {\n"
         "  static FirebaseOptions get currentPlatform {\n"
         f"{branches}"
-        "    throw UnsupportedError('FirebaseOptions are unavailable for this platform.');\n"
+        "    throw UnsupportedError(\n"
+        "      'FirebaseOptions are unavailable for this platform.',\n"
+        "    );\n"
         "  }\n\n"
         + "\n".join(declarations)
         + "}\n"
@@ -124,6 +139,17 @@ def android_options(config, app_id):
     }
 
 
+def format_dart(content: bytes) -> bytes:
+    try:
+        formatted = subprocess.run(
+            ["dart", "format", "--output=show"],
+            input=content, capture_output=True, timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return content
+    return formatted.stdout if formatted.returncode == 0 and formatted.stdout else content
+
+
 def regenerate(path, project, web_app, *, read=firebase_cli):
     web_apps = read(project, "apps:list", "WEB")
     android_apps = read(project, "apps:list", "ANDROID")
@@ -142,7 +168,7 @@ def regenerate(path, project, web_app, *, read=firebase_cli):
             raise ValueError("Firebase returned configuration from a different project or app.")
     except (KeyError, TypeError) as error:
         raise ValueError("Check the Firebase Web and Android SDK configuration.") from error
-    content = render({"web": web, "android": android})
+    content = format_dart(render({"web": web, "android": android}))
     validate(content, syntax=True)
     with NamedTemporaryFile(dir=path.parent, delete=False) as temporary:
         temporary.write(content)

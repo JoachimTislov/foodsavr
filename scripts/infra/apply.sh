@@ -106,7 +106,7 @@ if gcloud "${account_args[@]}" storage buckets describe "$bucket" --project "$PR
 elif ! grep -Eq '(^|[^0-9])404([^0-9]|$)|NOT_FOUND' "$work/bucket.error"; then
   if [[ "$backend" != gcs && "$DEPLOYMENT_LEVEL" == firebase-spark ]] &&
     grep -Eiq '403|PERMISSION_DENIED' "$work/bucket.error" &&
-    { grep -Eiq 'accountDisabled|billing.*(disabled|not enabled|not linked)' "$work/bucket.error" ||
+    { grep -Eiq 'accountDisabled|billing.*(disabled|not enabled|not linked|closed)' "$work/bucket.error" ||
       [[ "$(gcloud "${account_args[@]}" billing projects describe "$PROJECT_ID" --format='value(billingEnabled)' 2>/dev/null)" =~ ^([Ff]alse)$ ]]; }; then
     billing_fallback=true
   else

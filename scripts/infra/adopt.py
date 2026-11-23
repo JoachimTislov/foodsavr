@@ -154,7 +154,7 @@ def gcp_resources(directory, project, app, repo, environment, deploy_branch, int
         return {
             (binding["role"], member)
             for binding in policy.get("bindings", []) if not binding.get("condition")
-            for member in binding["members"]
+            for member in binding.get("members", [])
         }
 
     resources = {}

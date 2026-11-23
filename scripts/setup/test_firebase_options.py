@@ -66,9 +66,47 @@ class FirebaseOptionsTest(unittest.TestCase):
             self.assertIn(WEB_ID, source)
             self.assertIn(ANDROID_ID, source)
             self.assertIn("TargetPlatform.android", source)
+            self.assertIn(f"apiKey: 'web-test-key'", source)
+            self.assertNotIn('"', source)
+            fmt = subprocess.run(
+                ["dart", "format", "--output=none", "--set-exit-if-changed", str(path)],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(fmt.returncode, 0, fmt.stdout + fmt.stderr)
             self.assertTrue(firebase_options.fingerprint(path, PROJECT, WEB_ID))
             self.assertIsNone(firebase_options.fingerprint(path, "other-project", WEB_ID))
         read.assert_called_with(PROJECT, "apps:sdkconfig", "ANDROID", ANDROID_ID)
+
+    @unittest.skipUnless(shutil.which("dart"), "Flutter SDK unavailable")
+    def test_render_escapes_special_characters_for_single_quoted_dart(self):
+        rendered = firebase_options.render({
+            "web": {
+                "apiKey": "a'b$c\\d",
+                "appId": WEB_ID,
+                "messagingSenderId": "1234",
+                "projectId": PROJECT,
+            }
+        })
+        source = rendered.decode("utf-8")
+        self.assertIn(r"apiKey: 'a\'b\$c\\d'", source)
+        self.assertEqual(firebase_options.validate(rendered, syntax=True), source)
+
+    @unittest.skipUnless(shutil.which("dart"), "Flutter SDK unavailable")
+    def test_ci_placeholder_is_dart_formatted_when_secret_unset(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "lib/firebase_options.dart"
+            output.parent.mkdir()
+            env = {k: v for k, v in os.environ.items() if k != "FIREBASE_OPTIONS_B64"}
+            result = subprocess.run(
+                ["bash", str(ROOT / "scripts/ci/write_firebase_options.sh")],
+                cwd=directory, env=env, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            fmt = subprocess.run(
+                ["dart", "format", "--output=none", "--set-exit-if-changed", str(output)],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(fmt.returncode, 0, fmt.stdout + fmt.stderr)
 
     @unittest.skipUnless(shutil.which("dart"), "Flutter SDK unavailable")
     def test_ci_rejects_corrupt_or_malformed_dart_without_replacing_existing_file(self):

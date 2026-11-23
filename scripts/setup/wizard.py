@@ -11,6 +11,7 @@ import shlex
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from setupctl import (
@@ -72,6 +73,27 @@ def process(step, listing, verify=None):
     return False
 
 
+def load_env_file(path: Path) -> dict[str, str]:
+    if not path.is_file():
+        return {}
+    values: dict[str, str] = {}
+    for raw in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[7:].strip()
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] == "'":
+            value = value[1:-1].replace("'\\''", "'")
+        elif len(value) >= 2 and value[0] == value[-1] == '"':
+            value = value[1:-1]
+        values[key] = value
+    return values
+
+
 def firebase_identity(env):
     try:
         result = subprocess.run(
@@ -97,17 +119,75 @@ def firebase_identity(env):
     return project, values.get("WEB_APP_ID", "")
 
 
-def anonymous_enabled(project, account):
-    if not project:
-        return False
+def identity_toolkit_token(account):
     command = ["gcloud", *([f"--account={account}"] if account else []), "auth", "print-access-token"]
     try:
-        token = subprocess.run(command, capture_output=True, text=True, timeout=20, check=True).stdout.strip()
-        url = f"https://identitytoolkit.googleapis.com/admin/v2/projects/{project}/config"
-        request = Request(url, headers={"Authorization": f"Bearer {token}", "x-goog-user-project": project})
+        return subprocess.run(command, capture_output=True, text=True, timeout=20, check=True).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def identity_toolkit_get(project, account, suffix):
+    if not project:
+        return None
+    token = identity_toolkit_token(account)
+    if not token:
+        return None
+    url = f"https://identitytoolkit.googleapis.com/admin/v2/projects/{project}/{suffix}"
+    request = Request(url, headers={"Authorization": f"Bearer {token}", "x-goog-user-project": project})
+    try:
         with urlopen(request, timeout=20) as response:
-            return json.load(response).get("signIn", {}).get("anonymous", {}).get("enabled") is True
-    except (OSError, subprocess.SubprocessError, ValueError):
+            return json.load(response)
+    except (OSError, URLError, ValueError):
+        return None
+
+
+def anonymous_enabled(project, account):
+    data = identity_toolkit_get(project, account, "config")
+    return isinstance(data, dict) and data.get("signIn", {}).get("anonymous", {}).get("enabled") is True
+
+
+def facebook_enabled(project, account):
+    data = identity_toolkit_get(project, account, "defaultSupportedIdpConfigs/facebook.com")
+    return isinstance(data, dict) and data.get("enabled") is True
+
+
+def enable_facebook_provider(project, account, app_id, app_secret):
+    if not project or not app_id or not app_secret:
+        return False
+    token = identity_toolkit_token(account)
+    if not token:
+        return False
+    base = f"https://identitytoolkit.googleapis.com/admin/v2/projects/{project}/defaultSupportedIdpConfigs"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "x-goog-user-project": project,
+        "Content-Type": "application/json",
+    }
+    exists = False
+    try:
+        with urlopen(Request(f"{base}/facebook.com", headers=headers), timeout=20):
+            exists = True
+    except HTTPError as error:
+        code = error.code
+        error.close()
+        if code != 404:
+            return False
+    except (OSError, URLError):
+        return False
+    method = "PATCH" if exists else "POST"
+    target = (
+        f"{base}/facebook.com?updateMask=enabled,clientId,clientSecret"
+        if exists
+        else f"{base}?idpId=facebook.com"
+    )
+    payload = json.dumps({"enabled": True, "clientId": app_id, "clientSecret": app_secret}).encode("utf-8")
+    request = Request(target, data=payload, headers=headers, method=method)
+    try:
+        with urlopen(request, timeout=20) as response:
+            data = json.load(response)
+            return isinstance(data, dict) and data.get("enabled") is True
+    except (OSError, URLError, ValueError):
         return False
 
 
@@ -305,6 +385,7 @@ class Setup:
             "github-infrastructure": self.github_infrastructure,
             "firebase-infrastructure": self.firebase_infrastructure,
             "anonymous-sign-in": self.anonymous_sign_in,
+            "facebook-sign-in": self.facebook_sign_in,
             "fork-actions": self.fork_actions,
         }
         if ordered_steps and (len(ordered_steps) != len(steps) or set(ordered_steps) != set(steps)):
@@ -508,18 +589,60 @@ class Setup:
     def anonymous_sign_in(self):
         if not self.firebase:
             return True
+        account = self.env.get("GCLOUD_ACCOUNT") if self.env else None
         url = f"https://console.firebase.google.com/project/{self.project}/authentication/providers" if self.project else (
             "https://console.firebase.google.com/"
         )
 
         def ready():
-            return anonymous_enabled(self.project, self.env.get("GCLOUD_ACCOUNT"))
+            return anonymous_enabled(self.project, account)
 
         def enable():
             print(f"Enable Anonymous at {url}.")
             return confirm("Verify Firebase sign-in now?")
 
         return self.step("Anonymous sign-in", ready(), enable, f"Open {url}.", ready)
+
+    def facebook_sign_in(self):
+        if not self.firebase:
+            return True
+        account = self.env.get("GCLOUD_ACCOUNT") if self.env else None
+        url = f"https://console.firebase.google.com/project/{self.project}/authentication/providers" if self.project else (
+            "https://console.firebase.google.com/"
+        )
+
+        def creds():
+            values = load_env_file(ROOT / ".env")
+            return (
+                os.environ.get("FACEBOOK_APP_ID") or values.get("FACEBOOK_APP_ID", ""),
+                os.environ.get("FACEBOOK_APP_SECRET") or values.get("FACEBOOK_APP_SECRET", ""),
+            )
+
+        def ready():
+            return facebook_enabled(self.project, account)
+
+        def enable():
+            app_id, app_secret = creds()
+            missing = [
+                name for name, value in (("FACEBOOK_APP_ID", app_id), ("FACEBOOK_APP_SECRET", app_secret))
+                if not value
+            ]
+            if missing:
+                if confirm("Store Meta app credentials to enable Facebook sign-in?"):
+                    command = ["python3", "scripts/secrets/rotate.py"]
+                    if self.repo:
+                        command.extend(["--repo", self.repo, "--yes"])
+                    command.extend(missing)
+                    run(*command)
+                    app_id, app_secret = creds()
+            elif not confirm("Enable Facebook sign-in in Firebase Auth?"):
+                return False
+            if app_id and app_secret and enable_facebook_provider(self.project, account, app_id, app_secret):
+                return True
+            print(f"Enable Facebook at {url}.")
+            return confirm("Verify Facebook sign-in now?")
+
+        return self.step("Facebook sign-in", ready(), enable, f"Open {url}.", ready)
 
     def firebase_app_config(self):
         if not self.firebase:

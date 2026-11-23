@@ -224,7 +224,7 @@ banner "Google web client secret"
 
 stage "Google Cloud: copy the web client secret"
 open_url "https://console.cloud.google.com/apis/credentials?project=$PROJECT"
-step "OAuth 2.0 Client IDs > 'Web client (auto created by Google Service)'."
+step "Under OAuth 2.0 Client IDs, open 'Web client (auto created by Google Service)'."
 step "Under Client secrets, copy the enabled secret."
 note "To replace a leaked secret, use scripts/human/google/rotate-web-client-secret.sh."
 ask_secret GOOGLE_WEB_CLIENT_SECRET "Paste the client secret:"
