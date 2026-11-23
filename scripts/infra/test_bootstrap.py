@@ -253,6 +253,14 @@ class BackendTests(unittest.TestCase):
         self.assertNotIn('"apply"', calls)
         self.assertNotIn('"import"', calls)
 
+    def test_billing_403_closed_message_falls_back_even_without_billing_describe(self):
+        result = self.run_plan(
+            FAKE_BUCKET='403 PERMISSION_DENIED: The billing account for the owning project is closed',
+            FAKE_BILLING_ENABLED='',
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('backend "local"', (self.root / 'config.log').read_text())
+
     def test_local_override_refuses_existing_remote(self):
         result = self.run_plan(TF_STATE_BACKEND='local', FAKE_BUCKET='exists')
         self.assertNotEqual(result.returncode, 0)

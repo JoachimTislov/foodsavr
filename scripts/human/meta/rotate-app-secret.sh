@@ -226,16 +226,16 @@ warn "Resetting invalidates the old secret at once: Facebook sign-in fails"
 warn "until Firebase Auth gets the new one (next stage, then social_auth.sh)."
 confirm "Reset the Meta app secret now?" || { note "Nothing changed."; exit 0; }
 open_url "https://developers.facebook.com/apps/"
-step "FoodSavr app > App settings > Basic > App secret > Reset."
-step "Confirm with your password / 2FA, then Show and copy the new secret."
+step "Open the FoodSavr app, open Basic settings, and reset the App secret."
+step "Confirm with your password / 2FA, then reveal and copy the new secret."
 ask_secret FACEBOOK_APP_SECRET "Paste the new app secret:"
 set_secret FACEBOOK_APP_SECRET "$FACEBOOK_APP_SECRET"
 
 stage "Firebase: apply the new secret"
 say "Run this now so Facebook sign-in works again:"
 note "    scripts/setup/social_auth.sh"
-note "If it reports facebook.com as already enabled, update the secret in"
-note "Firebase console > Authentication > Sign-in method > Facebook."
+note "If facebook.com is already enabled, update the secret at:"
+note "    https://console.firebase.google.com/project/${FIREBASE_PROJECT:-my-foodsavr-store}/authentication/providers"
 pause "Press Enter when Firebase has the new secret"
 
 finish

@@ -138,7 +138,7 @@ class PlanAndVerifyTest(unittest.TestCase):
             repo="alice/foodsavr",
             login="alice",
             is_admin=True,
-            branches=["develop", "stable"],
+            branches=list(setupctl.TOPOLOGY_BRANCHES["two-stage"]),
             variables={"AGENT_APP_ID": "111", "RELEASE_GATE_APP_ID": "222"},
             secret_names=["AGENT_APP_PRIVATE_KEY", "RELEASE_GATE_APP_PRIVATE_KEY", "CLAUDE_CODE_OAUTH_TOKEN"],
             local_ok=True,

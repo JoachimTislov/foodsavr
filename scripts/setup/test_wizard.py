@@ -1,8 +1,13 @@
 from argparse import Namespace
-from contextlib import redirect_stdout
-from io import StringIO
+from contextlib import redirect_stderr, redirect_stdout
+from io import BytesIO, StringIO
+import json
+import os
+from pathlib import Path
+import tempfile
 from unittest import TestCase
 from unittest.mock import Mock, patch
+from urllib.error import HTTPError
 
 from app_names import app_name
 import wizard
@@ -49,3 +54,92 @@ class WizardTest(TestCase):
         name = app_name(repo, "release-gate", owner_suffix=True)
         self.assertLessEqual(len(name), 34)
         self.assertTrue(name.endswith("-release-gate-long-own"))
+
+    def test_enable_facebook_provider_creates_when_missing_and_patches_when_present(self):
+        with patch.object(wizard, "identity_toolkit_token", return_value="tok"):
+            not_found = HTTPError("u", 404, "missing", {}, BytesIO(b"{}"))
+            with patch.object(
+                wizard,
+                "urlopen",
+                side_effect=[not_found, BytesIO(b'{"enabled": true}')],
+            ) as mock_open:
+                self.assertTrue(wizard.enable_facebook_provider("proj", None, "app1", "sec1"))
+            self.assertEqual(mock_open.call_count, 2)
+            req_post = mock_open.call_args_list[1].args[0]
+            self.assertEqual(req_post.get_method(), "POST")
+            self.assertIn("idpId=facebook.com", req_post.full_url)
+            self.assertEqual(
+                json.loads(req_post.data.decode()),
+                {"enabled": True, "clientId": "app1", "clientSecret": "sec1"},
+            )
+
+            with patch.object(
+                wizard,
+                "urlopen",
+                side_effect=[BytesIO(b'{"enabled": false}'), BytesIO(b'{"enabled": true}')],
+            ) as mock_open:
+                self.assertTrue(wizard.enable_facebook_provider("proj", None, "app1", "sec1"))
+            req_patch = mock_open.call_args_list[1].args[0]
+            self.assertEqual(req_patch.get_method(), "PATCH")
+            self.assertIn("updateMask=enabled,clientId,clientSecret", req_patch.full_url)
+
+    def test_facebook_sign_in_uses_dotenv_credentials_via_api(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".env").write_text("FACEBOOK_APP_ID='123'\nFACEBOOK_APP_SECRET='sec'\n", encoding="utf-8")
+            instance = wizard.Setup(
+                "owner/repo",
+                "full-cloud",
+                {"local_config": {}, "github": {"target_repo": "owner/repo"}},
+                listing=False,
+            )
+            instance.project = "demo-proj"
+            instance.env = {}
+            out = StringIO()
+            with (
+                patch.object(wizard, "ROOT", root),
+                patch.dict(os.environ, {}, clear=True),
+                patch.object(wizard, "facebook_enabled", side_effect=[False, True]),
+                patch.object(wizard, "confirm", return_value=True),
+                patch.object(wizard, "enable_facebook_provider", return_value=True) as enable_fb,
+                redirect_stdout(out),
+            ):
+                self.assertTrue(instance.facebook_sign_in())
+            enable_fb.assert_called_once_with("demo-proj", None, "123", "sec")
+            self.assertEqual(out.getvalue(), "Facebook sign-in ready.\n")
+
+    def test_facebook_sign_in_prompts_rotate_when_missing_and_falls_back_to_console_url(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            instance = wizard.Setup(
+                "owner/repo",
+                "full-cloud",
+                {"local_config": {}, "github": {"target_repo": "owner/repo"}},
+                listing=False,
+            )
+            instance.project = "demo-proj"
+            instance.env = {}
+            out = StringIO()
+            err = StringIO()
+            with (
+                patch.object(wizard, "ROOT", root),
+                patch.dict(os.environ, {}, clear=True),
+                patch.object(wizard, "facebook_enabled", return_value=False),
+                patch.object(wizard, "confirm", side_effect=[True, False]),
+                patch.object(wizard, "run", return_value=0) as mock_run,
+                redirect_stdout(out),
+                redirect_stderr(err),
+            ):
+                self.assertFalse(instance.facebook_sign_in())
+            mock_run.assert_called_once_with(
+                "python3", "scripts/secrets/rotate.py", "--repo", "owner/repo", "--yes",
+                "FACEBOOK_APP_ID", "FACEBOOK_APP_SECRET",
+            )
+            url = "https://console.firebase.google.com/project/demo-proj/authentication/providers"
+            self.assertIn(url, out.getvalue())
+            self.assertIn(url, err.getvalue())
+
+    def test_wizard_has_no_menu_paths_or_merge_gate_token(self):
+        source = (Path(wizard.__file__)).read_text(encoding="utf-8")
+        self.assertNotIn("MERGE_GATE_TOKEN", source)
+        self.assertNotIn(" > ", source)
