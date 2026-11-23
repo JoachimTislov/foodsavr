@@ -48,7 +48,7 @@ Before each deploy `scripts/web/hosting_storage_guard.py` flags builds over 5 GB
 in budget: above 8 GB it deletes preview channels oldest-first and skips a
 preview that would not fit; a live deploy may also delete live versions older
 than the 3 latest to stay under 10 GB, and fails only if that is not enough.
-`WEB_ENV_B64` becomes `assets/.env`, which Hosting serves publicly.
+`WEB_ENV_B64` becomes `assets/.env`, which Hosting serves publicly. An empty or missing `assets/.env` is valid: the app starts with an empty environment (`lib/utils/env_loader.dart`) and integrations that need keys fail at use time.
 
 ## Cloud infrastructure
 

@@ -6,7 +6,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:foodsavr/controllers/preferences_controller.dart';
 import 'package:foodsavr/controllers/user_controller.dart';
 import 'package:http/http.dart' as http;
@@ -21,6 +20,7 @@ import 'service_locator.dart';
 import 'utils/theme_notifier.dart';
 import 'utils/app_theme.dart';
 import 'utils/config.dart';
+import 'utils/env_loader.dart';
 import 'utils/app_check_storage.dart';
 
 const dummyOptions = FirebaseOptions(
@@ -53,7 +53,7 @@ void main() async {
   prepareAppCheckStorage(
     enterpriseSiteKey: Config.useEmulators ? null : recaptchaKey,
   );
-  await dotenv.load(fileName: 'assets/.env');
+  await loadEnv();
 
   OpenFoodAPIConfiguration.userAgent = UserAgent(
     name: 'FoodSavr',

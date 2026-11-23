@@ -12,16 +12,16 @@ import 'package:http/http.dart' as http;
 @LazySingleton(as: IImportService)
 class ImportService implements IImportService {
   final IAuthService _authService;
-  final RemaClient _remaClient;
-  final CoopClient _coopClient;
+  final Logger _logger;
+  final SecureStorage _storage;
+  final http.Client _client;
 
-  ImportService(
-    this._authService,
-    Logger logger,
-    SecureStorage storage,
-    http.Client client,
-  ) : _remaClient = RemaClient(logger, storage, client),
-      _coopClient = CoopClient(logger, storage, client);
+  // Clients read provider keys from the environment on construction, so they
+  // are created on first use to keep startup independent of the env file.
+  late final RemaClient _remaClient = RemaClient(_logger, _storage, _client);
+  late final CoopClient _coopClient = CoopClient(_logger, _storage, _client);
+
+  ImportService(this._authService, this._logger, this._storage, this._client);
 
   @override
   Future<void> getReceiptById(String id) {
