@@ -7,6 +7,8 @@ include make/firebase.mk
 include make/quality.mk
 include make/repo.mk
 include make/ai.mk
+include make/bypass.mk
+include make/human.mk
 include scripts/github/github.mk
 
 .PHONY: help
@@ -23,5 +25,7 @@ help:
 	@echo "  hooks                    Install the pre-push hook"
 	@echo "  start-firebase-emulators / kill-firebase-emulators"
 	@echo "  setup / setup-probe      Guided setup (local-dev, fork-agents, full-cloud)"
+	@echo "  human                    One menu for every manual process and pipeline bypass (LIST=1 prints it)"
+	@echo "  pr-merge / validate / promote / deploy-web / deploy-firestore-rules   Manual bypasses; see make human LIST=1"
 	@echo "  agent-status / agent-usage  Agent system health & harness quota headroom"
 	@echo "  social-auth-setup, router-setup  Legacy individual setup helpers"

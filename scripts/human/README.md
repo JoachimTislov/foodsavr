@@ -10,7 +10,7 @@ Interactive scripts for the setup steps that cannot be fully automated: browser 
 - **intent**: one verb per script: `create`, `login`, `rotate`, `sync`, `revoke`, or `verify`.
 - **area**: the specific resource, for example `agent-app` or `claude-runner`.
 
-List them with `ls scripts/human/*/`. Each script's header names its intent, domain, area, the registry secrets it sets, and why it needs you.
+`make human` lists them with every other manual process and pipeline bypass (`make human LIST=1` as plain text); the menu discovers these scripts from their headers and takes everything else from `scripts/human/menu.toml`. Each script's header names its intent, domain, area, the registry secrets it sets, and why it needs you.
 
 ## Rules for new scripts
 

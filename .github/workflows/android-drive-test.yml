@@ -49,16 +49,8 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Restore Firebase test configuration
-        run: |
-          bash scripts/ci/write_firebase_options.sh
-          bash scripts/ci/write_android_test_config.sh
-
-      - run: flutter pub get
-      - run: dart run build_runner build --delete-conflicting-outputs
-
       - name: Build installable test APK
-        run: flutter build apk --flavor production --debug
+        run: bash scripts/release/android_drive.sh build
 
       - name: Upload APK to Google Drive
-        run: python3 scripts/release/upload_drive.py build/app/outputs/flutter-apk/app-production-debug.apk
+        run: bash scripts/release/android_drive.sh upload

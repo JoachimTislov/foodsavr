@@ -45,7 +45,7 @@ class Group:
 
 
 # Python tests are discovered per directory (`test_*.py`) so new test files run without a list edit.
-PYTHON_TEST_DIRS = ("agents", "github", "secrets", "setup", "monitoring", "ci")
+PYTHON_TEST_DIRS = ("agents", "github", "secrets", "setup", "monitoring", "ci", "web", "human")
 
 GROUPS: dict[str, Group] = {
     "agents": Group(
@@ -53,7 +53,8 @@ GROUPS: dict[str, Group] = {
             ".agents/**", "AGENTS.md", "CLAUDE.md", "GEMINI.md", "scripts/agents/**", "scripts/github/**",
             "scripts/secrets/**", "scripts/monitoring/**", "scripts/ci/*.py", ".githooks/**", ".agents/github/**",
             ".github/workflows/github-labels.yml", ".github/workflows/merge-gate.yml",
-            ".github/workflows/promote.yml",
+            ".github/workflows/promote.yml", "Makefile", "make/**", "scripts/web/**",
+            ".github/workflows/firebase-hosting.yml",
             ".github/workflows/web-monitor.yml", ".github/workflows/fault-intake.yml",
             "specs/**", "docs/**", "doc/**",
             ".github/workflows/agent-system.yml", ".claude/**", ".gemini/**", ".github/agents/**",

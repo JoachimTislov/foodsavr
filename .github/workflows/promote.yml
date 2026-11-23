@@ -8,7 +8,8 @@ name: Promote release channels
 #                   -> stable -> release (1st & 15th 06:00 UTC)
 #
 # The script fetches only the branches each step needs; a missing channel
-# branch is skipped with a warning on schedule and fails a manual run.
+# branch is skipped with a warning on schedule and fails a manual run. A missing
+# gate token fails both (no silent green); `make promote` is the manual bypass.
 #
 # Never creates merge commits and never force-pushes. Pushing with the
 # Release-Gate GitHub App token (or legacy MERGE_GATE_TOKEN) triggers
@@ -110,11 +111,8 @@ jobs:
 
           if [ "$DRY_RUN" != "true" ]; then
             if [ -z "$GATE_TOKEN" ]; then
-              if [ "$EVENT_NAME" = "schedule" ]; then
-                echo "::warning::Release-Gate App / MERGE_GATE_TOKEN is not configured; skipping scheduled promotion."
-                exit 0
-              fi
-              echo "::error::Configure RELEASE_GATE_APP_ID/RELEASE_GATE_APP_PRIVATE_KEY (or legacy MERGE_GATE_TOKEN)."
+              # Enabled (topology is not single) but unable to publish: fail instead of a silent green.
+              echo "::error::Configure RELEASE_GATE_APP_ID/RELEASE_GATE_APP_PRIVATE_KEY (or legacy MERGE_GATE_TOKEN). Nothing was promoted. Promote now: make promote CHANNEL=<channel> APPLY=1."
               exit 1
             fi
             export GH_TOKEN="$GATE_TOKEN"

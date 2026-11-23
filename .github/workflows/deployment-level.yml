@@ -94,7 +94,7 @@ jobs:
         if: ${{ env.WIF_PROVIDER == '' || env.TELEMETRY_SA == '' }}
         working-directory: .
         run: |
-          echo "::warning::Workload Identity variables missing for $ENV_NAME; run ENV=$ENV_NAME scripts/infra/apply.sh. Skipping poll."
+          echo "::warning::Workload Identity variables missing for $ENV_NAME; run make infra-gcp-apply ENV=$ENV_NAME; poll by hand with make deployment-poll ENV=$ENV_NAME. Skipping poll."
           echo "Poll skipped for $ENV_NAME: no Workload Identity variables." >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/checkout@v6
