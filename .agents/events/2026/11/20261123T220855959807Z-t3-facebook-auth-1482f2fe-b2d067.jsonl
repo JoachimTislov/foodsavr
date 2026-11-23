@@ -1,0 +1,1 @@
+{"event": "Changed Facebook SDK and Firebase popup failure handling, localized feedback and redacted reporting. Added Meta Graph app settings sync and dashboard links. Regression tests failed before the fix and passed afterward.", "issues": ["#26"], "session_id": "t3:facebook-auth-1482f2fe", "stream": "ledger", "timestamp": "2026-11-23T22:08:55+00:00"}

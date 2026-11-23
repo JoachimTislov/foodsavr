@@ -23,6 +23,15 @@ class _LandingPageViewState extends State<LandingPageView> {
     _controller = getIt<UserController>();
   }
 
+  Future<void> _signInWithFacebook() async {
+    await _controller.signInWithFacebook();
+    final message = _controller.errorMessage;
+    if (!mounted || message == null) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -81,7 +90,7 @@ class _LandingPageViewState extends State<LandingPageView> {
                       SocialAuthSection(
                         isLoading: _controller.isLoading,
                         onGooglePressed: _controller.signInWithGoogle,
-                        onFacebookPressed: _controller.signInWithFacebook,
+                        onFacebookPressed: _signInWithFacebook,
                         showTopDivider: false,
                       ),
 

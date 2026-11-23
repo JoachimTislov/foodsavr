@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/utils/retry.dart';
@@ -10,6 +11,7 @@ import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 
 import '../interfaces/i_auth_service.dart';
+import '../interfaces/i_error_reporter.dart';
 
 @LazySingleton(as: IAuthService)
 class AuthService implements IAuthService {
@@ -21,6 +23,7 @@ class AuthService implements IAuthService {
   final FirebaseFirestore _firestore;
   final CollectionService _collectionService;
   final Logger _logger;
+  final IErrorReporter _errorReporter;
 
   AuthService(
     this._firebaseAuth, {
@@ -31,13 +34,15 @@ class AuthService implements IAuthService {
     required FirebaseFirestore firestore,
     required CollectionService collectionService,
     required Logger logger,
+    required IErrorReporter errorReporter,
   }) : _googleSignIn = googleSignIn,
        _facebookAuth = facebookAuth,
        _supportsPersistence = supportsPersistence,
        _isWeb = isWeb,
        _firestore = firestore,
        _collectionService = collectionService,
-       _logger = logger;
+       _logger = logger,
+       _errorReporter = errorReporter;
 
   Future<void>? _pendingSignIn;
 
@@ -182,27 +187,60 @@ class AuthService implements IAuthService {
   /// Throws:
   /// - [FirebaseAuthException] if sign-in fails or is aborted by the user.
   Future<UserCredential> signInWithFacebook() async {
-    if (_isWeb) {
-      return _signInWithPopup(FacebookAuthProvider());
+    try {
+      return await (_isWeb
+          ? _signInWithPopup(FacebookAuthProvider())
+          : _signInWithFacebookSdk());
+    } catch (error, stack) {
+      final code = error is FirebaseAuthException
+          ? error.code
+          : error.runtimeType.toString();
+      if (code != 'ERROR_ABORTED_BY_USER' &&
+          code != 'facebook-sdk-in-progress') {
+        // SDK error messages and credentials can contain OAuth tokens.
+        final failure = StateError('Facebook sign-in failed ($code)');
+        _logger.e(failure.message, stackTrace: stack);
+        unawaited(
+          _errorReporter.recordError(
+            failure,
+            stack,
+            reason: 'Facebook sign-in',
+          ),
+        );
+      }
+      rethrow;
     }
-    // Trigger the sign-in flow
-    final LoginResult loginResult = await _facebookAuth.login();
-    final AccessToken? accessToken = loginResult.accessToken;
-    if (accessToken == null) {
-      throw FirebaseAuthException(
-        code: 'ERROR_ABORTED_BY_USER',
-        message: 'Sign in aborted by user',
+  }
+
+  Future<UserCredential> _signInWithFacebookSdk() async {
+    final LoginResult result;
+    try {
+      result = await _facebookAuth.login();
+    } on MissingPluginException catch (_, stack) {
+      // Android's plugin registration fails when the Meta SDK could not initialize.
+      Error.throwWithStackTrace(
+        FirebaseAuthException(code: 'facebook-sdk-unavailable'),
+        stack,
       );
     }
 
-    // Create a credential from the access token
-    final OAuthCredential facebookAuthCredential =
-        FacebookAuthProvider.credential(accessToken.tokenString);
+    switch (result.status) {
+      case LoginStatus.cancelled:
+        throw FirebaseAuthException(code: 'ERROR_ABORTED_BY_USER');
+      case LoginStatus.failed:
+        throw FirebaseAuthException(code: 'facebook-sdk-failed');
+      case LoginStatus.operationInProgress:
+        throw FirebaseAuthException(code: 'facebook-sdk-in-progress');
+      case LoginStatus.success:
+        break;
+    }
+    final token = result.accessToken?.tokenString;
+    if (token == null || token.isEmpty) {
+      throw FirebaseAuthException(code: 'facebook-sdk-failed');
+    }
 
-    // Once signed in, return the UserCredential
-    return _authenticate(
-      () => _firebaseAuth.signInWithCredential(facebookAuthCredential),
-    );
+    final credential = FacebookAuthProvider.credential(token);
+    return _authenticate(() => _firebaseAuth.signInWithCredential(credential));
   }
 
   Future<UserCredential> _signInWithPopup(AuthProvider provider) async {

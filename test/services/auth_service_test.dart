@@ -5,8 +5,10 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_collection_repository.dart';
+import 'package:foodsavr/interfaces/i_error_reporter.dart';
 import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/utils/collection_types.dart';
@@ -27,6 +29,7 @@ void main() {
   late MockUserCredential mockUserCredential;
   late MockCollectionService mockCollectionService;
   late MockLogger mockLogger;
+  late MockErrorReporter errorReporter;
 
   setUpAll(() {
     registerFallbackValue(FakeAuthCredential());
@@ -42,6 +45,10 @@ void main() {
     mockUserCredential = MockUserCredential();
     mockCollectionService = MockCollectionService();
     mockLogger = MockLogger();
+    errorReporter = MockErrorReporter();
+    when(
+      () => errorReporter.recordError(any(), any(), reason: 'Facebook sign-in'),
+    ).thenAnswer((_) async {});
     when(() => mockGoogleSignIn.initialize()).thenAnswer((_) async {});
     authService = AuthService(
       mockFirebaseAuth,
@@ -52,6 +59,7 @@ void main() {
       firestore: mockFirestore,
       collectionService: mockCollectionService,
       logger: mockLogger,
+      errorReporter: errorReporter,
     );
   });
 
@@ -68,6 +76,7 @@ void main() {
         firestore: mockFirestore,
         collectionService: mockCollectionService,
         logger: mockLogger,
+        errorReporter: errorReporter,
       );
       when(
         () => mockFirebaseAuth.signInWithPopup(any()),
@@ -100,6 +109,37 @@ void main() {
       expect(provider.providerId, FacebookAuthProvider.PROVIDER_ID);
       verifyNever(() => mockFacebookAuth.login());
     });
+
+    test(
+      'Facebook reports a disabled web provider without OAuth details',
+      () async {
+        when(() => mockFirebaseAuth.signInWithPopup(any())).thenThrow(
+          FirebaseAuthException(
+            code: 'operation-not-allowed',
+            message: 'sensitive provider response',
+          ),
+        );
+
+        await expectLater(
+          webAuthService.signInWithFacebook(),
+          throwsA(isA<FirebaseAuthException>()),
+        );
+
+        final report = verify(
+          () => errorReporter.recordError(
+            captureAny(),
+            any(),
+            reason: 'Facebook sign-in',
+          ),
+        ).captured.single;
+        expect(report.toString(), contains('operation-not-allowed'));
+        expect(
+          report.toString(),
+          isNot(contains('sensitive provider response')),
+        );
+        verifyNever(() => mockFacebookAuth.login());
+      },
+    );
 
     test('closing the popup maps to an aborted sign-in', () async {
       when(
@@ -158,6 +198,7 @@ void main() {
         firestore: mockFirestore,
         collectionService: collections,
         logger: mockLogger,
+        errorReporter: errorReporter,
       );
       final user = MockUser();
       when(() => user.uid).thenReturn(uid);
@@ -529,6 +570,7 @@ void main() {
       final mockToken = MockAccessToken();
 
       when(() => mockFacebookAuth.login()).thenAnswer((_) async => mockResult);
+      when(() => mockResult.status).thenReturn(LoginStatus.success);
       when(() => mockResult.accessToken).thenReturn(mockToken);
       when(() => mockToken.tokenString).thenReturn('token-string');
       when(
@@ -542,11 +584,56 @@ void main() {
       verify(() => mockFirebaseAuth.signInWithCredential(any())).called(1);
     });
 
-    test('signInWithFacebook throws when access token is null', () async {
-      final mockResult = MockLoginResult();
+    test('Facebook SDK failure is distinct from cancellation', () async {
+      when(
+        () => mockFacebookAuth.login(),
+      ).thenAnswer((_) async => LoginResult(status: LoginStatus.failed));
 
-      when(() => mockFacebookAuth.login()).thenAnswer((_) async => mockResult);
-      when(() => mockResult.accessToken).thenReturn(null);
+      await expectLater(
+        authService.signInWithFacebook(),
+        throwsA(
+          isA<FirebaseAuthException>().having(
+            (e) => e.code,
+            'code',
+            'facebook-sdk-failed',
+          ),
+        ),
+      );
+      verifyNever(() => mockFirebaseAuth.signInWithCredential(any()));
+    });
+
+    test(
+      'Facebook SDK unavailable after native registration failure',
+      () async {
+        when(
+          () => mockFacebookAuth.login(),
+        ).thenThrow(MissingPluginException());
+
+        await expectLater(
+          authService.signInWithFacebook(),
+          throwsA(
+            isA<FirebaseAuthException>().having(
+              (e) => e.code,
+              'code',
+              'facebook-sdk-unavailable',
+            ),
+          ),
+        );
+        verify(
+          () => errorReporter.recordError(
+            any(),
+            any(),
+            reason: 'Facebook sign-in',
+          ),
+        ).called(1);
+        verifyNever(() => mockFirebaseAuth.signInWithCredential(any()));
+      },
+    );
+
+    test('signInWithFacebook throws when the user cancels', () async {
+      when(
+        () => mockFacebookAuth.login(),
+      ).thenAnswer((_) async => LoginResult(status: LoginStatus.cancelled));
 
       await expectLater(
         authService.signInWithFacebook(),
@@ -561,6 +648,7 @@ void main() {
 
       verify(() => mockFacebookAuth.login()).called(1);
       verifyNever(() => mockFirebaseAuth.signInWithCredential(any()));
+      verifyZeroInteractions(errorReporter);
     });
 
     test('deleteAccount deletes the Firebase account', () async {
@@ -670,3 +758,5 @@ class MockCollectionService extends Mock implements CollectionService {}
 class MockLogger extends Mock implements Logger {}
 
 class MockCollectionRepository extends Mock implements ICollectionRepository {}
+
+class MockErrorReporter extends Mock implements IErrorReporter {}

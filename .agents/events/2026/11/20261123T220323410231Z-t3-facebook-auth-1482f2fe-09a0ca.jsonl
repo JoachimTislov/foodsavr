@@ -1,0 +1,1 @@
+{"commits": [], "harness": "t3", "issues": [], "provider": "openai", "prs": [], "related": ["codex:01a20a6e-f006-7002-a518-69122db0c9de"], "session_id": "t3:facebook-auth-1482f2fe", "sources": [], "started_at": "2026-11-23T22:03:23+00:00", "status": "active", "stream": "sessions", "summary": "Diagnose Facebook sign-in and verify Meta app configuration API"}

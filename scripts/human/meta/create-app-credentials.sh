@@ -217,34 +217,28 @@ finish() {
 run_wizard() {
 [[ -t 0 && -t 1 ]] || { echo "scripts/human: interactive only; run it yourself in a terminal" >&2; exit 2; }
 
-TOTAL_STAGES=3
-PROJECT="${FIREBASE_PROJECT:-my-foodsavr-store}"
+TOTAL_STAGES=2
 
 banner "Meta app credentials"
 
 stage "Meta: App ID and app secret"
 open_url "https://developers.facebook.com/apps/"
-step "Open the FoodSavr app > App settings > Basic."
+step "Select the FoodSavr app and copy its App ID."
 ask FACEBOOK_APP_ID "Paste the App ID:"
 set_secret FACEBOOK_APP_ID "$FACEBOOK_APP_ID"
-step "App secret > Show (re-enter your password), then copy it."
+open_url "https://developers.facebook.com/apps/$FACEBOOK_APP_ID/settings/basic/"
+step "Reveal and copy the app secret."
 note "To replace a leaked secret, use scripts/human/meta/rotate-app-secret.sh."
 ask_secret FACEBOOK_APP_SECRET "Paste the app secret:"
 set_secret FACEBOOK_APP_SECRET "$FACEBOOK_APP_SECRET"
 
 stage "Meta: client token"
-step "App settings > Advanced > Security > Client token, then copy it."
+open_url "https://developers.facebook.com/apps/$FACEBOOK_APP_ID/settings/advanced/"
+step "Copy the client token."
 ask_secret FACEBOOK_CLIENT_TOKEN "Paste the client token:"
 set_secret FACEBOOK_CLIENT_TOKEN "$FACEBOOK_CLIENT_TOKEN"
 
-stage "Meta: console-only settings"
-step "Facebook Login > Settings > Valid OAuth Redirect URIs contains:"
-note "    https://$PROJECT.firebaseapp.com/__/auth/handler"
-step "App settings > Basic > Android: packages com.foodsavr.app and"
-note "    com.foodsavr.app.development, class com.foodsavr.app.MainActivity."
-step "Switch App mode to Live."
-pause "Press Enter when all three are saved"
-note "Next: scripts/setup/social_auth.sh (adds key hashes, enables Facebook in Firebase)."
+note "Next: run scripts/setup/social_auth.sh to sync the supported settings and see the remaining dashboard steps."
 
 finish
 }
