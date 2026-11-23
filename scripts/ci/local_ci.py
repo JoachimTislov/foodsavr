@@ -44,12 +44,14 @@ class Group:
     env: dict[str, str] = field(default_factory=dict)
 
 
+# Python tests are discovered per directory (`test_*.py`) so new test files run without a list edit.
+PYTHON_TEST_DIRS = ("agents", "github", "secrets", "setup", "monitoring", "ci")
+
 GROUPS: dict[str, Group] = {
     "agents": Group(
         paths=[
             ".agents/**", "AGENTS.md", "CLAUDE.md", "GEMINI.md", "scripts/agents/**", "scripts/github/**",
-            "scripts/secrets/**", "scripts/monitoring/**", "scripts/ci/local_ci.py", "scripts/ci/test_local_ci.py",
-            "scripts/ci/dep_impact.py", "scripts/ci/test_dep_impact.py", ".githooks/**", ".agents/github/**",
+            "scripts/secrets/**", "scripts/monitoring/**", "scripts/ci/*.py", ".githooks/**", ".agents/github/**",
             ".github/workflows/github-labels.yml", ".github/workflows/merge-gate.yml",
             ".github/workflows/promote.yml",
             ".github/workflows/web-monitor.yml", ".github/workflows/fault-intake.yml",
@@ -57,7 +59,7 @@ GROUPS: dict[str, Group] = {
             ".github/workflows/agent-system.yml", ".claude/**", ".gemini/**", ".github/agents/**",
             ".github/instructions/**", ".github/copilot-instructions.md", ".github/workflows/agent-implement.yml",
             ".github/workflows/agent-review.yml", "scripts/human/**", "scripts/setup/agent_router.sh",
-            "scripts/setup/setupctl.py", "scripts/setup/test_setupctl.py",
+            "scripts/setup/setupctl.py", "scripts/setup/test_*.py",
             "log/**", "logs/**", "**/*.jsonl", "**/*.log",
         ],
         commands=[
@@ -69,21 +71,9 @@ GROUPS: dict[str, Group] = {
              "scripts/monitoring/verify_and_close.py", "scripts/monitoring/check_healing_patch.py",
              "scripts/monitoring/poll_firebase_telemetry.py", "scripts/github/merge_gate.py", "scripts/github/pr_review.py"],
             ["python3", "scripts/agents/check_logs.py"],
-            ["python3", "-m", "unittest", "scripts/agents/test_check_logs.py"],
-            ["python3", "-m", "unittest", "scripts/agents/test_agentctl.py"],
-            ["python3", "-m", "unittest", "scripts/agents/test_agent_skills.py"],
-            ["python3", "-m", "unittest", "scripts/agents/test_system_status.py"],
-            ["python3", "-m", "unittest", "scripts/agents/test_harness_usage.py"],
-            ["python3", "-m", "unittest", "scripts/setup/test_setupctl.py"],
+            *[["python3", "-m", "unittest", "discover", "-s", f"scripts/{d}", "-p", "test_*.py"]
+              for d in PYTHON_TEST_DIRS],
             ["scripts/agents/agentctl", "skills", "check"],
-            ["python3", "-m", "unittest", "scripts/github/test_sync_labels.py"],
-            ["python3", "-m", "unittest", "scripts/github/test_merge_gate.py"],
-            ["python3", "-m", "unittest", "scripts/github/test_promote_release.py"],
-            ["python3", "-m", "unittest", "scripts/github/test_pr_review.py"],
-            ["python3", "-m", "unittest", "scripts/secrets/test_rotate.py"],
-            ["python3", "-m", "unittest", "scripts/ci/test_local_ci.py"],
-            ["python3", "-m", "unittest", "scripts/ci/test_dep_impact.py"],
-            ["python3", "-m", "unittest", "discover", "-s", "scripts/monitoring", "-p", "test_*.py"],
             ["scripts/agents/agentctl", "heal"],
             ["scripts/agents/agentctl", "workflow", "validate", ".agents/workflows/repository-health.json"],
             ["scripts/agents/agentctl", "router", "plan", ".agents/workflows/repository-health.json"],

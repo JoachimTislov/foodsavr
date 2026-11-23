@@ -48,6 +48,22 @@ class LocalCiTest(unittest.TestCase):
         self.assertEqual(set(ci.GROUPS["docs"].paths) | {"scripts/ci/local_ci.py"}, first_paths("docs-pages.yml"))
         self.assertEqual(set(ci.GROUPS["dart"].paths), first_paths("ci-checks.yml"))
 
+    def test_python_tests_are_discovered_per_directory(self):
+        commands = ci.GROUPS["agents"].commands
+        for directory in ci.PYTHON_TEST_DIRS:
+            self.assertIn(["python3", "-m", "unittest", "discover", "-s", f"scripts/{directory}", "-p", "test_*.py"],
+                          commands)
+            self.assertTrue(any((ROOT / "scripts" / directory).glob("test_*.py")), directory)
+        self.assertFalse([c for c in commands if c[:3] == ["python3", "-m", "unittest"] and c[3] != "discover"])
+        # Every test file in an uncovered directory must be a conscious exclusion, not an oversight.
+        uncovered = {p.parent.name for p in (ROOT / "scripts").glob("*/test_*.py")} - set(ci.PYTHON_TEST_DIRS)
+        self.assertEqual(uncovered, {"infra"})
+
+    def test_new_ci_scripts_trigger_the_agents_group(self):
+        self.assertEqual(ci.groups_for(["scripts/ci/validation_status.py"]), ["agents", "dart"])
+        self.assertEqual(ci.groups_for(["scripts/ci/test_validation_status.py"]), ["agents", "dart"])
+        self.assertEqual(ci.groups_for(["scripts/setup/test_setupctl.py"]), ["agents"])
+
     def test_workflows_run_the_same_commands(self):
         workflows = ROOT / ".github/workflows"
         self.assertIn("scripts/ci/local_ci.py --group agents", (workflows / "agent-system.yml").read_text())
