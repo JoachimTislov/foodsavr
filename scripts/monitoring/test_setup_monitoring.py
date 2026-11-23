@@ -286,7 +286,7 @@ class TestMonitoringEntrypoint(unittest.TestCase):
         self.assertEqual(monitoring_targets, ["monitoring"])
 
         res = subprocess.run(
-            ["make", "-n", "monitoring"],
+            ["make", "--no-print-directory", "-n", "monitoring"],
             cwd=ROOT,
             capture_output=True,
             text=True,
