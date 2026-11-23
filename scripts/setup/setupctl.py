@@ -610,16 +610,19 @@ def ensure_branches(
     legacy = {"daily": "nightly", "weekly": "beta"}
     stable_sha = existing.get("stable")
 
-    def includes(descendant: str, ancestor: str) -> bool:
+    def compare(ancestor: str, descendant: str) -> str:
         if ancestor == descendant:
-            return True
+            return "identical"
         result = _run(
             ["gh", "api", f"repos/{repo}/compare/{ancestor}...{descendant}", "--jq", ".status"],
             cwd=root,
         )
         if result.returncode != 0:
             raise RuntimeError(f"Cannot compare {ancestor} and {descendant}: {result.stderr.strip()}")
-        return result.stdout.strip() in {"ahead", "identical"}
+        return result.stdout.strip()
+
+    def includes(descendant: str, ancestor: str) -> bool:
+        return compare(ancestor, descendant) in {"ahead", "identical"}
 
     required = [b for b in TOPOLOGY_BRANCHES[topology] if b != default_branch]
     created: list[str] = []
@@ -637,6 +640,10 @@ def ensure_branches(
         if (old_sha and includes(base_sha, old_sha)
                 and (not stable_sha or includes(old_sha, stable_sha))):
             seed, sha = old_branch, old_sha
+        if branch == "weekly" and seed == "beta":
+            daily_sha = existing.get("daily") or seeds.get("daily", {}).get("sha")
+            if daily_sha and compare(daily_sha, sha) == "diverged":
+                seed, sha = default_branch, base_sha
         if branch == "stable" and topology == "full-channels":
             sha = existing.get("weekly") or seeds["weekly"]["sha"]
             seed = "weekly"

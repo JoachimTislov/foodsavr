@@ -1,12 +1,12 @@
 // Only the latest push run for the exact source commit can authorize release.
-function latestRun(runs, path) {
+function latestRun(runs, path, branch) {
   return runs
-    .filter(run => run.path === path && run.event === 'push' && run.head_branch === 'stable')
+    .filter(run => run.path === path && run.event === 'push' && run.head_branch === branch)
     .sort((a, b) => b.id - a.id || b.run_attempt - a.run_attempt)[0];
 }
 
-function decision(runs, paths) {
-  const selected = paths.map(path => latestRun(runs, path));
+function decision(runs, paths, branch) {
+  const selected = paths.map(path => latestRun(runs, path, branch));
   if (selected.some(run => run?.status === 'completed' && run.conclusion !== 'success')) {
     return 'blocked';
   }
@@ -25,7 +25,7 @@ async function evaluate({github, context, core}) {
     const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo, {
       ...context.repo, head_sha: trigger.head_sha, event: 'push', per_page: 100,
     });
-    const state = decision(runs, paths);
+    const state = decision(runs, paths, trigger.head_branch);
     if (state === 'blocked') {
       core.setFailed('A required check failed for the source commit; release blocked.');
       return;

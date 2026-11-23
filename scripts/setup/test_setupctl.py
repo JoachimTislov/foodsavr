@@ -203,5 +203,27 @@ class MutationGuardTest(unittest.TestCase):
         self.assertEqual(res["legacy_present"], ["beta", "nightly", "release"])
 
 
+    def test_ensure_branches_falls_back_when_legacy_seeds_diverge(self):
+        def fake_run(argv, **kwargs):
+            endpoint = " ".join(argv)
+            if "git/ref/heads/develop" in endpoint:
+                out = "develop-sha"
+            elif "branches?per_page=100" in endpoint:
+                out = "develop\tdevelop-sha\nnightly\tnightly-sha\nbeta\tbeta-sha"
+            elif "compare/" in endpoint:
+                out = "diverged" if "nightly-sha...beta-sha" in endpoint else "ahead"
+            else:
+                raise AssertionError(f"Unexpected mutating call: {argv}")
+            return subprocess.CompletedProcess(argv, 0, out + "\n", "")
+
+        with patch.object(setupctl, "_run", side_effect=fake_run):
+            result = setupctl.ensure_branches(repo="alice/foodsavr", topology="full-channels", dry_run=True)
+        self.assertEqual(result["seeds"], {
+            "daily": {"source": "nightly", "sha": "nightly-sha"},
+            "weekly": {"source": "develop", "sha": "develop-sha"},
+            "stable": {"source": "weekly", "sha": "develop-sha"},
+        })
+
+
 if __name__ == "__main__":
     unittest.main()
