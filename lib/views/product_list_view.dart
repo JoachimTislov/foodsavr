@@ -12,6 +12,7 @@ import '../services/collection_service.dart';
 import '../services/product_service.dart';
 import '../widgets/product/product_card_compact.dart';
 import '../widgets/common/empty_state_widget.dart';
+import '../widgets/common/master_detail_layout.dart';
 import '../widgets/common/retry_scaffold.dart';
 import 'product_form_view.dart';
 import '../widgets/product/product_card_normal.dart';
@@ -43,6 +44,7 @@ class _ProductListViewState extends State<ProductListView> {
   late final ProductListController _controller;
   late final ListQueryState _query;
   late final PreferencesController _preferences;
+  Product? _selected;
 
   @override
   void initState() {
@@ -75,6 +77,7 @@ class _ProductListViewState extends State<ProductListView> {
     ]);
     if (!mounted) return;
     _controller.setViewMode(_query.viewMode);
+    _syncSelection();
     if (_controller.inventoryLoadError != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -86,6 +89,16 @@ class _ProductListViewState extends State<ProductListView> {
         ),
       );
     }
+  }
+
+  // Points the detail pane at the reloaded product, or closes it if gone.
+  void _syncSelection() {
+    final selected = _selected;
+    if (selected == null) return;
+    final current = _controller.products
+        .where((p) => p.id == selected.id)
+        .firstOrNull;
+    setState(() => _selected = current);
   }
 
   Future<void> _reloadProductsAfterMutation() async {
@@ -108,7 +121,7 @@ class _ProductListViewState extends State<ProductListView> {
         ? 'dashboard.globalProducts'.tr()
         : 'product.all_products'.tr();
 
-    return RetryScaffold(
+    final master = RetryScaffold(
       errorMessage: 'product.errorLoading'.tr(),
       onRefresh: () => _fetchProducts(forceRefresh: true),
       fetchOnInit: true,
@@ -157,6 +170,20 @@ class _ProductListViewState extends State<ProductListView> {
         listenable: Listenable.merge([_controller, _query, _preferences]),
         builder: (context, _) => _buildBody(context, theme, colorScheme, title),
       ),
+    );
+    final selected = _selected;
+    return MasterDetailLayout(
+      master: master,
+      detail: selected == null
+          ? null
+          : ProductDetailView(
+              key: ObjectKey(selected),
+              product: selected,
+              onDeleted: () {
+                setState(() => _selected = null);
+                _reloadProductsAfterMutation();
+              },
+            ),
     );
   }
 
@@ -290,6 +317,10 @@ class _ProductListViewState extends State<ProductListView> {
   }
 
   void _navigateToProductDetail(Product product) {
+    if (MasterDetailLayout.isSplit(context)) {
+      setState(() => _selected = product);
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => ProductDetailView(product: product),

@@ -11,6 +11,7 @@ import '../service_locator.dart';
 import '../services/product_service.dart';
 import '../services/collection_service.dart';
 import '../widgets/collection/collection_header.dart';
+import '../widgets/common/content_constraint.dart';
 import '../widgets/common/retry_scaffold.dart';
 import '../widgets/common/empty_state_widget.dart';
 import 'add_product_to_collection_view.dart';
@@ -26,7 +27,15 @@ import 'collection_form_view.dart';
 class CollectionDetailView extends StatefulWidget {
   final Collection collection;
 
-  const CollectionDetailView({super.key, required this.collection});
+  /// When set, the view is embedded beside a list: it has no back button and
+  /// reports an edited collection, or null once it was deleted.
+  final ValueChanged<Collection?>? onChanged;
+
+  const CollectionDetailView({
+    super.key,
+    required this.collection,
+    this.onChanged,
+  });
 
   @override
   State<CollectionDetailView> createState() => _CollectionDetailViewState();
@@ -121,7 +130,12 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       try {
         await _collectionService.deleteCollection(_currentCollection.id);
         if (mounted) {
-          Navigator.of(context).pop(true);
+          final onChanged = widget.onChanged;
+          if (onChanged == null) {
+            Navigator.of(context).pop(true);
+          } else {
+            onChanged(null);
+          }
         }
       } catch (e) {
         if (mounted) {
@@ -178,37 +192,68 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     return CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
-        SliverToBoxAdapter(
-          child: CollectionHeader(
-            collection: _currentCollection,
-            onBack: Navigator.of(context).canPop()
-                ? () => Navigator.of(context).pop()
-                : null,
-            onEdit: () async {
-              final result = await CollectionFormView.show(
-                context,
-                type: _currentCollection.type,
+        SliverContentConstraint(
+          slivers: [
+            SliverToBoxAdapter(
+              child: CollectionHeader(
                 collection: _currentCollection,
-              );
-              if (result == true) {
-                await _refreshCollectionAndProducts();
-              }
-            },
-            onDelete: () => _deleteCollection(),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: ViewModeToggle(
-              viewMode: _query.viewMode,
-              onModeChanged: (mode) =>
-                  _query.update(() => _query.viewMode = mode),
+                onBack:
+                    widget.onChanged == null && Navigator.of(context).canPop()
+                    ? () => Navigator.of(context).pop()
+                    : null,
+                onEdit: () async {
+                  final result = await CollectionFormView.show(
+                    context,
+                    type: _currentCollection.type,
+                    collection: _currentCollection,
+                  );
+                  if (result == true) {
+                    await _refreshCollectionAndProducts();
+                    if (mounted) widget.onChanged?.call(_currentCollection);
+                  }
+                },
+                onDelete: () => _deleteCollection(),
+              ),
             ),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: ListQueryControls(state: _query, products: _products),
+            SliverToBoxAdapter(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: ViewModeToggle(
+                  viewMode: _query.viewMode,
+                  onModeChanged: (mode) =>
+                      _query.update(() => _query.viewMode = mode),
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: ListQueryControls(state: _query, products: _products),
+            ),
+            if (products.isNotEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.only(bottom: 80),
+                sliver: SliverList.builder(
+                  itemCount: products.length,
+                  itemBuilder: (context, index) {
+                    final product = products[index];
+                    void open() => _navigateToProductDetail(product);
+                    return switch (_query.viewMode) {
+                      ProductViewMode.compact => ProductCardCompact(
+                        product: product,
+                        onTap: open,
+                      ),
+                      ProductViewMode.normal => ProductCardNormal(
+                        product: product,
+                        onTap: open,
+                      ),
+                      ProductViewMode.details => ProductCardDetails(
+                        product: product,
+                        onTap: open,
+                      ),
+                    };
+                  },
+                ),
+              ),
+          ],
         ),
         if (products.isEmpty)
           SliverFillRemaining(
@@ -218,31 +263,6 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
               title: _products.isEmpty
                   ? 'collection.noProducts'.tr()
                   : 'listQuery.noMatches'.tr(),
-            ),
-          )
-        else
-          SliverPadding(
-            padding: const EdgeInsets.only(bottom: 80),
-            sliver: SliverList.builder(
-              itemCount: products.length,
-              itemBuilder: (context, index) {
-                final product = products[index];
-                void open() => _navigateToProductDetail(product);
-                return switch (_query.viewMode) {
-                  ProductViewMode.compact => ProductCardCompact(
-                    product: product,
-                    onTap: open,
-                  ),
-                  ProductViewMode.normal => ProductCardNormal(
-                    product: product,
-                    onTap: open,
-                  ),
-                  ProductViewMode.details => ProductCardDetails(
-                    product: product,
-                    onTap: open,
-                  ),
-                };
-              },
             ),
           ),
       ],

@@ -18,6 +18,7 @@ import 'interfaces/i_error_reporter.dart';
 import 'routes/go_router.dart';
 import 'service_locator.dart';
 import 'utils/theme_notifier.dart';
+import 'utils/app_scroll_behavior.dart';
 import 'utils/app_theme.dart';
 import 'utils/config.dart';
 import 'utils/env_loader.dart';
@@ -168,6 +169,7 @@ class MyApp extends StatelessWidget {
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: getIt<ThemeNotifier>().themeMode,
+        scrollBehavior: const AppScrollBehavior(),
         routerConfig: router,
       ),
     );

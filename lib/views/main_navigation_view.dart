@@ -2,46 +2,98 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-class MainNavigationView extends StatelessWidget {
+import '../constants/adaptive_layout.dart';
+import '../widgets/common/app_navigation_rail.dart';
+
+/// App shell: a bottom navigation bar on compact windows and a navigation rail
+/// (labels beside the icons from [AdaptiveLayout.extendedRailBreakpoint]) on
+/// wider ones.
+class MainNavigationView extends StatefulWidget {
   final StatefulNavigationShell navigationShell;
 
   const MainNavigationView({super.key, required this.navigationShell});
 
   @override
+  State<MainNavigationView> createState() => _MainNavigationViewState();
+}
+
+class _MainNavigationViewState extends State<MainNavigationView> {
+  // Keeps the branch navigators alive when the window crosses a breakpoint.
+  final _bodyKey = GlobalKey();
+
+  void _onDestinationSelected(int index) {
+    final shell = widget.navigationShell;
+    shell.goBranch(index, initialLocation: index == shell.currentIndex);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final body = KeyedSubtree(key: _bodyKey, child: widget.navigationShell);
+    final selectedIndex = widget.navigationShell.currentIndex;
+
+    if (WindowSize.fromWidth(width).isCompact) {
+      return Scaffold(
+        body: body,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: selectedIndex,
+          onDestinationSelected: _onDestinationSelected,
+          destinations: [
+            for (final item in _items)
+              NavigationDestination(
+                icon: Icon(item.icon),
+                selectedIcon: Icon(item.selectedIcon),
+                label: item.labelKey.tr(),
+              ),
+          ],
+        ),
+      );
+    }
+
+    final extended = width >= AdaptiveLayout.extendedRailBreakpoint;
     return Scaffold(
-      body: navigationShell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
-        onDestinationSelected: (index) {
-          navigationShell.goBranch(
-            index,
-            initialLocation: index == navigationShell.currentIndex,
-          );
-        },
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.home_outlined),
-            selectedIcon: const Icon(Icons.home),
-            label: 'dashboard.title'.tr(),
+      body: Row(
+        children: [
+          AppNavigationRail(
+            selectedIndex: selectedIndex,
+            onDestinationSelected: _onDestinationSelected,
+            extended: extended,
+            items: [
+              for (final item in _items)
+                AppNavigationRailItem(
+                  icon: item.icon,
+                  selectedIcon: item.selectedIcon,
+                  label: item.labelKey.tr(),
+                ),
+            ],
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.inventory_2_outlined),
-            selectedIcon: const Icon(Icons.inventory_2),
-            label: 'dashboard.myInventory'.tr(),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.shopping_cart_outlined),
-            selectedIcon: const Icon(Icons.shopping_cart),
-            label: 'dashboard.shoppingList'.tr(),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.settings_outlined),
-            selectedIcon: const Icon(Icons.settings),
-            label: 'settings.title'.tr(),
-          ),
+          const VerticalDivider(width: 1),
+          Expanded(child: body),
         ],
       ),
     );
   }
 }
+
+class _NavItem {
+  final IconData icon;
+  final IconData selectedIcon;
+  final String labelKey;
+
+  const _NavItem(this.icon, this.selectedIcon, this.labelKey);
+}
+
+const _items = [
+  _NavItem(Icons.home_outlined, Icons.home, 'dashboard.title'),
+  _NavItem(
+    Icons.inventory_2_outlined,
+    Icons.inventory_2,
+    'dashboard.myInventory',
+  ),
+  _NavItem(
+    Icons.shopping_cart_outlined,
+    Icons.shopping_cart,
+    'dashboard.shoppingList',
+  ),
+  _NavItem(Icons.settings_outlined, Icons.settings, 'settings.title'),
+];
