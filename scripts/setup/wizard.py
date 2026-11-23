@@ -1,14 +1,15 @@
 """Interactive setup. Each step checks current state before offering a change."""
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 import os
 from pathlib import Path
 import re
+import shutil
+import shlex
 import subprocess
 import sys
-import tomllib
 from tempfile import TemporaryDirectory
 from urllib.request import Request, urlopen
 
@@ -26,6 +27,8 @@ from setupctl import (
     save_instance_local,
 )
 
+sys.path.insert(0, str(ROOT / "scripts"))
+from firebase_options import fingerprint, regenerate  # noqa: E402
 
 @dataclass
 class Step:
@@ -69,17 +72,29 @@ def process(step, listing, verify=None):
     return False
 
 
-def firebase_project(env):
+def firebase_identity(env):
     try:
         result = subprocess.run(
             ["dart", "run", "bin/levels.dart", "env", "--manifest", env["MANIFEST"],
-             "--env", env.get("ENV", "production"), "--format", "github"],
+             "--env", env.get("ENV", "production"), "--format", "dotenv"],
             cwd=ROOT / "packages/foodsavr_deploy", capture_output=True, text=True, timeout=60,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return ""
-    project = dict(line.split("=", 1) for line in result.stdout.splitlines() if "=" in line).get("PROJECT_ID", "")
-    return project if result.returncode == 0 and re.fullmatch(r"[a-z0-9][a-z0-9-]+", project) else ""
+        return "", ""
+    try:
+        values = {
+            key: shlex.split(value)[0] for line in result.stdout.splitlines() if "=" in line
+            for key, value in [line.split("=", 1)]
+        }
+    except (IndexError, ValueError):
+        return "", ""
+    project = values.get("PROJECT_ID", "")
+    repo = values.get("GITHUB_REPOSITORY", "")
+    if result.returncode or not re.fullmatch(r"[a-z0-9][a-z0-9-]+", project):
+        return "", ""
+    if repo.casefold() != env["GITHUB_REPOSITORY"].casefold():
+        return "", ""
+    return project, values.get("WEB_APP_ID", "")
 
 
 def anonymous_enabled(project, account):
@@ -153,62 +168,48 @@ def terraform_step(title, script, env, listing, prerequisites):
         return process(Step(title, result == 0, apply, next_action), listing)
 
 
-def bypass_entries():
-    path = ROOT / "scripts/human/menu.toml"
-    if not path.is_file():
-        return []
-    with path.open("rb") as handle:
-        return [
-            entry for entry in tomllib.load(handle).get("entry", [])
-            if entry.get("target") and entry["target"] not in {"setup", "human"}
-        ]
+def load_menu():
+    path = ROOT / "scripts/human"
+    if not (path / "menu.toml").is_file():
+        return None, None
+    sys.path.insert(0, str(path))
+    import humanctl
+
+    return humanctl, humanctl.load_registry()
 
 
-def run_bypass(entries, topology):
+def run_bypass(menu, entries, topology, repo):
     by_number = {str(number): entry for number, entry in enumerate(entries, start=1)}
     for number, entry in by_number.items():
-        print(f"  {number}  {entry['title']}")
+        print(f"  {number}  {entry.title}")
     choice = choose("Select an operation", (*by_number, "back"), "back")
     if choice == "back":
         return None
     entry = by_number[choice]
-    target = entry["target"]
-    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]*", target):
-        raise ValueError("Invalid make target in the operations registry.")
-
-    assignments = []
-    for variable in entry.get("vars", []):
-        name = variable["name"]
-        choices = variable.get("choices")
-        if name == "CHANNEL":
-            choices = tuple(TOPOLOGY_BRANCHES[topology][1:])
-            if not choices:
-                print("This topology has no promotion channels.")
-                return 1
-        if choices:
-            default = variable.get("default")
-            value = choose(variable["prompt"], (*choices, "back"), default or ("back" if variable.get("required") else ""))
-            if value == "back":
-                return None
-        else:
-            value = input(f"{variable['prompt']} [{variable.get('default', '')}]: ").strip() or variable.get("default", "")
-        if variable.get("required") and not value:
-            print("A value is required. Select the operation again to continue.")
+    channels = tuple(TOPOLOGY_BRANCHES[topology][1:])
+    if any(variable.name == "CHANNEL" for variable in entry.vars):
+        if not channels:
+            print("This topology has no promotion channels.")
             return 1
-        if value:
-            if not re.fullmatch(r"[A-Z_][A-Z0-9_]*", name) or not re.fullmatch(r"[-A-Za-z0-9 ./:@_+=%,~]+", value):
-                print("Use a plain value without shell syntax.")
-                return 1
-            assignments.append(f"{name}={value}")
-
-    apply = entry.get("apply_assign")
-    dry = entry.get("dry_assign")
-    if not confirm(f"{entry['title']}. {'Preview now?' if apply else 'Run now?'}"):
+        entry = replace(entry, vars=tuple(
+            replace(variable, choices=channels) if variable.name == "CHANNEL" else variable
+            for variable in entry.vars
+        ))
+    values = menu.collect(entry)
+    if values is None:
+        return 1
+    if not all(re.fullmatch(r"[-A-Za-z0-9 ./:@_+=%,~]*", value) for value in values.values()):
+        print("Use plain input without shell syntax.")
+        return 1
+    if not confirm(f"{entry.title}. {'Preview now?' if entry.apply_assign else 'Run now?'}"):
         return 0
-    preview_flag = dry or (apply.partition("=")[0] + "=" if apply else "")
-    result = run("make", target, *assignments, *([preview_flag] if preview_flag else []))
-    if result == 0 and apply and confirm("Apply the operation?"):
-        result = run("make", target, *assignments, apply)
+    preview = entry.dry_assign or (entry.apply_assign.partition("=")[0] + "=" if entry.apply_assign else "")
+    env = {**os.environ, "RELEASE_TOPOLOGY": topology}
+    if repo:
+        env.update(GH_REPO=repo, GITHUB_REPOSITORY=repo)
+    result = run(*menu.command(entry, values, tuple(preview.split())), env=env)
+    if result == 0 and entry.apply_assign and confirm("Apply the operation?"):
+        result = run(*menu.command(entry, values, tuple(entry.apply_assign.split())), env=env)
     return result
 
 
@@ -220,27 +221,26 @@ def run_wizard(args):
         print("Open a terminal to run make setup. Use make setup LIST=1 to see remaining steps.")
         return 2
     try:
-        if not listing:
-            entries = bypass_entries()
+        menu, registry = load_menu()
+        if not listing and registry:
+            entries = [item for item in menu.all_entries(registry) if item.target not in {"setup", "human"}]
             if entries and choose("FoodSavr", ("setup", "operations"), "setup") == "operations":
-                config = probe_environment(repo=args.repo, offline=True)["local_config"]
-                topology = config.get("release_topology", "single")
-                result = run_bypass(entries, topology if topology in TOPOLOGY_BRANCHES else "single")
+                state = probe_environment(repo=args.repo)
+                github = state["github"]
+                topology = github["variables"].get("RELEASE_TOPOLOGY") or state["local_config"].get("release_topology")
+                result = run_bypass(
+                    menu, entries, topology if topology in TOPOLOGY_BRANCHES else "single", github["target_repo"],
+                )
                 if result is not None:
                     return result
-        return setup(args, listing)
+        return setup(args, listing, getattr(registry, "setup_steps", ()))
     except (EOFError, KeyboardInterrupt):
         print("\nSetup paused. Run make setup to resume.", file=sys.stderr)
         return 1
 
 
-def setup(args, listing):
-    repo = args.repo
-
-    def probe():
-        return probe_environment(repo=repo, offline=profile == "local-dev")
-
-    initial = probe_environment(repo=repo, offline=True)
+def setup(args, listing, ordered_steps=()):
+    initial = probe_environment(repo=args.repo, offline=True)
     config = initial["local_config"]
     profile = args.profile or config.get("profile")
     if listing and profile not in PROFILES:
@@ -251,211 +251,335 @@ def setup(args, listing):
         profile = choose("Setup profile", PROFILES, profile if profile in PROFILES else "local-dev")
         if config.get("profile") != profile:
             save_instance_local({"profile": profile})
+    wizard = Setup(args.repo, profile, initial, listing)
+    return wizard.execute(ordered_steps)
 
-    state = probe()
-    gh = state["github"]
-    tools = state["tools"]
-    repo = gh["target_repo"]
-    topology = config.get("release_topology")
-    firebase = profile == "full-cloud"
-    cloud = profile != "local-dev"
 
-    def scaffold():
-        return scaffold_local(profile=profile, topology=topology, repo=repo)["hooks_configured"]
+class Setup:
+    def __init__(self, repo, profile, initial, listing):
+        self.repo = repo
+        self.profile = profile
+        self.config = initial["local_config"]
+        self.listing = listing
+        self.cloud = profile != "local-dev"
+        self.firebase = profile == "full-cloud"
+        self.state = initial if not self.cloud else self.probe()
+        self.repo = self.state["github"]["target_repo"]
+        self.topology = "single"
+        self.env = None
+        self.project = ""
+        self.web_app = ""
 
-    for tool, url in (
-        ("flutter", "https://docs.flutter.dev/install"),
-        *((("gh", "https://cli.github.com"), ("terraform", "https://developer.hashicorp.com/terraform/install")) if cloud else ()),
-        *((("gcloud", "https://cloud.google.com/sdk/docs/install"),) if firebase else ()),
-    ):
-        if not tools[tool] and not process(Step(f"Install {tool}", False, next_action=f"Open {url}."), listing):
-            return 1
+    def probe(self):
+        return probe_environment(repo=self.repo, offline=not self.cloud)
 
-    if cloud:
-        if not process(Step(
-            "GitHub sign-in", gh["authenticated"],
-            lambda: tools["gh"] and run("gh", "auth", "login", "--web") == 0,
-            "Sign in at https://github.com/login/device and resume setup.",
-        ), listing, lambda: probe()["github"]["authenticated"]):
-            return 1
-        gh = probe()["github"] if not listing else gh
-        if gh["needs_fork"]:
-            def fork():
-                nonlocal repo
-                if not confirm(f"Create a fork of {repo} for your GitHub automation?"):
-                    return False
-                repo = fork_repository(upstream=repo)["fork"]
-                return True
+    def refresh(self, check):
+        self.state = self.probe()
+        return check(self.github)
 
-            if not process(Step("Repository fork", False, fork), listing, lambda: probe()["github"]["is_admin"]):
-                return 1
-            gh = probe()["github"] if not listing else gh
-        if not process(Step(
-            "GitHub configuration access", gh["config_readable"],
-            next_action=f"Check Actions access at https://github.com/{repo}/settings/actions.",
-        ), listing):
-            return 1
-        topology = gh["variables"].get("RELEASE_TOPOLOGY") or (
-            topology if config.get("profile") != "local-dev" else None
+    @property
+    def github(self):
+        return self.state["github"]
+
+    @property
+    def tools(self):
+        return self.state["tools"]
+
+    def step(self, title, ready, action=None, next_action="", verify=None):
+        return process(Step(title, ready, action, next_action), self.listing, verify)
+
+    def execute(self, ordered_steps):
+        steps = {
+            "prerequisites": self.prerequisites,
+            "github-login": self.github_login,
+            "repository": self.repository,
+            "release-topology": self.release_topology,
+            "local-files": self.local_files,
+            "release-branches": self.release_branches,
+            "agent-app": lambda: self.github_app("agent", "AGENT_APP"),
+            "release-gate-app": lambda: self.github_app("release-gate", "RELEASE_GATE_APP"),
+            "runner-login": self.runner_login,
+            "cloud-login": self.cloud_login,
+            "firebase-project": self.firebase_project,
+            "firebase-app-config": self.firebase_app_config,
+            "github-infrastructure": self.github_infrastructure,
+            "firebase-infrastructure": self.firebase_infrastructure,
+            "anonymous-sign-in": self.anonymous_sign_in,
+            "fork-actions": self.fork_actions,
+        }
+        if ordered_steps and (len(ordered_steps) != len(steps) or set(ordered_steps) != set(steps)):
+            raise ValueError("The setup steps in scripts/human/menu.toml are incomplete.")
+        return 0 if all(steps[name]() for name in (ordered_steps or steps)) else 1
+
+    def prerequisites(self):
+        tools = [("flutter", "https://docs.flutter.dev/install")]
+        if self.cloud:
+            tools.extend([("gh", "https://cli.github.com"), ("terraform", "https://developer.hashicorp.com/terraform/install")])
+        if self.firebase:
+            tools.append(("gcloud", "https://cloud.google.com/sdk/docs/install"))
+        return all(
+            self.step(f"Install {tool}", False, next_action=f"Open {url}.")
+            for tool, url in tools if not self.tools[tool]
         )
-        if topology not in TOPOLOGY_BRANCHES:
-            default = "full-channels" if repo and repo.casefold() == UPSTREAM_REPO.casefold() else "single"
-            if listing:
+
+    def github_login(self):
+        def ready(info):
+            return info["authenticated"]
+
+        return not self.cloud or self.step(
+            "GitHub sign-in", ready(self.github), lambda: run("gh", "auth", "login", "--web") == 0,
+            "Sign in at https://github.com/login/device and resume setup.", lambda: self.refresh(ready),
+        )
+
+    def repository(self):
+        if not self.cloud:
+            return True
+
+        def fork():
+            if not confirm(f"Create a fork of {self.repo} for your GitHub automation?"):
+                return False
+            self.repo = fork_repository(upstream=self.repo)["fork"]
+            return True
+
+        if self.github["needs_fork"] and not self.step(
+            "Repository fork", False, fork, verify=lambda: self.refresh(lambda info: info["is_admin"]),
+        ):
+            return False
+        return self.step(
+            "GitHub configuration access", self.github["config_readable"],
+            next_action=f"Check Actions access at https://github.com/{self.repo}/settings/actions.",
+        )
+
+    def release_topology(self):
+        if not self.cloud:
+            return True
+        selected = self.github["variables"].get("RELEASE_TOPOLOGY")
+        if not selected and self.config.get("profile") != "local-dev":
+            selected = self.config.get("release_topology")
+        if selected not in TOPOLOGY_BRANCHES:
+            default = "full-channels" if self.repo and self.repo.casefold() == UPSTREAM_REPO.casefold() else "single"
+            if self.listing:
                 print("Choose release channels")
-                topology = default
+                selected = default
             else:
                 for name, branches in TOPOLOGY_BRANCHES.items():
                     print(f"  {name}  {', '.join(branches)}")
-                topology = choose("Release channels", tuple(TOPOLOGY_BRANCHES), default)
-    else:
-        topology = "single"
-
-    config_ready = (
-        all(state["local_files"].values())
-        and config.get("profile") == profile
-        and config.get("release_topology") == topology
-        and config.get("repo") == repo
-    )
-    if not process(Step("Local development files", config_ready, scaffold), listing):
-        return 1
-    if not cloud:
-        return 0
-
-    def branches_ready():
-        return set(TOPOLOGY_BRANCHES[topology]) <= set(probe()["github"]["branches"])
-
-    def create_branches():
-        if not repo or not confirm(f"Create missing release branches for {repo}?"):
-            return False
-        ensure_branches(repo=repo, topology=topology, default_branch=TOPOLOGY_BRANCHES[topology][0])
+                selected = choose("Release channels", tuple(TOPOLOGY_BRANCHES), default)
+        self.topology = selected
         return True
 
-    if not process(Step(
-        "Release branches", set(TOPOLOGY_BRANCHES[topology]) <= set(gh["branches"]), create_branches,
-    ), listing, branches_ready):
-        return 1
+    def local_files(self):
+        def scaffold():
+            return scaffold_local(profile=self.profile, topology=self.topology, repo=self.repo)["hooks_configured"]
 
-    for role, prefix in (("agent", "AGENT_APP"), ("release-gate", "RELEASE_GATE_APP")):
+        ready = (
+            all(self.state["local_files"].values())
+            and self.config.get("profile") == self.profile
+            and self.config.get("release_topology") == self.topology
+            and self.config.get("repo") == self.repo
+        )
+        return self.step("Local development files", ready, scaffold)
+
+    def branch_refs_ready(self, info):
+        return set(TOPOLOGY_BRANCHES[self.topology]) <= set(info["branches"])
+
+    def release_branches(self):
+        def create():
+            if not self.repo or not confirm(f"Create missing release branches for {self.repo}?"):
+                return False
+            ensure_branches(repo=self.repo, topology=self.topology, default_branch=TOPOLOGY_BRANCHES[self.topology][0])
+            return True
+
+        return not self.cloud or self.step(
+            "Release branches", self.branch_refs_ready(self.github), create,
+            verify=lambda: self.refresh(self.branch_refs_ready),
+        )
+
+    def github_app(self, role, prefix):
+        def has_id(info):
+            return str(info["variables"].get(f"{prefix}_ID", "")).isdecimal()
+
         def configure():
-            if f"{prefix}_PRIVATE_KEY" in gh["secret_names"] and f"{prefix}_ID" in gh["secret_names"]:
-                print("Find the existing App ID at https://github.com/settings/apps.")
+            info = self.github
+            if f"{prefix}_PRIVATE_KEY" not in info["secret_names"] or not (
+                has_id(info) or f"{prefix}_ID" in info["secret_names"]
+            ):
+                return configure_app(self.repo, role)
+            print("Open the existing App at https://github.com/settings/apps.")
+            variables = {}
+            if not has_id(info):
                 app_id = input("App ID: ").strip()
-                return bool(app_id.isdecimal() and run(
-                    "gh", "variable", "set", f"{prefix}_ID", "--repo", repo, "--body", app_id, quiet=True,
-                ) == 0)
-            return configure_app(repo, role)
+                if not app_id.isdecimal():
+                    return False
+                variables[f"{prefix}_ID"] = app_id
+            if role == "agent" and not info["variables"].get("AGENT_APP_SLUG"):
+                slug = input("App URL name: ").strip()
+                if not re.fullmatch(r"[a-zA-Z0-9-]+", slug):
+                    return False
+                variables["AGENT_APP_SLUG"] = slug
+            return all(run(
+                "gh", "variable", "set", name, "--repo", self.repo, "--body", value, quiet=True,
+            ) == 0 for name, value in variables.items())
 
-        def app_ready(info):
-            return f"{prefix}_PRIVATE_KEY" in info["secret_names"] and (
-                str(info["variables"].get(f"{prefix}_ID", "")).isdecimal()
+        def ready(info):
+            return (
+                f"{prefix}_PRIVATE_KEY" in info["secret_names"] and has_id(info)
+                and (role != "agent" or bool(info["variables"].get("AGENT_APP_SLUG")))
             )
 
-        if not process(Step(
-            f"GitHub {role} App", app_ready(gh), configure,
-            f"Check App credentials and installation at https://github.com/{repo}/settings/installations.",
-        ), listing, lambda: app_ready(probe()["github"])):
-            return 1
+        return not self.cloud or self.step(
+            f"GitHub {role} App", ready(self.github), configure,
+            f"Check App credentials and installation at https://github.com/{self.repo}/settings/installations.",
+            lambda: self.refresh(ready),
+        )
 
-    def harness_ready(info):
-        return bool(set(HARNESS_AUTH_SECRETS) & set(info["secret_names"]))
+    def runner_login(self):
+        def ready(info):
+            return bool(set(HARNESS_AUTH_SECRETS) & set(info["secret_names"]))
 
-    if not process(Step(
-        "CI runner login", harness_ready(gh), lambda: configure_harness(repo),
-    ), listing, lambda: harness_ready(probe()["github"])):
-        return 1
+        return not self.cloud or self.step(
+            "CI runner login", ready(self.github), lambda: configure_harness(self.repo),
+            verify=lambda: self.refresh(ready),
+        )
 
-    gh = probe()["github"] if not listing else gh
-    env = {
-        **os.environ,
-        "GITHUB_REPOSITORY": repo or "",
-        "GH_REPO": repo or "",
-        "RELEASE_TOPOLOGY": topology,
-        "AGENT_APP_ID": gh["variables"].get("AGENT_APP_ID", ""),
-        "RELEASE_GATE_APP_ID": gh["variables"].get("RELEASE_GATE_APP_ID", ""),
-    }
-    github_ready = gh["config_readable"] and tools["terraform"] and set(TOPOLOGY_BRANCHES[topology]) <= set(gh["branches"])
-    if not terraform_step("GitHub configuration", "scripts/infra/apply-github.sh", env, listing, github_ready):
-        return 1
+    def deployment_env(self):
+        return {
+            **os.environ,
+            "GITHUB_REPOSITORY": self.repo or "",
+            "GH_REPO": self.repo or "",
+            "RELEASE_TOPOLOGY": self.topology,
+            "AGENT_APP_ID": self.github["variables"].get("AGENT_APP_ID", ""),
+            "RELEASE_GATE_APP_ID": self.github["variables"].get("RELEASE_GATE_APP_ID", ""),
+        }
 
-    if firebase:
-        def cloud_login():
-            return tools["gcloud"] and run("gcloud", "auth", "print-access-token", quiet=True) == 0
+    def github_infrastructure(self):
+        if not self.cloud:
+            return True
+        available = self.github["config_readable"] and self.tools["terraform"] and self.branch_refs_ready(self.github)
+        return terraform_step(
+            "GitHub configuration", "scripts/infra/apply-github.sh", self.deployment_env(), self.listing, available,
+        )
 
-        cloud_ready = cloud_login()
-        if not process(Step(
-            "Google Cloud sign-in", cloud_ready, lambda: run("gcloud", "auth", "login") == 0,
-            "Check your account at https://console.cloud.google.com/.",
-        ), listing, cloud_login):
-            return 1
-        manifest = env.get("MANIFEST") or config.get("manifest")
-        if gh["is_fork"] and not manifest:
-            if listing:
+    def cloud_authenticated(self):
+        return self.tools["gcloud"] and run("gcloud", "auth", "print-access-token", quiet=True) == 0
+
+    def cloud_login(self):
+        return not self.firebase or self.step(
+            "Google Cloud sign-in", self.cloud_authenticated(), lambda: run("gcloud", "auth", "login") == 0,
+            "Check your account at https://console.cloud.google.com/.", self.cloud_authenticated,
+        )
+
+    def firebase_project(self):
+        if not self.firebase:
+            return True
+        self.env = self.deployment_env()
+        manifest = self.env.get("MANIFEST") or self.config.get("manifest")
+        if self.repo and self.repo.casefold() != UPSTREAM_REPO.casefold() and not manifest:
+            if self.listing:
                 print("Select the Firebase deployment manifest")
             else:
-                print(f"Choose the deployment manifest for {repo}. See deploy/examples/firebase-free-web.yaml.")
+                print(f"Choose the deployment manifest for {self.repo}. See deploy/examples/firebase-free-web.yaml.")
                 path = Path(input("Deployment manifest path: ").strip()).expanduser()
                 if not path.is_file():
                     print("Choose an existing deployment manifest and resume setup.")
-                    return 1
+                    return False
                 manifest = str(path.resolve())
                 save_instance_local({"manifest": manifest})
-        env["MANIFEST"] = str(Path(manifest or ROOT / "deploy/instance.yaml").resolve())
-        env["SETUP_GCP_OUTPUTS_READY"] = str(int(all(
-            gh["variables"].get(name) for name in (
+        self.env["MANIFEST"] = str(Path(manifest or ROOT / "deploy/instance.yaml").resolve())
+        if self.tools["dart"]:
+            self.project, self.web_app = firebase_identity(self.env)
+        return self.step(
+            "Firebase project", bool(self.project and self.web_app),
+            next_action="Check the deployment manifest against https://console.firebase.google.com/.",
+        )
+
+    def firebase_infrastructure(self):
+        if not self.firebase:
+            return True
+        self.env["SETUP_GCP_OUTPUTS_READY"] = str(int(all(
+            self.github["variables"].get(name) for name in (
                 "GCP_WORKLOAD_IDENTITY_PROVIDER", "GCP_DEPLOY_SERVICE_ACCOUNT",
                 "GCP_TELEMETRY_SERVICE_ACCOUNT", "RECAPTCHA_ENTERPRISE_SITE_KEY",
             )
         )))
-        if not terraform_step("Firebase configuration", "scripts/infra/apply.sh", env, listing, tools["terraform"] and (cloud_ready or not listing)):
-            return 1
+        available = self.tools["terraform"] and self.cloud_authenticated()
+        return terraform_step("Firebase configuration", "scripts/infra/apply.sh", self.env, self.listing, available)
 
-        project = firebase_project(env) if cloud_ready and tools["dart"] else ""
-        auth_url = f"https://console.firebase.google.com/project/{project}/authentication/providers" if project else (
+    def anonymous_sign_in(self):
+        if not self.firebase:
+            return True
+        url = f"https://console.firebase.google.com/project/{self.project}/authentication/providers" if self.project else (
             "https://console.firebase.google.com/"
         )
 
-        def anonymous_ready():
-            return anonymous_enabled(project, env.get("GCLOUD_ACCOUNT"))
+        def ready():
+            return anonymous_enabled(self.project, self.env.get("GCLOUD_ACCOUNT"))
 
-        def enable_anonymous():
-            print(f"Enable Anonymous at {auth_url}.")
+        def enable():
+            print(f"Enable Anonymous at {url}.")
             return confirm("Verify Firebase sign-in now?")
 
-        if not process(Step(
-            "Anonymous sign-in", anonymous_ready(), enable_anonymous, f"Open {auth_url}.",
-        ), listing, anonymous_ready):
-            return 1
+        return self.step("Anonymous sign-in", ready(), enable, f"Open {url}.", ready)
 
-        def sync_firebase_options():
-            options = ROOT / "lib/firebase_options.dart"
-            if "foodsavr-local-dev" in options.read_text():
-                if not confirm("Generate app configuration with FlutterFire now?"):
-                    return False
-                if not project or run("flutterfire", "configure", "--project", project):
-                    return False
-            if "foodsavr-local-dev" in options.read_text():
+    def firebase_app_config(self):
+        if not self.firebase:
+            return True
+
+        path = ROOT / "lib/firebase_options.dart"
+        name = "FIREBASE_OPTIONS_B64"
+        digest = fingerprint(path, self.project, self.web_app)
+        sync_record = self.config.get("firebase_options_sync", {})
+        ready = bool(
+            digest and name in self.github["secret_names"]
+            and sync_record == {"repo": self.repo, "sha256": digest}
+        )
+        url = f"https://console.firebase.google.com/project/{self.project}/settings/general"
+
+        def sync():
+            nonlocal digest
+            if not confirm("Sync validated Firebase app configuration to GitHub Actions?"):
                 return False
-            return run(
-                "python3", "scripts/secrets/rotate.py", "--repo", repo, "--yes", "FIREBASE_OPTIONS_B64", quiet=True,
-            ) == 0
+            if not digest:
+                if not shutil.which("firebase"):
+                    print("Install the Firebase CLI at https://firebase.google.com/docs/cli.")
+                    return False
+                try:
+                    regenerate(path, self.project, self.web_app)
+                except ValueError as error:
+                    if "Sign in to the Firebase CLI" not in str(error):
+                        print(str(error), file=sys.stderr)
+                        return False
+                    if not confirm("Sign in to Firebase in your browser?") or run("firebase", "login", "--reauth"):
+                        return False
+                    try:
+                        regenerate(path, self.project, self.web_app)
+                    except ValueError as retry_error:
+                        print(str(retry_error), file=sys.stderr)
+                        return False
+                digest = fingerprint(path, self.project, self.web_app)
+            if not digest or run(
+                "python3", "scripts/secrets/rotate.py", "--repo", self.repo, "--yes", name, quiet=True,
+            ):
+                return False
+            if not self.refresh(lambda info: name in info["secret_names"]):
+                return False
+            save_instance_local({"firebase_options_sync": {"repo": self.repo, "sha256": digest}})
+            return True
 
-        if not process(Step(
-            "Firebase app configuration for CI", "FIREBASE_OPTIONS_B64" in gh["secret_names"],
-            sync_firebase_options, "Check your app configuration in https://console.firebase.google.com/.",
-        ), listing, lambda: "FIREBASE_OPTIONS_B64" in probe()["github"]["secret_names"]):
-            return 1
+        return self.step("Firebase app configuration for CI", ready, sync, f"Check registered apps at {url}.")
 
-    if gh["is_fork"]:
-        permissions = ["gh", "api", f"repos/{repo}/actions/permissions"]
-        def actions_ready():
-            return run(*permissions, "--jq", "if .enabled then true else error(\"disabled\") end", quiet=True) == 0
+    def fork_actions(self):
+        if not self.cloud or not self.github["is_fork"]:
+            return True
+        permissions = ["gh", "api", f"repos/{self.repo}/actions/permissions"]
 
-        if not process(Step(
-            "GitHub Actions", actions_ready(),
+        def ready():
+            return run(*permissions, "--jq", 'if .enabled then true else error("disabled") end', quiet=True) == 0
+
+        return self.step(
+            "GitHub Actions", ready(),
             lambda: confirm("Enable GitHub Actions now?") and run(
                 *permissions, "-X", "PUT", "-F", "enabled=true", quiet=True,
             ) == 0,
-            f"Open https://github.com/{repo}/settings/actions.",
-        ), listing, actions_ready):
-            return 1
-    return 0
+            f"Open https://github.com/{self.repo}/settings/actions.", ready,
+        )
