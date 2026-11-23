@@ -1,0 +1,1 @@
+{"event": "Implemented per-event log writers, readers, validation, label-sync exclusion", "issues": ["#397"], "session_id": "claude-code:379406bb-9075-464b-9a78-724336b5ddfc", "stream": "ledger", "timestamp": "2026-11-23T17:51:17+00:00"}

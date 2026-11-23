@@ -1,5 +1,6 @@
 # Append-only JSONL logs: parallel branches add lines, git keeps both sides.
-# Readers fold duplicate session lines; `agentctl maintain` compacts.
+# .agents/ledger.jsonl and .agents/sessions/index.jsonl are frozen (#397): new agent records
+# are per-event files under .agents/events/. The union attribute only serves branches that predate that.
 .agents/ledger.jsonl merge=union
 .agents/sessions/index.jsonl merge=union
 specs/source-of-truth/sync-ledger.jsonl merge=union

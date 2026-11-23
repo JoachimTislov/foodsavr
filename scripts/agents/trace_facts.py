@@ -23,6 +23,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import traceability as tr  # noqa: E402
+from event_log import directory_digest  # noqa: E402
 
 LOG_FORMAT = "%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%B%x1e"
 EQUIVALENCE_TARGET_LIMIT = 300
@@ -153,10 +154,11 @@ def file_digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else ""
 
 
-def source_digests(root: Path, index: Path, ledger: Path) -> dict[str, str]:
+def source_digests(root: Path, index: Path, ledger: Path, events: Path | None = None) -> dict[str, str]:
     refs = _git(root, "for-each-ref", "--format=%(objectname)", "refs/heads", "refs/remotes", "refs/tags") or ""
     return {"root": str(root.resolve()), "refs": hashlib.sha256(refs.encode()).hexdigest(),
-            "index": file_digest(index), "ledger": file_digest(ledger)}
+            "index": file_digest(index), "ledger": file_digest(ledger),
+            "events": directory_digest(events) if events else ""}
 
 
 def parse_log(output: str) -> list[dict[str, Any]]:
@@ -170,7 +172,8 @@ def parse_log(output: str) -> list[dict[str, Any]]:
 
 
 def build_projection(connection: sqlite3.Connection, root: Path, sessions: list[dict[str, Any]], ledger: list[dict[str, Any]],
-                     index: Path, ledger_path: Path, cache_path: Path | None, budget_seconds: float = 25.0) -> int:
+                     index: Path, ledger_path: Path, cache_path: Path | None, budget_seconds: float = 25.0,
+                     events: Path | None = None) -> int:
     """Write commits and trace edges (commit/session/PR/issue/run/equivalence). Returns commit count."""
     for table in ("trace_edges", "git_commits", "trace_meta"):
         connection.execute(f"DELETE FROM {table}")
@@ -218,7 +221,7 @@ def build_projection(connection: sqlite3.Connection, root: Path, sessions: list[
         if entry.get("run_id"):
             edge("session", sid, "run", str(entry["run_id"]), "ledger")
     connection.executemany("INSERT OR IGNORE INTO trace_edges(src_type, src_id, dst_type, dst_id, kind, via) VALUES (?,?,?,?,?,?)", sorted(edges))
-    for key, value in source_digests(root, index, ledger_path).items():
+    for key, value in source_digests(root, index, ledger_path, events).items():
         connection.execute("INSERT OR REPLACE INTO trace_meta(key, value) VALUES (?, ?)", (key, value))
     return len(commits)
 
@@ -236,13 +239,14 @@ class ProjectionFacts:
         self.connection, self.direct = connection, direct
 
     @classmethod
-    def open(cls, database: Path, root: Path, index: Path, ledger_path: Path, direct: DirectFacts) -> "ProjectionFacts | None":
+    def open(cls, database: Path, root: Path, index: Path, ledger_path: Path, direct: DirectFacts,
+             events: Path | None = None) -> "ProjectionFacts | None":
         if not database.is_file():
             return None
         try:
             connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
             connection.row_factory = sqlite3.Row
-            facts = cls.from_connection(connection, root, index, ledger_path, direct)
+            facts = cls.from_connection(connection, root, index, ledger_path, direct, events)
             if facts is None:
                 connection.close()
             return facts
@@ -251,13 +255,13 @@ class ProjectionFacts:
 
     @classmethod
     def from_connection(cls, connection: sqlite3.Connection, root: Path, index: Path, ledger_path: Path,
-                        direct: DirectFacts) -> "ProjectionFacts | None":
+                        direct: DirectFacts, events: Path | None = None) -> "ProjectionFacts | None":
         """Use the projection only when its recorded source digests match the working tree."""
         try:
             meta = {row[0]: row[1] for row in connection.execute("SELECT key, value FROM trace_meta")}
         except sqlite3.Error:
             return None
-        return cls(connection, direct) if meta and meta == source_digests(root, index, ledger_path) else None
+        return cls(connection, direct) if meta and meta == source_digests(root, index, ledger_path, events) else None
 
     def info(self, rev: str) -> dict[str, Any] | None:
         sha = rev if re.fullmatch(r"[0-9a-f]{40}", rev) else None

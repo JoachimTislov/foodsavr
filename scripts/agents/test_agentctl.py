@@ -460,10 +460,12 @@ class AgentctlTest(unittest.TestCase):
             session = json.loads(index.read_text())
             self.assertEqual(session["issues"], ["#212"])
             self.assertEqual(session["prs"], ["#236"])
-            ledger = (root / ".agents/ledger.jsonl").read_text()
-            self.assertEqual(json.loads(ledger.splitlines()[0]), {"event": "existing"})
-            self.assertEqual(json.loads(ledger.splitlines()[1])["references"], {"issues": ["#212"], "prs": ["#236|injected\nrow"]})
-            self.assertEqual(len(ledger.splitlines()), 2)
+            self.assertEqual((root / ".agents/ledger.jsonl").read_text(), '{"event":"existing"}\n')  # frozen legacy log
+            (event_file,) = (root / ".agents/events").rglob("*.jsonl")
+            event = json.loads(event_file.read_text())
+            self.assertEqual(event["stream"], "ledger")
+            self.assertEqual(event["references"], {"issues": ["#212"], "prs": ["#236|injected\nrow"]})
+            self.assertEqual(len(event_file.read_text().splitlines()), 1)
 
     def test_context_exposes_session_references_without_transcript(self) -> None:
         module = load_agentctl_module()

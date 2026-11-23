@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import agent_skills  # noqa: E402
 import check_logs  # noqa: E402
 import traceability as tr  # noqa: E402
+import event_log as el  # noqa: E402
 import trace_facts as tf  # noqa: E402
 import session_archive as sa  # noqa: E402
 import system_status as ss  # noqa: E402
@@ -44,7 +45,8 @@ def configured_path(environment: str, default: Path) -> Path:
     return Path(value).expanduser() if value else default
 
 
-INDEX = configured_path("AGENT_SESSION_INDEX", ROOT / ".agents/sessions/index.jsonl")
+INDEX = configured_path("AGENT_SESSION_INDEX", ROOT / el.LEGACY_SESSIONS_REL)
+REPO_ROOT = ROOT
 SCHEMA = configured_path("AGENT_KNOWLEDGE_SCHEMA", ROOT / ".agents/knowledge/schema.sql")
 DATABASE = configured_path("AGENT_KNOWLEDGE_DB", ROOT / ".agents/state/knowledge.sqlite3")
 RUNNERS = configured_path("AGENT_RUNNERS_FILE", ROOT / ".agents/runners/providers.json")
@@ -72,20 +74,58 @@ def now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+def events_dir_for(legacy: Path, relative: Path) -> Path | None:
+    """Events directory paired with a log location (#397), or None in single-file mode.
+
+    The repository's legacy `.agents/ledger.jsonl` and `.agents/sessions/index.jsonl` are frozen:
+    they are read, never written, and pair with `.agents/events/`. `AGENT_EVENTS_DIR` selects a
+    directory for any location; a custom file path (tests, CI scratch copies) stays single-file.
+    """
+    override = os.environ.get("AGENT_EVENTS_DIR")
+    if override:
+        return Path(override).expanduser()
+    if legacy in {ROOT / relative, REPO_ROOT / relative}:
+        return ROOT / el.EVENTS_REL
+    return None
+
+
+def chronological(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Stable sort by record time; rows without a time keep their place after the preceding row."""
+    floor = datetime.min.replace(tzinfo=timezone.utc)
+    keyed, last = [], floor
+    for row in rows:
+        last = tr.record_time(row) or last
+        keyed.append((last, row))
+    return [row for _, row in sorted(keyed, key=lambda item: item[0])]
+
+
+def ledger_rows() -> list[dict[str, Any]]:
+    """Ledger events: the frozen legacy file followed by the per-event files, ordered by timestamp."""
+    legacy = tr.read_jsonl(ledger_path())
+    directory = events_dir_for(ledger_path(), el.LEGACY_LEDGER_REL)
+    return chronological([*legacy, *el.read_events(directory, "ledger")]) if directory else legacy
+
+
+def log_events_dir(index: Path = INDEX) -> Path | None:
+    return events_dir_for(index, el.LEGACY_SESSIONS_REL) or events_dir_for(ledger_path(), el.LEGACY_LEDGER_REL)
+
+
 def records(index: Path = INDEX, fold: bool = True) -> list[dict[str, Any]]:
-    if not index.exists():
-        return []
     result = []
-    for number, line in enumerate(index.read_text(encoding="utf-8").splitlines(), 1):
-        if not line.strip():
-            continue
-        try:
-            value = json.loads(line)
-        except json.JSONDecodeError as error:
-            raise ValueError(f"{index}:{number}: invalid JSON: {error}") from error
-        if not isinstance(value, dict):
-            raise ValueError(f"{index}:{number}: record must be an object")
-        result.append(value)
+    if index.exists():
+        for number, line in enumerate(index.read_text(encoding="utf-8").splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
+                value = json.loads(line)
+            except json.JSONDecodeError as error:
+                raise ValueError(f"{index}:{number}: invalid JSON: {error}") from error
+            if not isinstance(value, dict):
+                raise ValueError(f"{index}:{number}: record must be an object")
+            result.append(value)
+    directory = events_dir_for(index, el.LEGACY_SESSIONS_REL)
+    if directory:  # session registrations are events too; the latest record per session wins
+        result.extend({k: v for k, v in row.items() if k != "stream"} for row in el.read_events(directory, "sessions"))
     return tr.fold_records(result) if fold else result
 
 
@@ -240,8 +280,8 @@ def rebuild(args: argparse.Namespace, emit: bool = True) -> int:
                         (run_id, event_index, event.get("timestamp"), str(event.get("type", "unknown")), json.dumps(event, sort_keys=True)),
                     )
         try:
-            tf.build_projection(connection, Path(getattr(args, "root", None) or ROOT), session_records, tr.read_jsonl(ledger_path()),
-                                INDEX, ledger_path(), equivalence_cache(database))
+            tf.build_projection(connection, Path(getattr(args, "root", None) or ROOT), session_records, ledger_rows(),
+                                INDEX, ledger_path(), equivalence_cache(database), events=log_events_dir(INDEX))
         except (OSError, ValueError, sqlite3.Error):
             connection.execute("DELETE FROM trace_meta")  # trace falls back to direct git computation
         connection.execute("INSERT INTO document_search(document_search) VALUES ('rebuild')")
@@ -360,9 +400,9 @@ def commit_rationale(connection: sqlite3.Connection, database: Path, term: str, 
     hits = tf.search_commits(connection, term, min(limit, 5))
     if not hits:
         return []
-    sessions, ledger = records(INDEX), tr.read_jsonl(ledger_path())
+    sessions, ledger = records(INDEX), ledger_rows()
     direct = tf.DirectFacts(ROOT, sessions, ledger, equivalence_cache(database))
-    facts = tf.ProjectionFacts.from_connection(connection, ROOT, INDEX, ledger_path(), direct) or direct
+    facts = tf.ProjectionFacts.from_connection(connection, ROOT, INDEX, ledger_path(), direct, log_events_dir(INDEX)) or direct
     result = []
     for hit in hits:
         traced = tr.trace(ROOT, hit["sha"], sessions, ledger, False, facts)
@@ -641,7 +681,9 @@ def upsert_session_records(existing: list[dict[str, Any]], incoming: dict[str, A
 
 
 def heal_session_index(index: Path = INDEX) -> int:
-    """Compact duplicate session lines (left by `merge=union` or legacy writers)."""
+    """Compact duplicate session lines of a single-file index. The frozen legacy index is never rewritten (#397)."""
+    if events_dir_for(index, el.LEGACY_SESSIONS_REL) is not None:
+        return 0
     current = records(index, fold=False)
     healed = tr.fold_records(current)
     if healed != current:
@@ -653,12 +695,17 @@ def heal_session_index(index: Path = INDEX) -> int:
 # ---- traceability (#271): session identity, ledger writer, trace, PR check, provenance
 
 def ledger_path() -> Path:
-    return configured_path("AGENT_LEDGER_FILE", ROOT / ".agents/ledger.jsonl")
+    return configured_path("AGENT_LEDGER_FILE", ROOT / el.LEGACY_LEDGER_REL)
 
 
 def append_session_line(index: Path, record: dict[str, Any]) -> None:
+    """Record a session as its own event file; single-file indexes (tests, CI scratch) still append."""
     if index.suffix != ".jsonl":
         raise ValueError("session indexes must use .jsonl")
+    directory = events_dir_for(index, el.LEGACY_SESSIONS_REL)
+    if directory is not None:
+        el.write_event(directory, "sessions", record, record.get("session_id"))
+        return
     index.parent.mkdir(parents=True, exist_ok=True)
     needs_newline = index.exists() and index.stat().st_size > 0 and not index.read_bytes().endswith(b"\n")
     with index.open("a", encoding="utf-8") as stream:
@@ -826,8 +873,9 @@ def log_command(args: argparse.Namespace) -> int:
     for field in ("commits", "issues", "prs", "sources"):
         if refs[field]:
             event[field] = refs[field]
-    append_event(ledger_path(), event)
-    print(json.dumps({"timestamp": now(), **event}, indent=2, sort_keys=True))
+    written = append_ledger(ledger_path(), event)
+    print(json.dumps({"timestamp": now(), **event, **({"event_file": path_reference(written)} if written != ledger_path() else {})},
+                     indent=2, sort_keys=True))
     return 0
 
 
@@ -835,9 +883,9 @@ def trace_command(args: argparse.Namespace) -> int:
     root = Path(args.root).expanduser()
     online = args.online or os.environ.get("AGENTCTL_ONLINE") == "1"
     index = Path(args.index).expanduser()
-    sessions, ledger = records(index), tr.read_jsonl(ledger_path())
+    sessions, ledger = records(index), ledger_rows()
     direct = tf.DirectFacts(root, sessions, ledger, equivalence_cache(Path(args.database).expanduser()))
-    facts = None if args.no_projection else tf.ProjectionFacts.open(Path(args.database).expanduser(), root, index, ledger_path(), direct)
+    facts = None if args.no_projection else tf.ProjectionFacts.open(Path(args.database).expanduser(), root, index, ledger_path(), direct, log_events_dir(index))
     result = tr.trace(root, args.ref, sessions, ledger, online, facts or direct, args.infer)
     print(json.dumps(result, indent=2, sort_keys=True) if args.json else tr.render_trace(result))
     return 0
@@ -864,7 +912,7 @@ def check_pr_command(args: argparse.Namespace) -> int:
 
 def provenance_command(args: argparse.Namespace) -> int:
     value = tr.provenance(Path(args.root).expanduser(), os.environ, records(Path(args.index).expanduser()),
-                          tr.read_jsonl(ledger_path()), args.sha, args.pr, args.triggering_run)
+                          ledger_rows(), args.sha, args.pr, args.triggering_run)
     if args.out:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.out).write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -922,7 +970,7 @@ def archive_report(sessions: list[dict[str, Any]]) -> dict[str, Any]:
 def traceability_report(root: Path = ROOT, limit: int = 50) -> dict[str, Any]:
     """Gaps that make work un-debuggable: report only, never fail."""
     identity = tr.detect_session()
-    sessions, ledger = records(INDEX), tr.read_jsonl(ledger_path())
+    sessions, ledger = records(INDEX), ledger_rows()
     cutoff = tr.parse_time(tr.CUTOFF)
     missing = []
     for sha in (tr.run_git(root, "rev-list", "--no-merges", f"--max-count={limit}", "HEAD") or "").split():
@@ -3051,6 +3099,15 @@ def append_event(path: Path, event: dict[str, Any]) -> None:
         stream.flush()
 
 
+def append_ledger(path: Path, event: dict[str, Any]) -> Path:
+    """Write a ledger event: one event file for the repository ledger (#397), a plain append for a scratch file."""
+    directory = events_dir_for(path, el.LEGACY_LEDGER_REL)
+    if directory is None:
+        append_event(path, event)
+        return path
+    return el.write_event(directory, "ledger", {"timestamp": now(), **event}, event.get("session_id"))
+
+
 def append_session_record(provider: str, session_id: str, run_id: str, summary: str, status: str = "completed", attempt: int | None = None, usage: dict[str, int | float] | None = None, references: dict[str, list[str]] | None = None) -> None:
     references = references or {}
     record = {
@@ -3089,6 +3146,10 @@ def append_session_record(provider: str, session_id: str, run_id: str, summary: 
             record["usage"] = usage
         record["attempts"] = [attempt_record]
         existing.append(record)
+        match = record
+    if events_dir_for(INDEX, el.LEGACY_SESSIONS_REL) is not None:
+        append_session_line(INDEX, match)  # the frozen legacy index is never rewritten
+        return
     write_session_records(INDEX, existing)
 
 
@@ -3332,9 +3393,9 @@ def write_provider_artifact(path: Path, provider: str, output: str, exit_code: i
 
 
 def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: str, artifact: str | None = None, references: dict[str, list[str]] | None = None) -> str:
-    ledger = configured_path("AGENT_LEDGER_FILE", ROOT / ".agents/ledger.jsonl")
+    ledger = ledger_path()
     identity = tr.detect_session()
-    append_event(ledger, {
+    written = append_ledger(ledger, {
         "session_id": identity.session_id if identity else f"agentctl:{run_id}",
         "type": "workflow.completed",
         "run_id": run_id,
@@ -3344,7 +3405,7 @@ def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: st
         "artifact": artifact or f".agents/state/runs/{run_id}/result.json",
         "references": references or {},
     })
-    return f"{path_reference(ledger)}#{run_id}"
+    return f"{path_reference(written)}#{run_id}"
 
 
 def available_providers(candidates: list[str], specs: dict[str, dict[str, Any]]) -> list[str]:

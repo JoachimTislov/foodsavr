@@ -24,6 +24,10 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts/agents"))
+import event_log  # noqa: E402
+
+DEFAULT_EVENTS = ROOT / ".agents/events"
 DEFAULT_HISTORY = ROOT / ".agents/reviews/history.jsonl"
 DEFAULT_SESSIONS = ROOT / ".agents/sessions/index.jsonl"
 DEFAULT_LEDGER = ROOT / ".agents/ledger.jsonl"
@@ -393,6 +397,16 @@ def load_history(path: Path = DEFAULT_HISTORY) -> list[dict[str, Any]]:
             raise ValueError(f"{path}:{number}: record must be a JSON object")
         records.append(item)
     return records
+
+
+def load_log(path: Path, stream: str, events_dir: Path | None = None) -> list[dict[str, Any]]:
+    """Legacy log file plus the per-event files of `stream` (#397); events apply to the repository logs only."""
+    rows = load_history(path) if path.exists() else []
+    if events_dir is None and path in (DEFAULT_SESSIONS, DEFAULT_LEDGER):
+        events_dir = DEFAULT_EVENTS
+    if events_dir is not None:
+        rows += [{k: v for k, v in row.items() if k != "stream"} for row in event_log.read_events(events_dir, stream)]
+    return rows
 
 
 def validate_history_record(record: dict[str, Any]) -> None:
@@ -1192,8 +1206,8 @@ def investigate(
 ) -> dict[str, Any]:
     """Correlate git commits/merges with review history, agent sessions, and ledger events."""
     history = load_history(history_path) if history_path.exists() else []
-    sessions = load_history(sessions_path) if sessions_path.exists() else []
-    ledger = load_history(ledger_path) if ledger_path.exists() else []
+    sessions = load_log(sessions_path, "sessions")
+    ledger = load_log(ledger_path, "ledger")
 
     log_args = ["log", f"--max-count={max_count}", "--format=%H"]
     if since:
@@ -1447,7 +1461,7 @@ def bisect_learn(
     candidate_prs = list(dict.fromkeys([*merge_info["prs"], *culprit_info["prs"]]))
 
     history = load_history(history_path) if history_path.exists() else []
-    sessions = load_history(sessions_path) if sessions_path.exists() else []
+    sessions = load_log(sessions_path, "sessions")
 
     # Map culprit commit to PR via review history or sessions index if not in commit message
     for rec in history:

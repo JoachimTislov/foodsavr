@@ -9,14 +9,14 @@ Before changing code or documentation, read [specs/source-of-truth/INDEX.md](spe
 - Be minimal. Write nothing beyond what the user strictly needs to know.
 - Always log events (what was changed, committed, pushed, replied) when doing repo work.
 - Keep comments and console output professional; no emojis.
-- Use `.jsonl` for every repository-maintained log: one JSON object per line, UTF-8, with a final newline and no blank lines. This includes ledgers, session indexes, review follow-ups, rationale, risks, and workflow events. Validate with `python3 scripts/agents/check_logs.py`; third-party runtime output is outside this rule.
-- Historical repository events are recorded in [.agents/ledger.jsonl](.agents/ledger.jsonl); read it only when historical context is needed.
+- Use `.jsonl` for every repository-maintained log: one JSON object per line, UTF-8, with a final newline and no blank lines. This includes ledgers, session indexes, review follow-ups, rationale, risks, and workflow events. New agent ledger and session records are one file per event under `.agents/events/` (written by `agentctl`, never by hand); validate with `python3 scripts/agents/check_logs.py`; third-party runtime output is outside this rule.
+- Historical repository events are in the frozen [.agents/ledger.jsonl](.agents/ledger.jsonl) and [.agents/sessions/index.jsonl](.agents/sessions/index.jsonl) plus `.agents/events/`; read them through `agentctl` (`context`, `trace`) only when historical context is needed. Never append to the frozen files.
 
 ## Sessions
 
 One agent system serves local shells, T3 Code threads, and GitHub runners through `scripts/agents/agentctl`.
 
-- Register your session when work starts: `scripts/agents/agentctl sessions register --session-id '<harness>:<id>' --provider <p> --harness <h> --summary '...'`, adding `--issue`/`--pr`/`--commit` as they appear (records upsert into [.agents/sessions/index.jsonl](.agents/sessions/index.jsonl)).
+- Register your session when work starts: `scripts/agents/agentctl sessions register --session-id '<harness>:<id>' --provider <p> --harness <h> --summary '...'`, adding `--issue`/`--pr`/`--commit` as they appear (each registration is an event under `.agents/events/`; the session index is folded from them).
 - Every agent commit carries an `Agent-Session: <harness>:<id>` trailer; `scripts/agents/agentctl sessions commits <harness>:<id>` lists a session's changes. Commit with the `commit` skill.
 - `make hooks` also installs a `prepare-commit-msg` hook that adds that trailer from the auto-detected session (`sessions register` needs no identity flags then; `sessions register --status completed` ends the session and archives its redacted transcript; `sessions fetch <id>` retrieves it)
 - Log events with `scripts/agents/agentctl log`; `trace <commit|#N|path:line|run|session>` explains why something exists; `check-pr` is the CI gate for trailers ([details](.agents/sessions/README.md#traceability-271)).

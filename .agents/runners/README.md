@@ -30,8 +30,10 @@ worktree, and the runner commits and publishes the exported patch.
 CI runners can supply trusted, environment-specific manifests without changing
 the repository source layer. Set `AGENT_RUNNERS_FILE`, `AGENT_POLICY_FILE`, and
 `AGENT_ROUTER_FILE` to override the provider, policy, and router manifests.
-Set `AGENT_SESSION_INDEX`, `AGENT_KNOWLEDGE_SCHEMA`, and `AGENT_KNOWLEDGE_DB`
-to override the session and disposable knowledge locations. These overrides
+Set `AGENT_SESSION_INDEX`, `AGENT_LEDGER_FILE`, `AGENT_EVENTS_DIR`,
+`AGENT_KNOWLEDGE_SCHEMA`, and `AGENT_KNOWLEDGE_DB` to override the session,
+ledger, event, and disposable knowledge locations (a custom index or ledger
+file is single-file mode: `agentctl` appends to it instead of writing events). These overrides
 are runner configuration, not workflow input, and must never be populated from
 an untrusted pull request.
 
