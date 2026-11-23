@@ -46,20 +46,7 @@ runs:
       shell: bash
       env:
         FIREBASE_OPTIONS_B64: ${{ inputs.firebase-options-b64 }}
-      run: |
-        if [ -n "$FIREBASE_OPTIONS_B64" ]; then
-          printf '%s' "$FIREBASE_OPTIONS_B64" | base64 -d > lib/firebase_options.dart
-        else
-          cat > lib/firebase_options.dart <<'EOT'
-        // Placeholder generated when FIREBASE_OPTIONS_B64 is unavailable (e.g. fork PRs).
-        import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
-
-        class DefaultFirebaseOptions {
-          static FirebaseOptions get currentPlatform => throw UnsupportedError(
-            'FirebaseOptions not configured for fork PR builds');
-        }
-        EOT
-        fi
+      run: bash scripts/ci/write_firebase_options.sh
 
     - name: Write assets/.env
       shell: bash
