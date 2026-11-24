@@ -176,6 +176,7 @@ exports.chromium = { launch: async () => ({ newContext: async () => context, clo
             result = subprocess.run([
                 "node", str(script), "--url", "https://example.com", "--settle-ms", "0",
             ], cwd=root, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 1, result.stderr)
             report = json.loads(result.stdout)
             self.assertFalse(report["ok"])
             self.assertEqual(len(report["raw_findings"]["console_errors"]), 1)
