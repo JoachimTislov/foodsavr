@@ -45,12 +45,15 @@ Product _expiringIn(String id, int days) {
 }
 
 void main() {
-  late TestTranslationLoader translations;
+  late Map<String, TestTranslationLoader> translations;
   late _Products products;
 
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
-    translations = TestTranslationLoader();
+    translations = {
+      'en': TestTranslationLoader(),
+      'nb': TestTranslationLoader('nb'),
+    };
     SharedPreferences.setMockInitialValues({});
     SharedPreferencesAsyncPlatform.instance =
         InMemorySharedPreferencesAsync.empty();
@@ -100,7 +103,11 @@ void main() {
 
   tearDown(() => getIt.reset());
 
-  Future<void> pump(WidgetTester tester, {ThemeMode? mode}) async {
+  Future<void> pump(
+    WidgetTester tester, {
+    ThemeMode? mode,
+    Locale locale = const Locale('en'),
+  }) async {
     tester.view.physicalSize = const Size(400, 1600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -108,9 +115,11 @@ void main() {
     addTearDown(tester.platformDispatcher.clearAllTestValues);
     await tester.pumpWidget(
       EasyLocalization(
-        supportedLocales: const [Locale('en')],
+        supportedLocales: [locale],
+        startLocale: locale,
+        saveLocale: false,
         path: 'assets/translations',
-        assetLoader: translations,
+        assetLoader: translations[locale.languageCode]!,
         child: Builder(
           builder: (context) => MaterialApp(
             localizationsDelegates: context.localizationDelegates,
@@ -167,7 +176,7 @@ void main() {
     expect(
       find.descendant(
         of: expiredCards.last,
-        matching: find.text('Expired 1 days ago'),
+        matching: find.text('Expired 1 day ago'),
       ),
       findsOneWidget,
     );
@@ -194,6 +203,29 @@ void main() {
       lessThan(tester.getTopLeft(find.byType(ExpiringSoonSection)).dy),
     );
   });
+
+  for (final (language, count, countLabel, daysLabel) in [
+    ('en', 1, '1 expired item', 'Expired 1 day ago'),
+    ('en', 2, '2 expired items', 'Expired 2 days ago'),
+    ('nb', 1, '1 utgått produkt', 'Utgått for 1 dag siden'),
+    ('nb', 2, '2 utgåtte produkter', 'Utgått for 2 dager siden'),
+  ]) {
+    testWidgets('pluralizes expired count and days for $count in $language', (
+      tester,
+    ) async {
+      when(() => products.getExpired('user')).thenAnswer(
+        (_) async => [
+          if (count == 2) _expiringIn('older', -3),
+          _expiringIn('old', -count),
+        ],
+      );
+
+      await pump(tester, locale: Locale(language));
+
+      expect(find.bySemanticsLabel(countLabel), findsOneWidget);
+      expect(find.text(daysLabel), findsOneWidget);
+    });
+  }
 
   testWidgets('hides the expired section when nothing has expired', (
     tester,

@@ -109,7 +109,16 @@
 		"createProduct": "Nytt produkt",
 		"createShoppingList": "Ny Handleliste",
 		"expired": "Utgått",
-		"expiredCount": "{count} utgåtte produkter",
+		"expiredCount": {
+			"zero": "{count} utgåtte produkter",
+			"one": "{count} utgått produkt",
+			"other": "{count} utgåtte produkter"
+		},
+		"expiredDaysAgo": {
+			"zero": "Utgått for {days} dager siden",
+			"one": "Utgått for {days} dag siden",
+			"other": "Utgått for {days} dager siden"
+		},
 		"expiringSoon": "Utløper snart",
 		"globalProducts": "Globale produkter",
 		"moveItems": "Flytt varer mellom lagre",

@@ -37,8 +37,9 @@ class ExpiredItemsSection extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Semantics(
-                  label: 'dashboard.expiredCount'.tr(
-                    namedArgs: {'count': products.length.toString()},
+                  label: 'dashboard.expiredCount'.plural(
+                    products.length,
+                    name: 'count',
                   ),
                   excludeSemantics: true,
                   child: Container(

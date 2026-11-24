@@ -27,8 +27,9 @@ class ExpiringItemCard extends StatelessWidget {
     final statusText = switch (product.daysUntilFirstExpiry(expired: expired)) {
       null => ProductStatus.fresh.getMessage(),
       0 => 'product.status_today'.tr(),
-      final days when expired => 'product.status_expired_days_ago'.tr(
-        namedArgs: {'days': days.abs().toString()},
+      final days when expired => 'dashboard.expiredDaysAgo'.plural(
+        days.abs(),
+        name: 'days',
       ),
       final days => 'product.status_days_remaining'.tr(
         namedArgs: {'days': days.toString()},
