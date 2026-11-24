@@ -266,7 +266,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
                         else ...[
                           if (_cameraUnavailable) ...[
                             Text(
-                              'product.scanUnavailable'.tr(),
+                              'product.barcodeCameraUnavailable'.tr(),
                               style: TextStyle(
                                 color: colorScheme.onSurfaceVariant,
                               ),
