@@ -47,6 +47,27 @@ void main() {
     Logger(level: Level.off),
   );
 
+  test('sorts each expiry list by the entries that qualify for it', () async {
+    final expired = _expiringIn('expired', -2);
+    final soon = _expiringIn('soon', 0);
+    final mixed = _expiringIn('mixed', -3).copyWith(
+      expiries: [
+        ..._expiringIn('later', 7).expiries,
+        ..._expiringIn('past', -3).expiries,
+        ..._expiringIn('tomorrow', 1).expiries,
+      ],
+    );
+    final service = makeService([
+      mixed,
+      expired,
+      soon,
+      _expiringIn('later', 7),
+    ]);
+
+    expect(await service.getExpired('user-1'), [mixed, expired]);
+    expect(await service.getExpiringSoon('user-1'), [soon, mixed]);
+  });
+
   group('getExpired', () {
     test('returns expired products oldest first', () async {
       final service = makeService([

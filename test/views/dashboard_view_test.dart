@@ -20,6 +20,7 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../helpers/in_memory_preferences_repository.dart';
+import '../helpers/test_translation_loader.dart';
 
 class _Auth extends Mock implements IAuthService {}
 
@@ -44,10 +45,12 @@ Product _expiringIn(String id, int days) {
 }
 
 void main() {
+  late TestTranslationLoader translations;
   late _Products products;
 
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    translations = TestTranslationLoader();
     SharedPreferences.setMockInitialValues({});
     SharedPreferencesAsyncPlatform.instance =
         InMemorySharedPreferencesAsync.empty();
@@ -107,14 +110,20 @@ void main() {
       EasyLocalization(
         supportedLocales: const [Locale('en')],
         path: 'assets/translations',
-        child: MaterialApp(
-          themeMode: mode,
-          theme: ThemeData(colorSchemeSeed: const Color(0xFF13C8EC)),
-          darkTheme: ThemeData(
-            colorSchemeSeed: const Color(0xFF13C8EC),
-            brightness: Brightness.dark,
+        assetLoader: translations,
+        child: Builder(
+          builder: (context) => MaterialApp(
+            localizationsDelegates: context.localizationDelegates,
+            supportedLocales: context.supportedLocales,
+            locale: context.locale,
+            themeMode: mode,
+            theme: ThemeData(colorSchemeSeed: const Color(0xFF13C8EC)),
+            darkTheme: ThemeData(
+              colorSchemeSeed: const Color(0xFF13C8EC),
+              brightness: Brightness.dark,
+            ),
+            home: const Scaffold(body: DashboardView()),
           ),
-          home: const Scaffold(body: DashboardView()),
         ),
       ),
     );
@@ -124,15 +133,22 @@ void main() {
   testWidgets('shows expired items, oldest first, above expiring soon', (
     tester,
   ) async {
-    when(() => products.getExpired('user')).thenAnswer(
-      (_) async => [_expiringIn('ten', -10), _expiringIn('one', -1)],
+    final mixed = _expiringIn('mixed', -1).copyWith(
+      expiries: [
+        ..._expiringIn('past', -1).expiries,
+        ..._expiringIn('later', 4).expiries,
+        ..._expiringIn('tomorrow', 1).expiries,
+      ],
     );
+    when(
+      () => products.getExpired('user'),
+    ).thenAnswer((_) async => [_expiringIn('ten', -10), mixed]);
     when(
       () => products.getExpiringSoon(
         'user',
         expiringSoonDays: any(named: 'expiringSoonDays'),
       ),
-    ).thenAnswer((_) async => [_expiringIn('three', 3)]);
+    ).thenAnswer((_) async => [mixed, _expiringIn('three', 3)]);
 
     await pump(tester);
 
@@ -148,7 +164,23 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('product.status_expired_days_ago'), findsNWidgets(2));
+    expect(
+      find.descendant(
+        of: expiredCards.last,
+        matching: find.text('Expired 1 days ago'),
+      ),
+      findsOneWidget,
+    );
+    final soonCards = find.descendant(
+      of: find.byType(ExpiringSoonSection),
+      matching: find.byType(ExpiringItemCard),
+    );
+    expect(soonCards, findsNWidgets(2));
+    expect(find.text('Product mixed'), findsNWidgets(2));
+    expect(
+      find.descendant(of: soonCards.first, matching: find.text('1d remaining')),
+      findsOneWidget,
+    );
     expect(find.text('2'), findsOneWidget);
     expect(
       find.descendant(
@@ -169,7 +201,7 @@ void main() {
     await pump(tester);
 
     expect(find.byType(ExpiredItemsSection), findsNothing);
-    expect(find.text('dashboard.expired'), findsNothing);
+    expect(find.text('Expired'), findsNothing);
     expect(find.byType(ExpiringItemCard), findsNothing);
   });
 
@@ -180,7 +212,7 @@ void main() {
 
     await pump(tester, mode: ThemeMode.dark);
 
-    expect(find.text('dashboard.expired'), findsOneWidget);
-    expect(find.text('product.status_expired_days_ago'), findsOneWidget);
+    expect(find.text('Expired'), findsOneWidget);
+    expect(find.text('Expired 3 days ago'), findsOneWidget);
   });
 }
