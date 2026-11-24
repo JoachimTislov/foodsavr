@@ -24,6 +24,22 @@ class MockCollectionService extends Mock implements CollectionService {}
 
 class MockUser extends Mock implements User {}
 
+Product _productExpiringIn(String id, int days) {
+  final now = DateTime.now();
+  return Product(
+    id: id,
+    name: 'Product $id',
+    description: '',
+    userId: 'user_1',
+    expiries: [
+      ExpiryEntry(
+        quantity: 1,
+        expirationDate: DateTime(now.year, now.month, now.day + days),
+      ),
+    ],
+  );
+}
+
 void main() {
   late MockAuthService mockAuthService;
   late MockProductService mockProductService;
@@ -37,6 +53,9 @@ void main() {
     mockProductService = MockProductService();
     mockCollectionService = MockCollectionService();
     authChanges = StreamController<User?>.broadcast();
+    when(
+      () => mockProductService.getExpired(any()),
+    ).thenAnswer((_) async => []);
     when(
       () => mockAuthService.authStateChanges,
     ).thenAnswer((_) => authChanges.stream);
@@ -62,6 +81,38 @@ void main() {
   });
 
   group('DashboardController', () {
+    test('splits expired from expiring soon, oldest expired first', () async {
+      when(() => mockAuthService.getUserId()).thenReturn('user_1');
+      when(() => mockProductService.getExpired('user_1')).thenAnswer(
+        (_) async => [
+          _productExpiringIn('ten', -10),
+          _productExpiringIn('one', -1),
+        ],
+      );
+      when(
+        () => mockProductService.getExpiringSoon(
+          'user_1',
+          expiringSoonDays: any(named: 'expiringSoonDays'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _productExpiringIn('one', -1),
+          _productExpiringIn('three', 3),
+        ],
+      );
+      when(
+        () => mockCollectionService.getCollectionsForUser(
+          'user_1',
+          type: CollectionType.inventory,
+        ),
+      ).thenAnswer((_) async => []);
+
+      await controller.load();
+
+      expect(controller.expired.map((p) => p.id), ['ten', 'one']);
+      expect(controller.expiringSoon.map((p) => p.id), ['three']);
+    });
+
     test('initial state is empty', () {
       expect(controller.expiringSoon, isEmpty);
       expect(controller.inventories, isEmpty);

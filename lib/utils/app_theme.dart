@@ -107,6 +107,8 @@ class AppTheme {
     final colorScheme = base.colorScheme;
 
     return base.copyWith(
+      hoverColor: colorScheme.onSurface.withValues(alpha: 0.08),
+      focusColor: colorScheme.onSurface.withValues(alpha: 0.1),
       appBarTheme: AppBarTheme(
         backgroundColor: colorScheme.surface,
         foregroundColor: colorScheme.onSurface,

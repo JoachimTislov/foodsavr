@@ -47,7 +47,7 @@ class ExpiringSoonSection extends StatelessWidget {
           Column(
             children: [
               for (int i = 0; i < products.length; i++) ...[
-                if (i > 0) const SizedBox(height: 12),
+                if (i > 0) const SizedBox(height: 8),
                 ExpiringItemCard(
                   product: products[i],
                   onTap: () => Navigator.of(context).push(

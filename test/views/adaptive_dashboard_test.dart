@@ -1,7 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:foodsavr/constants/adaptive_layout.dart';
 import 'package:foodsavr/controllers/dashboard_controller.dart';
 import 'package:foodsavr/controllers/preferences_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
@@ -49,6 +48,7 @@ void main() {
         expiringSoonDays: any(named: 'expiringSoonDays'),
       ),
     ).thenAnswer((_) async => []);
+    when(() => products.getExpired(any())).thenAnswer((_) async => []);
     final collections = _Collections();
     when(
       () => collections.getCollectionsForUser('user', type: any(named: 'type')),
@@ -104,18 +104,18 @@ void main() {
     expect(firstCardWidth(tester), cardWidth(400 - 48, 2));
   });
 
-  testWidgets('medium width keeps two columns', (tester) async {
+  testWidgets('medium width shows three fixed-height columns', (tester) async {
     await pump(tester, 700);
-    expect(firstCardWidth(tester), cardWidth(700 - 48, 2));
+    expect(firstCardWidth(tester), cardWidth(700 - 48, 3));
+    expect(tester.getSize(find.byType(OverviewCard).first).height, 128);
   });
 
-  testWidgets('expanded width shows three columns in a bounded column', (
+  testWidgets('expanded width uses a two-thirds and one-third split', (
     tester,
   ) async {
     await pump(tester, 1600);
-    expect(firstCardWidth(tester), cardWidth(AdaptiveLayout.pageMaxWidth, 3));
     final content = tester.getSize(find.byType(ContentConstraint));
-    expect(content.width, 1600 - 48);
+    expect(content.width, 1600 - 64);
     final column = tester.getSize(
       find
           .descendant(
@@ -124,6 +124,8 @@ void main() {
           )
           .first,
     );
-    expect(column.width, AdaptiveLayout.pageMaxWidth);
+    expect(column.width, 1120);
+    // The side column holds a third of the width left after the 24 px gap.
+    expect(firstCardWidth(tester), closeTo((1120 - 24) / 3, 0.01));
   });
 }
