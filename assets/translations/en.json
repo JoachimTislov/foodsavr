@@ -1,4 +1,7 @@
 {
+  "a11y": {
+    "removeExpiry": "Remove expiry"
+  },
 	"auth": {
 		"error": {
 			"facebook_unavailable": "Facebook sign-in is unavailable. You can sign in with email instead.",

@@ -57,6 +57,7 @@ class ExpiriesSection extends StatelessWidget {
             ),
             trailing: IconButton(
               icon: const Icon(Icons.delete_outline),
+              tooltip: 'a11y.removeExpiry'.tr(),
               onPressed: () => onRemove(idx),
             ),
           );

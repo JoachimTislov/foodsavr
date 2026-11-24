@@ -1,4 +1,7 @@
 {
+  "a11y": {
+    "removeExpiry": "Fjern utløpsdato"
+  },
 	"auth": {
 		"error": {
 			"facebook_unavailable": "Innlogging med Facebook er utilgjengelig. Du kan logge inn med e-post i stedet.",
