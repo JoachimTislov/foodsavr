@@ -2,7 +2,7 @@ name: Format, Analyze, Check Localizations and Run Tests
 
 on:
   push:
-    branches: [daily, weekly, stable]
+    branches: [daily, weekly, stable, 'merge-train/**']
     paths:
       - "**.dart"
       - "lib/**"
@@ -23,7 +23,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   # Dependabot rebases keep the running check: the next run starts after it and
   # skips when the previous head was green and nothing in scope changed.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
+  cancel-in-progress: ${{ (github.event_name == 'pull_request' && github.actor != 'dependabot[bot]') || startsWith(github.ref, 'refs/heads/merge-train/') }}
 
 jobs:
   gate:
@@ -72,6 +72,8 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "run_release=${{ steps.paths.outputs.release == 'true' }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ startsWith(github.ref, 'refs/heads/merge-train/') }}" = "true" ]; then
+            echo "run_release=false" >> "$GITHUB_OUTPUT"
           else
             echo "run_release=true" >> "$GITHUB_OUTPUT"
           fi

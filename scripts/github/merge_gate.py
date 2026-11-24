@@ -8,12 +8,14 @@ safe step (ADR 0006, ADR 0007). Dry run by default; ``--apply`` mutates.
 from __future__ import annotations
 
 import argparse
+import base64
 import importlib.util
 import json
 import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -38,6 +40,9 @@ LABEL = "merge/auto"
 PRIORITY_LABEL = "merge/priority"
 FREEZE_LABEL = "merge/freeze"
 FREEZE_MODES = frozenset({"none", "batch", "all"})
+TRAIN_PREFIX = "merge-train/pr-"
+DEFAULT_TRAIN_DEPTH = 3
+MAX_TRAIN_DEPTH = 5
 LABEL_COLOR = "0e8a16"
 LABEL_DESCRIPTION = "Finalized two-way-door PR; the merge gate integrates it"
 BASE = "develop"
@@ -181,6 +186,19 @@ class PR:
 class Plan:
     actions: list[tuple[str, PR]]
     report: list[tuple[int, str, str]]
+
+
+@dataclass
+class TrainSlot:
+    pr: PR
+    branch: str
+    push: bool
+
+
+@dataclass
+class TrainPlan:
+    slots: list[TrainSlot]
+    delete_refs: list[str]
 
 
 def normalize_bot(login: str) -> str:
@@ -604,6 +622,71 @@ def needs_patch_id(pr: PR) -> bool:
     return has_prior_patch
 
 
+def resolve_train_depth(raw: str | int | None) -> int:
+    """Resolve speculative merge-train depth (0 disables; clamped to MAX_TRAIN_DEPTH)."""
+    if raw is None:
+        return DEFAULT_TRAIN_DEPTH
+    if isinstance(raw, int) and not isinstance(raw, bool):
+        return max(0, min(MAX_TRAIN_DEPTH, raw))
+    text = str(raw).strip()
+    if not text:
+        return DEFAULT_TRAIN_DEPTH
+    try:
+        value = int(text)
+    except ValueError:
+        return 0
+    return max(0, min(MAX_TRAIN_DEPTH, value))
+
+
+def plan_train(
+    prs: list[PR],
+    existing_train_refs: list[str] | tuple[str, ...] | set[str],
+    depth: int = DEFAULT_TRAIN_DEPTH,
+    freeze_mode: str = "none",
+    owner: str = "",
+    trusted_bots: frozenset[str] = DEFAULT_TRUSTED_BOTS,
+    history: list[dict[str, Any]] | None = None,
+) -> TrainPlan:
+    """Plan speculative merge-train refs for queued PRs and stale refs to delete.
+
+    Slot 0 is the head of the queue (validated directly on its PR branch, so
+    ``push=False``, though an existing train ref for slot 0 is retained while
+    the PR stays open so its rebased PR run can reuse that tree). Slots
+    ``1..depth`` are replayed linearly on top of ``develop`` and pushed when
+    their combined tree changes.
+    """
+    if freeze_mode not in FREEZE_MODES:
+        raise ValueError(f"unknown freeze_mode: {freeze_mode!r}")
+    managed_refs = sorted({ref for ref in existing_train_refs if ref.startswith(TRAIN_PREFIX)})
+    effective_depth = resolve_train_depth(depth)
+    if effective_depth <= 0 or freeze_mode == "all":
+        return TrainPlan(slots=[], delete_refs=managed_refs)
+
+    effective_history = history if history is not None else pr_review.load_history()
+    eligible: list[PR] = []
+    for pr in sorted(prs, key=_queue_rank):
+        if LABEL not in pr.labels:
+            continue
+        if freeze_mode == "batch" and not pr.priority:
+            continue
+        if pr.merge_state == "UNKNOWN":
+            continue
+        if structural_blocker(pr, owner=owner, trusted_bots=trusted_bots):
+            continue
+        if review_blocker(pr, owner=owner, trusted_bots=trusted_bots, history=effective_history):
+            continue
+        eligible.append(pr)
+
+    chosen = eligible[: effective_depth + 1]
+    slots = [
+        TrainSlot(pr=pr, branch=f"{TRAIN_PREFIX}{pr.number}", push=(idx >= 1))
+        for idx, pr in enumerate(chosen)
+    ]
+    keep_refs = {slot.branch for slot in slots}
+    delete_refs = [ref for ref in managed_refs if ref not in keep_refs]
+    return TrainPlan(slots=slots, delete_refs=delete_refs)
+
+
 class GitHub:
     def __init__(self, repo: str, apply: bool):
         self.owner, self.name = repo.split("/", 1)
@@ -640,6 +723,161 @@ class GitHub:
             )
         )
         return list((data["data"]["repository"]["issues"] or {}).get("nodes") or [])
+
+    def train_refs(self) -> list[str]:
+        """List existing merge-train/pr-* branch names on the repository."""
+        try:
+            items = json.loads(self.run("api", f"repos/{self.repo}/git/matching-refs/heads/merge-train/"))
+        except RuntimeError:
+            return []
+        if not isinstance(items, list):
+            return []
+        refs: list[str] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            ref = str(item.get("ref") or "")
+            prefix = "refs/heads/"
+            if ref.startswith(prefix):
+                branch = ref[len(prefix):]
+                if branch.startswith(TRAIN_PREFIX):
+                    refs.append(branch)
+        return sorted(set(refs))
+
+    def sync_train(
+        self,
+        train_plan: TrainPlan,
+        remote_url: str | None = None,
+        token: str | None = None,
+    ) -> list[str]:
+        """Linearly replay speculative train slots onto develop and sync train refs."""
+        push_slots = [slot for slot in train_plan.slots if slot.push]
+        if not push_slots and not train_plan.delete_refs:
+            return []
+        if not self.apply:
+            notes = [f"train #{slot.pr.number}: would sync {slot.branch} (dry run)" for slot in push_slots]
+            notes += [f"train cleanup: would delete {ref} (dry run)" for ref in train_plan.delete_refs]
+            return notes
+
+        url = remote_url or f"https://github.com/{self.repo}.git"
+        auth_args: list[str] = []
+        if url.startswith("https://"):
+            effective_token = token if token is not None else os.environ.get("GH_TOKEN", "")
+            if effective_token:
+                basic = base64.b64encode(f"x-access-token:{effective_token}".encode("utf-8")).decode("ascii")
+                auth_args = ["-c", f"http.https://github.com/.extraheader=AUTHORIZATION: basic {basic}"]
+
+        def _git(cwd: Path, *git_args: str, network: bool = False, check: bool = True) -> subprocess.CompletedProcess[str]:
+            cmd = ["git", *(auth_args if network else []), *git_args]
+            proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+            if check and proc.returncode != 0:
+                sub = git_args[0] if git_args else "git"
+                raise RuntimeError(f"git {sub} failed: {proc.stderr.strip()}")
+            return proc
+
+        notes: list[str] = []
+        refs_to_delete: set[str] = set(train_plan.delete_refs)
+
+        with tempfile.TemporaryDirectory(prefix="merge-train-") as tmp:
+            work = Path(tmp)
+            _git(work, "init", "-q")
+            _git(work, "config", "user.name", "merge-gate[bot]")
+            _git(work, "config", "user.email", "merge-gate[bot]@users.noreply.github.com")
+            _git(work, "remote", "add", "origin", url)
+
+            if push_slots:
+                _git(work, "fetch", "--no-tags", "origin", f"refs/heads/{BASE}:refs/remotes/origin/{BASE}", network=True)
+                train_tip = _git(work, "rev-parse", f"refs/remotes/origin/{BASE}").stdout.strip()
+
+                existing_trees: dict[str, str] = {}
+                for slot in push_slots:
+                    fetched = _git(
+                        work,
+                        "fetch",
+                        "--no-tags",
+                        "--depth=1",
+                        "origin",
+                        f"refs/heads/{slot.branch}:refs/remotes/origin/{slot.branch}",
+                        network=True,
+                        check=False,
+                    )
+                    if fetched.returncode == 0:
+                        tree_proc = _git(work, "rev-parse", f"refs/remotes/origin/{slot.branch}^{{tree}}", check=False)
+                        if tree_proc.returncode == 0:
+                            existing_trees[slot.branch] = tree_proc.stdout.strip()
+
+                for slot in train_plan.slots:
+                    pr_ref = f"refs/remotes/origin/pr-{slot.pr.number}"
+                    fetched_pr = _git(
+                        work,
+                        "fetch",
+                        "--no-tags",
+                        "origin",
+                        f"refs/pull/{slot.pr.number}/head:{pr_ref}",
+                        network=True,
+                        check=False,
+                    )
+                    if fetched_pr.returncode != 0:
+                        notes.append(f"train #{slot.pr.number}: skipped (could not fetch PR ref)")
+                        if slot.branch in existing_trees:
+                            refs_to_delete.add(slot.branch)
+                        continue
+                    fetched_head = _git(work, "rev-parse", pr_ref).stdout.strip()
+                    if fetched_head != slot.pr.head:
+                        notes.append(f"train #{slot.pr.number}: skipped (head moved from {slot.pr.head[:7]} to {fetched_head[:7]})")
+                        continue
+                    mb_proc = _git(work, "merge-base", f"refs/remotes/origin/{BASE}", fetched_head, check=False)
+                    if mb_proc.returncode != 0:
+                        notes.append(f"train #{slot.pr.number}: skipped (no merge-base with {BASE})")
+                        if slot.branch in existing_trees:
+                            refs_to_delete.add(slot.branch)
+                        continue
+                    merge_base = mb_proc.stdout.strip()
+                    merges_out = _git(work, "rev-list", "--merges", f"{merge_base}..{fetched_head}").stdout.strip()
+                    if merges_out:
+                        notes.append(f"train #{slot.pr.number}: ejected (contains merge commits)")
+                        if slot.branch in existing_trees:
+                            refs_to_delete.add(slot.branch)
+                        continue
+                    _git(work, "checkout", "-q", "--detach", train_tip)
+                    if merge_base != fetched_head:
+                        cp = _git(work, "cherry-pick", f"{merge_base}..{fetched_head}", check=False)
+                        if cp.returncode != 0:
+                            _git(work, "cherry-pick", "--abort", check=False)
+                            _git(work, "reset", "--hard", "-q", train_tip, check=False)
+                            notes.append(f"train #{slot.pr.number}: ejected (rebase conflict on speculative tip)")
+                            if slot.branch in existing_trees:
+                                refs_to_delete.add(slot.branch)
+                            continue
+                    new_tip = _git(work, "rev-parse", "HEAD").stdout.strip()
+                    new_tree = _git(work, "rev-parse", "HEAD^{tree}").stdout.strip()
+                    train_tip = new_tip
+                    if not slot.push:
+                        continue
+                    if existing_trees.get(slot.branch) == new_tree:
+                        notes.append(f"train #{slot.pr.number}: {slot.branch} unchanged (tree {new_tree[:7]})")
+                        continue
+                    push_proc = _git(
+                        work,
+                        "push",
+                        "--force",
+                        "origin",
+                        f"{new_tip}:refs/heads/{slot.branch}",
+                        network=True,
+                        check=False,
+                    )
+                    if push_proc.returncode == 0:
+                        notes.append(f"train #{slot.pr.number}: pushed {slot.branch} ({new_tip[:7]}, tree {new_tree[:7]})")
+                    else:
+                        notes.append(f"train #{slot.pr.number}: failed to push {slot.branch}: {push_proc.stderr.strip()}")
+
+            for ref in sorted(refs_to_delete):
+                del_proc = _git(work, "push", "origin", f":refs/heads/{ref}", network=True, check=False)
+                if del_proc.returncode == 0:
+                    notes.append(f"train cleanup: deleted {ref}")
+                else:
+                    notes.append(f"train cleanup: could not delete {ref}: {del_proc.stderr.strip()}")
+        return notes
 
     def populate_patch_ids(self, prs: list[PR]) -> None:
         """Compute current patch_id for opted-in PRs that may carry over a prior review."""
@@ -728,6 +966,7 @@ def summarize(
     done: list[str],
     freeze_mode: str = "none",
     freeze_reason: str = "",
+    train_notes: list[str] | None = None,
 ) -> str:
     lines = ["## Merge gate", ""]
     if freeze_mode != "none":
@@ -737,6 +976,8 @@ def summarize(
     lines += [f"| #{n} | {state} | {detail} |" for n, state, detail in rows] or ["| — | idle | no opted-in PRs |"]
     if done:
         lines += ["", *[f"- {line}" for line in done]]
+    if train_notes:
+        lines += ["", "### Speculative merge train", "", *[f"- {line}" for line in train_notes]]
     return "\n".join(lines) + "\n"
 
 
@@ -747,6 +988,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-merges", type=int, default=5)
     parser.add_argument("--freeze", default=os.environ.get("MERGE_GATE_FREEZE", ""),
                         help="Freeze mode override: none, batch, or all (defaults to MERGE_GATE_FREEZE env)")
+    parser.add_argument("--train-depth", default=os.environ.get("MERGE_TRAIN_DEPTH", ""),
+                        help="Speculative merge-train depth (0 disables; defaults to MERGE_TRAIN_DEPTH env or 3)")
     parser.add_argument("--trusted-bot", action="append", default=[],
                         help="Additional bot login or App slug trusted for auto-merge")
     args = parser.parse_args(argv)
@@ -759,10 +1002,12 @@ def main(argv: list[str] | None = None) -> int:
     trusted_bots = trusted_bot_set(args.trusted_bot)
     done: list[str] = []
     rows: list[tuple[int, str, str]] = []
+    prs: list[PR] = []
     freeze_mode = "none"
     freeze_reason = ""
     merges = 0
     status = 0
+    mutated_last = False
     for _ in range(args.max_merges * 2 + 2):
         prs = gh.prs()
         for _retry in range(3):
@@ -783,6 +1028,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         rows = result.report
         merged = False
+        mutated_last = False
         for action, pr in result.actions:
             try:
                 outcome = gh.execute(action, pr)
@@ -790,11 +1036,44 @@ def main(argv: list[str] | None = None) -> int:
                 outcome, status = f"failed: {error}", 1
             done.append(f"#{pr.number}: {action} — {outcome}")
             print(done[-1], flush=True)
+            if args.apply and not outcome.startswith("failed"):
+                mutated_last = True
             merged = merged or (action == "merge" and not outcome.startswith("failed"))
         merges += merged
         if status or not (merged and args.apply) or merges >= args.max_merges:
             break
-    text = summarize(rows, done, freeze_mode=freeze_mode, freeze_reason=freeze_reason)
+
+    train_notes: list[str] = []
+    if status == 0:
+        if mutated_last and args.apply:
+            prs = gh.prs()
+            freeze_issues = gh.freeze_issues()
+            freeze_mode, freeze_reason = resolve_freeze_mode(args.freeze, freeze_issues)
+            gh.populate_patch_ids(prs)
+        train_depth = resolve_train_depth(args.train_depth)
+        existing_refs = gh.train_refs()
+        train_plan = plan_train(
+            prs,
+            existing_refs,
+            depth=train_depth,
+            freeze_mode=freeze_mode,
+            owner=gh.owner,
+            trusted_bots=trusted_bots,
+        )
+        try:
+            train_notes = gh.sync_train(train_plan)
+        except RuntimeError as error:
+            train_notes = [f"train sync warning: {error}"]
+        for note in train_notes:
+            print(note, flush=True)
+
+    text = summarize(
+        rows,
+        done,
+        freeze_mode=freeze_mode,
+        freeze_reason=freeze_reason,
+        train_notes=train_notes,
+    )
     print(text)
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
@@ -804,3 +1083,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

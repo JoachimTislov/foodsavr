@@ -64,6 +64,19 @@ skip() {
 
 repo="${GITHUB_REPOSITORY:?}"
 
+run_matches_requirement() {
+  local run_id="$1"
+  local jobs_json matched
+  jobs_json=$(gh api "repos/$repo/actions/runs/$run_id/jobs" 2>/dev/null || true)
+  [ -n "$jobs_json" ] || return 1
+  if [ -n "$require_job_re" ]; then
+    matched=$(printf '%s' "$jobs_json" | jq --arg re "$require_job_re" '[.jobs[] | select(.conclusion == "success" and (.name | test($re; "i")))] | length' 2>/dev/null || echo 0)
+  else
+    matched=$(printf '%s' "$jobs_json" | jq '[.jobs[] | select(.conclusion == "success" and (.name | test("already|detect|skip|preflight|validation status|decide"; "i") | not))] | length' 2>/dev/null || echo 0)
+  fi
+  [ "${matched:-0}" -gt 0 ]
+}
+
 has_green_pr_run() {
   local commit_sha="$1"
   local run_ids
@@ -72,19 +85,49 @@ has_green_pr_run() {
   if [ -z "$require_job_re" ]; then
     return 0
   fi
-  local run_id matched
+  local run_id
   for run_id in $run_ids; do
-    matched=$(gh api "repos/$repo/actions/runs/$run_id/jobs" 2>/dev/null \
-      | jq --arg re "$require_job_re" '[.jobs[] | select(.conclusion == "success" and (.name | test($re; "i")))] | length' 2>/dev/null || echo 0)
-    if [ "${matched:-0}" -gt 0 ]; then
+    if run_matches_requirement "$run_id"; then
       return 0
     fi
   done
   return 1
 }
 
+check_speculative_train_reuse() {
+  local pr_number head_sha head_repo train_branch train_runs new_tree run_id train_sha train_tree
+  pr_number=$(jq -r '.pull_request.number // empty' "$GITHUB_EVENT_PATH" 2>/dev/null || true)
+  head_sha=$(jq -r '.pull_request.head.sha // empty' "$GITHUB_EVENT_PATH" 2>/dev/null || true)
+  head_repo=$(jq -r '.pull_request.head.repo.full_name // empty' "$GITHUB_EVENT_PATH" 2>/dev/null || true)
+  # Fail closed on fork PRs or payloads without trusted same-repo head metadata.
+  if [ -z "$pr_number" ] || [ -z "$head_sha" ] || [ "$head_repo" != "$repo" ]; then
+    return 1
+  fi
+  train_branch="merge-train/pr-${pr_number}"
+  train_runs=$(gh run list --repo "$repo" --workflow "$wf" --branch "$train_branch" --event push --status success --limit 5 --json databaseId,headSha --jq '.[] | "\(.databaseId) \(.headSha)"' 2>/dev/null || true)
+  [ -n "$train_runs" ] || return 1
+  git rev-parse --verify "${head_sha}^{tree}" >/dev/null 2>&1 || git fetch --no-tags --depth=1 origin "$head_sha" 2>/dev/null || return 1
+  new_tree=$(git rev-parse "${head_sha}^{tree}" 2>/dev/null || true)
+  [ -n "$new_tree" ] || return 1
+  while read -r run_id train_sha; do
+    [ -n "$run_id" ] && [ -n "$train_sha" ] || continue
+    git rev-parse --verify "${train_sha}^{tree}" >/dev/null 2>&1 \
+      || git fetch --no-tags --depth=1 origin "$train_sha" 2>/dev/null \
+      || git fetch --no-tags --depth=1 origin "$train_branch" 2>/dev/null \
+      || continue
+    train_tree=$(git rev-parse "${train_sha}^{tree}" 2>/dev/null || true)
+    if [ -n "$train_tree" ] && [ "$train_tree" = "$new_tree" ]; then
+      if run_matches_requirement "$run_id"; then
+        skip true "tree ${new_tree:0:7} already validated on ${train_branch} (${train_sha:0:7}, run ${run_id})"
+      fi
+    fi
+  done <<< "$train_runs"
+  return 1
+}
+
 if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ]; then
   wf="$1"; shift
+  check_speculative_train_reuse || true
   [ "$(jq -r .action "$GITHUB_EVENT_PATH")" = "synchronize" ] || skip false "not a synchronize event"
   if [ "$#" -eq 0 ] && [ "${#targets[@]}" -eq 0 ]; then
     skip false "no scope pathspecs given"
@@ -139,7 +182,7 @@ has_non_skipped_run() {
   for run_id in $run_ids; do
     local executed
     executed=$(gh api "repos/$repo/actions/runs/$run_id/jobs" \
-      --jq '[.jobs[] | select(.conclusion == "success" and (.name | test("already|detect|skip|preflight|validation status"; "i") | not))] | length' 2>/dev/null || echo 0)
+      --jq '[.jobs[] | select(.conclusion == "success" and (.name | test("already|detect|skip|preflight|validation status|decide"; "i") | not))] | length' 2>/dev/null || echo 0)
     if [ "${executed:-0}" -gt 0 ]; then
       return 0
     fi
