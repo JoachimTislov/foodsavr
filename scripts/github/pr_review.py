@@ -1112,10 +1112,7 @@ def stage_pr_context(
         "pr": pr_num,
         "metadata": pr_meta,
         "classification": classification.to_dict(),
-        # A truncated diff can surface problems but never supports an approval.
-        "diff_truncated": len(diff_text) > MAX_INLINE_DIFF_CHARS,
     }
-    json_snapshot.write_text(json.dumps(snapshot_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     bounded_diff = diff_text[:MAX_INLINE_DIFF_CHARS] if diff_text else "(diff not attached)"
     if len(diff_text) > MAX_INLINE_DIFF_CHARS:
@@ -1163,7 +1160,14 @@ def stage_pr_context(
         "```",
         "",
     ])
-    md_snapshot.write_text("\n".join(md_lines), encoding="utf-8")
+    md_text = "\n".join(md_lines)
+    md_snapshot.write_text(md_text, encoding="utf-8")
+    # Flag what the reviewer actually receives: the diff cap or the whole-context cap
+    # (a long body or file list can push the diff end out). A truncated view never approves.
+    snapshot_payload["diff_truncated"] = (
+        len(diff_text) > MAX_INLINE_DIFF_CHARS or len(md_text) > MAX_INLINE_CONTEXT_CHARS
+    )
+    json_snapshot.write_text(json.dumps(snapshot_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     rel_json = _rel_path(json_snapshot)
     rel_md = _rel_path(md_snapshot)
@@ -1988,15 +1992,20 @@ def select_review_plan(
     return None
 
 
-def _diff_truncated(pr_number: int, workflow_result: Path) -> bool:
-    """True when the staged snapshot for this PR records a truncated diff."""
+def _diff_truncated(pr_number: int, workflow_result: Path, head_sha: str = "") -> bool:
+    """True when this head's staged snapshot records a truncated view (unreadable counts as truncated)."""
     for state_dir in (workflow_result.resolve().parent, ROOT / ".agents/state"):
         snapshot = state_dir / f"pr-{pr_number}.json"
-        if snapshot.is_file():
-            try:
-                return bool(json.loads(snapshot.read_text(encoding="utf-8")).get("diff_truncated"))
-            except (OSError, json.JSONDecodeError):
-                return False
+        if not snapshot.is_file():
+            continue
+        try:
+            payload = json.loads(snapshot.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return True
+        staged_sha = str(payload.get("classification", {}).get("head_sha", ""))
+        if head_sha and staged_sha and staged_sha != head_sha:
+            continue
+        return bool(payload.get("diff_truncated"))
     return False
 
 
@@ -2100,7 +2109,7 @@ def cmd_record_review(args: argparse.Namespace) -> int:
     )
     cap_reason = PROVIDER_CAP if capped else None
     effective_status = (status or ("commented" if args.workflow_result else "approved")).lower()
-    if effective_status == "approved" and args.workflow_result and _diff_truncated(meta["number"], Path(args.workflow_result)):
+    if effective_status == "approved" and args.workflow_result and _diff_truncated(meta["number"], Path(args.workflow_result), str(meta.get("head_sha") or "")):
         # The model saw only part of the change, so its approval cannot satisfy the gate.
         effective_status = "commented"
         reason = reason or "diff-truncated"

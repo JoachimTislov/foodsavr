@@ -671,6 +671,24 @@ class AttestationAndHistoryStoreTest(unittest.TestCase):
         )
         self.assertTrue(ok_human)
 
+    def test_stage_pr_context_flags_truncation_from_long_body(self):
+        cls = pr_review.classify_pr(
+            number=55, title="feat: big", author="owner", author_association="OWNER",
+            head_sha="abc1234", files=["lib/a.dart"], additions=10, deletions=0,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp)
+            pr_review.stage_pr_context(
+                pr_meta={"title": "feat: big", "body": "x" * (pr_review.MAX_INLINE_CONTEXT_CHARS + 10)},
+                classification=cls, diff_text="+small change\n", state_dir=state,
+            )
+            self.assertTrue(json.loads((state / "pr-55.json").read_text())["diff_truncated"])
+            pr_review.stage_pr_context(
+                pr_meta={"title": "feat: big", "body": "short"},
+                classification=cls, diff_text="+small change\n", state_dir=state,
+            )
+            self.assertFalse(json.loads((state / "pr-55.json").read_text())["diff_truncated"])
+
     def test_stage_pr_context_writes_snapshots_and_valid_workflow(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
