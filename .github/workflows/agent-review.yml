@@ -47,6 +47,7 @@ jobs:
       skip: ${{ steps.classify.outputs.skip }}
       required_tier: ${{ steps.classify.outputs.required_tier }}
       head_sha: ${{ steps.classify.outputs.head_sha }}
+      carryover: ${{ steps.classify.outputs.carryover }}
       executed_tier: ${{ steps.plan.outputs.tier }}
       run_model: ${{ steps.plan.outputs.run_model }}
       skip_reason: ${{ steps.plan.outputs.skip_reason }}
@@ -66,11 +67,13 @@ jobs:
         id: classify
         env:
           GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
         run: |
           [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || { echo "PR_NUMBER must be an integer"; exit 1; }
           mkdir -p .agents/state/workflows
           gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
-            --json number,title,body,isDraft,isCrossRepository,headRefOid,author,labels,files,additions,deletions,changedFiles,reviewDecision \
+            --json number,title,body,isDraft,isCrossRepository,headRefOid,author,labels,files,additions,deletions,changedFiles,reviewDecision,reviews,comments \
             > ".agents/state/pr-${PR_NUMBER}-meta.json"
           # gh pr view has no authorAssociation field; the REST API does.
           assoc="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.author_association')"
@@ -80,6 +83,7 @@ jobs:
           is_fork="$(jq -r '.isCrossRepository // false' ".agents/state/pr-${PR_NUMBER}-raw.json")"
           if [ "$is_draft" = "true" ] || [ "$is_fork" = "true" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "carryover=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" > ".agents/state/pr-${PR_NUMBER}.diff" || true
@@ -93,13 +97,30 @@ jobs:
             > ".agents/state/pr-${PR_NUMBER}-classification.json"
           req_tier="$(jq -r '.required_tier' ".agents/state/pr-${PR_NUMBER}-classification.json")"
           head_sha="$(jq -r '.head_sha' ".agents/state/pr-${PR_NUMBER}-classification.json")"
+          carryover="false"
+          if [ "$EVENT_NAME" = "pull_request_target" ] && [ "$EVENT_ACTION" = "synchronize" ] \
+             && [ "$req_tier" != "exempt" ] && [ "$req_tier" != "human" ]; then
+            python3 scripts/github/pr_review.py check-carryover \
+              --pr "$PR_NUMBER" \
+              --head-sha "$head_sha" \
+              --required-tier "$req_tier" \
+              --pr-json ".agents/state/pr-${PR_NUMBER}-raw.json" \
+              --diff-file ".agents/state/pr-${PR_NUMBER}.diff" \
+              --owner "${GITHUB_REPOSITORY_OWNER}" \
+              > ".agents/state/pr-${PR_NUMBER}-carryover.json"
+            if [ "$(jq -r '.eligible // false' ".agents/state/pr-${PR_NUMBER}-carryover.json")" = "true" ]; then
+              carryover="true"
+              echo "Patch-equivalent rebase detected; skipping redundant model review." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
           echo "skip=false" >> "$GITHUB_OUTPUT"
           echo "required_tier=${req_tier}" >> "$GITHUB_OUTPUT"
           echo "head_sha=${head_sha}" >> "$GITHUB_OUTPUT"
+          echo "carryover=${carryover}" >> "$GITHUB_OUTPUT"
 
       - name: Check model credentials
         id: credentials
-        if: steps.classify.outputs.skip == 'false' && steps.classify.outputs.required_tier != 'exempt'
+        if: steps.classify.outputs.skip == 'false' && steps.classify.outputs.required_tier != 'exempt' && steps.classify.outputs.carryover != 'true'
         env:
           HAS_PROVIDER: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.CODEX_AUTH_JSON_B64 != '' || secrets.ANTIGRAVITY_OAUTH_TOKEN_B64 != '' || secrets.GEMINI_API_KEY != '' }}
         run: echo "configured=$HAS_PROVIDER" >> "$GITHUB_OUTPUT"
@@ -200,22 +221,76 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ needs.review.outputs.head_sha }}
           REQ_TIER: ${{ needs.review.outputs.required_tier }}
+          CARRYOVER: ${{ needs.review.outputs.carryover }}
           EXECUTED_TIER: ${{ needs.review.outputs.executed_tier }}
           RUN_MODEL: ${{ needs.review.outputs.run_model }}
           SKIP_REASON: ${{ needs.review.outputs.skip_reason }}
         run: |
           [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || { echo "PR_NUMBER must be an integer"; exit 1; }
           [[ "$HEAD_SHA" =~ ^[0-9a-f]{7,40}$ ]] || { echo "invalid head sha"; exit 1; }
+          # Always recompute diff and PR metadata directly in publish so patch_id
+          # and carryover verification never rely on the model job's artifact.
+          gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            --json number,title,body,isDraft,isCrossRepository,headRefOid,author,labels,files,additions,deletions,changedFiles,reviewDecision,reviews,comments \
+            > ".agents/state/pr-${PR_NUMBER}-publish-meta.json"
+          assoc="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.author_association')"
+          jq --arg assoc "$assoc" '. + {authorAssociation: $assoc}' \
+            ".agents/state/pr-${PR_NUMBER}-publish-meta.json" > ".agents/state/pr-${PR_NUMBER}-publish-raw.json"
+          live_head="$(jq -r '.headRefOid // ""' ".agents/state/pr-${PR_NUMBER}-publish-raw.json")"
+          diff_args=()
+          if [ "$live_head" = "$HEAD_SHA" ] && gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" > ".agents/state/pr-${PR_NUMBER}-publish.diff"; then
+            diff_args=(--diff-file ".agents/state/pr-${PR_NUMBER}-publish.diff")
+          fi
           reviewer="github-actions[bot]"
           common=(
             --pr "$PR_NUMBER" --head-sha "$HEAD_SHA" --required-tier "$REQ_TIER"
             --reviewer "$reviewer" --bot --owner "${GITHUB_REPOSITORY_OWNER}"
-            --pr-json ".agents/state/pr-${PR_NUMBER}-raw.json"
+            --pr-json ".agents/state/pr-${PR_NUMBER}-publish-raw.json"
+            "${diff_args[@]}"
           )
           if [ "$REQ_TIER" = "exempt" ]; then
             # Exempt PRs need no attestation, but their outcome still feeds tier learning.
             python3 scripts/github/pr_review.py record-review "${common[@]}" \
               --status approved --provider policy-exempt --model none
+            exit 0
+          fi
+          if [ "$CARRYOVER" = "true" ]; then
+            if [ "$live_head" = "$HEAD_SHA" ] && [ "${#diff_args[@]}" -gt 0 ]; then
+              python3 scripts/github/pr_review.py check-carryover \
+                --pr "$PR_NUMBER" --head-sha "$HEAD_SHA" --required-tier "$REQ_TIER" \
+                --pr-json ".agents/state/pr-${PR_NUMBER}-publish-raw.json" \
+                --diff-file ".agents/state/pr-${PR_NUMBER}-publish.diff" \
+                --owner "${GITHUB_REPOSITORY_OWNER}" \
+                > ".agents/state/pr-${PR_NUMBER}-publish-carryover.json"
+            else
+              echo '{"eligible":false,"reason":"head-moved"}' > ".agents/state/pr-${PR_NUMBER}-publish-carryover.json"
+            fi
+            if [ "$(jq -r '.eligible // false' ".agents/state/pr-${PR_NUMBER}-publish-carryover.json")" = "true" ]; then
+              carried_tier="$(jq -r '.tier' ".agents/state/pr-${PR_NUMBER}-publish-carryover.json")"
+              carried_from="$(jq -r '.carried_from_sha' ".agents/state/pr-${PR_NUMBER}-publish-carryover.json")"
+              carried_patch="$(jq -r '.patch_id' ".agents/state/pr-${PR_NUMBER}-publish-carryover.json")"
+              carried_provider="$(jq -r '.provider // "deterministic-carryover"' ".agents/state/pr-${PR_NUMBER}-publish-carryover.json")"
+              carried_model="$(jq -r '.model // "none"' ".agents/state/pr-${PR_NUMBER}-publish-carryover.json")"
+              carried_session="$(jq -r '.session_id // empty' ".agents/state/pr-${PR_NUMBER}-publish-carryover.json")"
+              extra=()
+              if [ -n "$carried_session" ]; then extra+=(--session-id "$carried_session"); fi
+              python3 scripts/github/pr_review.py record-review "${common[@]}" \
+                --status approved --tier "$carried_tier" --capacity-cap \
+                --reason patch-equivalent-rebase \
+                --carried-from-sha "$carried_from" --patch-id "$carried_patch" \
+                --provider "$carried_provider" --model "$carried_model" \
+                --summary "Carried over approved ${carried_tier} review from ${carried_from:0:7} (identical patch after rebase)." \
+                --output-markdown ".agents/state/pr-${PR_NUMBER}-review.md" \
+                "${extra[@]}"
+              gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file ".agents/state/pr-${PR_NUMBER}-review.md"
+              exit 0
+            fi
+            echo "Carryover verification failed in publish; failing closed." >> "$GITHUB_STEP_SUMMARY"
+            python3 scripts/github/pr_review.py record-review "${common[@]}" \
+              --status skipped --tier fast --provider deterministic-gate --model policy-verifier \
+              --summary "Patch-equivalent carryover could not be verified on ${HEAD_SHA:0:7}; full review required." \
+              --output-markdown ".agents/state/pr-${PR_NUMBER}-review.md"
+            gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file ".agents/state/pr-${PR_NUMBER}-review.md"
             exit 0
           fi
           outcome=()

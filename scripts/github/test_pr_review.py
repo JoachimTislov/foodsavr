@@ -949,5 +949,342 @@ class HardeningTest(unittest.TestCase):
             self.assertIsNone(pr_review.extract_verdict({"artifacts": ["verify-gate.attempt-2.json"]}, root))
 
 
+class PatchEquivalentCarryoverTest(unittest.TestCase):
+    BASE_DIFF = (
+        "diff --git a/lib/foo.dart b/lib/foo.dart\n"
+        "index 1111111..2222222 100644\n"
+        "--- a/lib/foo.dart\n"
+        "+++ b/lib/foo.dart\n"
+        "@@ -10,4 +10,5 @@ class Foo {\n"
+        "   void a() {}\n"
+        "+  void b() {}\n"
+        "   void c() {}\n"
+        " }\n"
+    )
+
+    SHIFTED_DIFF = (
+        "diff --git a/lib/foo.dart b/lib/foo.dart\n"
+        "index 9999999..aaaaaaa 100644\n"
+        "--- a/lib/foo.dart\n"
+        "+++ b/lib/foo.dart\n"
+        "@@ -42,4 +42,5 @@ class Foo {\n"
+        "   void a() {}\n"
+        "+  void b() {}\n"
+        "   void c() {}\n"
+        " }\n"
+    )
+
+    CHANGED_DIFF = (
+        "diff --git a/lib/foo.dart b/lib/foo.dart\n"
+        "index 1111111..3333333 100644\n"
+        "--- a/lib/foo.dart\n"
+        "+++ b/lib/foo.dart\n"
+        "@@ -10,4 +10,5 @@ class Foo {\n"
+        "   void a() {}\n"
+        "+  void different() {}\n"
+        "   void c() {}\n"
+        " }\n"
+    )
+
+    def test_compute_patch_id_invariant_across_hunk_offsets_index_and_file_order(self):
+        self.assertIsNone(pr_review.compute_patch_id(""))
+        self.assertIsNone(pr_review.compute_patch_id("   \n\t\n"))
+        self.assertIsNone(pr_review.compute_patch_id("not a git diff\njust text\n"))
+
+        pid_base = pr_review.compute_patch_id(self.BASE_DIFF)
+        pid_shifted = pr_review.compute_patch_id(self.SHIFTED_DIFF)
+        pid_changed = pr_review.compute_patch_id(self.CHANGED_DIFF)
+        self.assertIsNotNone(pid_base)
+        assert pid_base is not None
+        self.assertTrue(pid_base.startswith("sha256:"))
+        self.assertEqual(pid_base, pid_shifted)
+        self.assertNotEqual(pid_base, pid_changed)
+
+        file_b = (
+            "diff --git a/lib/bar.dart b/lib/bar.dart\n"
+            "index 4444444..5555555 100644\n"
+            "--- a/lib/bar.dart\n"
+            "+++ b/lib/bar.dart\n"
+            "@@ -1,2 +1,3 @@\n"
+            " line1\n"
+            "+line2\n"
+        )
+        self.assertEqual(
+            pr_review.compute_patch_id(self.BASE_DIFF + file_b),
+            pr_review.compute_patch_id(file_b + self.SHIFTED_DIFF),
+        )
+
+    def test_compute_patch_id_sensitive_to_binary_blob_hashes(self):
+        bin_a = (
+            "diff --git a/assets/icon.png b/assets/icon.png\n"
+            "index 1111111..2222222 100644\n"
+            "Binary files a/assets/icon.png and b/assets/icon.png differ\n"
+        )
+        bin_b = (
+            "diff --git a/assets/icon.png b/assets/icon.png\n"
+            "index 1111111..3333333 100644\n"
+            "Binary files a/assets/icon.png and b/assets/icon.png differ\n"
+        )
+        self.assertNotEqual(
+            pr_review.compute_patch_id(bin_a),
+            pr_review.compute_patch_id(bin_b),
+        )
+
+    def test_evaluate_attestation_carries_over_on_matching_patch_id(self):
+        patch_id = pr_review.compute_patch_id(self.BASE_DIFF)
+        assert patch_id is not None
+        marker = pr_review.format_attestation_marker(
+            pr=88,
+            head_sha="1111111aaaaaaa",
+            tier="balanced",
+            required_tier="balanced",
+            status="approved",
+            provider="claude",
+            model="claude-sonnet-4-6",
+            patch_id=patch_id,
+        )
+        comment = {
+            "body": f"Review summary\n\n{marker}",
+            "author": {"__typename": "Bot", "login": "github-actions[bot]"},
+            "authorAssociation": "NONE",
+        }
+
+        ok, reason = pr_review.evaluate_review_attestation(
+            pr_number=88,
+            head_sha="2222222bbbbbbb",
+            required_tier="balanced",
+            comments=[comment],
+            owner="owner",
+            pr_author="owner",
+            current_patch_id=pr_review.compute_patch_id(self.SHIFTED_DIFF),
+        )
+        self.assertTrue(ok)
+        self.assertIsNone(reason)
+
+        # Different diff fails closed
+        ok_diff, _ = pr_review.evaluate_review_attestation(
+            pr_number=88,
+            head_sha="2222222bbbbbbb",
+            required_tier="balanced",
+            comments=[comment],
+            owner="owner",
+            pr_author="owner",
+            current_patch_id=pr_review.compute_patch_id(self.CHANGED_DIFF),
+        )
+        self.assertFalse(ok_diff)
+
+        # Missing current_patch_id fails closed
+        ok_missing, _ = pr_review.evaluate_review_attestation(
+            pr_number=88,
+            head_sha="2222222bbbbbbb",
+            required_tier="balanced",
+            comments=[comment],
+            owner="owner",
+            pr_author="owner",
+            current_patch_id=None,
+        )
+        self.assertFalse(ok_missing)
+
+        # Tier escalation (balanced -> deep) fails closed
+        ok_tier, reason_tier = pr_review.evaluate_review_attestation(
+            pr_number=88,
+            head_sha="2222222bbbbbbb",
+            required_tier="deep",
+            comments=[comment],
+            owner="owner",
+            pr_author="owner",
+            current_patch_id=patch_id,
+        )
+        self.assertFalse(ok_tier)
+        self.assertIn("insufficient review tier", reason_tier or "")
+
+        # Human tier never carries over from bot comment
+        ok_human, _ = pr_review.evaluate_review_attestation(
+            pr_number=88,
+            head_sha="2222222bbbbbbb",
+            required_tier="human",
+            comments=[comment],
+            owner="owner",
+            pr_author="owner",
+            current_patch_id=patch_id,
+        )
+        self.assertFalse(ok_human)
+
+    def test_carryover_fails_closed_on_truncated_self_untrusted_or_veto(self):
+        patch_id = pr_review.compute_patch_id(self.BASE_DIFF)
+        assert patch_id is not None
+
+        # Truncated prior attestation cannot carry over
+        trunc_marker = pr_review.format_attestation_marker(
+            pr=89, head_sha="1111111", tier="deep", required_tier="deep",
+            status="approved", patch_id=patch_id, diff_truncated=True,
+        )
+        self.assertIsNone(
+            pr_review.find_patch_equivalent_attestation(
+                pr_number=89,
+                head_sha="2222222",
+                required_tier="deep",
+                current_patch_id=patch_id,
+                comments=[{"body": trunc_marker, "author": {"__typename": "Bot", "login": "github-actions[bot]"}}],
+                owner="owner",
+            )
+        )
+
+        # Untrusted author cannot carry over
+        valid_marker = pr_review.format_attestation_marker(
+            pr=89, head_sha="1111111", tier="deep", required_tier="deep",
+            status="approved", patch_id=patch_id,
+        )
+        self.assertIsNone(
+            pr_review.find_patch_equivalent_attestation(
+                pr_number=89,
+                head_sha="2222222",
+                required_tier="deep",
+                current_patch_id=patch_id,
+                comments=[{"body": valid_marker, "author": {"__typename": "User", "login": "stranger"}, "authorAssociation": "NONE"}],
+                owner="owner",
+            )
+        )
+
+        # Self-review cannot carry over
+        self.assertIsNone(
+            pr_review.find_patch_equivalent_attestation(
+                pr_number=89,
+                head_sha="2222222",
+                required_tier="deep",
+                current_patch_id=patch_id,
+                comments=[{"body": valid_marker, "author": {"__typename": "Bot", "login": "github-actions[bot]"}}],
+                owner="owner",
+                pr_author="github-actions",
+            )
+        )
+
+        # Later blocked/changes_requested attestation on same patch vetoes carryover
+        blocked_marker = pr_review.format_attestation_marker(
+            pr=89, head_sha="1111111", tier="deep", required_tier="deep",
+            status="blocked", patch_id=patch_id,
+        )
+        self.assertIsNone(
+            pr_review.find_patch_equivalent_attestation(
+                pr_number=89,
+                head_sha="2222222",
+                required_tier="deep",
+                current_patch_id=patch_id,
+                comments=[
+                    {"body": valid_marker, "author": {"__typename": "Bot", "login": "github-actions[bot]"}},
+                    {"body": blocked_marker, "author": {"__typename": "Bot", "login": "github-actions[bot]"}},
+                ],
+                owner="owner",
+            )
+        )
+
+        # Capacity-capped approval carries over when required_tier still matches
+        cap_marker = pr_review.format_attestation_marker(
+            pr=89, head_sha="1111111", tier="fast", required_tier="deep",
+            status="approved", cap_reason=pr_review.PROVIDER_CAP, patch_id=patch_id,
+        )
+        carried = pr_review.find_patch_equivalent_attestation(
+            pr_number=89,
+            head_sha="2222222",
+            required_tier="deep",
+            current_patch_id=patch_id,
+            comments=[{"body": cap_marker, "author": {"__typename": "Bot", "login": "github-actions[bot]"}}],
+            owner="owner",
+            pr_author="owner",
+        )
+        self.assertIsNotNone(carried)
+        assert carried is not None
+        self.assertEqual(carried["cap_reason"], pr_review.PROVIDER_CAP)
+        self.assertEqual(carried["carried_from_sha"], "1111111")
+
+    def test_check_carryover_cli_and_record_review_with_diff_file(self):
+        patch_id = pr_review.compute_patch_id(self.BASE_DIFF)
+        assert patch_id is not None
+        prior_marker = pr_review.format_attestation_marker(
+            pr=91,
+            head_sha="1111111aaaaaaa",
+            tier="balanced",
+            required_tier="balanced",
+            status="approved",
+            provider="gemini",
+            model="gemini-3-flash",
+            patch_id=patch_id,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pr_json = root / "pr.json"
+            diff_file = root / "pr.diff"
+            comment_out = root / "comment.md"
+            history_path = root / "history.jsonl"
+
+            pr_json.write_text(
+                json.dumps(
+                    {
+                        "number": 91,
+                        "title": "feat: carryover test",
+                        "body": "",
+                        "author": {"login": "owner"},
+                        "authorAssociation": "OWNER",
+                        "headRefOid": "2222222bbbbbbb",
+                        "files": [{"path": "lib/foo.dart"}],
+                        "labels": [],
+                        "reviews": [],
+                        "comments": [
+                            {
+                                "body": prior_marker,
+                                "author": {"login": "github-actions[bot]"},
+                                "authorAssociation": "NONE",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            diff_file.write_text(self.SHIFTED_DIFF, encoding="utf-8")
+
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                rc = pr_review.main([
+                    "check-carryover",
+                    "--pr-json", str(pr_json),
+                    "--diff-file", str(diff_file),
+                    "--required-tier", "balanced",
+                    "--owner", "owner",
+                ])
+            self.assertEqual(rc, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertTrue(payload["eligible"])
+            self.assertEqual(payload["carried_from_sha"], "1111111aaaaaaa")
+            self.assertEqual(payload["patch_id"], patch_id)
+
+            stdout2 = io.StringIO()
+            with contextlib.redirect_stdout(stdout2):
+                rc2 = pr_review.main([
+                    "record-review",
+                    "--pr", "91",
+                    "--head-sha", "2222222bbbbbbb",
+                    "--pr-json", str(pr_json),
+                    "--diff-file", str(diff_file),
+                    "--tier", payload["tier"],
+                    "--required-tier", "balanced",
+                    "--status", "approved",
+                    "--reason", pr_review.PATCH_EQUIVALENT_REASON,
+                    "--carried-from-sha", payload["carried_from_sha"],
+                    "--provider", payload["provider"],
+                    "--model", payload["model"],
+                    "--summary", "Carried over after patch-equivalent rebase.",
+                    "--history", str(history_path),
+                    "--output-markdown", str(comment_out),
+                ])
+            self.assertEqual(rc2, 0)
+            parsed = pr_review.parse_attestation(comment_out.read_text(encoding="utf-8"))
+            self.assertIsNotNone(parsed)
+            assert parsed is not None
+            self.assertEqual(parsed["head_sha"], "2222222bbbbbbb")
+            self.assertEqual(parsed["patch_id"], patch_id)
+            self.assertEqual(parsed["carried_from_sha"], "1111111aaaaaaa")
+
+
 if __name__ == "__main__":
     unittest.main()
+
