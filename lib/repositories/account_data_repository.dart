@@ -10,31 +10,33 @@ class AccountDataRepository implements IAccountDataRepository {
 
   final FirebaseFirestore _firestore;
   final IPreferencesRepository _preferences;
-  static const _batchSize = 500;
 
   @override
-  Future<void> deleteForUser(String userId) async {
-    await _deleteOwnedDocuments('products', userId);
-    await _deleteOwnedDocuments('collections', userId);
-    await _preferences.deleteForUser(userId);
-    await _firestore.doc('users/$userId').delete();
-  }
-
-  Future<void> _deleteOwnedDocuments(String collection, String userId) async {
-    final query = _firestore
-        .collection(collection)
-        .where('userId', isEqualTo: userId)
-        .limit(_batchSize);
-    while (true) {
-      final page = await query.get(const GetOptions(source: Source.server));
-      if (page.docs.isEmpty) return;
-
+  Future<void> deleteForUser(String userId) => _preferences.deleteForUser(
+    userId,
+    () async {
+      final products = await _ownedDocuments('products', userId);
+      final collections = await _ownedDocuments('collections', userId);
       final batch = _firestore.batch();
-      for (final document in page.docs) {
+
+      for (final document in [...products, ...collections]) {
         batch.delete(document.reference);
       }
+      batch.delete(_firestore.doc('users/$userId/settings/preferences'));
+      batch.delete(_firestore.doc('users/$userId'));
+      // Keep cleanup atomic even when the account owns more than 500 documents.
       await batch.commit();
-      if (page.docs.length < _batchSize) return;
-    }
+    },
+  );
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _ownedDocuments(
+    String collection,
+    String userId,
+  ) async {
+    final snapshot = await _firestore
+        .collection(collection)
+        .where('userId', isEqualTo: userId)
+        .get(const GetOptions(source: Source.server));
+    return snapshot.docs;
   }
 }

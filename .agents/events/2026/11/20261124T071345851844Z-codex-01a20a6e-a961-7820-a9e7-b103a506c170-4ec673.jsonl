@@ -1,0 +1,1 @@
+{"event": "Verified that a denied atomic commit preserves the account and all 501 products under the tracked emulator rules. Verified successful deletion, route tests, and all five smoke tests.", "prs": ["#421"], "session_id": "codex:01a20a6e-a961-7820-a9e7-b103a506c170", "stream": "ledger", "timestamp": "2026-11-24T07:13:45+00:00"}

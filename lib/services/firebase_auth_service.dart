@@ -339,7 +339,12 @@ class AuthService implements IAuthService {
   }) async {
     final user = _firebaseAuth.currentUser;
     if (user == null) return;
-    if (reauthenticate) await _reauthenticate(user, password);
+    if (!user.isAnonymous) {
+      if (!reauthenticate) {
+        throw FirebaseAuthException(code: 'requires-recent-login');
+      }
+      await _reauthenticate(user, password);
+    }
     await _deleteUser(user);
   }
 
@@ -347,9 +352,16 @@ class AuthService implements IAuthService {
     _requireCurrentUser(user);
     await _accountDataRepository.deleteForUser(user.uid);
     _requireCurrentUser(user);
-    await _secureStorage.clearStoreTokens();
-    _requireCurrentUser(user);
     await user.delete();
+    try {
+      await _secureStorage.clearStoreTokens();
+    } catch (error, stack) {
+      _logger.w(
+        'Could not clear deleted account store tokens',
+        error: error,
+        stackTrace: stack,
+      );
+    }
     _logger.i('User account deleted: ${user.uid}');
   }
 

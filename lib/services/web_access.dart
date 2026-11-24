@@ -21,7 +21,7 @@ class WebAccess extends ChangeNotifier {
   bool get isLocked => _code.isNotEmpty && !_unlocked;
 
   bool unlock(String code) {
-    if (code.trim() != _code) return false;
+    if (code != _code && code.trim() != _code) return false;
     _unlocked = true;
     unawaited(_persist());
     notifyListeners();
