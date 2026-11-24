@@ -3,7 +3,7 @@ set -euo pipefail
 
 # scripts/link_local_files.sh <target-dir> [source-dir]
 # Symlinks ignored, local-only files (env, Firebase config) from the main checkout into a worktree.
-# Shared by scripts/create_worktree.sh and scripts/bisect.py.
+# Shared by scripts/create_worktree.sh and scripts/git_bisect.py.
 
 TARGET_DIR="${1:?Usage: $0 <target-dir> [source-dir]}"
 SOURCE_DIR="${2:-$(git rev-parse --show-toplevel)}"

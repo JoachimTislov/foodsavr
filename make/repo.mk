@@ -29,8 +29,8 @@ worktree: ## Create a worktree (name=<issue>)
 	fi
 	@bash scripts/create_worktree.sh "$(name)" "$(dir)" "$(task)"
 
-bisect: ## Worktree-isolated git bisect (ARGS='--good <rev> -- <check command>'; see scripts/bisect.py --help)
-	@python3 scripts/bisect.py $(ARGS)
+bisect: ## Worktree-isolated git bisect (ARGS='--good <rev> -- <check command>'; see scripts/git_bisect.py --help)
+	@python3 scripts/git_bisect.py $(ARGS)
 
 agent-sessions:
 	@scripts/agents/agentctl sessions $(ARGS)

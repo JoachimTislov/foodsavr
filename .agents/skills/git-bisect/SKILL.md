@@ -7,7 +7,7 @@ metadata:
 
 # Git bisect
 
-`scripts/bisect.py` bisects in a temporary detached worktree, so the caller's branch and uncommitted work are untouched. Stdlib only; `make bisect ARGS='...'` wraps it. `--help` lists every flag.
+`scripts/git_bisect.py` bisects in a temporary detached worktree, so the caller's branch and uncommitted work are untouched. Stdlib only; `make bisect ARGS='...'` wraps it. `--help` lists every flag.
 
 ## When
 
@@ -19,7 +19,7 @@ Bisect only when the bug appeared between two known commits **and** a tight pass
 2. Validate endpoints with `--verify-ends`, which checks that the good endpoint passes and the bad endpoint fails.
 3. Automated (always when unattended):
    ```sh
-   python3 scripts/bisect.py --good <rev> --verify-ends --json \
+   python3 scripts/git_bisect.py --good <rev> --verify-ends --json \
      --probe /abs/path/repro_test.dart:test/repro_test.dart \
      --setup 'dart run build_runner build' --timeout 600 \
      -- flutter test test/repro_test.dart
