@@ -103,12 +103,23 @@ class EffectiveRunTest(unittest.TestCase):
     def test_review_check_running_tracks_active_trusted_agent_review(self):
         rev = lambda conclusion, minutes, **kw: run(conclusion, minutes, name="Review PR", workflow=checks.REVIEW_WORKFLOW, **kw)
         self.assertTrue(checks.review_check_running([rev(None, 1, status="IN_PROGRESS")]))
+        self.assertEqual(
+            checks.review_check_state([rev(None, 5, status="IN_PROGRESS")]),
+            (True, T0 + timedelta(minutes=5)),
+        )
+        self.assertEqual(
+            checks.review_check_state([rev(None, 0, status="QUEUED", started=False)]),
+            (True, None),
+        )
         self.assertTrue(checks.review_check_running([rev("SUCCESS", 0), rev(None, 1, status="QUEUED")]))
-        self.assertFalse(checks.review_check_running([rev(None, 0, status="IN_PROGRESS"), rev("SUCCESS", 1)]))
+        self.assertEqual(
+            checks.review_check_state([rev(None, 0, status="IN_PROGRESS"), rev("SUCCESS", 1)]),
+            (False, None),
+        )
         self.assertFalse(checks.review_check_running([run(None, 1, status="IN_PROGRESS", workflow="Validation")]))
         untrusted = rev(None, 1, status="IN_PROGRESS")
         untrusted["checkSuite"]["app"]["slug"] = "rogue-app"
-        self.assertFalse(checks.review_check_running([untrusted]))
+        self.assertEqual(checks.review_check_state([untrusted]), (False, None))
 
 
 HOLD = "Validation status (hold)"

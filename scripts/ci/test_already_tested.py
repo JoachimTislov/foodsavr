@@ -257,12 +257,6 @@ else:
             diff_sha = _git(work, "rev-parse", "HEAD")
             _git(work, "push", "origin", "pr-42-diff")
 
-            self._install_fake_gh(
-                bin_dir,
-                runs_by_commit={},
-                runs_by_branch={"merge-train/pr-42": [{"databaseId": 303, "headSha": train_sha}]},
-                jobs_by_run={303: [{"name": "Validation status (result)", "conclusion": "success"}]},
-            )
             val_args = [
                 "--push-only-reuse",
                 "--require-job", r"Validation status \(result\)",
@@ -272,7 +266,50 @@ else:
                 "lib", "web", "android",
             ]
 
-            # 1. Trusted same-repo PR with matching tree -> skip=true for all targets!
+            # 0. Skipped-only validation train run (only control/status jobs, no substantive job) -> MUST fail closed
+            self._install_fake_gh(
+                bin_dir,
+                runs_by_commit={},
+                runs_by_branch={"merge-train/pr-42": [{"databaseId": 302, "headSha": train_sha}]},
+                jobs_by_run={
+                    302: [
+                        {"name": "Detect changed areas", "conclusion": "success"},
+                        {"name": "Validation status (result)", "conclusion": "success"},
+                    ]
+                },
+            )
+            skipped_only_out = self._run_script(
+                work,
+                bin_dir,
+                "pull_request",
+                {
+                    "action": "synchronize",
+                    "before": base,
+                    "pull_request": {
+                        "number": 42,
+                        "head": {"sha": pr_sha, "repo": {"full_name": "owner/repo"}},
+                    },
+                },
+                val_args,
+            )
+            self.assertEqual(skipped_only_out["skip"], "false")
+            self.assertEqual(skipped_only_out["skip_web"], "false")
+            self.assertEqual(skipped_only_out["skip_android"], "false")
+
+            self._install_fake_gh(
+                bin_dir,
+                runs_by_commit={},
+                runs_by_branch={"merge-train/pr-42": [{"databaseId": 303, "headSha": train_sha}]},
+                jobs_by_run={
+                    303: [
+                        {"name": "Detect changed areas", "conclusion": "success"},
+                        {"name": "Android smoke test", "conclusion": "success"},
+                        {"name": "Validation status (result)", "conclusion": "success"},
+                    ]
+                },
+            )
+
+            # 1. Trusted same-repo PR with matching tree and substantive executed job -> skip=true for all targets!
             ok_out = self._run_script(
                 work,
                 bin_dir,

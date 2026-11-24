@@ -66,15 +66,19 @@ repo="${GITHUB_REPOSITORY:?}"
 
 run_matches_requirement() {
   local run_id="$1"
-  local jobs_json matched
+  local require_substantive="${2:-false}"
+  local jobs_json matched substantive
   jobs_json=$(gh api "repos/$repo/actions/runs/$run_id/jobs" 2>/dev/null || true)
   [ -n "$jobs_json" ] || return 1
   if [ -n "$require_job_re" ]; then
     matched=$(printf '%s' "$jobs_json" | jq --arg re "$require_job_re" '[.jobs[] | select(.conclusion == "success" and (.name | test($re; "i")))] | length' 2>/dev/null || echo 0)
-  else
-    matched=$(printf '%s' "$jobs_json" | jq '[.jobs[] | select(.conclusion == "success" and (.name | test("already|detect|skip|preflight|validation status|decide"; "i") | not))] | length' 2>/dev/null || echo 0)
+    [ "${matched:-0}" -gt 0 ] || return 1
   fi
-  [ "${matched:-0}" -gt 0 ]
+  if [ -z "$require_job_re" ] || [ "$require_substantive" = "true" ]; then
+    substantive=$(printf '%s' "$jobs_json" | jq '[.jobs[] | select(.conclusion == "success" and (.name | test("already|detect|skip|preflight|validation status|decide"; "i") | not))] | length' 2>/dev/null || echo 0)
+    [ "${substantive:-0}" -gt 0 ] || return 1
+  fi
+  return 0
 }
 
 has_green_pr_run() {
@@ -117,7 +121,7 @@ check_speculative_train_reuse() {
       || continue
     train_tree=$(git rev-parse "${train_sha}^{tree}" 2>/dev/null || true)
     if [ -n "$train_tree" ] && [ "$train_tree" = "$new_tree" ]; then
-      if run_matches_requirement "$run_id"; then
+      if run_matches_requirement "$run_id" true; then
         skip true "tree ${new_tree:0:7} already validated on ${train_branch} (${train_sha:0:7}, run ${run_id})"
       fi
     fi

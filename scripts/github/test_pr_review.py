@@ -1164,6 +1164,10 @@ class PatchEquivalentCarryoverTest(unittest.TestCase):
             pr=89, head_sha="1111111", tier="deep", required_tier="deep",
             status="blocked", patch_id=patch_id,
         )
+        skipped_marker = pr_review.format_attestation_marker(
+            pr=89, head_sha="1111111", tier="deep", required_tier="deep",
+            status="skipped", patch_id=patch_id,
+        )
         self.assertIsNone(
             pr_review.find_patch_equivalent_attestation(
                 pr_number=89,
@@ -1171,31 +1175,97 @@ class PatchEquivalentCarryoverTest(unittest.TestCase):
                 required_tier="deep",
                 current_patch_id=patch_id,
                 comments=[
-                    {"body": valid_marker, "author": {"__typename": "Bot", "login": "github-actions[bot]"}},
-                    {"body": blocked_marker, "author": {"__typename": "Bot", "login": "github-actions[bot]"}},
+                    {"body": valid_marker, "createdAt": "2026-11-24T10:00:00Z", "author": {"__typename": "Bot", "login": "github-actions[bot]"}},
+                    {"body": blocked_marker, "createdAt": "2026-11-24T10:05:00Z", "author": {"__typename": "Bot", "login": "github-actions[bot]"}},
                 ],
                 owner="owner",
             )
         )
 
-        # Capacity-capped approval carries over when required_tier still matches
-        cap_marker = pr_review.format_attestation_marker(
-            pr=89, head_sha="1111111", tier="fast", required_tier="deep",
-            status="approved", cap_reason=pr_review.PROVIDER_CAP, patch_id=patch_id,
+        # A subsequent non-approving status (e.g. skipped) must NOT clear a blocking veto
+        self.assertIsNone(
+            pr_review.find_patch_equivalent_attestation(
+                pr_number=89,
+                head_sha="2222222",
+                required_tier="deep",
+                current_patch_id=patch_id,
+                comments=[
+                    {"body": valid_marker, "createdAt": "2026-11-24T10:00:00Z", "author": {"__typename": "Bot", "login": "github-actions[bot]"}},
+                    {"body": blocked_marker, "createdAt": "2026-11-24T10:05:00Z", "author": {"__typename": "Bot", "login": "github-actions[bot]"}},
+                    {"body": skipped_marker, "createdAt": "2026-11-24T10:10:00Z", "author": {"__typename": "Bot", "login": "github-actions[bot]"}},
+                ],
+                owner="owner",
+            )
         )
-        carried = pr_review.find_patch_equivalent_attestation(
+
+        # Chronological ordering across reviews and comments: newer review approval supersedes older comment block,
+        # while newer review block vetoes older comment approval.
+        review_approval = {
+            "body": valid_marker,
+            "submittedAt": "2026-11-24T11:00:00Z",
+            "author": {"__typename": "Bot", "login": "github-actions[bot]"},
+        }
+        comment_block_older = {
+            "body": blocked_marker,
+            "createdAt": "2026-11-24T10:00:00Z",
+            "author": {"__typename": "Bot", "login": "github-actions[bot]"},
+        }
+        carried_after_block = pr_review.find_patch_equivalent_attestation(
             pr_number=89,
             head_sha="2222222",
             required_tier="deep",
             current_patch_id=patch_id,
-            comments=[{"body": cap_marker, "author": {"__typename": "Bot", "login": "github-actions[bot]"}}],
+            reviews=[review_approval],
+            comments=[comment_block_older],
             owner="owner",
-            pr_author="owner",
         )
-        self.assertIsNotNone(carried)
-        assert carried is not None
-        self.assertEqual(carried["cap_reason"], pr_review.PROVIDER_CAP)
-        self.assertEqual(carried["carried_from_sha"], "1111111")
+        self.assertIsNotNone(carried_after_block)
+
+        review_block_newer = {
+            "body": blocked_marker,
+            "submittedAt": "2026-11-24T12:00:00Z",
+            "author": {"__typename": "Bot", "login": "github-actions[bot]"},
+        }
+        comment_approval_older = {
+            "body": valid_marker,
+            "createdAt": "2026-11-24T10:00:00Z",
+            "author": {"__typename": "Bot", "login": "github-actions[bot]"},
+        }
+        self.assertIsNone(
+            pr_review.find_patch_equivalent_attestation(
+                pr_number=89,
+                head_sha="2222222",
+                required_tier="deep",
+                current_patch_id=patch_id,
+                reviews=[review_block_newer],
+                comments=[comment_approval_older],
+                owner="owner",
+            )
+        )
+
+        # Capacity-capped lower-tier approval MUST NOT carry over across heads for a higher required tier
+        cap_marker = pr_review.format_attestation_marker(
+            pr=89, head_sha="1111111", tier="fast", required_tier="deep",
+            status="approved", cap_reason=pr_review.PROVIDER_CAP, patch_id=patch_id,
+        )
+        self.assertIsNone(
+            pr_review.find_patch_equivalent_attestation(
+                pr_number=89,
+                head_sha="2222222",
+                required_tier="deep",
+                current_patch_id=patch_id,
+                comments=[{"body": cap_marker, "author": {"__typename": "Bot", "login": "github-actions[bot]"}}],
+                owner="owner",
+                pr_author="owner",
+            )
+        )
+
+    def test_compute_patch_id_preserves_unicode_line_separators(self):
+        diff_ls = "diff --git a/lib/a.dart b/lib/a.dart\n@@ -1 +1 @@\n-const s = 'x';\n+const s = 'a\u2028b';\n"
+        diff_ps = "diff --git a/lib/a.dart b/lib/a.dart\n@@ -1 +1 @@\n-const s = 'x';\n+const s = 'a\u2029b';\n"
+        diff_nl = "diff --git a/lib/a.dart b/lib/a.dart\n@@ -1 +1 @@\n-const s = 'x';\n+const s = 'a\nb';\n"
+        self.assertNotEqual(pr_review.compute_patch_id(diff_ls), pr_review.compute_patch_id(diff_ps))
+        self.assertNotEqual(pr_review.compute_patch_id(diff_ls), pr_review.compute_patch_id(diff_nl))
 
     def test_check_carryover_cli_and_record_review_with_diff_file(self):
         patch_id = pr_review.compute_patch_id(self.BASE_DIFF)

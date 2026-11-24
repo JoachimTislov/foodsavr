@@ -134,10 +134,19 @@ def queue_check_state(contexts: list[dict[str, Any]]) -> tuple[bool, bool]:
     return ok, running
 
 
-def review_check_running(contexts: list[dict[str, Any]]) -> bool:
-    """Return True when a trusted Agent review workflow check run is active on this head."""
+def review_check_state(contexts: list[dict[str, Any]]) -> tuple[bool, datetime | None]:
+    """Return (running, started_at) for active trusted Agent review check runs on this head."""
     runs = effective_runs([
         c for c in contexts
         if _is_trusted_actions_check(c) and _workflow_name(c) == REVIEW_WORKFLOW
     ])
-    return any(c.get("status") != "COMPLETED" for c in runs)
+    active = [c for c in runs if c.get("status") != "COMPLETED"]
+    if not active:
+        return False, None
+    starts = [t for c in active if (t := _started(c)) is not None]
+    return True, (max(starts) if starts else None)
+
+
+def review_check_running(contexts: list[dict[str, Any]]) -> bool:
+    """Return True when a trusted Agent review workflow check run is active on this head."""
+    return review_check_state(contexts)[0]

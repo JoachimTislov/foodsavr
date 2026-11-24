@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from checks import FAILED, IGNORED_WORKFLOWS, QUEUE_CHECK, queue_check_state, review_check_running, rollup_state  # noqa: E402
+from checks import FAILED, IGNORED_WORKFLOWS, QUEUE_CHECK, queue_check_state, review_check_state, rollup_state  # noqa: E402
 try:
     from scripts.github import pr_review
 except ImportError:
@@ -80,6 +80,34 @@ query($owner: String!, $name: String!, $label: String!) {
 }
 """
 
+TRAIN_REFS_QUERY = """
+query($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    refs(refPrefix: "refs/heads/merge-train/", first: 30) {
+      nodes {
+        name
+        prefix
+        target {
+          ... on Commit {
+            oid
+            tree { oid }
+            statusCheckRollup {
+              contexts(first: 100) {
+                nodes {
+                  __typename
+                  ... on CheckRun { name status conclusion startedAt checkSuite { app { slug } workflowRun { databaseId workflow { name } } } }
+                  ... on StatusContext { context state }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
 QUERY = """
 query($owner: String!, $name: String!, $cursor: String) {
   repository(owner: $owner, name: $name) {
@@ -88,7 +116,7 @@ query($owner: String!, $name: String!, $cursor: String) {
       pageInfo { hasNextPage endCursor }
       nodes {
         id number title body isDraft isCrossRepository mergeStateStatus
-        authorAssociation reviewDecision headRefOid
+        authorAssociation reviewDecision headRefOid baseRefOid
         additions deletions changedFiles
         author { __typename login }
         labels(first: 50) { nodes { name } }
@@ -142,6 +170,7 @@ class PR:
     merge_state: str
     rollup: str | None
     head_time: datetime
+    base: str = ""
     draft: bool = False
     fork: bool = False
     author: str = ""
@@ -157,6 +186,7 @@ class PR:
     queue_ok: bool = False
     queue_running: bool = False
     review_running: bool = False
+    review_started_at: datetime | None = None
     rebase_requested: datetime | None = None
     rebase_refused: bool = False
     additions: int = 0
@@ -199,6 +229,13 @@ class TrainSlot:
 class TrainPlan:
     slots: list[TrainSlot]
     delete_refs: list[str]
+
+
+@dataclass
+class TrainRefState:
+    branch: str
+    tree_oid: str = ""
+    rollup: str | None = None
 
 
 def normalize_bot(login: str) -> str:
@@ -250,7 +287,7 @@ def from_node(node: dict[str, Any]) -> PR:
     contexts = ((commit.get("statusCheckRollup") or {}).get("contexts") or {}).get("nodes", [])
     rollup = rollup_state(contexts)
     queue_ok, queue_running = queue_check_state(contexts)
-    review_running = review_check_running(contexts)
+    review_running, review_started_at = review_check_state(contexts)
     head_time = parse_time(commit["committedDate"]) if commit.get("committedDate") else datetime.now(timezone.utc)
     timeline = node["timelineItems"]["nodes"]
     labeled_times = [
@@ -310,6 +347,7 @@ def from_node(node: dict[str, Any]) -> PR:
         node_id=node["id"],
         title=node["title"],
         head=node["headRefOid"],
+        base=node.get("baseRefOid") or "",
         merge_state=node["mergeStateStatus"],
         rollup=rollup,
         head_time=head_time,
@@ -328,6 +366,7 @@ def from_node(node: dict[str, Any]) -> PR:
         queue_ok=queue_ok,
         queue_running=queue_running,
         review_running=review_running,
+        review_started_at=review_started_at,
         rebase_requested=max(requested) if requested else None,
         rebase_refused=bool(refused and requested and max(refused) >= max(requested)),
         additions=int(node.get("additions") or 0),
@@ -445,13 +484,14 @@ def blocker(
 def resolve_freeze_mode(
     env_value: str | None = None,
     freeze_issues: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
+    lookup_error: str | None = None,
 ) -> tuple[str, str]:
     """Resolve effective integration freeze mode ('none', 'batch', or 'all') and human-readable reason.
 
     ``MERGE_GATE_FREEZE=all|true`` freezes every PR; ``batch`` freezes normal ``merge/auto`` PRs
     while allowing ``merge/priority`` PRs through. When the variable is unset/none, any open
-    issue labeled ``merge/freeze`` activates ``batch`` freeze. Unknown non-empty values fail closed
-    to ``all``.
+    issue labeled ``merge/freeze`` activates ``batch`` freeze, and a failed lookup fails closed
+    to ``all``. Unknown non-empty values also fail closed to ``all``.
     """
     raw = (env_value or "").strip().lower()
     issue_refs = [f"#{i['number']}" for i in freeze_issues if isinstance(i, dict) and i.get("number")]
@@ -462,6 +502,8 @@ def resolve_freeze_mode(
     if raw == "batch":
         return "batch", f"MERGE_GATE_FREEZE=batch{issue_suffix}"
     if raw in {"", "none", "false", "0", "no"}:
+        if lookup_error:
+            return "all", f"freeze-issue lookup failed ({lookup_error}); failing closed to all"
         if issue_refs:
             return "batch", f"open {FREEZE_LABEL} issue(s): {', '.join(issue_refs)}"
         return "none", ""
@@ -533,7 +575,12 @@ def plan(
             continue
         rev = review_blocker(pr, owner=owner, trusted_bots=trusted_bots, history=effective_history)
         if rev:
-            if pr.review_running and now - pr.head_time < STALL_AFTER:
+            review_activity_at = (
+                pr.review_started_at
+                if pr.review_started_at is not None
+                else (max(pr.head_time, pr.labeled_at) if pr.labeled_at else pr.head_time)
+            )
+            if pr.review_running and now - review_activity_at < STALL_AFTER:
                 review_in_flight.append(pr)
                 report.append((pr.number, "in flight", f"Agent review running ({rev})"))
             else:
@@ -606,20 +653,21 @@ def plan(
 
 
 def needs_patch_id(pr: PR) -> bool:
-    """True when an opted-in PR has a prior attestation carrying patch_id on an older head."""
+    """True when an opted-in PR has an approved attestation carrying patch_id on an older head."""
     if LABEL not in pr.labels or pr.draft or pr.fork:
         return False
-    has_prior_patch = False
     for item in (*pr.reviews, *pr.comments):
         body = item.get("body", "") if isinstance(item, dict) else getattr(item, "body", "")
         att = pr_review.parse_attestation(str(body or ""))
         if not att:
             continue
-        if att.get("head_sha") == pr.head and str(att.get("status") or "").lower() == "approved":
-            return False
-        if att.get("patch_id") and str(att.get("status") or "").lower() == "approved":
-            has_prior_patch = True
-    return has_prior_patch
+        if (
+            att.get("head_sha") != pr.head
+            and att.get("patch_id")
+            and str(att.get("status") or "").lower() == "approved"
+        ):
+            return True
+    return False
 
 
 def resolve_train_depth(raw: str | int | None) -> int:
@@ -724,6 +772,13 @@ class GitHub:
         )
         return list((data["data"]["repository"]["issues"] or {}).get("nodes") or [])
 
+    def safe_freeze_issues(self) -> tuple[list[dict[str, Any]], str | None]:
+        """Fetch open freeze issues, returning (issues, error) so lookup failures fail closed."""
+        try:
+            return self.freeze_issues(), None
+        except RuntimeError as error:
+            return [], str(error)
+
     def train_refs(self) -> list[str]:
         """List existing merge-train/pr-* branch names on the repository."""
         try:
@@ -744,18 +799,61 @@ class GitHub:
                     refs.append(branch)
         return sorted(set(refs))
 
+    def train_ref_states(self) -> dict[str, TrainRefState]:
+        """Fetch existing merge-train/pr-* refs with their tip tree OID and check rollup."""
+        try:
+            data = json.loads(
+                self.run(
+                    "api", "graphql",
+                    "-f", f"query={TRAIN_REFS_QUERY}",
+                    "-F", f"owner={self.owner}",
+                    "-F", f"name={self.name}",
+                )
+            )
+            nodes = ((data["data"]["repository"].get("refs") or {}).get("nodes") or [])
+        except (RuntimeError, KeyError, TypeError, json.JSONDecodeError):
+            return {ref: TrainRefState(branch=ref) for ref in self.train_refs()}
+
+        states: dict[str, TrainRefState] = {}
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            raw_name = str(node.get("name") or "")
+            raw_prefix = str(node.get("prefix") or "refs/heads/merge-train/")
+            if raw_name.startswith(TRAIN_PREFIX):
+                branch = raw_name
+            else:
+                full_ref = f"{raw_prefix}{raw_name}"
+                branch = full_ref[len("refs/heads/"):] if full_ref.startswith("refs/heads/") else raw_name
+            if not branch.startswith(TRAIN_PREFIX):
+                continue
+            target = node.get("target") or {}
+            tree_oid = str((target.get("tree") or {}).get("oid") or "")
+            contexts = (((target.get("statusCheckRollup") or {}).get("contexts") or {}).get("nodes") or [])
+            states[branch] = TrainRefState(
+                branch=branch,
+                tree_oid=tree_oid,
+                rollup=rollup_state(contexts),
+            )
+        return states
+
     def sync_train(
         self,
         train_plan: TrainPlan,
         remote_url: str | None = None,
         token: str | None = None,
+        failed_train_trees: dict[str, str] | None = None,
     ) -> list[str]:
         """Linearly replay speculative train slots onto develop and sync train refs."""
         push_slots = [slot for slot in train_plan.slots if slot.push]
         if not push_slots and not train_plan.delete_refs:
             return []
         if not self.apply:
-            notes = [f"train #{slot.pr.number}: would sync {slot.branch} (dry run)" for slot in push_slots]
+            notes = [
+                f"train #{slot.pr.number}: would sync {slot.branch} (dry run)"
+                + (" [currently failing]" if failed_train_trees and slot.branch in failed_train_trees else "")
+                for slot in push_slots
+            ]
             notes += [f"train cleanup: would delete {ref} (dry run)" for ref in train_plan.delete_refs]
             return notes
 
@@ -851,6 +949,10 @@ class GitHub:
                             continue
                     new_tip = _git(work, "rev-parse", "HEAD").stdout.strip()
                     new_tree = _git(work, "rev-parse", "HEAD^{tree}").stdout.strip()
+                    if slot.push and failed_train_trees and failed_train_trees.get(slot.branch) == new_tree:
+                        _git(work, "reset", "--hard", "-q", train_tip, check=False)
+                        notes.append(f"train #{slot.pr.number}: ejected ({slot.branch} failed checks at tree {new_tree[:7]})")
+                        continue
                     train_tip = new_tip
                     if not slot.push:
                         continue
@@ -884,8 +986,16 @@ class GitHub:
         for pr in prs:
             if not needs_patch_id(pr):
                 continue
+            if not pr.base or not pr.head:
+                pr.patch_id = None
+                continue
             try:
-                diff_text = self.run("pr", "diff", str(pr.number), "--repo", self.repo)
+                diff_text = self.run(
+                    "api",
+                    "-H",
+                    "Accept: application/vnd.github.v3.diff",
+                    f"repos/{self.repo}/compare/{pr.base}...{pr.head}",
+                )
             except RuntimeError:
                 pr.patch_id = None
                 continue
@@ -1005,6 +1115,7 @@ def main(argv: list[str] | None = None) -> int:
     prs: list[PR] = []
     freeze_mode = "none"
     freeze_reason = ""
+    freeze_lookup_error: str | None = None
     merges = 0
     status = 0
     mutated_last = False
@@ -1015,8 +1126,12 @@ def main(argv: list[str] | None = None) -> int:
                 break
             time.sleep(10)
             prs = gh.prs()
-        freeze_issues = gh.freeze_issues()
-        freeze_mode, freeze_reason = resolve_freeze_mode(args.freeze, freeze_issues)
+        freeze_issues, freeze_lookup_error = gh.safe_freeze_issues()
+        freeze_mode, freeze_reason = resolve_freeze_mode(
+            args.freeze,
+            freeze_issues,
+            lookup_error=freeze_lookup_error,
+        )
         gh.populate_patch_ids(prs)
         result = plan(
             prs,
@@ -1030,6 +1145,23 @@ def main(argv: list[str] | None = None) -> int:
         merged = False
         mutated_last = False
         for action, pr in result.actions:
+            if args.apply and action in {"merge", "update", "label"}:
+                live_issues, live_error = gh.safe_freeze_issues()
+                live_mode, live_reason = resolve_freeze_mode(
+                    args.freeze,
+                    live_issues,
+                    lookup_error=live_error,
+                )
+                blocked_by_freeze = (
+                    live_mode == "all"
+                    or (live_mode == "batch" and (action == "label" or not pr.priority))
+                )
+                if blocked_by_freeze:
+                    freeze_mode, freeze_reason = live_mode, live_reason
+                    freeze_lookup_error = live_error
+                    done.append(f"#{pr.number}: {action} skipped — integration freeze ({live_mode}: {live_reason})")
+                    print(done[-1], flush=True)
+                    break
             try:
                 outcome = gh.execute(action, pr)
             except RuntimeError as error:
@@ -1047,23 +1179,35 @@ def main(argv: list[str] | None = None) -> int:
     if status == 0:
         if mutated_last and args.apply:
             prs = gh.prs()
-            freeze_issues = gh.freeze_issues()
-            freeze_mode, freeze_reason = resolve_freeze_mode(args.freeze, freeze_issues)
+            freeze_issues, freeze_lookup_error = gh.safe_freeze_issues()
+            freeze_mode, freeze_reason = resolve_freeze_mode(
+                args.freeze,
+                freeze_issues,
+                lookup_error=freeze_lookup_error,
+            )
             gh.populate_patch_ids(prs)
-        train_depth = resolve_train_depth(args.train_depth)
-        existing_refs = gh.train_refs()
-        train_plan = plan_train(
-            prs,
-            existing_refs,
-            depth=train_depth,
-            freeze_mode=freeze_mode,
-            owner=gh.owner,
-            trusted_bots=trusted_bots,
-        )
-        try:
-            train_notes = gh.sync_train(train_plan)
-        except RuntimeError as error:
-            train_notes = [f"train sync warning: {error}"]
+        if freeze_lookup_error:
+            train_notes = [f"train sync skipped: freeze-issue lookup failed ({freeze_lookup_error})"]
+        else:
+            train_depth = resolve_train_depth(args.train_depth)
+            train_states = gh.train_ref_states()
+            failed_train_trees = {
+                branch: state.tree_oid
+                for branch, state in train_states.items()
+                if state.rollup == "FAILURE" and state.tree_oid
+            }
+            train_plan = plan_train(
+                prs,
+                list(train_states),
+                depth=train_depth,
+                freeze_mode=freeze_mode,
+                owner=gh.owner,
+                trusted_bots=trusted_bots,
+            )
+            try:
+                train_notes = gh.sync_train(train_plan, failed_train_trees=failed_train_trees)
+            except RuntimeError as error:
+                train_notes = [f"train sync warning: {error}"]
         for note in train_notes:
             print(note, flush=True)
 
