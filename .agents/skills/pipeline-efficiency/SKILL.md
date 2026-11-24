@@ -7,7 +7,7 @@ metadata:
 
 # Pipeline efficiency
 
-Shift failures left to local commands, keep `develop` PR gates fast and narrow, push heavy emulator/E2E/build checks to `develop -> daily` promotion, and isolate repo-wide CI outages before amplifying them across a queue.
+Shift failures left to local commands, path-gate every check so a PR runs only what its change can break, keep release builds and publishes on promotion, and isolate repo-wide CI outages before amplifying them across a queue. `develop` pushes do not re-run Validation (ADR 0007), so the `develop` PR run is the last smoke/E2E check before promotion and is never thinned below the paths a change touches.
 
 ## 1. Local-first preflight
 
@@ -41,7 +41,7 @@ Run the cheapest exact mirror of CI before every push. Install `.githooks/` once
    - **`firestore.rules` or `firestore-rules/**`**: start the Firestore emulator and run `npm --prefix firestore-rules test` (or `npx jest --ci`).
    - **`.github/workflows/**` or `.github/actions/**`**: run `actionlint` on each changed workflow.
    - **Traceability**: confirm every commit carries an `Agent-Session:` trailer (`scripts/agents/agentctl check-pr --base origin/develop --head HEAD`).
-4. Before syncing generated or local files to GitHub secrets via `scripts/secrets/rotate.py`, validate the source artifact locally (valid UTF-8 and `dart format --output=none` for `lib/firebase_options.dart`; valid PEM key header and structure for GitHub App private keys).
+4. Before setting a secret from a local file via `scripts/secrets/rotate.py`, validate the source locally (for example, a valid PEM header and structure for GitHub App private keys). `lib/firebase_options.dart` is tracked in git, not synced to a secret.
 
 Done when every check matching the branch's changed paths exits 0 on a clean tree.
 
@@ -53,7 +53,7 @@ Before pushing a batch, adding `merge/auto` across open PRs, or triggering bulk 
 gh run list --limit 10 --json name,conclusion,event,createdAt,headBranch
 ```
 
-When two or more unrelated PRs fail on the same infrastructure step (for example `Invalid keyData` minting an App token, corrupt `FIREBASE_OPTIONS_B64`, or an upstream CLI installer flag change):
+When two or more unrelated PRs fail on the same infrastructure step (for example `Invalid keyData` minting an App token, corrupt Firebase client options, or an upstream CLI installer flag change):
 
 1. Hold bulk reruns and leave queued PRs untouched.
 2. Fix or escalate the single root cause.
@@ -68,8 +68,8 @@ Place each check in the earliest, cheapest tier that still enforces its safety p
 | Tier | Target | What belongs here | Keep out of this tier |
 |---|---|---|---|
 | **Local pre-push** | Developer / agent worktree | `check_pr_base.py`, `local_ci.py`, `scripts/infra`, `scripts/release`, `foodsavr_deploy`, `actionlint`, secret format validation | Multi-minute emulator boots |
-| **`develop` PR** | Fast integration (<3 min) | Path-filtered `Check & Test` (Dart/Flutter code only), `Traceability`, `PR base`, `Deployment level` (deploy/infra paths only), `Firestore security rules` (rules paths only), `Agent system validation` (agent/script paths excluding `.agents/events/**`) | Android Emulator smoke/integration (~10 min), release APK/Web artifact builds, full site publishes, `synchronize` label churn |
-| **`develop -> daily` (next branch)** | Promotion & release channels | Full `Validation` (Android Emulator smoke + integration, Playwright Web E2E), `Android Build`, `Web Build`, full docs build/publish, live deploys | Unverified manual skips — keep daily promotion active so `develop` never drifts untested |
+| **`develop` PR** | Integration gate | Path-filtered `Check & Test` (Dart/Flutter code only), `Traceability`, `PR base`, `Deployment level` (deploy/infra paths only), `Firestore security rules` (rules paths only), `Agent system validation` (agent/script paths excluding `.agents/events/**`), and `Validation` (Web smoke + E2E and Android smoke + integration) whenever app paths change | Release APK/Web artifact builds, full site publishes, emulator runs for non-app edits, `synchronize` label churn |
+| **`develop -> daily` (next branch)** | Promotion & release channels | `Validation` on the promoted SHA (reused when already green), `Android Build`, `Web Build`, full docs build/publish, live deploys | Unverified manual skips |
 
 When authoring or tightening `.github/workflows/*.yml`:
 

@@ -49,12 +49,12 @@ For every non-green run (or a stratified sample when one workflow dominates):
 
 1. Inspect failed jobs and steps via `gh api repos/<owner>/<repo>/actions/runs/<id>/jobs` and `gh run view <id> --log-failed`.
 2. Bucket every failure into one root cause:
-   - **Shared secret / infra outage** (e.g. App PEM `Invalid keyData`, corrupt `FIREBASE_OPTIONS_B64`, missing WIF vars)
+   - **Shared secret / infra outage** (e.g. App PEM `Invalid keyData`, corrupt Firebase client options, missing WIF vars)
    - **Local CI blind spot** (passed locally, failed in CI due to missing test group or runner env var like `GITHUB_REPOSITORY`)
    - **Upstream / external drift** (third-party CLI flag change, rate limit, live probe failure)
    - **Real code/test regression** (actual bug caught by CI)
    - **Process / race** (stale base, open-then-label cancellation, mid-run rebase cancellation)
-3. Inspect active rulesets (`gh api repos/<owner>/<repo>/rulesets`) to spot duplicate rulesets, strict up-to-date cascades, or heavy checks blocking `develop` that belong on `develop -> daily`.
+3. Inspect active rulesets (`gh api repos/<owner>/<repo>/rulesets`) to spot duplicate rulesets, strict up-to-date cascades, or checks that run on paths they cannot affect.
 
 ## 3. Report actionable metrics
 
@@ -63,6 +63,6 @@ Summarize findings with:
 - **Totals**: runs, pass/fail/cancel counts and percentages, wall minutes total vs wasted, and runs per merged PR.
 - **Top failure clusters**: ranked by run count and wall minutes, each with concrete run IDs and root cause.
 - **Redundancy hotspots**: workflows firing on out-of-scope paths (e.g. `.agents/events/**`, `scripts/ci/*.py`) or excessive `workflow_run` fan-out.
-- **Ordered fixes**: (1) immediate blocker/secret fixes, (2) local preflight additions, (3) workflow trigger & path-filter trims, (4) `develop` vs `develop -> daily` tiering changes.
+- **Ordered fixes**: (1) immediate blocker/secret fixes, (2) local preflight additions, (3) workflow trigger & path-filter trims, (4) tiering changes that keep path-gated smoke/E2E on `develop` PRs.
 
 Done when every failure in the window is assigned a verified root cause and every recommendation cites the exact workflow, file, or ruleset to change.
