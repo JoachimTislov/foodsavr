@@ -274,31 +274,33 @@ class ZeroArgDefaultsAndCliTest(unittest.TestCase):
             self.assertEqual(setupctl.resolve_upstream(), setupctl.UPSTREAM_REPO)
 
     def test_enable_actions_is_idempotent_and_respects_agent_guard(self):
-        with patch.dict(os.environ, {"AGENT_SESSION_ID": "test:123"}, clear=False):
+        clean_env = {k: v for k, v in os.environ.items() if k not in setupctl.AGENT_ENV_VARS}
+        with patch.dict(os.environ, {**clean_env, "AGENT_SESSION_ID": "test:123"}, clear=True):
             with self.assertRaises(PermissionError):
                 setupctl.enable_actions(repo="alice/foodsavr", dry_run=False)
 
-        with patch.object(
-            setupctl,
-            "_run",
-            return_value=subprocess.CompletedProcess([], 0, "true\n", ""),
-        ) as mock_run:
-            res = setupctl.enable_actions(repo="alice/foodsavr", dry_run=False)
-        self.assertTrue(res["already_enabled"])
-        self.assertEqual(mock_run.call_count, 1)
+        with patch.dict(os.environ, clean_env, clear=True):
+            with patch.object(
+                setupctl,
+                "_run",
+                return_value=subprocess.CompletedProcess([], 0, "true\n", ""),
+            ) as mock_run:
+                res = setupctl.enable_actions(repo="alice/foodsavr", dry_run=False)
+            self.assertTrue(res["already_enabled"])
+            self.assertEqual(mock_run.call_count, 1)
 
-        with patch.object(
-            setupctl,
-            "_run",
-            side_effect=[
-                subprocess.CompletedProcess([], 0, "false\n", ""),
-                subprocess.CompletedProcess([], 0, "", ""),
-            ],
-        ) as mock_run:
-            res = setupctl.enable_actions(repo="alice/foodsavr", dry_run=False)
-        self.assertFalse(res["already_enabled"])
-        self.assertEqual(mock_run.call_count, 2)
-        self.assertIn("-X", mock_run.call_args_list[1].args[0])
+            with patch.object(
+                setupctl,
+                "_run",
+                side_effect=[
+                    subprocess.CompletedProcess([], 0, "false\n", ""),
+                    subprocess.CompletedProcess([], 0, "", ""),
+                ],
+            ) as mock_run:
+                res = setupctl.enable_actions(repo="alice/foodsavr", dry_run=False)
+            self.assertFalse(res["already_enabled"])
+            self.assertEqual(mock_run.call_count, 2)
+            self.assertIn("-X", mock_run.call_args_list[1].args[0])
 
     def test_cli_ensure_branches_zero_args_interactive_and_concise_output(self):
         from contextlib import redirect_stderr, redirect_stdout

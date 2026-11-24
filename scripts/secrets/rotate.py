@@ -60,6 +60,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 from firebase_options import validate as validate_firebase_options  # noqa: E402
+from github_app_key import (  # noqa: E402
+    validate as validate_github_app_key,
+    verify_installation_token as verify_github_app_key,
+)
 
 REGISTRY = Path(__file__).with_name("registry.toml")
 NAME_PATTERN = re.compile(r"[A-Z_][A-Z0-9_]*")
@@ -72,6 +76,11 @@ ALPHABETS = {
 GENERATORS = {"random", "command", "sync", "manual"}
 ENCODINGS = {"raw", "base64"}
 SYNC_VALIDATORS = {"firebase-options": lambda value: validate_firebase_options(value, syntax=True)}
+VALUE_VALIDATORS = {"github-app-key": validate_github_app_key}
+APP_KEY_ID_VARS = {
+    "AGENT_APP_PRIVATE_KEY": "AGENT_APP_ID",
+    "RELEASE_GATE_APP_PRIVATE_KEY": "RELEASE_GATE_APP_ID",
+}
 GITHUB_SINKS = {"github": "secret", "github-variable": "variable"}
 SINKS = {*GITHUB_SINKS, "env", "command"}
 
@@ -88,12 +97,13 @@ class Secret:
     command: str | None = None
     sync_file: str | None = None
     sync_validate: str | None = None
+    validate: str | None = None
     encode: str = "raw"
     sink_command: str | None = None
     hint: str | None = None
     groups: list[str] = field(default_factory=list)
 
-    def validate(self) -> None:
+    def validate_entry(self) -> None:
         if not NAME_PATTERN.fullmatch(self.name):
             raise ValueError(f"{self.name!r}: names must match {NAME_PATTERN.pattern}")
         if self.generate not in GENERATORS:
@@ -113,6 +123,8 @@ class Secret:
             self.generate != "sync" or not self.sync_file or self.sync_validate not in SYNC_VALIDATORS
         ):
             raise ValueError(f"{self.name}: sync_validate requires a supported validator and sync_file.")
+        if self.validate and self.validate not in VALUE_VALIDATORS:
+            raise ValueError(f"{self.name}: unknown validator {self.validate!r}")
         if self.encode not in ENCODINGS:
             raise ValueError(f"{self.name}: unknown encode {self.encode!r}")
         if "command" in self.sinks and not self.sink_command:
@@ -131,6 +143,7 @@ FIELD_TYPES = {
     "command": str,
     "sync_file": str,
     "sync_validate": str,
+    "validate": str,
     "encode": str,
     "sink_command": str,
     "hint": str,
@@ -151,7 +164,7 @@ def parse_entry(name: str, entry: object) -> Secret:
         if expected is list and not all(isinstance(item, str) for item in value):
             raise ValueError(f"{name}: {key} must be a list of strings")
     secret = Secret(name=name, **entry)
-    secret.validate()
+    secret.validate_entry()
     return secret
 
 
@@ -173,6 +186,22 @@ def _resolve_sync_path(raw: str, *, env=os.environ, root: Path = ROOT) -> Path:
         return Path(home) / raw[6:]
     path = Path(raw)
     return path if path.is_absolute() else (root / path)
+
+
+def _prompt_pem(name: str) -> str:
+    entry = input(f"Path to .pem file for {name} (or paste PEM): ").strip()
+    if entry.startswith("-----BEGIN "):
+        lines = [entry]
+        for line in sys.stdin:
+            stripped = line.rstrip("\r\n")
+            lines.append(stripped)
+            if stripped.strip().startswith("-----END "):
+                break
+        return "\n".join(lines) + "\n"
+    candidate = Path(entry).expanduser()
+    if candidate.is_file():
+        return candidate.read_text(encoding="utf-8")
+    return entry
 
 
 def generate(secret: Secret, *, env=os.environ, prompt=getpass.getpass, interactive=None, root: Path = ROOT) -> str:
@@ -206,9 +235,14 @@ def generate(secret: Secret, *, env=os.environ, prompt=getpass.getpass, interact
                 raise ValueError(f"{secret.name}: no TTY; set NEW_{secret.name}")
             if secret.hint:
                 print(f"{secret.name}: {secret.hint}", file=sys.stderr)
-            value = prompt(f"New value for {secret.name}: ")
+            if secret.validate == "github-app-key" and prompt is getpass.getpass:
+                value = _prompt_pem(secret.name)
+            else:
+                value = prompt(f"New value for {secret.name}: ")
     if not value:
         raise ValueError(f"{secret.name}: empty value")
+    if secret.validate:
+        value = VALUE_VALIDATORS[secret.validate](value)
     return value
 
 
@@ -341,9 +375,34 @@ def select(
             raise ValueError(f"{name} is not in the registry; register it or pass --sink")
         else:
             secret = Secret(name=name, sinks=sinks)
-            secret.validate()
+            secret.validate_entry()
             chosen[name] = secret
     return list(chosen.values())
+
+
+def _resolve_app_id(
+    secret_name: str,
+    *,
+    explicit: str | None = None,
+    repo: str | None = None,
+    env=os.environ,
+    run=subprocess.run,
+) -> str | None:
+    if explicit:
+        return explicit.strip()
+    var_name = APP_KEY_ID_VARS.get(secret_name)
+    if not var_name:
+        return None
+    if env.get(var_name):
+        return env[var_name].strip()
+    cmd = ["gh", "variable", "get", var_name]
+    if repo:
+        cmd.extend(["--repo", repo])
+    try:
+        proc = run(cmd, capture_output=True, text=True, check=False, timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return proc.stdout.strip() if proc.returncode == 0 and proc.stdout.strip() else None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -357,6 +416,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--only-sink", action="append", default=[], choices=sorted(SINKS - {"command"}),
                         help="restrict selected secrets to a subset of their configured sinks (repeatable)")
     parser.add_argument("--repo", default=None, help="explicit GitHub owner/repo target for gh secret set")
+    parser.add_argument("--app-id", default=None, help="explicit GitHub App ID for post-sync token verification")
     parser.add_argument("--yes", action="store_true", help="skip cross-repo confirmation prompt")
     parser.add_argument("--registry", type=Path, default=REGISTRY)
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
@@ -415,11 +475,18 @@ def main(argv: list[str] | None = None) -> int:
             print(f"would {verb} {label}{target}")
             continue
         try:
-            push(secret, generate(secret), env_path=args.env_file, repo=target_repo)
+            value = generate(secret)
+            push(secret, value, env_path=args.env_file, repo=target_repo)
             if secret.generate == "sync":
                 print(f"synced {label}; not rotated: change its source to rotate it")
             else:
                 print(f"rotated {label}")
+            if secret.validate == "github-app-key" and "github" in secret.sinks:
+                app_id = _resolve_app_id(secret.name, explicit=args.app_id, repo=target_repo)
+                ok, verify_msg = verify_github_app_key(value, app_id=app_id, repo=target_repo)
+                print(verify_msg, file=sys.stdout if ok else sys.stderr)
+                if not ok:
+                    failed.append(secret.name)
         except (PushError, subprocess.CalledProcessError, ValueError, OSError, EOFError) as error:
             failed.append(secret.name)
             print(f"failed {secret.name}: {error}", file=sys.stderr)
