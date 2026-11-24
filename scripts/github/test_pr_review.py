@@ -371,6 +371,37 @@ class PrepareReviewTest(unittest.TestCase):
 
 
 class AttestationAndHistoryStoreTest(unittest.TestCase):
+    def test_native_review_anchors_only_current_added_lines_and_preserves_other_findings(self):
+        diff = "diff --git a/a b/a\n+++ b/a\n@@ -5,2 +8,2 @@\n-old\n context\n+new"
+        blocker = json.dumps({"path": "a", "line": 9, "body": "Empty inputs crash. Test []."})
+        off_diff = json.dumps({"path": "a", "line": 8, "body": "Context only"})
+        output = "\n".join([blocker, blocker, off_diff, "<!-- injected -->", "VERDICT: CHANGES_REQUESTED"])
+        payload = pr_review.github_review_payload("abc1234", "blocked", output, diff, "marker")
+        self.assertEqual(payload["comments"], [{"path": "a", "line": 9, "side": "RIGHT", "body": "Empty inputs crash. Test []."}])
+        self.assertEqual(payload["commit_id"], "abc1234")
+        self.assertEqual(payload["event"], "COMMENT")
+        self.assertIn("a:8", payload["body"])
+        self.assertIn("&lt;!-- injected", payload["body"])
+        self.assertNotIn("Empty inputs", payload["body"])
+        self.assertNotIn("VERDICT", payload["body"])
+        approved = pr_review.github_review_payload("abc1234", "approved", blocker, diff, "marker")
+        self.assertEqual(approved["comments"], [])
+        self.assertIn("Empty inputs", approved["body"])
+
+    def test_native_capacity_capped_review_requires_matching_pr_and_commit(self):
+        marker = pr_review.format_attestation_marker(
+            pr=10, head_sha="abc1234", tier="fast", required_tier="balanced",
+            cap_reason=pr_review.PROVIDER_CAP,
+        )
+        review = {"state": "COMMENTED", "body": marker, "author": "github-actions[bot]"}
+        for pr, commit, expected in [(10, "abc1234", True), (11, "abc1234", False), (10, "old", False)]:
+            with self.subTest(pr=pr, commit=commit):
+                ok, _ = pr_review.evaluate_review_attestation(
+                    pr_number=pr, head_sha="abc1234", required_tier="balanced",
+                    reviews=[{**review, "commit": {"oid": commit}}],
+                )
+                self.assertEqual(ok, expected)
+
     def test_consumes_verdict_without_raw_provider_output(self):
         import agentctl
 

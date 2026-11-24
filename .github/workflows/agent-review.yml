@@ -2,7 +2,7 @@ name: Agent review
 
 # Classifies and reviews non-draft, same-repository PRs at their adaptive review
 # tier (exempt, fast, balanced, deep, human) and posts a head-bound attestation
-# comment (<!-- agent-review: ... -->) consumed by the merge gate (ADR 0006).
+# review (<!-- agent-review: ... -->) consumed by the merge gate (ADR 0006).
 # Untrusted PR code is never checked out or executed; the workflow checks out
 # the default branch and fetches PR metadata and diff text via the GitHub API.
 #
@@ -261,6 +261,21 @@ jobs:
                 > ".agents/state/pr-${PR_NUMBER}-publish.diff"; then
             diff_args=(--diff-file ".agents/state/pr-${PR_NUMBER}-publish.diff")
           fi
+          review_file=".agents/state/pr-${PR_NUMBER}-review.json"
+          post_review() {
+            endpoint="repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}"
+            if jq -e '.comments | length > 0' "$review_file" >/dev/null; then
+              # A retry on the same head reuses identical conversations, including resolved ones.
+              gh api --paginate --slurp "$endpoint/comments?per_page=100" > "$RUNNER_TEMP/existing.json"
+              jq --slurpfile pages "$RUNNER_TEMP/existing.json" --arg head "$HEAD_SHA" '
+                [$pages[0][][] | select(.user.login == "github-actions[bot]" and
+                  .original_commit_id == $head and .in_reply_to_id == null) |
+                  {path, line: .original_line, side, body}] as $existing |
+                .comments -= $existing' "$review_file" > "$RUNNER_TEMP/review.json"
+              review_file="$RUNNER_TEMP/review.json"
+            fi
+            gh api --method POST "$endpoint/reviews" --input "$review_file" --silent
+          }
           reviewer="github-actions[bot]"
           common=(
             --pr "$PR_NUMBER" --head-sha "$HEAD_SHA" --required-tier "$REQ_TIER"
@@ -305,17 +320,17 @@ jobs:
                 --carried-from-sha "$carried_from" --patch-id "$carried_patch" \
                 --provider "$carried_provider" --model "$carried_model" \
                 --summary "Carried over approved ${carried_tier} review from ${carried_from:0:7} (identical patch after rebase)." \
-                --output-markdown ".agents/state/pr-${PR_NUMBER}-review.md" \
+                --output-review "$review_file" \
                 "${extra[@]}"
-              gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file ".agents/state/pr-${PR_NUMBER}-review.md"
+              post_review
               exit 0
             fi
             echo "Carryover verification failed in publish; failing closed." >> "$GITHUB_STEP_SUMMARY"
             python3 scripts/github/pr_review.py record-review "${common[@]}" \
               --status skipped --tier fast --provider deterministic-gate --model policy-verifier \
               --summary "Patch-equivalent carryover could not be verified on ${HEAD_SHA:0:7}; full review required." \
-              --output-markdown ".agents/state/pr-${PR_NUMBER}-review.md"
-            gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file ".agents/state/pr-${PR_NUMBER}-review.md"
+              --output-review "$review_file"
+            post_review
             exit 0
           fi
           outcome=()
@@ -327,9 +342,9 @@ jobs:
           fi
           python3 scripts/github/pr_review.py record-review "${common[@]}" \
             --tier "$EXECUTED_TIER" --capacity-cap \
-            --output-markdown ".agents/state/pr-${PR_NUMBER}-review.md" \
+            --output-review "$review_file" \
             "${outcome[@]}"
-          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file ".agents/state/pr-${PR_NUMBER}-review.md"
+          post_review
 
       - name: Persist review history to the history branch
         env:
