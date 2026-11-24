@@ -1,5 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:foodsavr_core/foodsavr_core.dart' show ShelfLifeInferer;
 
 import '../controllers/preferences_controller.dart';
 import '../models/product_model.dart';
@@ -11,6 +12,7 @@ import '../widgets/product/quantity_section.dart';
 import '../views/expiry_scan_view.dart';
 import '../widgets/product/expiries_section.dart';
 import '../constants/product_categories.dart';
+import '../widgets/common/adaptive_sheet.dart';
 
 class ProductFormView extends StatelessWidget {
   /// The existing product being edited. Mutually exclusive with [prefill].
@@ -28,7 +30,8 @@ class ProductFormView extends StatelessWidget {
     this.initialCollectionId,
   }) : assert(product == null || prefill == null);
 
-  /// Shows the product form as a centered dialog.
+  /// Shows the product form as a bottom sheet on Compact windows and a dialog
+  /// on wider ones.
   /// Pass [product] to edit an existing product, or [prefill] to create a new
   /// one from partial data. Returns `true` if a product was saved.
   static Future<bool?> show(
@@ -44,19 +47,12 @@ class ProductFormView extends StatelessWidget {
           .resolveDefaultInventoryId();
       if (!context.mounted) return null;
     }
-    return showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 450, maxHeight: 600),
-          child: _ProductFormContent(
-            product: product,
-            prefill: prefill,
-            initialCollectionId: collectionId,
-          ),
-        ),
+    return AdaptiveSheet.show<bool>(
+      context,
+      builder: (_) => _ProductFormContent(
+        product: product,
+        prefill: prefill,
+        initialCollectionId: collectionId,
       ),
     );
   }
@@ -96,6 +92,12 @@ class _ProductFormContentState extends State<_ProductFormContent> {
   List<ExpiryEntry> _expiries = [];
 
   bool _isSaving = false;
+
+  final _shelfLife = ShelfLifeInferer();
+
+  /// Expiry pre-filled from the category; replaced while the user has not
+  /// touched the expiry list.
+  ExpiryEntry? _suggested;
 
   /// Product created by an earlier attempt whose collection assignment
   /// failed; a retry only repeats the assignment.
@@ -198,7 +200,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+          padding: const EdgeInsets.only(bottom: 8),
           child: Text(
             _isEditing ? 'product.edit'.tr() : 'product.add'.tr(),
             style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -209,7 +211,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
           child: Form(
             key: _formKey,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               shrinkWrap: true,
               children: [
                 TextFormField(
@@ -242,7 +244,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
                   items: ProductCategory.allNames.map((cat) {
                     return DropdownMenuItem(value: cat, child: Text(cat));
                   }).toList(),
-                  onChanged: (val) => setState(() => _selectedCategory = val),
+                  onChanged: _onCategoryChanged,
                 ),
                 const SizedBox(height: 24),
                 Text(
@@ -262,7 +264,11 @@ class _ProductFormContentState extends State<_ProductFormContent> {
                   expiries: _expiries,
                   onAdd: _addExpiry,
                   onScan: _scanExpiry,
-                  onRemove: (idx) => setState(() => _expiries.removeAt(idx)),
+                  onRemove: (idx) => setState(() {
+                    if (identical(_expiries[idx], _suggested))
+                      _suggested = null;
+                    _expiries.removeAt(idx);
+                  }),
                 ),
               ],
             ),
@@ -270,7 +276,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
         ),
         const Divider(height: 1),
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.only(top: 16),
           child: SizedBox(
             width: double.infinity,
             child: FilledButton(
@@ -291,6 +297,36 @@ class _ProductFormContentState extends State<_ProductFormContent> {
     );
   }
 
+  DateTime? _estimatedExpiry() {
+    final estimate = _shelfLife.estimate(
+      category: _selectedCategory,
+      normalizedName: _nameController.text.trim().toLowerCase(),
+    );
+    if (estimate == null) return null;
+    return DateUtils.dateOnly(
+      DateTime.now().add(Duration(days: estimate.days)),
+    );
+  }
+
+  /// Pre-fills the first expiry from the chosen category on a new product;
+  /// the user can change or remove it.
+  void _onCategoryChanged(String? category) {
+    setState(() {
+      _selectedCategory = category;
+      if (_isEditing) return;
+      final untouched =
+          _expiries.isEmpty ||
+          (_expiries.length == 1 && identical(_expiries.first, _suggested));
+      if (!untouched) return;
+      _expiries.clear();
+      _suggested = null;
+      final date = _estimatedExpiry();
+      if (date == null) return;
+      _suggested = ExpiryEntry(quantity: 1, expirationDate: date);
+      _expiries.add(_suggested!);
+    });
+  }
+
   Future<void> _scanExpiry() async {
     final date = await Navigator.of(context, rootNavigator: true)
         .push<DateTime>(
@@ -309,9 +345,11 @@ class _ProductFormContentState extends State<_ProductFormContent> {
   Future<void> _addExpiry() async {
     final date = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().add(
-        Duration(days: getIt<PreferencesController>().expiringSoonDays + 1),
-      ),
+      initialDate:
+          _estimatedExpiry() ??
+          DateTime.now().add(
+            Duration(days: getIt<PreferencesController>().expiringSoonDays + 1),
+          ),
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now().add(const Duration(days: 365 * 10)),
     );
