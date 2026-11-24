@@ -48,7 +48,8 @@ a ratio above 1 means paying. Budgets alert; they do not cap spend.
 - `.github/workflows/deployment-level.yml` — polls each provisioned cloud environment.
 - `scripts/setup/wizard.py` (`make setup`) — creates an unprovisioned production
   project and writes its identity into the manifest, then applies Terraform per
-  environment.
+  environment. Production is applied only once its identity is merged on the
+  integration branch (`origin/develop`), never in the run that created it.
 
 ## Legal documents per environment (spec-ahead)
 

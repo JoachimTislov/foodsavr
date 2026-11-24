@@ -179,6 +179,32 @@ def enable_facebook_provider(project, account, app_id, app_secret):
     )
 
 
+def committed_project(manifest, ref, environment, env):
+    """Firebase project of a provisioned `environment` in the manifest committed on `ref`.
+
+    None when the manifest lives outside this repository; "" when `ref` lacks the
+    manifest or the environment is not provisioned there.
+    """
+    try:
+        relative = Path(manifest).resolve().relative_to(ROOT.resolve())
+    except ValueError:
+        return None
+    remote, _, branch = ref.partition("/")
+    run("git", "fetch", "--quiet", remote, branch, quiet=True)
+    try:
+        shown = subprocess.run(
+            ["git", "show", f"{ref}:{relative.as_posix()}"], cwd=ROOT, capture_output=True, text=True, timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    if shown.returncode:
+        return ""
+    with TemporaryDirectory(prefix="foodsavr-manifest-") as directory:
+        path = Path(directory) / "instance.yaml"
+        path.write_text(shown.stdout, encoding="utf-8")
+        return firebase_identity({**env, "MANIFEST": str(path), "ENV": environment})[0]
+
+
 def firebase_json(*args):
     """Result of a Firebase CLI command with your login, or None."""
     try:
@@ -388,6 +414,7 @@ class Setup:
         self.topology = "single"
         self.env = None
         self.environments = []
+        self.production_created = False
         self.project = ""
         self.web_app = ""
 
@@ -673,9 +700,13 @@ class Setup:
                 print(f"Set environments.production.firebase to projectId {project}, webAppId {web_app}"
                       " in the deployment manifest and remove provisioned: false.")
                 return False
-            print("Updated the deployment manifest; commit it on a branch and open a PR.")
-            print(f"Create the Firestore database at {CONSOLE}/{project}/firestore.")
-            print(f"Enable sign-in providers at {CONSOLE}/{project}/authentication/providers.")
+            self.production_created = True
+            print(f"Created production project {project}. Next steps:")
+            print("  1. Commit the updated deployment manifest on a branch and open a PR.")
+            print(f"  2. Create the Firestore database at {CONSOLE}/{project}/firestore.")
+            print(f"  3. Enable sign-in providers at {CONSOLE}/{project}/authentication/providers.")
+            print("  4. After the PR is merged, verify the legal texts and account deletion.")
+            print("  5. Run make setup again to apply the production configuration.")
             return True
 
         def verify():
@@ -695,10 +726,30 @@ class Setup:
         if not self.terraform_state(primary):
             return False
         names = [primary]
-        production = self.declared("production")
-        if primary != "production" and production and production.get("provisioned", True):
+        if primary != "production" and self.production_apply_allowed():
             names.append("production")
         return all(self.environment_infrastructure(name, available) for name in names)
+
+    def production_apply_allowed(self):
+        """Apply production only once its identity is merged, never in the run that created it."""
+        production = self.declared("production")
+        if production is None or not production.get("provisioned", True):
+            return False
+        if self.production_created:
+            print("Skipping the production configuration: this run created the production project. "
+                  "Merge the manifest PR, verify the legal texts and account deletion, then run make setup again.")
+            return False
+        ref = f"origin/{TOPOLOGY_BRANCHES[self.topology][0]}"
+        committed = committed_project(self.env["MANIFEST"], ref, "production", self.env)
+        if committed is None:
+            return True
+        local = firebase_identity({**self.env, "ENV": "production"})[0]
+        if not committed or committed != local:
+            print(f"Skipping the production configuration: production project {local or '(none)'} is not "
+                  f"merged on {ref}. Merge the manifest PR, verify the legal texts and account deletion, "
+                  "then run make setup again.")
+            return False
+        return True
 
     def environment_infrastructure(self, name, available):
         suffix = "" if name == "production" else f"_{name.upper()}"
