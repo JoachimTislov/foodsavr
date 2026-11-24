@@ -268,4 +268,31 @@ void main() {
         .inDays;
     expect(days, 10);
   });
+
+  testWidgets('a removed suggestion stays removed after a category change', (
+    tester,
+  ) async {
+    await openForm(tester, prefill: scanned, collectionId: 'inv');
+
+    await tester.enterText(find.byType(TextFormField).first, 'Oat drink');
+    Future<void> choose(String category) async {
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await settle(tester);
+      await tester.tap(find.text(category).last);
+      await settle(tester);
+    }
+
+    await choose('Dairy');
+    final remove = find.byIcon(Icons.delete_outline);
+    await tester.ensureVisible(remove);
+    await settle(tester);
+    await tester.tap(remove);
+    await settle(tester);
+    await choose('Bakery');
+    await choose('Dairy');
+    await tester.tap(find.text('Create'));
+    await settle(tester);
+
+    expect(repository.added.last.expiries, isEmpty);
+  });
 }
