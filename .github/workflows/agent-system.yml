@@ -25,6 +25,7 @@ on:
       - 'scripts/secrets/**'
       - 'scripts/monitoring/**'
       - 'scripts/ci/*.py'
+      - 'web/about/**'
       - '.githooks/**'
       - 'scripts/human/**'
       - 'scripts/setup/agent_router.sh'

@@ -156,6 +156,20 @@ def cmd_build() -> None:
     )
     run(["flutter", "build", "web", *build_flags(os.environ.get("FIREBASE_PLAN", ""), target), *defines])
     write_release_metadata(ROOT / "build/web", revision)
+    write_landing_config(ROOT / "build/web/about/config.js", project, flavor)
+
+
+def write_landing_config(output: Path, project: str, flavor: str) -> None:
+    if not output.parent.is_dir():
+        return
+    legal_env = (
+        os.environ.get("LEGAL_ENVIRONMENT", "").strip()
+        or ("test" if project == "my-foodsavr-store" else flavor)
+    )
+    run(
+        ["python3", "scripts/web/write_landing_config.py", str(output)],
+        env={**os.environ, "LEGAL_ENVIRONMENT": legal_env},
+    )
 
 
 def build_revision() -> str:

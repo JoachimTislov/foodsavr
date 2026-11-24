@@ -36,6 +36,7 @@ build-web: deps ## Build the web app
 	@echo "Building web (base-href $(BASE_HREF))..."
 	@flutter create . --platforms web
 	@flutter build web --release --base-href "$(BASE_HREF)"
+	@if [ -d build/web/about ]; then python3 scripts/web/write_landing_config.py build/web/about/config.js; fi
 
 serve-web: build-web ## Serve the web app
 	@echo "Serving build/web at http://localhost:8080 ..."

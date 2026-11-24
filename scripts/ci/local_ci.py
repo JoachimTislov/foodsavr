@@ -51,7 +51,7 @@ GROUPS: dict[str, Group] = {
     "agents": Group(
         paths=[
             ".agents/**", "AGENTS.md", "CLAUDE.md", "GEMINI.md", "scripts/agents/**", "scripts/github/**",
-            "scripts/secrets/**", "scripts/monitoring/**", "scripts/ci/*.py", ".githooks/**", ".agents/github/**",
+            "scripts/secrets/**", "scripts/monitoring/**", "scripts/ci/*.py", "web/about/**", ".githooks/**", ".agents/github/**",
             ".github/workflows/github-labels.yml", ".github/workflows/merge-gate.yml",
             ".github/workflows/promote.yml", "Makefile", "make/**", "scripts/web/**",
             ".github/workflows/firebase-hosting.yml",

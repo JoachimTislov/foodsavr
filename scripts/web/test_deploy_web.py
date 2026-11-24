@@ -146,6 +146,21 @@ class DotenvTest(unittest.TestCase):
             "main_bundle_sha256": hashlib.sha256(bundle).hexdigest(),
         })
 
+    def test_write_landing_config_maps_testing_project_to_test(self):
+        about_dir = dw.ROOT / "build/web/about"
+        about_dir.mkdir(parents=True)
+        out = about_dir / "config.js"
+        with patch.dict(os.environ, {}, clear=True), patch.object(dw, "run") as run:
+            dw.write_landing_config(out, "my-foodsavr-store", "production")
+            run.assert_called_once()
+            args, kwargs = run.call_args
+            self.assertEqual(args[0], ["python3", "scripts/web/write_landing_config.py", str(out)])
+            self.assertEqual(kwargs["env"]["LEGAL_ENVIRONMENT"], "test")
+
+        with patch.dict(os.environ, {}, clear=True), patch.object(dw, "run") as run:
+            dw.write_landing_config(out, "foodsavr-prod", "staging")
+            self.assertEqual(run.call_args.kwargs["env"]["LEGAL_ENVIRONMENT"], "staging")
+
 
 class DeployTest(unittest.TestCase):
     def test_sourcemap_upload_selects_the_project_explicitly(self):
