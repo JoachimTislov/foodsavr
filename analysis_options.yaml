@@ -14,7 +14,6 @@ analyzer:
     # Standalone pure Dart package (not an app dependency); analyzed by
     # .github/workflows/deployment-level.yml after its own `dart pub get`.
     - packages/foodsavr_deploy/**
-    - web/**
 include: package:flutter_lints/flutter.yaml
 
 linter:
