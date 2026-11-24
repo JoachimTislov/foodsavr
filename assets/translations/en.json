@@ -108,6 +108,8 @@
 		"browseProducts": "Browse products",
 		"createProduct": "Create Product",
 		"createShoppingList": "New Shopping List",
+		"expired": "Expired",
+		"expiredCount": "{count} expired items",
 		"expiringSoon": "Expiring Soon",
 		"globalProducts": "Global Products",
 		"moveItems": "Move items between inventories",

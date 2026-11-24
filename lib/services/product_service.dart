@@ -270,6 +270,16 @@ class ProductService {
       );
   }
 
+  /// Returns products for [userId] with at least one expired quantity, oldest
+  /// expiry first.
+  Future<List<Product>> getExpired(String? userId) async {
+    final products = await getProducts(userId);
+    return products.where((p) => p.isExpired).toList()..sort(
+      (a, b) =>
+          (a.daysUntilExpiration ?? 0).compareTo(b.daysUntilExpiration ?? 0),
+    );
+  }
+
   /// Fetches all global products (catalog)
   Future<List<Product>> getAllProducts() async {
     _logger.i('Fetching all global products.');

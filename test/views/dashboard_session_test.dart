@@ -42,7 +42,9 @@ void main() {
       () => authService.authStateChanges,
     ).thenAnswer((_) => const Stream.empty());
     getIt.registerSingleton<IAuthService>(authService);
-    getIt.registerSingleton<ProductService>(MockProductService());
+    final productService = MockProductService();
+    when(() => productService.getExpired(any())).thenAnswer((_) async => []);
+    getIt.registerSingleton<ProductService>(productService);
     getIt.registerSingleton<CollectionService>(MockCollectionService());
     getIt.registerSingleton<DashboardController>(
       DashboardController(

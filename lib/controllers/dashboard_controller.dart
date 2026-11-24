@@ -33,11 +33,14 @@ class DashboardController extends ChangeNotifier {
     _preferences.addListener(_onPreferencesChanged);
   }
 
+  List<Product> _expired = const [];
   List<Product> _expiringSoon = const [];
   List<Collection> _inventories = const [];
   int _loadGeneration = 0;
   int? _loadedExpiringSoonDays;
 
+  /// Products with an expired quantity, oldest first.
+  List<Product> get expired => _expired;
   List<Product> get expiringSoon => _expiringSoon;
   List<Collection> get inventories => _inventories;
 
@@ -51,6 +54,7 @@ class DashboardController extends ChangeNotifier {
     _loadedExpiringSoonDays = expiringSoonDays;
     final userId = _authService.getUserId();
     if (userId == null) {
+      _expired = const [];
       _expiringSoon = const [];
       _inventories = const [];
       notifyListeners();
@@ -58,6 +62,7 @@ class DashboardController extends ChangeNotifier {
     }
 
     final results = await Future.wait([
+      _productService.getExpired(userId),
       _productService.getExpiringSoon(
         userId,
         expiringSoonDays: expiringSoonDays,
@@ -70,8 +75,13 @@ class DashboardController extends ChangeNotifier {
 
     if (generation != _loadGeneration) return;
 
-    _expiringSoon = results[0] as List<Product>;
-    _inventories = results[1] as List<Collection>;
+    _expired = results[0] as List<Product>;
+    final expiredIds = {for (final p in _expired) p.id};
+    _expiringSoon = [
+      for (final p in results[1] as List<Product>)
+        if (!expiredIds.contains(p.id)) p,
+    ];
+    _inventories = results[2] as List<Collection>;
     notifyListeners();
   }
 
