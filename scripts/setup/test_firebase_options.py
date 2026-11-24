@@ -1,6 +1,4 @@
-import base64
 import json
-import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -12,8 +10,6 @@ from unittest.mock import Mock
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 import firebase_options
-sys.path.insert(0, str(ROOT / "scripts/secrets"))
-import rotate
 
 PROJECT = "fixture-project"
 WEB_ID = "1:1234:web:valid"
@@ -22,18 +18,6 @@ GOOD_DART = b"class DefaultFirebaseOptions { static const web = FirebaseOptions(
 
 
 class FirebaseOptionsTest(unittest.TestCase):
-    def test_rotation_rejects_empty_non_utf8_and_file_without_constructor(self):
-        registry = rotate.load_registry()
-        secret = registry["FIREBASE_OPTIONS_B64"]
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            path = root / secret.sync_file
-            path.parent.mkdir()
-            for content in (b"", b"\xff\xfe", b"class DefaultFirebaseOptions {}"):
-                path.write_bytes(content)
-                with self.subTest(content=content), self.assertRaises(ValueError):
-                    rotate.generate(secret, root=root)
-
     @unittest.skipUnless(shutil.which("dart"), "Flutter SDK unavailable")
     def test_recovery_matches_exact_android_package_and_manifest_web_app(self):
         web = {
@@ -90,44 +74,3 @@ class FirebaseOptionsTest(unittest.TestCase):
         source = rendered.decode("utf-8")
         self.assertIn(r"apiKey: 'a\'b\$c\\d'", source)
         self.assertEqual(firebase_options.validate(rendered, syntax=True), source)
-
-    @unittest.skipUnless(shutil.which("dart"), "Flutter SDK unavailable")
-    def test_ci_placeholder_is_dart_formatted_when_secret_unset(self):
-        with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / "lib/firebase_options.dart"
-            output.parent.mkdir()
-            env = {k: v for k, v in os.environ.items() if k != "FIREBASE_OPTIONS_B64"}
-            result = subprocess.run(
-                ["bash", str(ROOT / "scripts/ci/write_firebase_options.sh")],
-                cwd=directory, env=env, capture_output=True, text=True,
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            fmt = subprocess.run(
-                ["dart", "format", "--output=none", "--set-exit-if-changed", str(output)],
-                capture_output=True, text=True,
-            )
-            self.assertEqual(fmt.returncode, 0, fmt.stdout + fmt.stderr)
-
-    @unittest.skipUnless(shutil.which("dart"), "Flutter SDK unavailable")
-    def test_ci_rejects_corrupt_or_malformed_dart_without_replacing_existing_file(self):
-        with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / "lib/firebase_options.dart"
-            output.parent.mkdir()
-            output.write_bytes(GOOD_DART)
-            for corrupt in (b"\xff\xfe", b"class DefaultFirebaseOptions { static const web = FirebaseOptions( }"):
-                env = {**os.environ, "FIREBASE_OPTIONS_B64": base64.b64encode(corrupt).decode()}
-                tolerant = subprocess.run(
-                    ["bash", str(ROOT / "scripts/ci/write_firebase_options.sh")],
-                    cwd=directory, env=env, capture_output=True, text=True,
-                )
-                self.assertEqual(tolerant.returncode, 0, tolerant.stderr)
-                self.assertEqual(output.read_bytes(), GOOD_DART)
-
-                strict = subprocess.run(
-                    ["bash", str(ROOT / "scripts/ci/write_firebase_options.sh"), "--require-real"],
-                    cwd=directory, env=env, capture_output=True, text=True,
-                )
-                self.assertEqual(strict.returncode, 1)
-                self.assertEqual(len(strict.stderr.splitlines()), 1)
-                self.assertIn("valid Firebase Dart options", strict.stderr)
-                self.assertEqual(output.read_bytes(), GOOD_DART)

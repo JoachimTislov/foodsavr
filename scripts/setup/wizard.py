@@ -604,48 +604,39 @@ class Setup:
         if not self.firebase:
             return True
 
+        # lib/firebase_options.dart is tracked in git (#426); this step only
+        # repairs it when it no longer matches the manifest's project and web app.
         path = ROOT / "lib/firebase_options.dart"
-        name = "FIREBASE_OPTIONS_B64"
-        digest = fingerprint(path, self.project, self.web_app)
-        sync_record = self.config.get("firebase_options_sync", {})
-        ready = bool(
-            digest and name in self.github["secret_names"]
-            and sync_record == {"repo": self.repo, "sha256": digest}
-        )
         url = f"https://console.firebase.google.com/project/{self.project}/settings/general"
 
-        def sync():
-            nonlocal digest
-            if not confirm("Sync validated Firebase app configuration to GitHub Actions?"):
+        def ready():
+            return bool(fingerprint(path, self.project, self.web_app))
+
+        def repair():
+            if not confirm("Regenerate lib/firebase_options.dart from Firebase?"):
                 return False
-            if not digest:
-                if not shutil.which("firebase"):
-                    print("Install the Firebase CLI at https://firebase.google.com/docs/cli.")
+            if not shutil.which("firebase"):
+                print("Install the Firebase CLI at https://firebase.google.com/docs/cli.")
+                return False
+            try:
+                regenerate(path, self.project, self.web_app)
+            except ValueError as error:
+                if "Sign in to the Firebase CLI" not in str(error):
+                    print(str(error), file=sys.stderr)
+                    return False
+                if not confirm("Sign in to Firebase in your browser?") or run("firebase", "login", "--reauth"):
                     return False
                 try:
                     regenerate(path, self.project, self.web_app)
-                except ValueError as error:
-                    if "Sign in to the Firebase CLI" not in str(error):
-                        print(str(error), file=sys.stderr)
-                        return False
-                    if not confirm("Sign in to Firebase in your browser?") or run("firebase", "login", "--reauth"):
-                        return False
-                    try:
-                        regenerate(path, self.project, self.web_app)
-                    except ValueError as retry_error:
-                        print(str(retry_error), file=sys.stderr)
-                        return False
-                digest = fingerprint(path, self.project, self.web_app)
-            if not digest or run(
-                "python3", "scripts/secrets/rotate.py", "--repo", self.repo, "--yes", name, quiet=True,
-            ):
+                except ValueError as retry_error:
+                    print(str(retry_error), file=sys.stderr)
+                    return False
+            if not ready():
                 return False
-            if not self.refresh(lambda info: name in info["secret_names"]):
-                return False
-            save_instance_local({"firebase_options_sync": {"repo": self.repo, "sha256": digest}})
+            print("Regenerated lib/firebase_options.dart; commit it on a branch and open a PR.")
             return True
 
-        return self.step("Firebase app configuration for CI", ready, sync, f"Check registered apps at {url}.")
+        return self.step("Firebase app configuration", ready(), repair, f"Check registered apps at {url}.", ready)
 
     def fork_actions(self):
         if not self.cloud or not self.github["is_fork"]:
