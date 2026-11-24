@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+import json
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import manual_merge as mm  # noqa: E402
@@ -70,6 +72,11 @@ class DecideTest(unittest.TestCase):
         verdict = mm.decide(pr(green()), ["Web smoke test"])
         self.assertIn("required check never reported: Web smoke test", verdict.blockers)
 
+    def test_only_a_commit_status_satisfies_validation(self):
+        checks = green()[:2] + [run("Validation result", conclusion="SKIPPED")]
+        self.assertEqual(mm.decide(pr(checks), []).states["Validation result"], "missing")
+        self.assertTrue(mm.decide(pr(checks + [status("Validation result", "SUCCESS")]), []).ok)
+
     def test_skipped_required_check_passes(self):
         contexts = green() + [run("Web smoke test", conclusion="SKIPPED", workflow="Validation")]
         self.assertTrue(mm.decide(pr(contexts), ["Web smoke test"]).ok)
@@ -115,14 +122,34 @@ class FromNodeTest(unittest.TestCase):
         node = {"number": 3, "state": "OPEN", "isDraft": False, "baseRefName": "develop", "headRefName": "b",
                 "headRefOid": HEAD, "mergeStateStatus": "CLEAN", "isCrossRepository": False,
                 "commits": {"nodes": [{"commit": {"statusCheckRollup": {"contexts": {"nodes": green()}}}}]}}
-        parsed = mm.from_node(node)
+        parsed = mm.from_node(node, green())
         self.assertEqual(parsed.head, HEAD)
         self.assertTrue(mm.decide(parsed, []).ok)
 
     def test_no_rollup_means_nothing_reported(self):
         node = {"number": 3, "state": "OPEN", "isDraft": False, "baseRefName": "develop", "headRefOid": HEAD,
                 "mergeStateStatus": "CLEAN", "isCrossRepository": False, "commits": {"nodes": [{"commit": {}}]}}
-        self.assertFalse(mm.decide(mm.from_node(node), []).ok)
+        self.assertFalse(mm.decide(mm.from_node(node, []), []).ok)
+
+    def test_pages_through_contexts_on_the_same_head(self):
+        def response(**repo):
+            return json.dumps({"data": {"repository": repo}})
+
+        def page(checks, cursor=None):
+            return response(object={"statusCheckRollup": {"contexts": {
+                "nodes": checks, "pageInfo": {"hasNextPage": cursor is not None, "endCursor": cursor},
+            }}})
+
+        node = {"number": 3, "state": "OPEN", "baseRefName": "develop",
+                "headRefOid": HEAD, "mergeStateStatus": "CLEAN"}
+        with patch.object(mm, "gh", side_effect=[response(pullRequest=node), page(green()[:2], "next"),
+                                                 page(green()[2:])]) as gh:
+            parsed = mm.fetch_pr("owner/repo", 3)
+        self.assertEqual(parsed.head, HEAD)
+        self.assertTrue(mm.decide(parsed, []).ok)
+        first, second = [call.args for call in gh.call_args_list[1:]]
+        self.assertIn(f"head={HEAD}", first)
+        self.assertEqual(second, (*first, "-f", "cursor=next"))
 
 
 if __name__ == "__main__":

@@ -276,7 +276,7 @@ def run_entry(entry: Entry) -> None:
     if code == 0 and entry.apply_assign:
         label = "Applied only after your yes"
         if ask(f"{label}. Run it for real with {entry.apply_assign}? [y/N]").lower().startswith("y"):
-            cmd = command(entry, {**values, **dict(a.split("=", 1) for a in entry.apply_assign.split())})
+            cmd = command(entry, values, tuple(entry.apply_assign.split()))
             print(f"\n  $ {shlex.join(cmd)}\n", flush=True)
             code = subprocess.run(cmd, cwd=ROOT).returncode
     print(f"\n  exit {code}")

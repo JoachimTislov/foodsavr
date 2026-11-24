@@ -64,6 +64,24 @@ function parseArgs(argv) {
   return opts;
 }
 
+async function servedRevision(context, target, bundleDigest) {
+  if (!bundleDigest) return null;
+  try {
+    const response = await context.request.get(new URL('/release.json', target).href, {
+      headers: { 'Cache-Control': 'no-cache' },
+      maxRedirects: 0,
+      timeout: 5000,
+    });
+    if (!response.ok()) return null;
+    const metadata = await response.json();
+    if (typeof metadata?.revision === 'string' && /^[a-f0-9]{40}$/.test(metadata.revision) &&
+        metadata.main_bundle_sha256 === bundleDigest) {
+      return metadata.revision;
+    }
+  } catch (_) {}
+  return null;
+}
+
 async function runProbe(opts) {
   const { chromium } = loadPlaywright();
   const browser = await chromium.launch({ headless: true });
@@ -80,6 +98,7 @@ async function runProbe(opts) {
   const target = new URL(opts.url);
 
   let mainBundleSha256 = null;
+  let revision = null;
   try {
     const context = await browser.newContext();
     const page = await context.newPage();
@@ -167,6 +186,7 @@ async function runProbe(opts) {
         mainBundleSha256 = createHash('sha256').update(body).digest('hex');
       }
     }
+    revision = await servedRevision(context, target, mainBundleSha256);
   } finally {
     await browser.close();
   }
@@ -182,6 +202,7 @@ async function runProbe(opts) {
     target_url: opts.url,
     checked_at: new Date().toISOString(),
     release_sha: opts.releaseSha,
+    served_revision: revision,
     environment: opts.environment,
     deployment_level: opts.deploymentLevel,
     ok,

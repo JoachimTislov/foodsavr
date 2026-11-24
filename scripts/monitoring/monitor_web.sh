@@ -22,7 +22,7 @@ fi
 
 report="$(mktemp)"
 trap 'rm -f "$report"' EXIT
-sha="${RELEASE_SHA:-$(git rev-parse HEAD)}"
+sha="${RELEASE_SHA:-}"
 node scripts/monitoring/probe_web.mjs --url "$url" --release-sha "$sha" \
   --deployment-level "firebase-${FIREBASE_PLAN:-spark}" --environment "${MONITOR_ENVIRONMENT:-production}" \
   --output "$report" --no-fail
@@ -31,9 +31,10 @@ cat "$report"
 
 dry=()
 $apply || dry=(--dry-run)
-branch=$(git rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's#^origin/##' || echo develop)
 verify=(--probe-file "$report" --target-url "$url" --deployed-sha "$sha")
 if [ "$ok" != true ]; then
+  branch=$(git symbolic-ref --quiet refs/remotes/origin/HEAD || true)
+  branch="${branch#refs/remotes/origin/}"
   intake=(--input "$report" --ref "${branch:-develop}")
   [ "${AUTO_HEAL_ENABLED:-}" = true ] && $apply && intake+=(--dispatch)
   python3 scripts/monitoring/fault_intake.py "${intake[@]}" "${dry[@]}"

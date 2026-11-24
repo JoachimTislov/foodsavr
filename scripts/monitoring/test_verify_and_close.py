@@ -12,6 +12,8 @@ if str(ROOT) not in sys.path:
 from scripts.monitoring.test_fault_intake import FakeGhClient  # noqa: E402
 from scripts.monitoring.verify_and_close import pr_resolves_issue, verify_and_close  # noqa: E402
 
+RELEASE_SHA = "a" * 40
+
 
 class VerifyAndCloseTest(unittest.TestCase):
     def test_pr_resolves_issue_matches_keywords_or_branch(self):
@@ -46,7 +48,8 @@ class VerifyAndCloseTest(unittest.TestCase):
         res = verify_and_close(
             probe_ok=True,
             target_url="https://my-foodsavr-store.web.app",
-            deployed_sha="deadbeef",
+            deployed_sha=RELEASE_SHA,
+            served_revision=RELEASE_SHA,
             run_url="https://github.com/JoachimTislov/foodsavr/actions/runs/999",
             gh=gh,
         )
@@ -58,7 +61,22 @@ class VerifyAndCloseTest(unittest.TestCase):
             ],
         )
         self.assertEqual(gh.closed, [(400, "completed")])
-        self.assertIn("deadbeef", gh.added_comments[0][1])
+        self.assertIn(RELEASE_SHA, gh.added_comments[0][1])
+
+    def test_never_closes_on_clean_health_alone(self):
+        for expected, served in [
+            (RELEASE_SHA, ""), (RELEASE_SHA, "b" * 40), ("", RELEASE_SHA), ("unknown", "unknown"),
+        ]:
+            with self.subTest(expected=expected, served=served):
+                gh = FakeGhClient(issues=[{"number": 400}])
+                gh.merged_prs[400] = [{"number": 410, "body": "Closes #400"}]
+                result = verify_and_close(
+                    probe_ok=True, target_url="https://example.com", deployed_sha=expected,
+                    served_revision=served, gh=gh, run_url="",
+                )
+                self.assertIn("skipped", result)
+                self.assertEqual(gh.closed, [])
+                self.assertEqual(gh.added_comments, [])
 
     def test_escalates_issue_when_probe_still_fails_after_merged_pr(self):
         gh = FakeGhClient(
@@ -89,6 +107,7 @@ class VerifyAndCloseTest(unittest.TestCase):
         )
         self.assertEqual(res["actions"], [{"issue": 402, "action": "escalated"}])
         self.assertEqual(gh.closed, [])
+        self.assertIn("**Deployed SHA:** `unknown`", gh.added_comments[0][1])
         self.assertEqual(gh.label_edits, [(402, ["triage/ready-for-human"], ["triage/ready-for-agent"])])
 
 

@@ -37,12 +37,24 @@ query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       number state isDraft baseRefName headRefName headRefOid mergeStateStatus isCrossRepository
-      commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) { nodes {
-        __typename
-        ... on CheckRun { name status conclusion startedAt checkSuite { app { slug } workflowRun { databaseId workflow { name } } } }
-        ... on StatusContext { context state description }
-      } } } } } }
     }
+  }
+}
+"""
+
+CONTEXTS_QUERY = """
+query($owner: String!, $name: String!, $head: GitObjectID!, $cursor: String) {
+  repository(owner: $owner, name: $name) {
+    object(oid: $head) { ... on Commit {
+      statusCheckRollup { contexts(first: 100, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          __typename
+          ... on CheckRun { name status conclusion startedAt checkSuite { app { slug } workflowRun { databaseId workflow { name } } } }
+          ... on StatusContext { context state description }
+        }
+      } }
+    } }
   }
 }
 """
@@ -70,9 +82,7 @@ class Verdict:
     states: dict[str, str]
 
 
-def from_node(node: dict[str, Any]) -> PullRequest:
-    commit = ((node.get("commits") or {}).get("nodes") or [{}])[0].get("commit") or {}
-    contexts = ((commit.get("statusCheckRollup") or {}).get("contexts") or {}).get("nodes") or []
+def from_node(node: dict[str, Any], contexts: list[dict[str, Any]]) -> PullRequest:
     return PullRequest(
         number=node["number"],
         state=node["state"],
@@ -108,7 +118,11 @@ def required_states(contexts: list[dict[str, Any]], required: list[str]) -> dict
     worst = {"failure": 2, "pending": 1, "success": 0}
     states: dict[str, str] = {}
     for name in required:
-        found = [context_state(c) for c in effective if _name(c) == name]
+        found = [
+            context_state(c) for c in effective
+            if _name(c) == name
+            and (name != VALIDATION_CONTEXT or c.get("__typename") == "StatusContext")
+        ]
         states[name] = max(found, key=worst.__getitem__) if found else "missing"
     return states
 
@@ -177,11 +191,34 @@ def repo_name(explicit: str | None) -> str:
 
 def fetch_pr(repo: str, number: int) -> PullRequest:
     owner, name = repo.split("/", 1)
-    out = gh("api", "graphql", "-f", f"query={QUERY}", "-F", f"owner={owner}", "-F", f"name={name}", "-F", f"number={number}")
+    fields = ("-F", f"owner={owner}", "-F", f"name={name}")
+    out = gh("api", "graphql", "-f", f"query={QUERY}", *fields, "-F", f"number={number}")
     node = json.loads(out)["data"]["repository"]["pullRequest"]
     if node is None:
         raise RuntimeError(f"PR #{number} not found in {repo}")
-    return from_node(node)
+    head = node["headRefOid"]
+    contexts = []
+    args = ("api", "graphql", "-f", f"query={CONTEXTS_QUERY}", *fields, "-f", f"head={head}")
+    cursor_args = ()
+    while True:
+        out = gh(*args, *cursor_args)
+        commit = json.loads(out)["data"]["repository"]["object"]
+        if commit is None:
+            raise RuntimeError(f"head {head} not found in {repo}")
+        rollup = commit["statusCheckRollup"]
+        if rollup is None:
+            if cursor_args:
+                raise RuntimeError(f"check contexts changed while reading head {head}; retry")
+            break
+        page = rollup["contexts"]
+        contexts.extend(page["nodes"])
+        if not page["pageInfo"]["hasNextPage"]:
+            break
+        cursor = page["pageInfo"]["endCursor"]
+        if not cursor or cursor_args == ("-f", f"cursor={cursor}"):
+            raise RuntimeError(f"check context pagination stalled on head {head}; retry")
+        cursor_args = ("-f", f"cursor={cursor}")
+    return from_node(node, contexts)
 
 
 def ruleset_required(repo: str) -> list[str]:

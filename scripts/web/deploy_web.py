@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -113,11 +114,17 @@ def write_dotenv() -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     encoded, source = os.environ.get("WEB_ENV_B64", ""), os.environ.get("WEB_ENV_FILE", "")
     if encoded:
-        target.write_bytes(base64.b64decode(encoded))
+        try:
+            decoded = base64.b64decode(encoded.replace("\r", "").replace("\n", ""), validate=True)
+        except ValueError:
+            fail("WEB_ENV_B64 is not valid Base64")
+        target.write_bytes(decoded)
     elif source:
-        if not Path(source).is_file():
+        source_path = Path(source)
+        if not source_path.is_file():
             fail(f"WEB_ENV_FILE {source} does not exist")
-        shutil.copyfile(source, target)
+        if not target.exists() or not source_path.samefile(target):
+            shutil.copyfile(source_path, target)
     else:
         warn("No assets/.env source (WEB_ENV_B64 or WEB_ENV_FILE); deploying with an empty assets/.env.")
         target.write_text("")
@@ -126,6 +133,7 @@ def write_dotenv() -> None:
 def cmd_build() -> None:
     project, app = required("PROJECT_ID"), required("WEB_APP_ID")
     flavor, target = required("FLAVOR"), os.environ.get("TARGET", "live")
+    revision = build_revision()
     config = run(firebase("apps:sdkconfig", "WEB", app, "--project", project, "--json"), capture_output=True, text=True)
     run(["python3", "scripts/web/write_web_config.py"], input=config.stdout, text=True)
     write_dotenv()
@@ -139,10 +147,28 @@ def cmd_build() -> None:
         os.environ.get("ERROR_COLLECTOR_ENDPOINT", ""),
     )
     run(["flutter", "build", "web", *build_flags(os.environ.get("FIREBASE_PLAN", ""), target), *defines])
+    write_release_metadata(ROOT / "build/web", revision)
+
+
+def build_revision() -> str:
+    revision = run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    if run(["git", "status", "--porcelain"], capture_output=True, text=True).stdout:
+        warn("Checkout has local changes. Release metadata will omit the commit SHA.")
+        return ""
+    return revision
+
+
+def write_release_metadata(build_dir: Path, revision: str) -> None:
+    with (build_dir / "main.dart.js").open("rb") as bundle:
+        digest = hashlib.file_digest(bundle, "sha256").hexdigest()
+    (build_dir / "release.json").write_text(
+        json.dumps({"revision": revision, "main_bundle_sha256": digest}) + "\n", encoding="utf-8"
+    )
 
 
 def cmd_sourcemaps() -> None:
-    run(firebase("crashlytics:sourcemap:upload", "--app", required("WEB_APP_ID"), "--clean", "build/web"))
+    run(firebase("crashlytics:sourcemap:upload", "--app", required("WEB_APP_ID"),
+                 "--project", required("PROJECT_ID"), "--clean", "build/web"))
 
 
 def directory_bytes(path: Path) -> int:
@@ -161,10 +187,6 @@ def cmd_guard() -> int:
     channel = channel_name(os.environ.get("BRANCH", ""))
     github_output("channel", channel)
     env = {**os.environ, "KEEP_CHANNEL": channel if target == "preview" else ""}
-    if not shutil.which("gcloud") and not os.environ.get("ACCESS_TOKEN"):
-        warn("gcloud and ACCESS_TOKEN are unavailable; skipping the Hosting storage budget check.")
-        github_output("fits", "true")
-        return 0
     code = subprocess.run(
         ["python3", "scripts/web/hosting_storage_guard.py", target, str(directory_bytes(ROOT / "build/web"))],
         cwd=ROOT, env=env,
@@ -178,8 +200,6 @@ def cmd_guard() -> int:
 
 
 def preview_url(raw: str) -> str:
-    import json
-
     return next(iter(json.loads(raw)["result"].values()))["url"]
 
 
@@ -313,6 +333,7 @@ def local_settings(args: argparse.Namespace) -> tuple[dict[str, str], str]:
 
 def cmd_local(args: argparse.Namespace) -> int:
     check_expires(args.expires)
+    os.environ["PATH"] = f"{pinned_flutter_dir()}{os.pathsep}{os.environ['PATH']}"
     settings, suffix = local_settings(args)
     print(f"Environment {args.env}: project {settings['PROJECT_ID']}, site {settings['SITE_ID'] or settings['PROJECT_ID']}, "
           f"target {args.target}, assets/.env from {args.web_env_file or 'nothing (empty)'}")
@@ -335,17 +356,16 @@ def cmd_local(args: argparse.Namespace) -> int:
     }
     os.environ.update(settings)
     os.environ.update({k: v for k, v in optional.items() if v})
-    os.environ["PATH"] = f"{pinned_flutter_dir()}{os.pathsep}{os.environ['PATH']}"
     with preserved(TOUCHED):
         cmd_build()
+        if args.target == "live" and os.environ.get("FIREBASE_PLAN") == "blaze":
+            cmd_sourcemaps()
         code = cmd_guard()
         if code == 3:
             fail("the preview would not fit the Hosting storage budget; nothing deployed")
         if code != 0:
             return code
         cmd_deploy()
-        if args.target == "live" and os.environ.get("FIREBASE_PLAN") == "blaze":
-            cmd_sourcemaps()
     return 0
 
 

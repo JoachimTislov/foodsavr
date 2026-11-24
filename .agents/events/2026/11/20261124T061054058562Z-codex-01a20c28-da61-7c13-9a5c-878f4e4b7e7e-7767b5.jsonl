@@ -1,0 +1,1 @@
+{"event": "Changed PR #417 to address 11 review threads covering required check pagination, explicit apply assignments, monitored release identity, and web deployment preconditions. Added regression tests.", "prs": ["#417"], "session_id": "codex:01a20c28-da61-7c13-9a5c-878f4e4b7e7e", "stream": "ledger", "timestamp": "2026-11-24T06:10:54+00:00"}
