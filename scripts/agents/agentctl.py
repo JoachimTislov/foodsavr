@@ -1994,8 +1994,12 @@ def validate_declarative_manifests() -> list[str]:
                     flags = mode.get("capability_verification", {}).get("required_flags", [])
                     if not isinstance(headless, list) or not all(isinstance(value, str) for value in headless):
                         errors.append(f"{where}.headless must be an array of strings")
-                    elif not isinstance(flags, list) or not flags or any(flag not in headless for flag in flags):
-                        errors.append(f"{where}: required_flags must be non-empty and present in headless")
+                    else:
+                        command_flags = list(headless)
+                        if spec.get("prompt_mode") == "flag":
+                            command_flags.append(spec.get("prompt_flag", "--prompt"))
+                        if not isinstance(flags, list) or not flags or any(flag not in command_flags for flag in flags):
+                            errors.append(f"{where}: required_flags must be non-empty and present in the command")
                     if mode_name not in mode.get("enforced_permissions", {}).get("filesystem", []):
                         errors.append(f"{where}: must declare enforcement of filesystem {mode_name}")
     except ValueError as error:
@@ -3440,7 +3444,33 @@ def redacted_output(output: str) -> str:
     return result
 
 
-def write_provider_artifact(path: Path, provider: str, output: str, exit_code: int, capture_raw: bool) -> None:
+def review_verdict(provider: str, output: str) -> str | None:
+    response = ""
+    for line in output.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        if provider == "claude" and event.get("type") == "result":
+            response = event.get("result")
+        elif provider == "antigravity" and "response" in event:
+            response = event["response"]
+        elif provider == "codex" and event.get("type") == "item.completed":
+            item = event.get("item")
+            if isinstance(item, dict) and item.get("type") == "agent_message":
+                response = item.get("text")
+    if isinstance(response, str) and response.strip():
+        match = re.fullmatch(r"VERDICT:\s*(APPROVE|CHANGES_REQUESTED)", response.strip().splitlines()[-1].strip())
+        if match:
+            return match[1]
+    return None
+
+
+def write_provider_artifact(
+    path: Path, provider: str, output: str, exit_code: int, capture_raw: bool, *, capture_verdict: bool = False,
+) -> None:
     session_id = extract_session_id(output)
     normalized = {
         "provider": provider,
@@ -3452,6 +3482,8 @@ def write_provider_artifact(path: Path, provider: str, output: str, exit_code: i
     }
     if capture_raw:
         normalized["raw_output"] = redacted_output(output)
+    if capture_verdict and exit_code == 0:
+        normalized["review_verdict"] = review_verdict(provider, output)
     write_json(path, normalized)
     path.chmod(0o600)
 
@@ -3979,7 +4011,10 @@ def workflow_run(args: argparse.Namespace) -> int:
                 except ValueError as error:
                     raise ValueError("provider artifact escaped the run directory") from error
                 artifact.parent.mkdir(parents=True, exist_ok=True)
-                write_provider_artifact(artifact, selected, output, completed.returncode, capture_raw)
+                write_provider_artifact(
+                    artifact, selected, output, completed.returncode, capture_raw,
+                    capture_verdict=workflow["id"] == "integrate-pr" and step_id == "verify-gate",
+                )
                 session_id = extract_session_id(output)
                 usage = extract_usage(output)
                 for event in normalized_events(selected, output):

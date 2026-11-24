@@ -837,7 +837,7 @@ class AgentctlTest(unittest.TestCase):
             with patch.object(module, "RUNNERS", path):
                 errors = "\n".join(module.validate_declarative_manifests())
         self.assertIn("must declare enforcement of filesystem workspace-write", errors)
-        self.assertIn("required_flags must be non-empty and present in headless", errors)
+        self.assertIn("required_flags must be non-empty and present in the command", errors)
 
     def test_implement_workflow_is_unavailable_under_default_policy(self) -> None:
         module = load_agentctl_module()
@@ -1576,6 +1576,8 @@ class AgentctlTest(unittest.TestCase):
         self.assertIn("--sandbox", agy_read_cmd)
         self.assertIn("--model", agy_read_cmd)
         self.assertIn("gemini-4-argon", agy_read_cmd)
+        self.assertEqual(agy_read_cmd[-2:], ["--print", "Audit repo"])
+        self.assertNotIn("-p", agy_read_cmd)
 
         agy_write_cmd, _ = module.provider_command(
             "antigravity",
@@ -1586,6 +1588,7 @@ class AgentctlTest(unittest.TestCase):
         self.assertIn("accept-edits", agy_write_cmd)
         self.assertIn("--dangerously-skip-permissions", agy_write_cmd)
         self.assertIn("gemini-4-hydrogen", agy_write_cmd)
+        self.assertEqual(agy_write_cmd[-2:], ["--print", "Implement issue"])
 
         self.assertEqual(
             module.extract_session_id(json.dumps({"conversation_id": "conv-12345"})),

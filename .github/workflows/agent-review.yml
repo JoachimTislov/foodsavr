@@ -49,6 +49,7 @@ jobs:
       head_sha: ${{ steps.classify.outputs.head_sha }}
       executed_tier: ${{ steps.plan.outputs.tier }}
       run_model: ${{ steps.plan.outputs.run_model }}
+      skip_reason: ${{ steps.plan.outputs.skip_reason }}
     steps:
       - name: Checkout trusted control plane
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -118,7 +119,8 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: bash scripts/agents/install-ci-providers.sh
 
-      - name: Plan the executable review tier
+      # The only step that runs a model. The job token is read-only and GH_TOKEN is unset.
+      - name: Select and execute the highest available review tier
         id: plan
         if: steps.credentials.outputs.configured != ''
         env:
@@ -131,27 +133,19 @@ jobs:
           read -r -a providers <<< "$PROVIDERS"
           for provider in "${providers[@]}"; do provider_args+=(--provider "$provider"); done
           plan="$(python3 scripts/github/pr_review.py prepare-review --required-tier "$REQ_TIER" \
-            --workflow ".agents/state/workflows/integrate-pr-${PR_NUMBER}.json" "${provider_args[@]}")"
+            --workflow ".agents/state/workflows/integrate-pr-${PR_NUMBER}.json" \
+            --result ".agents/state/pr-${PR_NUMBER}-result.json" "${provider_args[@]}")"
           tier="$(jq -r '.tier' <<< "$plan")"
           run_model="$(jq -r '.run_model' <<< "$plan")"
           echo "tier=$tier" >> "$GITHUB_OUTPUT"
           echo "run_model=$run_model" >> "$GITHUB_OUTPUT"
           if [[ "$run_model" == false ]]; then
-            echo "Model review skipped. No executable provider is configured or has quota. Deterministic review tier is fast." >> "$GITHUB_STEP_SUMMARY"
+            skip_reason="$(jq -r '.skip_reason' <<< "$plan")"
+            echo "skip_reason=$skip_reason" >> "$GITHUB_OUTPUT"
+            echo "$skip_reason" >> "$GITHUB_STEP_SUMMARY"
           elif [[ "$tier" != "$REQ_TIER" && "$REQ_TIER" != human ]]; then
             echo "Review tier capped from $REQ_TIER to $tier for the available providers." >> "$GITHUB_STEP_SUMMARY"
           fi
-
-      # The only step that runs a model. GH_TOKEN is deliberately not set here, and the
-      # job token is read-only, so injected instructions cannot write to the repository.
-      - name: Execute adaptive integrate-pr review workflow
-        if: steps.plan.outputs.run_model == 'true'
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          scripts/agents/agentctl workflow run ".agents/state/workflows/integrate-pr-${PR_NUMBER}.json" \
-            --execute > ".agents/state/pr-${PR_NUMBER}-result.json" || true
 
       - name: Remove provider credentials
         if: always()
@@ -208,6 +202,7 @@ jobs:
           REQ_TIER: ${{ needs.review.outputs.required_tier }}
           EXECUTED_TIER: ${{ needs.review.outputs.executed_tier }}
           RUN_MODEL: ${{ needs.review.outputs.run_model }}
+          SKIP_REASON: ${{ needs.review.outputs.skip_reason }}
         run: |
           [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || { echo "PR_NUMBER must be an integer"; exit 1; }
           [[ "$HEAD_SHA" =~ ^[0-9a-f]{7,40}$ ]] || { echo "invalid head sha"; exit 1; }
@@ -227,11 +222,8 @@ jobs:
           if [[ "$RUN_MODEL" == true ]]; then
             outcome=(--workflow-result ".agents/state/pr-${PR_NUMBER}-result.json")
           else
-            outcome=(--status approved --provider deterministic-gate --model policy-verifier
-              --summary "Deterministic classification completed. Model review was skipped because no provider could run it.")
-          fi
-          if [[ "$REQ_TIER" == human ]]; then
-            outcome+=(--status commented)
+            outcome=(--status skipped --provider deterministic-gate --model policy-verifier
+              --summary "$SKIP_REASON")
           fi
           python3 scripts/github/pr_review.py record-review "${common[@]}" \
             --tier "$EXECUTED_TIER" --capacity-cap \

@@ -218,7 +218,9 @@ class PrepareReviewTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "workflow.json"
             path.write_text(pr_review.DEFAULT_WORKFLOW.read_text())
-            args = argparse.Namespace(workflow=str(path), required_tier="deep", provider=["claude", "codex"])
+            args = argparse.Namespace(
+                workflow=str(path), required_tier="deep", provider=["claude", "codex"], result=None,
+            )
             codex = agentctl.hu.HarnessUsageSnapshot(
                 "codex", "ok", (agentctl.hu.UsageWindow("5h", "5h", 99),),
             )
@@ -236,8 +238,108 @@ class PrepareReviewTest(unittest.TestCase):
             self.assertEqual(verify["providers"], ["claude"])
             self.assertEqual(verify["model"], "claude-sonnet-5-5")
 
+    def test_pr_420_retries_with_configured_provider_when_quota_is_unknown(self):
+        import agentctl
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "workflow.json"
+            path.write_text(pr_review.DEFAULT_WORKFLOW.read_text())
+            result = Path(tmp) / "result.json"
+            providers = ["claude", "codex", "antigravity"]
+            snapshots = {
+                "antigravity": agentctl.hu.HarnessUsageSnapshot(
+                    "antigravity", "ok", (agentctl.hu.UsageWindow("5h", "5h", 24),),
+                ),
+                "claude": agentctl.hu.HarnessUsageSnapshot("claude", "unavailable"),
+            }
+            calls = []
+
+            def run_prepared(workflow_path, provider):
+                steps = json.loads(workflow_path.read_text())["steps"]
+                self.assertTrue(all(step["providers"] == [provider] for step in steps))
+                calls.append((provider, steps[-1]["tier"]))
+                if provider == "antigravity":
+                    return {"status": "failed", "steps": [{"id": "assess-readiness", "status": "failed"}]}
+                return {"status": "succeeded"}
+
+            output = io.StringIO()
+            with patch.object(agentctl, "available_providers", return_value=["claude", "antigravity"]), \
+                 patch.object(agentctl, "provider_is_safe", return_value=True), \
+                 patch.object(agentctl.hu, "probe_all", return_value=snapshots), \
+                 patch.object(pr_review, "run_prepared_review", side_effect=run_prepared), \
+                 contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
+                pr_review.main([
+                    "prepare-review", "--workflow", str(path), "--required-tier", "deep",
+                    "--result", str(result), *(arg for name in providers for arg in ("--provider", name)),
+                ])
+            self.assertEqual(calls, [("antigravity", "deep"), ("claude", "deep")])
+            self.assertEqual(json.loads(output.getvalue()), {"tier": "deep", "run_model": True})
+            self.assertEqual(json.loads(result.read_text())["status"], "succeeded")
+
+    def test_no_configured_provider_reports_missing_credentials(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "workflow.json"
+            path.write_text(pr_review.DEFAULT_WORKFLOW.read_text())
+            result = Path(tmp) / "result.json"
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                pr_review.main([
+                    "prepare-review", "--workflow", str(path), "--required-tier", "deep", "--result", str(result),
+                ])
+            plan = json.loads(output.getvalue())
+            self.assertEqual(plan["tier"], "fast")
+            self.assertFalse(plan["run_model"])
+            self.assertIn("CLAUDE_CODE_OAUTH_TOKEN", plan["skip_reason"])
+            self.assertIn("CODEX_AUTH_JSON_B64", plan["skip_reason"])
+            self.assertEqual(len(plan["skip_reason"].splitlines()), 1)
+            self.assertFalse(result.exists())
+
+    def test_pr_420_runner_failure_skips_review_instead_of_blocking(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = Path(tmp) / "result.json"
+            result.write_text(json.dumps({
+                "status": "failed",
+                "steps": [{
+                    "id": "assess-readiness", "status": "failed",
+                    "provider": "antigravity", "selected_model": "gemini-3.8-flash",
+                    "attempts": [{"status": "failed", "reason": "provider did not expose a required session ID"}],
+                }],
+            }))
+            markdown = Path(tmp) / "review.md"
+            with contextlib.redirect_stdout(io.StringIO()):
+                pr_review.main([
+                    "record-review", "--pr", "420", "--head-sha", "8c88d23",
+                    "--bot", "--required-tier", "deep", "--tier", "deep", "--capacity-cap",
+                    "--workflow-result", str(result), "--output-markdown", str(markdown),
+                    "--history", str(Path(tmp) / "history.jsonl"),
+                ])
+            body = markdown.read_text()
+            self.assertIn("**Outcome:** `skipped`", body)
+            self.assertIn("**Executed tier:** `fast`", body)
+            self.assertNotIn("**Provider / Model:** `none` / `none`", body)
+            self.assertNotIn("## Standards", body)
+
 
 class AttestationAndHistoryStoreTest(unittest.TestCase):
+    def test_consumes_verdict_without_raw_provider_output(self):
+        import agentctl
+
+        responses = {
+            "claude": {"type": "result", "result": "VERDICT: APPROVE"},
+            "codex": {"type": "item.completed", "item": {"type": "agent_message", "text": "VERDICT: APPROVE"}},
+            "antigravity": {"conversation_id": "example", "response": "VERDICT: APPROVE"},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifact = root / "verify-gate.attempt-1.json"
+            for provider, response in responses.items():
+                with self.subTest(provider=provider):
+                    agentctl.write_provider_artifact(
+                        artifact, provider, json.dumps(response), 0, False, capture_verdict=True,
+                    )
+                    self.assertNotIn("raw_output", json.loads(artifact.read_text()))
+                    self.assertEqual(pr_review.extract_verdict({"artifacts": [artifact.name]}, root), "APPROVE")
+
     def test_format_and_parse_attestation_round_trip(self):
         cls = pr_review.classify_pr(
             number=42,
