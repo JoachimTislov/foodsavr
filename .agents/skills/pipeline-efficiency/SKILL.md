@@ -21,26 +21,10 @@ Run the cheapest exact mirror of CI before every push. Install `.githooks/` once
    ```sh
    python3 scripts/ci/local_ci.py
    ```
-3. Run the extra CI suites `local_ci.py` does not cover whenever their paths changed:
-   - **`scripts/infra/**`** (simulate a runner's `GITHUB_REPOSITORY` so local env never masks CI failures):
-     ```sh
-     GITHUB_REPOSITORY=example/test-repo python3 -m unittest discover -s scripts/infra -p 'test_*.py'
-     ```
-   - **`scripts/release/**`**:
-     ```sh
-     node --test scripts/release/release_gate.test.cjs
-     python3 -m unittest discover -s scripts/release -p '*_test.py'
-     ```
-   - **`deploy/**` or `packages/foodsavr_deploy/**`**:
-     ```sh
-     (cd packages/foodsavr_deploy && dart format --output=none --set-exit-if-changed . && dart analyze --fatal-infos && dart test)
-     for m in deploy/instance.yaml deploy/examples/*.yaml; do
-       (cd packages/foodsavr_deploy && dart run bin/levels.dart validate "../../$m")
-     done
-     ```
-   - **`firestore.rules` or `firestore-rules/**`**: start the Firestore emulator and run `npm --prefix firestore-rules test` (or `npx jest --ci`).
-   - **`.github/workflows/**` or `.github/actions/**`**: run `actionlint` on each changed workflow.
+3. `local_ci.py` already runs the infra, release, deploy-manifest and workflow-lint (`actionlint`) groups for changed paths. Run separately only what it cannot:
+   - **`firestore.rules` or `firestore-rules/**`**: start the Firestore emulator and run `npm --prefix firestore-rules test`.
    - **Traceability**: confirm every commit carries an `Agent-Session:` trailer (`scripts/agents/agentctl check-pr --base origin/develop --head HEAD`).
+   - **Runner environment**: CI sets `GITHUB_REPOSITORY`; when a suite reads it, run it once with `GITHUB_REPOSITORY=example/test-repo` so local settings do not mask a failure.
 4. Before setting a secret from a local file via `scripts/secrets/rotate.py`, validate the source locally (for example, a valid PEM header and structure for GitHub App private keys). `lib/firebase_options.dart` is tracked in git, not synced to a secret.
 
 Done when every check matching the branch's changed paths exits 0 on a clean tree.
@@ -68,8 +52,8 @@ Place each check in the earliest, cheapest tier that still enforces its safety p
 | Tier | Target | What belongs here | Keep out of this tier |
 |---|---|---|---|
 | **Local pre-push** | Developer / agent worktree | `check_pr_base.py`, `local_ci.py`, `scripts/infra`, `scripts/release`, `foodsavr_deploy`, `actionlint`, secret format validation | Multi-minute emulator boots |
-| **`develop` PR** | Integration gate | Path-filtered `Check & Test` (Dart/Flutter code only), `Traceability`, `PR base`, `Deployment level` (deploy/infra paths only), `Firestore security rules` (rules paths only), `Agent system validation` (agent/script paths excluding `.agents/events/**`), and `Validation` (Web smoke + E2E and Android smoke + integration) whenever app paths change | Release APK/Web artifact builds, full site publishes, emulator runs for non-app edits, `synchronize` label churn |
-| **Release channels (`daily`, `weekly`, `stable`)** | Promotion | Full release `Validation` on each promotion push, `Android Build`, `Web Build`, strict docs build; `stable` alone publishes GitHub Pages and deploys production | Unverified manual skips |
+| **`develop` PR** | Integration gate | Path-filtered `Check & Test` (Dart/Flutter code only), `Traceability`, `PR base`, `Deployment level` (deploy/infra paths only), `Firestore security rules` (rules paths only), `Agent system validation` (agent/script paths excluding `.agents/events/**`); `Validation` (Web smoke + E2E, Android smoke + integration) for app paths, which starts when `merge/auto` is added (before that the `Validation result` status stays pending) | Release APK/Web artifact builds, full site publishes, emulator runs for non-app edits, `synchronize` label churn |
+| **Release channels (`daily`, `weekly`, `stable`)** | Promotion | `develop -> daily` runs the full release `Validation`; `daily -> weekly -> stable` reuse the green `daily` run for the same SHA (`already_tested.sh --push-only-reuse`); `Android Build` and `Web Build` run on every release push; only `stable` publishes GitHub Pages and deploys production | Unverified manual skips |
 
 When authoring or tightening `.github/workflows/*.yml`:
 
@@ -87,6 +71,7 @@ Under `develop`'s linear-history and strict up-to-date ruleset, eager rebases mu
 
 1. **Batch locally**: group fixes and formatting into one clean push instead of dribbling fixups that cancel in-flight runs.
 2. **Rebase only the next PR**: leave PRs #2..N untouched until PR #1 merges.
+   Before rebasing or pushing a branch that carries `merge/auto`, remove the label and fetch: the gate may already have rebased it. Re-add the label only when the branch is finalized again.
 3. **Protect in-flight Validation**: avoid rebasing or pushing a PR while its Validation run is in progress (unless fixing a known failure); cancelling mid-run wastes runner minutes and prevents `already_tested.sh` from reusing a green previous head.
 4. **Order low-blast-radius PRs first**: among independent ready PRs, land docs/agent/script PRs before app PRs so `already_tested.sh` skips re-running Dart and Validation on subsequent app PRs when nothing in their scope changed.
 5. **Opt in once, when finalized**: add `merge/auto` only to a two-way-door PR whose acceptance is met and review feedback is addressed (ADR 0006), and only when it is next in the queue; adding it at creation or mid-review causes open-then-label cancellation races.

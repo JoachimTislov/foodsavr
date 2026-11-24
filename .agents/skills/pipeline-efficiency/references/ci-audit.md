@@ -16,7 +16,9 @@ REPO = "JoachimTislov/foodsavr"
 CUTOFF = "2026-11-23T17:00:00Z"  # set to window start
 
 runs = []
-for page in range(1, 13):
+page = 0
+while True:  # paginate until the cutoff; never silently cap coverage
+    page += 1
     batch = json.loads(subprocess.check_output(
         ["gh", "api", f"repos/{REPO}/actions/runs?per_page=100&page={page}"], text=True
     )).get("workflow_runs", [])
@@ -30,10 +32,15 @@ dur = defaultdict(lambda: defaultdict(float))
 for r in recent:
     c = r["conclusion"] or r["status"]
     by_wf[r["name"]][c] += 1
-    if r.get("run_started_at") and r.get("updated_at"):
-        t0 = datetime.fromisoformat(r["run_started_at"].replace("Z", "+00:00"))
-        t1 = datetime.fromisoformat(r["updated_at"].replace("Z", "+00:00"))
-        dur[r["name"]][c] += max(0.0, (t1 - t0).total_seconds())
+    # Runner minutes are the sum of job durations, not workflow wall time.
+    jobs = json.loads(subprocess.check_output(
+        ["gh", "api", f"repos/{REPO}/actions/runs/{r['id']}/jobs?per_page=100"], text=True
+    )).get("jobs", [])
+    for job in jobs:
+        if job.get("started_at") and job.get("completed_at"):
+            t0 = datetime.fromisoformat(job["started_at"].replace("Z", "+00:00"))
+            t1 = datetime.fromisoformat(job["completed_at"].replace("Z", "+00:00"))
+            dur[r["name"]][c] += max(0.0, (t1 - t0).total_seconds())
 
 for wf, counts in sorted(by_wf.items(), key=lambda x: -sum(x[1].values())):
     d = dur[wf]
@@ -60,8 +67,8 @@ For every non-green run (or a stratified sample when one workflow dominates):
 
 Summarize findings with:
 
-- **Totals**: runs, pass/fail/cancel counts and percentages, wall minutes total vs wasted, and runs per merged PR.
-- **Top failure clusters**: ranked by run count and wall minutes, each with concrete run IDs and root cause.
+- **Totals**: runs, pass/fail/cancel counts and percentages, runner minutes (sum of job durations) total vs wasted, and runs per merged PR.
+- **Top failure clusters**: ranked by run count and runner minutes, each with concrete run IDs and root cause.
 - **Redundancy hotspots**: workflows firing on out-of-scope paths (e.g. `.agents/events/**`, `scripts/ci/*.py`) or excessive `workflow_run` fan-out.
 - **Ordered fixes**: (1) immediate blocker/secret fixes, (2) local preflight additions, (3) workflow trigger & path-filter trims, (4) tiering changes that keep path-gated smoke/E2E on `develop` PRs.
 
