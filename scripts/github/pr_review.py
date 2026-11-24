@@ -1077,9 +1077,9 @@ def parse_pr_json_payload(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-MAX_INLINE_DIFF_CHARS = 30000
+MAX_INLINE_DIFF_CHARS = 120000
 TOOL_DENYING_PROVIDERS = frozenset({"antigravity"})
-MAX_INLINE_CONTEXT_CHARS = 40000
+MAX_INLINE_CONTEXT_CHARS = 140000
 
 
 def staged_pr_context_text(workflow: dict[str, Any], root: Path = ROOT) -> str:
@@ -1958,6 +1958,10 @@ def select_review_plan(
                 "Identify blocking findings and cite the relevant files. Judge only the change itself: do not "
                 "request CI, attestation, head-parity, label or merge-queue evidence, which the merge gate verifies."
                 + context_block
+                + "\nThe review job never checks out PR code, so the inline diff is the complete evidence. "
+                "If the diff is truncated, review the visible part, list the files you could not see, and "
+                "base the verdict on the visible changes; never block only because the diff is truncated "
+                "or a commit is unavailable locally."
                 + "\nFinish with a final line containing only "
                 "VERDICT: APPROVE when the review passes or VERDICT: CHANGES_REQUESTED when it fails."
             ),
@@ -1968,6 +1972,11 @@ def select_review_plan(
         ]
         objective = "Review a pull request's code changes against repository standards and its originating specification."
         prepared = {**workflow, "objective": objective, "steps": steps}
+        # Merge and comment-resolution skills describe gate work, not code review.
+        prepared["context"] = {
+            **workflow.get("context", {}),
+            "skills": [s for s in workflow.get("context", {}).get("skills", []) if s not in ("pr-merge", "resolve-pr-comments", "code-review")],
+        }
         if no_tools:
             # Listed files and skills invite reads the provider will deny.
             prepared["context"] = {**workflow.get("context", {}), "files": [], "skills": []}
