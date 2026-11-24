@@ -1,0 +1,1 @@
+{"commits": [], "harness": "claude-code", "issues": ["#429"], "provider": "anthropic", "prs": [], "session_id": "claude-code:8e4947e9-e34a-4165-a2d3-4357cd2c5c00", "sources": [], "started_at": "2026-11-24T17:56:54+00:00", "status": "active", "stream": "sessions", "summary": "L6 (#429): split deployment into test and prod Firebase projects"}

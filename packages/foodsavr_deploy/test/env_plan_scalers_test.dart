@@ -51,6 +51,61 @@ void main() {
       },
     );
 
+    Map<String, dynamic> channelManifest() {
+      final m = baseManifest();
+      m['environments']['test'] = {
+        'currentLevel': 'spark',
+        'firebase': {'projectId': 'p-test', 'webAppId': '1:2:web:2'},
+        'channels': {'develop': 'p-test', 'daily': 'p-test-daily'},
+      };
+      return m;
+    }
+
+    test('channels resolve their environment and Hosting site', () {
+      final i = load(channelManifest());
+      expect(i.environmentForChannel('daily')?.name, 'test');
+      expect(i.environmentForChannel('stable')?.name, 'production');
+      expect(i.environmentForChannel('weekly'), isNull);
+      final out = renderEnv(
+        Deployment.of(i, 'test'),
+        EnvFormat.dotenv,
+        channel: 'daily',
+      );
+      expect(out, contains("CHANNEL='daily'\n"));
+      expect(out, contains("SITE_ID='p-test-daily'\n"));
+      expect(out, contains("VAR_SUFFIX='_TEST'\n"));
+      expect(out, contains("PROVISIONED='true'\n"));
+      expect(
+        renderEnv(Deployment.of(i, 'production'), EnvFormat.dotenv),
+        contains("SITE_ID='p-prod'\n"),
+      );
+    });
+
+    test('tfvars list channel branches and the extra Hosting sites', () {
+      final out = renderEnv(
+        Deployment.of(load(channelManifest()), 'test'),
+        EnvFormat.tfvars,
+      );
+      expect(out, contains('deploy_branches = ["develop", "daily"]\n'));
+      expect(out, contains('hosting_sites = ["p-test-daily"]\n'));
+    });
+
+    test('unprovisioned environments emit no cloud identity', () {
+      final m = baseManifest();
+      m['environments']['production'] = {
+        'currentLevel': 'spark',
+        'provisioned': false,
+      };
+      final out = renderEnv(
+        Deployment.of(load(m), 'production'),
+        EnvFormat.github,
+        channel: 'stable',
+      );
+      expect(out, contains('PROVISIONED=false\n'));
+      expect(out, isNot(contains('PROJECT_ID')));
+      expect(out, isNot(contains('SITE_ID')));
+    });
+
     test('unknown environment is an argument error', () {
       expect(
         () => Deployment.of(load(baseManifest()), 'staging'),

@@ -28,9 +28,13 @@ data "google_project" "this" {
 
 locals {
   project_number = data.google_project.this.number
-  live_domains   = ["${var.project_id}.web.app", "${var.project_id}.firebaseapp.com"]
-  is_blaze       = var.firebase_plan == "blaze"
-  paid_level     = var.level == "firebase-blaze"
+  # Default site plus one site per release channel (deploy/instance.yaml).
+  hosting_sites = distinct(concat([var.project_id], var.hosting_sites))
+  live_domains = flatten([
+    for site in local.hosting_sites : ["${site}.web.app", "${site}.firebaseapp.com"]
+  ])
+  is_blaze   = var.firebase_plan == "blaze"
+  paid_level = var.level == "firebase-blaze"
 
   effective_deploy_branch = (
     var.deploy_branch != ""
@@ -38,10 +42,19 @@ locals {
     : (var.release_topology == "single" ? "develop" : "stable")
   )
 
+  # Release channels this environment deploys (deploy/instance.yaml); the
+  # first keeps the original binding, the others get their own.
+  deploy_branches = (
+    length(var.deploy_branches) > 0
+    ? var.deploy_branches
+    : [local.effective_deploy_branch]
+  )
+  extra_deploy_branches = toset(slice(local.deploy_branches, 1, length(local.deploy_branches)))
+
   deploy_wif_member = (
     var.allow_preview_refs
     ? "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repo_env/${var.github_repository}:${var.github_environment}"
-    : "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repo_ref_env/${var.github_repository}:refs/heads/${local.effective_deploy_branch}:${var.github_environment}"
+    : "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repo_ref_env/${var.github_repository}:refs/heads/${local.deploy_branches[0]}:${var.github_environment}"
   )
 
   telemetry_wif_member = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repo_ref/${var.github_repository}:refs/heads/${var.telemetry_branch}"
@@ -89,6 +102,20 @@ resource "google_firebase_web_app" "web" {
 }
 
 # ---------------------------------------------------------------------------
+# Hosting sites of the release channels (multiple sites work on Spark). The
+# default site (project id) already exists and is not managed here.
+# ---------------------------------------------------------------------------
+
+resource "google_firebase_hosting_site" "channel" {
+  provider   = google-beta
+  for_each   = toset([for site in var.hosting_sites : site if site != var.project_id])
+  project    = var.project_id
+  site_id    = each.key
+  app_id     = google_firebase_web_app.web.app_id
+  depends_on = [google_project_service.apis]
+}
+
+# ---------------------------------------------------------------------------
 # Browser API key: keep Firebase's API allow-list, add referrer restriction.
 # ---------------------------------------------------------------------------
 
@@ -106,7 +133,7 @@ resource "google_apikeys_key" "web" {
     browser_key_restrictions {
       allowed_referrers = concat(
         [for d in local.live_domains : "https://${d}/*"],
-        ["https://${var.project_id}--*.web.app/*"], # Hosting preview channels
+        [for site in local.hosting_sites : "https://${site}--*.web.app/*"], # Hosting preview channels
         ["http://localhost:*/*", "http://127.0.0.1:*/*"],
       )
     }
@@ -221,6 +248,23 @@ resource "google_service_account_iam_member" "github_impersonates_deploy_live" {
   service_account_id = google_service_account.deploy_live.name
   role               = "roles/iam.workloadIdentityUser"
   member             = local.deploy_wif_member
+
+  lifecycle {
+    precondition {
+      condition     = !(var.allow_preview_refs && var.github_environment == "production")
+      error_message = "allow_preview_refs would let any branch deploy production; keep it for non-production environments."
+    }
+  }
+}
+
+# Further release channels of the same environment (e.g. daily and weekly
+# beside develop in the test project), each bound to branch + environment.
+resource "google_service_account_iam_member" "github_impersonates_deploy_live_channels" {
+  provider           = google-beta
+  for_each           = var.allow_preview_refs ? toset([]) : local.extra_deploy_branches
+  service_account_id = google_service_account.deploy_live.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repo_ref_env/${var.github_repository}:refs/heads/${each.key}:${var.github_environment}"
 }
 
 resource "google_service_account" "telemetry_ro" {

@@ -24,26 +24,28 @@ their jobs stop with a named missing-secret error before attempting a publish.
 
 ## Firebase Hosting
 
-`firebase-hosting.yml` first resolves an environment (flavor) from `deploy/instance.yaml`
-(`levels env`; see [deployment-levels.md](deployment-levels.md)): pushes to `stable` use `production`;
-`workflow_dispatch` input `environment` (default `auto`: `staging` for previews when the manifest
-declares a cloud staging environment, else `production`). It builds the web app with
-`--dart-define=FLAVOR=<environment>` (web builds cannot pass `--flavor`; `Config.environment`
-falls back to `FLAVOR`) and deploys to that environment's Firebase project, web app and Hosting site
-from the manifest (production: `my-foodsavr-store`). All deployments are
+`firebase-hosting.yml` first resolves an environment and Hosting site from `deploy/instance.yaml`
+(`levels env --channel`; see [deployment-levels.md](deployment-levels.md)): a push to a release
+channel deploys live to the environment that declares it, `develop`, `daily` and `weekly` to their
+own sites in the `test` project (GitHub Environment `test`) and `stable` to `production`.
+`workflow_dispatch` takes inputs `environment` (default `auto`: the environment deploying the branch
+for live, `staging`, else `test`, for previews) and `channel` (default: the branch). It builds the web
+app with the remote-backend app flavor (`--dart-define=FLAVOR=production`; web builds cannot pass
+`--flavor`) and `--dart-define=DEPLOY_ENVIRONMENT=<environment>`, which selects that environment's
+Firebase options, and deploys to its Firebase project, web app and site. All deployments are
 skipped unless the owner explicitly sets repository variable
 `FIREBASE_HOSTING_ENABLED=true`. Keep it unset while Hosting is disabled;
-merging the workflow does not authorize enabling it. Once enabled, pushes
-to `stable` deploy live;
-previews are manual only (`workflow_dispatch`, target `preview`: channel named after the branch,
+merging the workflow does not authorize enabling it.
+Previews are manual only (`workflow_dispatch`, target `preview`: channel named after the branch,
 expiring after input `expires` (default `4h`), linked on its PR; target `live` deploys live). It signs in
-keylessly (Workload Identity Federation) and generates the web-only
-`firebase_options.dart` from the Firebase API at build time
-(`scripts/web/write_web_config.py`). Missing `GCP_WORKLOAD_IDENTITY_PROVIDER` or
-`GCP_DEPLOY_SERVICE_ACCOUNT` Actions variables (suffixed per non-production environment, e.g.
-`_STAGING`) fail the job while hosting is enabled, naming the bypass `make deploy-web ENV=<env>` and the fix
-`make infra-gcp-apply ENV=<env>`; there is no silent skip. Build and deploy logic lives in
-`scripts/web/deploy_web.py`, shared by the workflow and `make deploy-web`.
+keylessly (Workload Identity Federation) and generates the selected environment's web-only
+Firebase options from the Firebase API at build time
+(`scripts/web/write_web_config.py`). A deploy is skipped, never failed, with a step summary naming
+the bypass `make deploy-web ENV=<env> CHANNEL=<channel>` and the fix `make setup` when the environment
+is not provisioned (`provisioned: false`), when `GCP_WORKLOAD_IDENTITY_PROVIDER` or
+`GCP_DEPLOY_SERVICE_ACCOUNT` (suffixed per non-production environment, e.g. `_TEST`) is missing, or
+when the service account belongs to another project than the environment's. Build and deploy logic
+lives in `scripts/web/deploy_web.py`, shared by the workflow and `make deploy-web`.
 `RECAPTCHA_ENTERPRISE_SITE_KEY`, `ANDROID_APK_URL` (`/android` redirect) and the
 `WEB_ENV_B64` secret are optional.
 Before each deploy `scripts/web/hosting_storage_guard.py` flags builds over 5 GB and keeps Hosting storage
@@ -54,10 +56,11 @@ than the 3 latest to stay under 10 GB, and fails only if that is not enough.
 
 ## Cloud infrastructure
 
-`infra/terraform` manages the GitHub deploy identity, web API key referrer
-restriction and App Check (reCAPTCHA Enterprise; enforcement `UNENFORCED` until
-every client is registered) for one environment, plus a monthly budget when the
-environment is on `firebase-blaze`. Apply with `ENV=<flavor> scripts/infra/apply.sh`
+`infra/terraform` manages the GitHub deploy identity (one branch-and-environment
+binding per release channel the environment deploys), the channels' extra Hosting
+sites, web API key referrer restriction and App Check (reCAPTCHA Enterprise;
+enforcement `UNENFORCED` until every client is registered) for one environment,
+plus a monthly budget when the environment is on `firebase-blaze`. Apply with `ENV=<flavor> scripts/infra/apply.sh`
 (owner gcloud login; values from `deploy/instance.yaml`). Existing GCS state
 is retained; fresh Spark instances use private local state under
 `.deployment-state/<project>/<flavor>`, which the owner must back up.
@@ -101,8 +104,8 @@ For noninteractive use, pass the folder ID as the first argument or set
 If gcloud requires a custom OAuth client, set `GOOGLE_OAUTH_CLIENT_ID_FILE`.
 The helper never writes credentials to the repository or prints the account.
 
-The existing remote Firebase project is the test environment; a production
-backend will be added later. Supply that existing project's files for
+The existing remote Firebase project is the test environment; the production
+project is declared in `deploy/instance.yaml` and created by `make setup`. Supply that existing project's files for
 `com.foodsavr.app`. The Android flavor is named `production` because it uses
 a remote backend, but that name doesn't make this a production deployment.
 The development flavor still uses local Firebase emulators. No new Firebase

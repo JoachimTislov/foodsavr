@@ -9,7 +9,8 @@ String varSuffix(String flavor) =>
 
 /// Instance identity and environment config as key/value pairs: the
 /// bootstrap seam that replaces hard-coded project ids in scripts.
-Map<String, String> envValues(Deployment d) {
+/// [channel] selects the release channel's Hosting site (`SITE_ID`).
+Map<String, String> envValues(Deployment d, {String? channel}) {
   final id = d.identity;
   final env = d.environment;
   final fb = d.firebase;
@@ -21,6 +22,8 @@ Map<String, String> envValues(Deployment d) {
     'INSTANCE_NAME': id.name,
     'DEPLOYMENT_LEVEL': d.currentLevel,
     'EMULATOR': '${env.emulator}',
+    'PROVISIONED': '${env.provisioned}',
+    'CHANNEL': ?channel,
     'GITHUB_REPOSITORY': id.githubRepository,
     'GH_ENVIRONMENT': ?env.githubEnvironment,
     'VAR_SUFFIX': varSuffix(d.flavor),
@@ -30,7 +33,7 @@ Map<String, String> envValues(Deployment d) {
       'PROJECT_ID': fb.projectId,
       'WEB_APP_ID': fb.webAppId,
       'WEB_API_KEY_ID': ?fb.webApiKeyId,
-      'SITE_ID': fb.siteId,
+      'SITE_ID': d.siteFor(channel)!,
       'TF_STATE_BUCKET': '${fb.projectId}-tfstate',
       // Production keeps the original prefix so existing state stays put.
       'TF_STATE_PREFIX': d.flavor == 'production'
@@ -55,30 +58,36 @@ Map<String, Object> tfVars(Deployment d) {
       'web_app_id': fb.webAppId,
       'web_api_key_id': ?fb.webApiKeyId,
     },
+    if (d.environment.channels.isNotEmpty) ...{
+      'deploy_branches': d.environment.servedChannels.toList(),
+      'hosting_sites': d.channelSites,
+    },
     if (budget != null) 'monthly_budget_usd': budget.monthlyUsd,
   };
 }
 
-String renderEnv(Deployment d, EnvFormat format) {
+String _hcl(Object v) => switch (v) {
+  num() => '$v',
+  List() => '[${[for (final e in v) _hcl(e as Object)].join(', ')}]',
+  _ =>
+    '"${'$v'.replaceAll(r'\', r'\\').replaceAll('"', r'\"').replaceAll(r'${', r'$${')}"',
+};
+
+String renderEnv(Deployment d, EnvFormat format, {String? channel}) {
   final b = StringBuffer();
   switch (format) {
     case EnvFormat.dotenv:
       // Single-quoted: valid dotenv and safe to `source` from bash.
-      envValues(d).forEach((k, v) {
+      envValues(d, channel: channel).forEach((k, v) {
         b.writeln("$k='${v.replaceAll("'", r"'\''")}'");
       });
     case EnvFormat.github:
       // For $GITHUB_ENV / $GITHUB_OUTPUT; GITHUB_* names are reserved there.
-      envValues(d).forEach((k, v) {
+      envValues(d, channel: channel).forEach((k, v) {
         if (!k.startsWith('GITHUB_')) b.writeln('$k=$v');
       });
     case EnvFormat.tfvars:
-      tfVars(d).forEach((k, v) {
-        final value = v is num
-            ? '$v'
-            : '"${'$v'.replaceAll(r'\', r'\\').replaceAll('"', r'\"').replaceAll(r'${', r'$${')}"';
-        b.writeln('$k = $value');
-      });
+      tfVars(d).forEach((k, v) => b.writeln('$k = ${_hcl(v)}'));
   }
   return b.toString();
 }

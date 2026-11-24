@@ -71,6 +71,47 @@ void main() {
   });
 
   group('environments', () {
+    test('unprovisioned environments may omit their identity', () {
+      final m = baseManifest();
+      m['environments']['production'] = {
+        'currentLevel': 'spark',
+        'provisioned': false,
+        'channels': {'stable': null},
+      };
+      expect(errorsOf(m), isEmpty);
+      m['environments']['production']['provisioned'] = true;
+      expect(errorsOf(m), hasError('needs firebase identity'));
+    });
+
+    test('a channel deploys to one environment', () {
+      final m = baseManifest();
+      m['environments']['test'] = {
+        'currentLevel': 'spark',
+        'firebase': {'projectId': 'p-test', 'webAppId': '1:2:web:2'},
+        'channels': {'develop': 'p-test', 'stable': 'p-test-stable'},
+      };
+      expect(
+        errorsOf(m),
+        hasError('environments production and test both deploy channel stable'),
+      );
+    });
+
+    test('channel names and sites are validated', () {
+      final m = baseManifest();
+      m['environments']['production']['channels'] = {'Bad_Name': 'x'};
+      expect(errorsOf(m), hasError('channel Bad_Name is not a branch name'));
+      m['environments']['production']['channels'] = {'stable': 'Bad Site'};
+      expect(errorsOf(m), hasError('is not a Hosting site id'));
+      m['environments']['production']['channels'] = {'stable': 3};
+      expect(errorsOf(m), hasError('expected a Hosting site id or null'));
+    });
+
+    test('emulator environments deploy no channels', () {
+      final m = baseManifest();
+      m['environments']['development']['channels'] = {'develop': null};
+      expect(errorsOf(m), hasError('emulator environments deploy no channels'));
+    });
+
     test('production is required', () {
       final m = baseManifest();
       m['environments'].remove('production');

@@ -186,6 +186,85 @@ class WizardTest(TestCase):
         self.assertIn("Missing release channels (full-channels) on alice/foodsavr: daily, weekly, stable", out.getvalue())
         self.assertIn("Release channels ready.", out.getvalue())
 
+    def test_primary_environment_prefers_the_test_project(self):
+        environments = [{"name": "development", "emulator": True}, {"name": "test"}, {"name": "production"}]
+        self.assertEqual(wizard.primary_environment(environments), "test")
+        self.assertEqual(wizard.primary_environment([{"name": "production"}]), "production")
+        self.assertEqual(wizard.primary_environment(environments, "production"), "production")
+
+    def test_production_identity_replaces_the_unprovisioned_marker(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = Path(directory) / "instance.yaml"
+            manifest.write_text((wizard.ROOT / "deploy/instance.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+            self.assertTrue(wizard.write_production_identity(manifest, "foodsavr-prod", "1:9:web:9"))
+            text = manifest.read_text(encoding="utf-8")
+            production = text[text.index("  production:\n"):]
+            self.assertNotIn("provisioned: false", production)
+            self.assertIn('      projectId: foodsavr-prod\n      webAppId: "1:9:web:9"\n', production)
+            self.assertIn("my-foodsavr-store-daily", text)
+            self.assertFalse(wizard.write_production_identity(manifest, "foodsavr-prod", "1:9:web:9"))
+
+    def setup_instance(self):
+        state = {"local_config": {}, "github": {"target_repo": "owner/repo", "variables": {}}}
+        with patch.object(wizard, "probe_environment", return_value=state):
+            instance = wizard.Setup("owner/repo", "full-cloud", state, listing=False)
+        instance.project = "demo-proj"
+        instance.env = {"ENV": "test"}
+        return instance
+
+    def test_production_project_is_skipped_once_provisioned(self):
+        instance = self.setup_instance()
+        instance.environments = [{"name": "test"}, {"name": "production", "provisioned": True}]
+        self.assertTrue(instance.production_project())
+        instance.environments = [{"name": "test"}]
+        self.assertTrue(instance.production_project())
+
+    def test_unprovisioned_production_is_listed(self):
+        instance = self.setup_instance()
+        instance.listing = True
+        instance.environments = [{"name": "test"}, {"name": "production", "provisioned": False}]
+        out = StringIO()
+        with redirect_stdout(out):
+            self.assertTrue(instance.production_project())
+        self.assertEqual(out.getvalue(), "Production Firebase project\n")
+
+    def test_terraform_state_moves_from_production_to_test_once(self):
+        instance = self.setup_instance()
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"XDG_STATE_HOME": directory}):
+            legacy = wizard.local_state_path("owner/repo", "gcp-demo-proj-production")
+            current = wizard.local_state_path("owner/repo", "gcp-demo-proj-test")
+            self.assertTrue(instance.terraform_state("test"))
+            legacy.parent.mkdir(parents=True)
+            legacy.write_text("{}")
+            with patch.object(wizard, "confirm", return_value=True), redirect_stdout(StringIO()):
+                self.assertTrue(instance.terraform_state("test"))
+            self.assertFalse(legacy.exists())
+            self.assertEqual(current.read_text(), "{}")
+            legacy.write_text("{}")
+            with redirect_stderr(StringIO()) as errors:
+                self.assertFalse(instance.terraform_state("test"))
+            self.assertIn("Both", errors.getvalue())
+
+    def test_infrastructure_checks_each_environment_with_its_suffix(self):
+        instance = self.setup_instance()
+        instance.environments = [{"name": "test"}, {"name": "production", "provisioned": True}]
+        instance.state["github"]["variables"] = {
+            f"{name}_TEST": "x" for name in (
+                "GCP_WORKLOAD_IDENTITY_PROVIDER", "GCP_DEPLOY_SERVICE_ACCOUNT",
+                "GCP_TELEMETRY_SERVICE_ACCOUNT", "RECAPTCHA_ENTERPRISE_SITE_KEY",
+            )
+        }
+        with patch.object(wizard, "terraform_step", return_value=True) as step, \
+                patch.object(instance, "cloud_authenticated", return_value=True), \
+                patch.object(instance, "terraform_state", return_value=True):
+            instance.state["tools"] = {"terraform": True}
+            self.assertTrue(instance.firebase_infrastructure())
+        calls = [(c.args[0], c.args[2]["ENV"], c.args[2]["SETUP_GCP_OUTPUTS_READY"]) for c in step.call_args_list]
+        self.assertEqual(calls, [
+            ("Firebase configuration (test)", "test", "1"),
+            ("Firebase configuration", "production", "0"),
+        ])
+
     def test_wizard_has_no_menu_paths_or_merge_gate_token(self):
         source = (Path(wizard.__file__)).read_text(encoding="utf-8")
         self.assertNotIn("MERGE_GATE_TOKEN", source)

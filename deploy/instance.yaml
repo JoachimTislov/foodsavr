@@ -256,10 +256,25 @@ environments:
   development:
     currentLevel: firebase-spark
     emulator: true
-  production:
+  # Test project: develop, daily and weekly each deploy to their own Hosting
+  # site (multiple sites per project work on Spark).
+  test:
     currentLevel: firebase-spark
+    githubEnvironment: test
     firebase:
       projectId: my-foodsavr-store
       webAppId: "1:514586238925:web:e562b8b85d97417f83ae84"
       webApiKeyId: 2010adfb-c62e-4376-bf08-58fb4bd61747
       siteId: my-foodsavr-store
+    channels:
+      develop: my-foodsavr-store
+      daily: my-foodsavr-store-daily
+      weekly: my-foodsavr-store-weekly
+  # Production project, served from stable. `make setup` creates it, then
+  # replaces `provisioned: false` with its firebase identity.
+  production:
+    currentLevel: firebase-spark
+    provisioned: false
+    githubEnvironment: production
+    channels:
+      stable:

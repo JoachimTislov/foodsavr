@@ -33,6 +33,11 @@ class DeploymentInstance {
   /// Index of the level called [name] in the ladder, or -1.
   int indexOf(String name) => levels.indexWhere((l) => l.name == name);
 
+  /// The environment that deploys release channel [channel], or null.
+  Environment? environmentForChannel(String channel) => environments.values
+      .where((e) => e.servedChannels.contains(channel))
+      .firstOrNull;
+
   Level? levelNamed(String name) {
     final i = indexOf(name);
     return i < 0 ? null : levels[i];

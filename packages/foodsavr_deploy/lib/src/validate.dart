@@ -66,6 +66,7 @@ ValidationReport validate(DeploymentInstance i) {
     _environment(i, env, r);
   }
   _uniqueIdentities(i, err);
+  _uniqueChannels(i, err);
   return r;
 }
 
@@ -177,8 +178,26 @@ void _environment(DeploymentInstance i, Environment env, ValidationReport r) {
   if (!level.built) {
     err('$p: currentLevel ${env.currentLevel} must be a built level');
   }
-  if (env.cloud && level.provider == 'firebase' && env.firebase == null) {
-    err('$p: firebase level needs firebase identity (or emulator: true)');
+  if (env.cloud &&
+      env.provisioned &&
+      level.provider == 'firebase' &&
+      env.firebase == null) {
+    err(
+      '$p: firebase level needs firebase identity '
+      '(or emulator: true, or provisioned: false)',
+    );
+  }
+  if (env.emulator && !env.provisioned) {
+    err('$p: emulator environments have nothing to provision');
+  }
+  final name = RegExp(r'^[a-z0-9][a-z0-9-]*$');
+  for (final e in env.channels.entries) {
+    if (!name.hasMatch(e.key)) err('$p: channel ${e.key} is not a branch name');
+    final site = e.value;
+    if (site != null && !name.hasMatch(site)) {
+      err('$p: channel ${e.key} site $site is not a Hosting site id');
+    }
+    if (env.emulator) err('$p: emulator environments deploy no channels');
   }
   if (env.name == 'production' && env.emulator) {
     err('$p: production cannot run on emulators');
@@ -228,6 +247,23 @@ void _uniqueIdentities(DeploymentInstance i, void Function(String) err) {
           'declare sharedWith to allow it',
         );
       }
+    }
+  }
+}
+
+/// A release channel deploys to exactly one environment.
+void _uniqueChannels(DeploymentInstance i, void Function(String) err) {
+  final owner = <String, String>{};
+  for (final env in i.environments.values) {
+    for (final channel in env.servedChannels) {
+      final previous = owner[channel];
+      if (previous != null) {
+        err(
+          'environments $previous and ${env.name} both deploy channel '
+          '$channel',
+        );
+      }
+      owner[channel] = env.name;
     }
   }
 }

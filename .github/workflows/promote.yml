@@ -13,7 +13,9 @@ name: Promote release channels
 #
 # Never creates merge commits and never force-pushes. Pushing with the
 # Release-Gate GitHub App token (or legacy MERGE_GATE_TOKEN) triggers
-# downstream deployment workflows on `stable`.
+# downstream workflows on the advanced channel: firebase-hosting.yml deploys
+# daily and weekly to their test Hosting sites and stable to production, per
+# the channels declared in deploy/instance.yaml.
 
 on:
   schedule:
@@ -129,3 +131,4 @@ jobs:
           fi
 
           python3 scripts/github/promote_release.py "${args[@]}"
+          echo "Firebase Hosting deploys each advanced channel to the environment that declares it in deploy/instance.yaml (daily/weekly: test sites, stable: production)." >> "$GITHUB_STEP_SUMMARY"

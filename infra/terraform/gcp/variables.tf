@@ -34,6 +34,26 @@ variable "deploy_branch" {
   default     = ""
 }
 
+variable "deploy_branches" {
+  description = "Release channels (branches) this environment deploys, from deploy/instance.yaml; each may impersonate github-deploy-live with github_environment. Empty falls back to deploy_branch."
+  type        = list(string)
+  default     = []
+  validation {
+    condition     = alltrue([for b in var.deploy_branches : can(regex("^[a-z0-9][a-z0-9-]*$", b))])
+    error_message = "deploy_branches must be branch names (lower-kebab-case)."
+  }
+}
+
+variable "hosting_sites" {
+  description = "Extra Firebase Hosting sites (one per release channel) created in the project; the default site is not managed."
+  type        = list(string)
+  default     = []
+  validation {
+    condition     = alltrue([for s in var.hosting_sites : can(regex("^[a-z0-9][a-z0-9-]{4,61}[a-z0-9]$", s))])
+    error_message = "hosting_sites must be valid Hosting site ids."
+  }
+}
+
 variable "telemetry_branch" {
   description = "Branch allowed to impersonate github-telemetry-ro for scheduled telemetry and deployment-level polling."
   type        = string
