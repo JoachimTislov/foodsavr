@@ -14,7 +14,7 @@ if [[ -n "${CODEX_AUTH_JSON_B64:-}" ]]; then
     providers+=(codex)
 fi
 if [[ -n "${ANTIGRAVITY_OAUTH_TOKEN_B64:-}" || -n "${GEMINI_API_KEY:-}" ]]; then
-    curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- --skip-aliases --skip-path
+    curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- --dir "$HOME/.local/bin"
     echo "$HOME/.local/bin" >> "$GITHUB_PATH"
     install -d -m 700 "$HOME/.gemini/antigravity-cli"
     (
