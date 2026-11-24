@@ -11,20 +11,27 @@ import '../views/product_form_view.dart';
 import '../views/product_detail_view.dart';
 import 'localization.dart';
 
+enum BarcodeScanAction { addWithoutBarcode }
+
 class ProductAddHelper {
   static Future<bool?> startAddProductFlow(
     BuildContext context, {
     String? collectionId,
   }) async {
-    final scannedBarcode = await context.push<String>('/barcode-scan');
+    final result = await context.push<Object>('/barcode-scan');
+    if (!context.mounted) return false;
+    return finishAddProductFlow(context, result, collectionId: collectionId);
+  }
 
-    if (!context.mounted || scannedBarcode == null || scannedBarcode.isEmpty) {
-      return false;
-    }
-
-    if (scannedBarcode == 'MANUAL_ENTRY') {
+  static Future<bool?> finishAddProductFlow(
+    BuildContext context,
+    Object? result, {
+    String? collectionId,
+  }) async {
+    if (result == BarcodeScanAction.addWithoutBarcode) {
       return await ProductFormView.show(context, collectionId: collectionId);
     }
+    if (result is! String || result.isEmpty) return false;
 
     collectionId ??= await getIt<PreferencesController>()
         .resolveDefaultInventoryId();
@@ -47,9 +54,9 @@ class ProductAddHelper {
       );
       loadingOpen = true;
 
-      final result = await productService.addOrIncrementByBarcode(
+      final addResult = await productService.addOrIncrementByBarcode(
         userId: userId,
-        barcode: scannedBarcode,
+        barcode: result,
         languageCode: context.locale.languageCode,
       );
 
@@ -60,13 +67,13 @@ class ProductAddHelper {
       ).pop(); // Dismiss loading indicator
       loadingOpen = false;
 
-      if (result.notFound) {
+      if (addResult.notFound) {
         messenger.showSnackBar(
           SnackBar(content: Text('product.barcodeNotFound'.tr())),
         );
         return await ProductFormView.show(
           context,
-          prefill: result.product,
+          prefill: addResult.product,
           collectionId: collectionId,
         );
       } else {
@@ -76,7 +83,7 @@ class ProductAddHelper {
           try {
             await collectionService.addProductToCollection(
               collectionId,
-              result.product.id,
+              addResult.product.id,
             );
           } catch (e) {
             messenger.showSnackBar(
@@ -91,7 +98,7 @@ class ProductAddHelper {
 
         if (!context.mounted) return false;
 
-        final expiryDays = result.estimatedExpiryDays;
+        final expiryDays = addResult.estimatedExpiryDays;
         final expiryMsg = 'product.barcodeAssumedExpiry'.trWith(
           namedArgs: {'days': '$expiryDays'},
           when: expiryDays != null,
@@ -100,12 +107,12 @@ class ProductAddHelper {
         messenger.showSnackBar(
           SnackBar(
             content: Text(
-              (result.matchedExisting
+              (addResult.matchedExisting
                       ? 'product.barcodeMatched'.tr(
-                          namedArgs: {'name': result.product.name},
+                          namedArgs: {'name': addResult.product.name},
                         )
                       : 'product.barcodeCreated'.tr(
-                          namedArgs: {'name': result.product.name},
+                          namedArgs: {'name': addResult.product.name},
                         )) +
                   expiryMsg,
             ),
@@ -115,7 +122,7 @@ class ProductAddHelper {
         // Show the product after adding it
         await Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (context) => ProductDetailView(product: result.product),
+            builder: (context) => ProductDetailView(product: addResult.product),
           ),
         );
 

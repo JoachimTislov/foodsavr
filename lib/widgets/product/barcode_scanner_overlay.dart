@@ -1,4 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+
+import '../../constants/material3_config.dart';
 
 class BarcodeScannerOverlay extends StatelessWidget {
   const BarcodeScannerOverlay({super.key});
@@ -6,13 +10,19 @@ class BarcodeScannerOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      painter: _BarcodeScannerOverlayPainter(),
+      painter: _BarcodeScannerOverlayPainter(
+        Theme.of(context).colorScheme.primary,
+      ),
       child: const SizedBox.expand(),
     );
   }
 }
 
 class _BarcodeScannerOverlayPainter extends CustomPainter {
+  _BarcodeScannerOverlayPainter(this.borderColor);
+
+  final Color borderColor;
+
   static const _overlayColor = Color(0xAA000000);
   static const _holeWidth = 280.0;
   static const _holeHeight = 180.0;
@@ -25,10 +35,10 @@ class _BarcodeScannerOverlayPainter extends CustomPainter {
     final scanRect = RRect.fromRectAndRadius(
       Rect.fromCenter(
         center: size.center(Offset.zero),
-        width: _holeWidth,
-        height: _holeHeight,
+        width: math.min(_holeWidth, size.width * 0.85),
+        height: math.min(_holeHeight, size.height * 0.65),
       ),
-      const Radius.circular(20),
+      const Radius.circular(Material3Config.radiusLarge),
     );
     final holePath = Path()..addRRect(scanRect);
     final combined = Path.combine(
@@ -39,12 +49,13 @@ class _BarcodeScannerOverlayPainter extends CustomPainter {
     canvas.drawPath(combined, overlayPaint);
 
     final borderPaint = Paint()
-      ..color = Colors.white
+      ..color = borderColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
     canvas.drawRRect(scanRect, borderPaint);
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _BarcodeScannerOverlayPainter oldDelegate) =>
+      oldDelegate.borderColor != borderColor;
 }

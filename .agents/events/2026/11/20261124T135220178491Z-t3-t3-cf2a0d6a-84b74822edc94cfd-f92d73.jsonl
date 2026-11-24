@@ -1,0 +1,1 @@
+{"commits": [], "ended_at": "2026-11-24T13:52:20+00:00", "harness": "t3", "issues": ["#121"], "provider": "openai", "prs": [], "session_id": "t3:t3-cf2a0d6a-84b74822edc94cfd", "sources": [], "started_at": "2026-11-24T13:44:29+00:00", "status": "completed", "stream": "sessions", "summary": "Implement camera-gated barcode scanning"}
