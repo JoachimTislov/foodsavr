@@ -40,7 +40,7 @@ Release-branch rulesets must be split into two rulesets per ADR 0007: one enforc
 
 We split GCP WIF impersonation into two least-privilege service accounts on the same Workload Identity Pool:
 
-- **`github-deploy-live`**: deployment permissions only, bound to `assertion.repository`, the active release branch (`release`, or `develop` in `single` topology), and `assertion.environment == 'production'`. Live WIF variables are stored on the `production` GitHub Environment.
+- **`github-deploy-live`**: deployment permissions only, bound to `assertion.repository`, the active release branch (`stable`, or `develop` in `single` topology), and `assertion.environment == 'production'`. Live WIF variables are stored on the `production` GitHub Environment.
 - **`github-telemetry-ro`**: read-only monitoring/Firestore/Auth viewer permissions for `fault-intake.yml` and `deployment-level.yml`.
 
 ### 4. Configurable release topologies (`RELEASE_TOPOLOGY`)
@@ -48,8 +48,8 @@ We split GCP WIF impersonation into two least-privilege service accounts on the 
 Release topology is selected during setup and stored in a GitHub Actions variable (`RELEASE_TOPOLOGY`):
 
 - **`single`** (default for forks and personal setups): `develop` only; `promote.yml` cleanly no-ops and deploy/build workflows trigger on `develop`.
-- **`two-stage`**: `develop -> release`; fast PR checks on `develop`, explicit or scheduled fast-forward promotion to `release`.
-- **`full-channels`** (upstream FoodSavr default): `develop -> nightly -> beta -> stable -> release` per ADR 0007.
+- **`two-stage`**: `develop -> stable`; fast PR checks on `develop`, explicit or scheduled fast-forward promotion to `stable`.
+- **`full-channels`** (upstream FoodSavr default): `develop -> daily -> weekly -> stable` per ADR 0007.
 
 Missing channel branches are created idempotently via the GitHub Refs API during setup and never deleted automatically on topology downgrade. Private repositories on GitHub Free automatically disable ruleset provisioning (`enable_rulesets = false`) rather than failing `403`.
 
