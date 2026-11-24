@@ -167,11 +167,15 @@ if [ "$action" = show ]; then
   exit 0
 fi
 
-if [ "$backend" = local ] && [ -z "${PLAN_FILE:-}" ] && { [ "$billing_fallback" = true ] || [ -f "$state_dir/adopt-local" ]; }; then
+recovery=false
+if [ "$backend" = local ] && { [ "$billing_fallback" = true ] || [ -f "$state_dir/adopt-local" ]; }; then
+  recovery=true
+fi
+if [ "$recovery" = true ] && [ -z "${PLAN_FILE:-}" ]; then
   deploy_account="$(python3 "$root/scripts/infra/adopt.py" gcp "$dir" "$PROJECT_ID" "$WEB_APP_ID" \
     "$GITHUB_REPOSITORY" "$gh_env" "$deploy_branch" "$integration_branch" \
     "${ALLOW_PREVIEW_REFS:-false}" "$DEPLOYMENT_LEVEL" "${BILLING_ACCOUNT:-}" "${GCLOUD_ACCOUNT:-}")"
-  printf 'deploy_service_account_id = "%s"\n' "$deploy_account" >>"$tfvars"
+  printf 'deploy_service_account_id = "%s"\nlocal_recovery = true\n' "$deploy_account" >>"$tfvars"
 fi
 
 if [ "$action" = plan ]; then
@@ -181,20 +185,24 @@ if [ "$action" = plan ]; then
   terraform -chdir="$dir" plan -input=false -var-file="$tfvars" "${plan_args[@]}"
   exit 0
 fi
-if [ "$backend" = local ] && { [ "$billing_fallback" = true ] || [ -f "$state_dir/adopt-local" ]; }; then
-  if [ -z "${PLAN_FILE:-}" ]; then
-    PLAN_FILE="$work/local.tfplan"
-    terraform -chdir="$dir" plan -input=false -var-file="$tfvars" -out="$PLAN_FILE"
-    terraform -chdir="$dir" show -no-color "$PLAN_FILE"
-    read -r -p "Apply this local recovery plan? [y/N] " answer
-    [[ "$answer" =~ ^[Yy]$ ]] || exit 1
-  fi
-  terraform -chdir="$dir" show -json "$PLAN_FILE" | python3 "$root/scripts/infra/adopt.py" safe-plan
-  # Keep recovery active across interrupted applies and subsequent runs.
-  touch "$state_dir/adopt-local"
+if [ "$recovery" = true ] && [ -z "${PLAN_FILE:-}" ]; then
+  PLAN_FILE="$work/local.tfplan"
+  terraform -chdir="$dir" plan -input=false -var-file="$tfvars" -out="$PLAN_FILE"
+  terraform -chdir="$dir" show -no-color "$PLAN_FILE"
+  read -r -p "Apply this local recovery plan? [y/N] " answer
+  [[ "$answer" =~ ^[Yy]$ ]] || exit 1
 fi
 
 if [ -n "${PLAN_FILE:-}" ]; then
+  recovery="$(terraform -chdir="$dir" show -json "$PLAN_FILE" | python3 "$root/scripts/infra/adopt.py" safe-plan "$recovery")"
+  if [ "$recovery" = true ]; then
+    if [ "$backend" != local ]; then
+      echo "A local recovery plan requires the local state backend." >&2
+      exit 1
+    fi
+    # Keep recovery active across interrupted applies and subsequent runs.
+    touch "$state_dir/adopt-local"
+  fi
   terraform -chdir="$dir" apply "$PLAN_FILE"
 else
   terraform -chdir="$dir" apply -var-file="$tfvars"

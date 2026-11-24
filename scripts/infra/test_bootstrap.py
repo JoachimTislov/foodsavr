@@ -106,6 +106,8 @@ elif name == 'gcloud':
         sys.exit(9)
 elif name == 'terraform':
     directory = pathlib.Path(args[0].split('=', 1)[1])
+    if args[1:3] == ['show', '-json']:
+        print(pathlib.Path(args[3]).read_text())
     with open(os.environ['FAKE_CONFIG_LOG'], 'a') as out:
         out.write((directory / 'main.tf').read_text())
         if (directory / 'adopt.tf').is_file():
@@ -126,6 +128,9 @@ elif name == 'gh':
             sys.exit(0)
         if '/environments?' in endpoint:
             print('[{"environments":[]}]')
+            sys.exit(0)
+        if '/rulesets?' in endpoint:
+            print('[[]]')
             sys.exit(0)
         endpoint = args[1]
         if endpoint.endswith('/rulesets'):
@@ -197,9 +202,9 @@ class BackendTests(unittest.TestCase):
             / 'foodsavr/terraform/alice/foodsavr/gcp-demo-proj-production/terraform.tfstate'
         )
 
-    def run_plan(self, **env):
+    def run_plan(self, *, action='plan', **env):
         return subprocess.run(
-            ['bash', str(self.root / 'scripts/infra/apply.sh'), 'plan'],
+            ['bash', str(self.root / 'scripts/infra/apply.sh'), action],
             cwd=self.root,
             env={**self.env, **env},
             text=True,
@@ -249,10 +254,38 @@ class BackendTests(unittest.TestCase):
         self.assertIn('to = google_iam_workload_identity_pool_provider.github', config)
         self.assertIn('to = google_service_account.deploy_live', config)
         self.assertIn('deploy_service_account_id = "github-hosting-deploy"', config)
+        self.assertIn('local_recovery = true', config)
         self.assertFalse(self.expected_gcp_state().exists())
         calls = (self.root / 'calls.jsonl').read_text()
         self.assertNotIn('"apply"', calls)
         self.assertNotIn('"import"', calls)
+
+    def test_saved_recovery_plan_is_guarded_after_bucket_probe_changes(self):
+        plan = self.root / 'recovery.tfplan'
+        marker = self.expected_gcp_state().parent / 'adopt-local'
+        for variables in (
+            {'local_recovery': {'value': True}},
+            {'deploy_service_account_id': {'value': 'github-hosting-deploy'}},
+        ):
+            with self.subTest(variables=variables):
+                change = {'address': 'google_service_account.deploy_live', 'change': {'actions': ['delete']}}
+                plan.write_text(json.dumps({'variables': variables, 'resource_changes': [change]}))
+                result = self.run_plan(action='apply', PLAN_FILE=str(plan))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('Plan would remove or replace', result.stderr)
+                self.assertFalse(marker.exists())
+                calls = [json.loads(line) for line in (self.root / 'calls.jsonl').read_text().splitlines()]
+                self.assertFalse(any(name == 'terraform' and args[1] == 'apply' for name, args in calls))
+
+                change['change']['actions'] = ['no-op']
+                plan.write_text(json.dumps({'variables': variables, 'resource_changes': [change]}))
+                result = self.run_plan(action='apply', PLAN_FILE=str(plan))
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue(marker.exists())
+                self.assertEqual(self.run_plan().returncode, 0)
+                self.assertIn('deploy_service_account_id = "github-hosting-deploy"', (self.root / 'config.log').read_text())
+                marker.unlink()
+                (self.root / 'calls.jsonl').unlink()
 
     def test_billing_403_closed_message_falls_back_even_without_billing_describe(self):
         result = self.run_plan(
@@ -312,6 +345,24 @@ class BackendTests(unittest.TestCase):
         self.assertIn('contains(keys(local.existing_labels), lower(name))', config)
         self.assertIn('-var=enable_rulesets=false', calls)
         self.assertIn('-var=release_topology=single', calls)
+
+    def test_apply_github_plan_leaves_channel_derivation_to_terraform_with_tfvars(self):
+        tfvars = self.root / 'github.tfvars'
+        tfvars.write_text('release_topology = "two-stage"\n')
+        result = subprocess.run(
+            ['bash', str(self.root / 'scripts/infra/apply-github.sh'), 'plan'],
+            cwd=self.root,
+            env={**self.env, 'GITHUB_REPOSITORY': 'alice/foodsavr', 'RELEASE_TOPOLOGY': 'single',
+                 'DEFAULT_BRANCH': 'main', 'TFVARS_FILE': str(tfvars)},
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = (self.root / 'calls.jsonl').read_text()
+        self.assertNotIn('-var=channel_branches=', calls)
+        self.assertIn('-var=default_branch=main', calls)
+        self.assertLess(calls.index('-var=release_topology=single'), calls.index(f'-var-file={tfvars}'))
+        self.assertIn('? ["develop", "stable"]', (self.root / 'config.log').read_text())
 
 
 class TerraformRootStructureTests(unittest.TestCase):

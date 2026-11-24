@@ -48,6 +48,24 @@ class WizardTest(TestCase):
         self.assertEqual(output.getvalue(), "GitHub configuration\n")
         self.assertEqual(run.call_args.args, ("git.sh", "plan"))
 
+    def test_terraform_step_without_prerequisites_is_pending(self):
+        for listing in (False, True):
+            with self.subTest(listing=listing):
+                output, errors = StringIO(), StringIO()
+                with (
+                    patch.object(wizard, "run") as run,
+                    redirect_stdout(output),
+                    redirect_stderr(errors),
+                ):
+                    self.assertEqual(
+                        wizard.terraform_step("GitHub configuration", "git.sh", {}, listing, False), listing
+                    )
+                run.assert_not_called()
+                if listing:
+                    self.assertEqual(output.getvalue(), "GitHub configuration\n")
+                else:
+                    self.assertIn("GitHub configuration pending.", errors.getvalue())
+
     def test_owner_names_omit_username_and_truncation_preserves_role(self):
         self.assertEqual(app_name("JoachimTislov/foodsavr", "release-gate"), "foodsavr-release-gate")
         repo = "long-owner-for-fork/long-name-for-a-fork-of-foodsavr"
@@ -87,12 +105,9 @@ class WizardTest(TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / ".env").write_text("FACEBOOK_APP_ID='123'\nFACEBOOK_APP_SECRET='sec'\n", encoding="utf-8")
-            instance = wizard.Setup(
-                "owner/repo",
-                "full-cloud",
-                {"local_config": {}, "github": {"target_repo": "owner/repo"}},
-                listing=False,
-            )
+            state = {"local_config": {}, "github": {"target_repo": "owner/repo"}}
+            with patch.object(wizard, "probe_environment", return_value=state):
+                instance = wizard.Setup("owner/repo", "full-cloud", state, listing=False)
             instance.project = "demo-proj"
             instance.env = {}
             out = StringIO()
@@ -111,12 +126,9 @@ class WizardTest(TestCase):
     def test_facebook_sign_in_prompts_rotate_when_missing_and_falls_back_to_console_url(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            instance = wizard.Setup(
-                "owner/repo",
-                "full-cloud",
-                {"local_config": {}, "github": {"target_repo": "owner/repo"}},
-                listing=False,
-            )
+            state = {"local_config": {}, "github": {"target_repo": "owner/repo"}}
+            with patch.object(wizard, "probe_environment", return_value=state):
+                instance = wizard.Setup("owner/repo", "full-cloud", state, listing=False)
             instance.project = "demo-proj"
             instance.env = {}
             out = StringIO()
@@ -145,10 +157,9 @@ class WizardTest(TestCase):
             "github": {"target_repo": "alice/foodsavr", "branches": ["develop"]},
         }
         listing_out = StringIO()
-        listing_instance = wizard.Setup("alice/foodsavr", "fork-agents", state, listing=True)
-        listing_instance.topology = "full-channels"
-        listing_instance.state = state
-        with redirect_stdout(listing_out):
+        with patch.object(wizard, "probe_environment", return_value=state), redirect_stdout(listing_out):
+            listing_instance = wizard.Setup("alice/foodsavr", "fork-agents", state, listing=True)
+            listing_instance.topology = "full-channels"
             self.assertTrue(listing_instance.release_branches())
         self.assertEqual(listing_out.getvalue(), "Release channels\n")
 
@@ -157,15 +168,14 @@ class WizardTest(TestCase):
             "local_config": {},
             "github": {"target_repo": "alice/foodsavr", "branches": list(wizard.TOPOLOGY_BRANCHES["full-channels"])},
         }
-        instance = wizard.Setup("alice/foodsavr", "fork-agents", state, listing=False)
-        instance.topology = "full-channels"
-        instance.state = state
         with (
             patch.object(wizard, "confirm", return_value=True) as mock_confirm,
             patch.object(wizard, "ensure_branches") as mock_ensure,
-            patch.object(wizard, "probe_environment", return_value=updated_state),
+            patch.object(wizard, "probe_environment", side_effect=[state, updated_state]),
             redirect_stdout(out),
         ):
+            instance = wizard.Setup("alice/foodsavr", "fork-agents", state, listing=False)
+            instance.topology = "full-channels"
             self.assertTrue(instance.release_branches())
         mock_confirm.assert_called_once_with("Create missing release channels (daily, weekly, stable)?")
         mock_ensure.assert_called_once_with(

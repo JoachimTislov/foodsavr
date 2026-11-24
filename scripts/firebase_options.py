@@ -16,6 +16,65 @@ WEB_FIELDS = (
 )
 REQUIRED_FIELDS = WEB_FIELDS[:4]
 STUB_MARKERS = ("Compile-only stub written by scripts/ci/local_ci.py", "foodsavr-local-dev")
+DART_TOKEN = re.compile(
+    r"""//[^\r\n]*|/\*|r?(?P<quote>'{3}|"{3}|'|")(?:(?!(?P=quote))(?:\\.|[^\\]))*(?P=quote)|\w+|\S""",
+    re.DOTALL,
+)
+BLOCK_COMMENT = re.compile(r"/\*|\*/")
+
+
+def dart_tokens(source):
+    """Read generated Dart tokens, retaining quoted literals and skipping comments."""
+    offset = 0
+    while match := DART_TOKEN.search(source, offset):
+        token = match[0]
+        offset = match.end()
+        if token == "/*":
+            depth = 1
+            for delimiter in BLOCK_COMMENT.finditer(source, offset):
+                depth += 1 if delimiter[0] == "/*" else -1
+                if depth == 0:
+                    offset = delimiter.end()
+                    break
+            else:
+                return
+        elif not token.startswith("//"):
+            yield token
+
+
+def web_options(source):
+    tokens = list(dart_tokens(source))
+    declaration = ["static", "const", "FirebaseOptions", "web", "=", "FirebaseOptions", "("]
+    header = ["class", "DefaultFirebaseOptions", "{"]
+    start = next(
+        (index + len(header) for index in range(len(tokens)) if tokens[index:index + len(header)] == header),
+        len(tokens),
+    )
+    depth = 1
+    for index in range(start, len(tokens)):
+        if depth == 1 and tokens[index:index + len(declaration)] == declaration:
+            fields = {}
+            index += len(declaration)
+            while tokens[index:index + 1] != [")"]:
+                if len(tokens) - index < 3:
+                    return {}
+                field, separator, literal = tokens[index:index + 3]
+                if separator != ":" or literal[:1] not in ("'", '"'):
+                    return {}
+                fields[field] = literal[1:-1]
+                index += 3
+                if tokens[index:index + 1] == [","]:
+                    index += 1
+                elif tokens[index:index + 1] != [")"]:
+                    return {}
+            return fields
+        if tokens[index] == "{":
+            depth += 1
+        elif tokens[index] == "}":
+            depth -= 1
+            if depth == 0:
+                break
+    return {}
 
 
 def validate(content: bytes, *, syntax=False) -> str:
@@ -51,9 +110,8 @@ def fingerprint(path, project, web_app):
         source = validate(content, syntax=True)
     except (OSError, ValueError):
         return None
-    if not re.search(rf"""\bprojectId\s*:\s*['"]{re.escape(project)}['"]""", source):
-        return None
-    if not re.search(rf"""\bappId\s*:\s*['"]{re.escape(web_app)}['"]""", source):
+    web = web_options(source)
+    if (web.get("projectId"), web.get("appId")) != (project, web_app):
         return None
     return hashlib.sha256(content).hexdigest()
 

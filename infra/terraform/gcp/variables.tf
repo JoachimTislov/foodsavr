@@ -126,3 +126,9 @@ variable "deploy_service_account_id" {
   type        = string
   default     = "github-deploy-live"
 }
+
+variable "local_recovery" {
+  description = "Records local recovery provenance in saved plans for apply.sh."
+  type        = bool
+  default     = false
+}

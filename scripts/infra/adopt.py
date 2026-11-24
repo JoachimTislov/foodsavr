@@ -247,11 +247,22 @@ def gcp_resources(directory, project, app, repo, environment, deploy_branch, int
     print(deploy_id)
 
 
-def safe_plan():
+def safe_plan(recovery="true"):
     plan = json.load(sys.stdin)
-    for item in plan.get("resource_changes", []):
+    variables = plan.get("variables", {})
+    changes = plan.get("resource_changes", [])
+    recovery = recovery == "true" or (
+        variables.get("local_recovery", {}).get("value") in (True, "true")
+        or variables.get("deploy_service_account_id", {}).get("value") == "github-hosting-deploy"
+        or any(item["change"].get("importing") is not None for item in changes)
+    )
+    if not recovery:
+        print("false")
+        return
+    for item in changes:
         if "delete" in item["change"]["actions"]:
             raise ValueError(f"Plan would remove or replace {item['address']}. Reconcile its state before applying.")
+    print("true")
 
 
 if __name__ == "__main__":
@@ -262,6 +273,6 @@ if __name__ == "__main__":
         elif task == "gcp":
             gcp_resources(*args)
         elif task == "safe-plan":
-            safe_plan()
+            safe_plan(*args)
     except (ValueError, OSError, KeyError, subprocess.TimeoutExpired) as error:
         sys.exit(str(error))

@@ -19,6 +19,23 @@ GOOD_DART = b"class DefaultFirebaseOptions { static const web = FirebaseOptions(
 
 class FirebaseOptionsTest(unittest.TestCase):
     @unittest.skipUnless(shutil.which("dart"), "Flutter SDK unavailable")
+    def test_fingerprint_requires_both_ids_in_uncommented_web_options(self):
+        web = {
+            "apiKey": "https://example.test/key", "appId": WEB_ID,
+            "messagingSenderId": "1234", "projectId": "old-web-project",
+        }
+        android = {**web, "appId": ANDROID_ID, "projectId": PROJECT}
+        source = firebase_options.render({"web": web, "android": android}).decode()
+        comment = f"/* ignored /* nested */ projectId: '{PROJECT}', */"
+        source = source.replace("projectId: 'old-web-project',", f"{comment} projectId: 'old-web-project',")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "firebase_options.dart"
+            path.write_text(source)
+            self.assertIsNone(firebase_options.fingerprint(path, PROJECT, WEB_ID))
+            self.assertIsNone(firebase_options.fingerprint(path, PROJECT, ANDROID_ID))
+            self.assertIsNotNone(firebase_options.fingerprint(path, "old-web-project", WEB_ID))
+
+    @unittest.skipUnless(shutil.which("dart"), "Flutter SDK unavailable")
     def test_recovery_matches_exact_android_package_and_manifest_web_app(self):
         web = {
             "apiKey": "web-test-key", "appId": WEB_ID, "messagingSenderId": "1234", "projectId": PROJECT,
