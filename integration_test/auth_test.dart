@@ -16,6 +16,12 @@ const emulatorTestOptions = FirebaseOptions(
   projectId: 'demo-project',
 );
 
+const _emulatorHost = String.fromEnvironment(
+  'AUTH_TEST_EMULATOR_HOST',
+  defaultValue: 'localhost',
+);
+const _strictRules = bool.fromEnvironment('AUTH_TEST_STRICT_RULES');
+
 const _firestorePort = int.fromEnvironment(
   'FIRESTORE_EMULATOR_PORT',
   defaultValue: 8080,
@@ -28,9 +34,9 @@ void main() {
     if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp(options: emulatorTestOptions);
     }
-    await FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
+    await FirebaseAuth.instance.useAuthEmulator(_emulatorHost, 9099);
     FirebaseFirestore.instance.useFirestoreEmulator(
-      'localhost',
+      _emulatorHost,
       _firestorePort,
     );
   });
@@ -92,7 +98,7 @@ void main() {
     await auth.signOut();
     expect(auth.currentUser, isNull);
   });
-  testWidgets('deletes account data across Firestore batch boundaries', (
+  testWidgets('atomically deletes more than 500 account documents', (
     tester,
   ) async {
     await ServiceLocator().registerDependencies();
@@ -124,17 +130,61 @@ void main() {
     await preferences.set({'expiringSoonDays': 5});
     await firestore.doc('users/$uid').set({'email': email});
 
-    await getIt<IAuthService>().deleteAccount();
-
-    expect(auth.currentUser, isNull);
     const database =
-        'http://localhost:$_firestorePort/v1/projects/demo-project'
+        'http://$_emulatorHost:$_firestorePort/v1/projects/demo-project'
         '/databases/(default)/documents';
-    // Use the emulator-only admin identity to inspect data after sign-out.
+    // Use the emulator-only admin identity to arrange and inspect rule failures.
     const headers = {
       'Authorization': 'Bearer owner',
       'Content-Type': 'application/json',
     };
+    final authService = getIt<IAuthService>();
+    if (_strictRules) {
+      // The owner can query this global document by userId but cannot delete it.
+      // Sort after auto IDs so the old paged cleanup would commit first.
+      final blocker = Uri.parse('$database/products/~blocked-$uid');
+      final seeded = await http.patch(
+        blocker,
+        headers: headers,
+        body: jsonEncode({
+          'fields': {
+            'userId': {'stringValue': uid},
+            'isGlobal': {'booleanValue': true},
+          },
+        }),
+      );
+      expect(seeded.statusCode, 200, reason: seeded.body);
+      try {
+        await expectLater(
+          authService.deleteAccount(reauthenticate: true, password: password),
+          throwsA(
+            isA<FirebaseException>().having(
+              (error) => error.code,
+              'code',
+              'permission-denied',
+            ),
+          ),
+        );
+        expect(auth.currentUser?.uid, uid);
+        const server = GetOptions(source: Source.server);
+        for (final (name, count) in [('products', 502), ('collections', 1)]) {
+          final docs = await firestore
+              .collection(name)
+              .where('userId', isEqualTo: uid)
+              .get(server);
+          expect(docs.size, count);
+        }
+        expect((await preferences.get(server)).exists, isTrue);
+        expect((await firestore.doc('users/$uid').get(server)).exists, isTrue);
+      } finally {
+        final removed = await http.delete(blocker, headers: headers);
+        expect(removed.statusCode, 200, reason: removed.body);
+      }
+    }
+
+    await authService.deleteAccount(reauthenticate: true, password: password);
+    expect(auth.currentUser, isNull);
+
     for (final collection in ['products', 'collections']) {
       final response = await http.post(
         Uri.parse('$database:runQuery'),

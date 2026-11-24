@@ -60,6 +60,8 @@ class _MockUser extends Mock implements User {
   @override
   bool get isAnonymous => false;
   @override
+  List<UserInfo> get providerData => [];
+  @override
   String? get displayName => 'Test User';
   @override
   String? get email => 'test@example.com';
@@ -116,8 +118,15 @@ class _FakeAuthService implements IAuthService {
   }
 
   @override
-  Future<void> deleteAccount({bool reauthenticate = false, String? password}) =>
-      signOut();
+  Future<void> deleteAccount({
+    bool reauthenticate = false,
+    String? password,
+  }) async {
+    if (!reauthenticate) {
+      throw FirebaseAuthException(code: 'requires-recent-login');
+    }
+    await signOut();
+  }
 
   @override
   Future<void> signOut() async {
@@ -340,6 +349,11 @@ void main() {
       addTearDown(rotated.dispose);
       expect(remembered.isLocked, isFalse);
       expect(rotated.isLocked, isTrue);
+      expect(remembered.unlock(' fixture-code '), isTrue);
+      final spaced = WebAccess(' spaced-code ', prefs);
+      addTearDown(spaced.dispose);
+      expect(spaced.unlock('spaced-code'), isFalse);
+      expect(spaced.unlock(' spaced-code '), isTrue);
       router.go('/delete-account');
       await tester.pumpAndSettle();
       await tester.tap(find.byType(FilledButton));
@@ -347,6 +361,9 @@ void main() {
       await tester.tap(
         find.widgetWithText(FilledButton, 'Yes, Delete Account'),
       );
+      await tester.pumpAndSettle();
+      expect(find.text('Your account was deleted.'), findsNothing);
+      await tester.tap(find.text('Verify and delete'));
       await tester.pumpAndSettle();
       expect(find.text('Your account was deleted.'), findsOneWidget);
       await tester.tap(find.text('Back to FoodSavr'));

@@ -134,7 +134,10 @@ class PreferencesRepository implements IPreferencesRepository {
   }
 
   @override
-  Future<void> deleteForUser(String userId) async {
+  Future<void> deleteForUser(
+    String userId,
+    Future<void> Function() deleteRemoteData,
+  ) async {
     _deleting.add(userId);
     _writeSequences.update(
       userId,
@@ -143,9 +146,17 @@ class PreferencesRepository implements IPreferencesRepository {
     );
     try {
       await _cacheWrites;
-      await _doc(userId).delete();
+      await deleteRemoteData();
       _pendingWrites.remove(userId);
-      await _updateCache((users) => users.remove(userId));
+      try {
+        await _updateCache((users) => users.remove(userId));
+      } catch (error, stack) {
+        _logger.w(
+          'Could not clear deleted account preferences',
+          error: error,
+          stackTrace: stack,
+        );
+      }
     } finally {
       _deleting.remove(userId);
     }

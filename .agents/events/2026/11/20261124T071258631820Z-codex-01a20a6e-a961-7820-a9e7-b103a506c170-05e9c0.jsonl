@@ -1,0 +1,1 @@
+{"event": "Addressed PR #421 review with atomic Firestore cleanup, reauthentication before deletion, and exact access-code matching. The confirmed legal contact remains an owner publication prerequisite.", "prs": ["#421"], "session_id": "codex:01a20a6e-a961-7820-a9e7-b103a506c170", "stream": "ledger", "timestamp": "2026-11-24T07:12:58+00:00"}

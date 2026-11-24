@@ -659,36 +659,43 @@ void main() {
       verifyZeroInteractions(errorReporter);
     });
 
-    test('deletion cleans up before Firebase Auth removes the user', () async {
-      final user = MockUser();
-      when(() => mockFirebaseAuth.currentUser).thenReturn(user);
-      when(() => user.isAnonymous).thenReturn(false);
-      when(() => user.uid).thenReturn('some-uid');
-      when(() => user.delete()).thenAnswer((_) async {});
-      await authService.deleteAccount();
-      verifyInOrder([
-        () => dataRepository.deleteForUser('some-uid'),
-        () => user.delete(),
-      ]);
-    });
+    test(
+      'guest deletion commits data cleanup before deleting the Auth user',
+      () async {
+        final user = MockUser();
+        when(() => mockFirebaseAuth.currentUser).thenReturn(user);
+        when(() => user.isAnonymous).thenReturn(true);
+        when(() => user.uid).thenReturn('some-uid');
+        when(() => user.delete()).thenAnswer((_) async {});
+        await authService.deleteAccount();
+        verifyInOrder([
+          () => dataRepository.deleteForUser('some-uid'),
+          () => user.delete(),
+          () => secureStorage.clearStoreTokens(),
+        ]);
+      },
+    );
 
-    test('deletion keeps the account when cleanup fails', () async {
-      final user = MockUser();
-      when(() => mockFirebaseAuth.currentUser).thenReturn(user);
-      when(() => user.isAnonymous).thenReturn(false);
-      when(() => user.uid).thenReturn('some-uid');
-      when(() => dataRepository.deleteForUser('some-uid')).thenThrow(
-        FirebaseException(plugin: 'cloud_firestore', code: 'permission-denied'),
-      );
+    test(
+      'deletion keeps the Auth account and local tokens when cleanup fails',
+      () async {
+        final user = MockUser();
+        when(() => mockFirebaseAuth.currentUser).thenReturn(user);
+        when(() => user.isAnonymous).thenReturn(true);
+        when(() => user.uid).thenReturn('some-uid');
+        final denied = FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'permission-denied',
+        );
+        when(() => dataRepository.deleteForUser('some-uid')).thenThrow(denied);
 
-      await expectLater(
-        authService.deleteAccount(),
-        throwsA(isA<FirebaseException>()),
-      );
-      verifyNever(() => user.delete());
-    });
+        await expectLater(authService.deleteAccount(), throwsA(same(denied)));
+        verifyNever(() => user.delete());
+        verifyZeroInteractions(secureStorage);
+      },
+    );
 
-    test('recent-login failure can be retried with the same account', () async {
+    test('account verification must succeed before deletion starts', () async {
       final user = MockUser();
       final passwordProvider = MockUserInfo();
       when(() => passwordProvider.providerId).thenReturn('password');
@@ -697,18 +704,7 @@ void main() {
       when(() => user.uid).thenReturn('some-uid');
       when(() => user.email).thenReturn('user@example.com');
       when(() => user.providerData).thenReturn([passwordProvider]);
-      var verified = false;
-      when(() => user.delete()).thenAnswer((_) async {
-        if (!verified) {
-          throw FirebaseAuthException(code: 'requires-recent-login');
-        }
-      });
-      when(() => user.reauthenticateWithCredential(any())).thenAnswer((
-        _,
-      ) async {
-        verified = true;
-        return mockUserCredential;
-      });
+      when(() => user.delete()).thenAnswer((_) async {});
 
       await expectLater(
         authService.deleteAccount(),
@@ -720,16 +716,29 @@ void main() {
           ),
         ),
       );
+      final rejected = FirebaseAuthException(code: 'wrong-password');
+      when(() => user.reauthenticateWithCredential(any())).thenThrow(rejected);
+      await expectLater(
+        authService.deleteAccount(reauthenticate: true, password: 'wrong'),
+        throwsA(same(rejected)),
+      );
+      verifyZeroInteractions(dataRepository);
+      verifyZeroInteractions(secureStorage);
+      verifyNever(() => user.delete());
+
+      when(
+        () => user.reauthenticateWithCredential(any()),
+      ).thenAnswer((_) async => mockUserCredential);
       await authService.deleteAccount(
         reauthenticate: true,
         password: 'password',
       );
 
       verifyInOrder([
-        () => user.delete(),
         () => user.reauthenticateWithCredential(any()),
         () => dataRepository.deleteForUser('some-uid'),
         () => user.delete(),
+        () => secureStorage.clearStoreTokens(),
       ]);
     });
 

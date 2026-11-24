@@ -16,5 +16,10 @@ abstract class IPreferencesRepository {
   /// merge semantics (last write wins per key).
   Future<void> save(String userId, UserPreferences preferences);
 
-  Future<void> deleteForUser(String userId);
+  /// Suspends preference writes during atomic account cleanup, then clears
+  /// the local preferences if the remote deletion succeeds.
+  Future<void> deleteForUser(
+    String userId,
+    Future<void> Function() deleteRemoteData,
+  );
 }
