@@ -549,6 +549,20 @@ class AttestationAndHistoryStoreTest(unittest.TestCase):
             self.assertNotIn("## Spec", body)
             self.assertNotIn("Checked against linked issue", body)
 
+            # The same approval on a truncated diff must not satisfy the gate.
+            (root / "pr-431.json").write_text(json.dumps({"pr": 431, "diff_truncated": True}))
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                pr_review.main([
+                    "record-review", "--pr", "431", "--head-sha", "999aaaa",
+                    "--bot", "--required-tier", "deep",
+                    "--workflow-result", str(result), "--output-markdown", str(markdown),
+                    "--history", str(root / "history.jsonl"),
+                ])
+            payload = json.loads(out.getvalue())
+            self.assertEqual(payload["record"]["status"], "commented")
+            self.assertIn("diff-truncated", markdown.read_text())
+
     def test_format_and_parse_attestation_round_trip(self):
         cls = pr_review.classify_pr(
             number=42,

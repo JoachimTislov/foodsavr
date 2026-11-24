@@ -1112,10 +1112,14 @@ def stage_pr_context(
         "pr": pr_num,
         "metadata": pr_meta,
         "classification": classification.to_dict(),
+        # A truncated diff can surface problems but never supports an approval.
+        "diff_truncated": len(diff_text) > MAX_INLINE_DIFF_CHARS,
     }
     json_snapshot.write_text(json.dumps(snapshot_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     bounded_diff = diff_text[:MAX_INLINE_DIFF_CHARS] if diff_text else "(diff not attached)"
+    if len(diff_text) > MAX_INLINE_DIFF_CHARS:
+        bounded_diff += f"\n... (diff truncated at {MAX_INLINE_DIFF_CHARS} of {len(diff_text)} chars)"
     md_lines = [
         f"# PR #{pr_num}: {pr_meta.get('title', '')}",
         "",
@@ -1959,9 +1963,9 @@ def select_review_plan(
                 "request CI, attestation, head-parity, label or merge-queue evidence, which the merge gate verifies."
                 + context_block
                 + "\nThe review job never checks out PR code, so the inline diff is the complete evidence. "
-                "If the diff is truncated, review the visible part, list the files you could not see, and "
-                "base the verdict on the visible changes; never block only because the diff is truncated "
-                "or a commit is unavailable locally."
+                "If the diff is truncated, review the visible part and list the files you could not see; "
+                "never block only because the diff is truncated or a commit is unavailable locally. "
+                "An approval of a truncated diff is recorded as non-approving, so a human merges it."
                 + "\nFinish with a final line containing only "
                 "VERDICT: APPROVE when the review passes or VERDICT: CHANGES_REQUESTED when it fails."
             ),
@@ -1982,6 +1986,18 @@ def select_review_plan(
             prepared["context"] = {**workflow.get("context", {}), "files": [], "skills": []}
         return tier, decision.provider, prepared
     return None
+
+
+def _diff_truncated(pr_number: int, workflow_result: Path) -> bool:
+    """True when the staged snapshot for this PR records a truncated diff."""
+    for state_dir in (workflow_result.resolve().parent, ROOT / ".agents/state"):
+        snapshot = state_dir / f"pr-{pr_number}.json"
+        if snapshot.is_file():
+            try:
+                return bool(json.loads(snapshot.read_text(encoding="utf-8")).get("diff_truncated"))
+            except (OSError, json.JSONDecodeError):
+                return False
+    return False
 
 
 def cmd_record_review(args: argparse.Namespace) -> int:
@@ -2084,6 +2100,10 @@ def cmd_record_review(args: argparse.Namespace) -> int:
     )
     cap_reason = PROVIDER_CAP if capped else None
     effective_status = (status or ("commented" if args.workflow_result else "approved")).lower()
+    if effective_status == "approved" and args.workflow_result and _diff_truncated(meta["number"], Path(args.workflow_result)):
+        # The model saw only part of the change, so its approval cannot satisfy the gate.
+        effective_status = "commented"
+        reason = reason or "diff-truncated"
     if required_tier == "human" and args.bot and effective_status == "approved":
         # A bot review on a human-tier PR is advisory only; human APPROVED review is still required.
         effective_status = "commented"
