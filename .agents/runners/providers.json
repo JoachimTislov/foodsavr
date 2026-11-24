@@ -72,8 +72,9 @@
     },
     "antigravity": {
       "command": "agy",
-      "headless": ["-p", "--output-format", "json", "--mode", "plan", "--sandbox", "--disable-slash-commands"],
-      "prompt_mode": "argument",
+      "headless": ["--output-format", "json", "--mode", "plan", "--sandbox", "--disable-slash-commands"],
+      "prompt_mode": "flag",
+      "prompt_flag": "--print",
       "model_flag": "--model",
       "default_model": "gemini-4-hydrogen",
       "cost_rank": 1,
@@ -117,21 +118,21 @@
       "capability_verification": {
         "mode": "version-and-flags",
         "verified_version_prefix": "1.",
-        "required_flags": ["-p", "--output-format", "json", "--mode", "plan", "--sandbox", "--disable-slash-commands"]
+        "required_flags": ["--print", "--output-format", "json", "--mode", "plan", "--sandbox", "--disable-slash-commands"]
       },
       "usage_fields": ["usage.input_tokens", "usage.output_tokens", "usage.total_tokens"],
       "version": ["--version"],
       "session_id_source": "JSON session_id or conversation_id",
       "permission_modes": {
         "read-only": {
-          "headless": ["-p", "--output-format", "json", "--mode", "plan", "--sandbox", "--disable-slash-commands"],
+          "headless": ["--output-format", "json", "--mode", "plan", "--sandbox", "--disable-slash-commands"],
           "enforced_permissions": {"filesystem": ["read-only"], "network": ["none"], "git": ["read-only"], "github": ["none"]},
-          "capability_verification": {"required_flags": ["-p", "--output-format", "json", "--mode", "plan", "--sandbox", "--disable-slash-commands"]}
+          "capability_verification": {"required_flags": ["--print", "--output-format", "json", "--mode", "plan", "--sandbox", "--disable-slash-commands"]}
         },
         "workspace-write": {
-          "headless": ["-p", "--output-format", "json", "--mode", "accept-edits", "--sandbox", "--dangerously-skip-permissions", "--disable-slash-commands"],
+          "headless": ["--output-format", "json", "--mode", "accept-edits", "--sandbox", "--dangerously-skip-permissions", "--disable-slash-commands"],
           "enforced_permissions": {"filesystem": ["workspace-write"], "network": ["none"], "git": ["read-only"], "github": ["none"]},
-          "capability_verification": {"required_flags": ["-p", "--output-format", "json", "--mode", "accept-edits", "--sandbox", "--dangerously-skip-permissions", "--disable-slash-commands"]}
+          "capability_verification": {"required_flags": ["--print", "--output-format", "json", "--mode", "accept-edits", "--sandbox", "--dangerously-skip-permissions", "--disable-slash-commands"]}
         }
       }
     },
