@@ -46,6 +46,7 @@ jobs:
     outputs:
       skip: ${{ steps.classify.outputs.skip }}
       required_tier: ${{ steps.classify.outputs.required_tier }}
+      base_sha: ${{ steps.classify.outputs.base_sha }}
       head_sha: ${{ steps.classify.outputs.head_sha }}
       carryover: ${{ steps.classify.outputs.carryover }}
       executed_tier: ${{ steps.plan.outputs.tier }}
@@ -75,9 +76,12 @@ jobs:
           gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
             --json number,title,body,isDraft,isCrossRepository,headRefOid,author,labels,files,additions,deletions,changedFiles,reviewDecision,reviews,comments \
             > ".agents/state/pr-${PR_NUMBER}-meta.json"
-          # gh pr view has no authorAssociation field; the REST API does.
-          assoc="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.author_association')"
-          jq --arg assoc "$assoc" '. + {authorAssociation: $assoc}' \
+          # Fetch REST PR object for author_association and immutable base/head commit SHAs.
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" > ".agents/state/pr-${PR_NUMBER}-rest.json"
+          assoc="$(jq -r '.author_association // "NONE"' ".agents/state/pr-${PR_NUMBER}-rest.json")"
+          base_sha="$(jq -r '.base.sha // ""' ".agents/state/pr-${PR_NUMBER}-rest.json")"
+          rest_head_sha="$(jq -r '.head.sha // ""' ".agents/state/pr-${PR_NUMBER}-rest.json")"
+          jq --arg assoc "$assoc" --arg base_sha "$base_sha" '. + {authorAssociation: $assoc, baseRefOid: $base_sha}' \
             ".agents/state/pr-${PR_NUMBER}-meta.json" > ".agents/state/pr-${PR_NUMBER}-raw.json"
           is_draft="$(jq -r '.isDraft // false' ".agents/state/pr-${PR_NUMBER}-raw.json")"
           is_fork="$(jq -r '.isCrossRepository // false' ".agents/state/pr-${PR_NUMBER}-raw.json")"
@@ -86,7 +90,14 @@ jobs:
             echo "carryover=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" > ".agents/state/pr-${PR_NUMBER}.diff" || true
+          head_sha="$(jq -r '.headRefOid // ""' ".agents/state/pr-${PR_NUMBER}-raw.json")"
+          # Fetch immutable commit-to-commit diff so a concurrent push cannot swap the reviewed patch.
+          if [[ "$base_sha" =~ ^[0-9a-f]{40}$ ]] && [[ "$head_sha" =~ ^[0-9a-f]{40}$ ]] && [ "$head_sha" = "$rest_head_sha" ]; then
+            gh api -H "Accept: application/vnd.github.v3.diff" \
+              "repos/${GITHUB_REPOSITORY}/compare/${base_sha}...${head_sha}" \
+              > ".agents/state/pr-${PR_NUMBER}.diff" || rm -f ".agents/state/pr-${PR_NUMBER}.diff"
+          fi
+          touch ".agents/state/pr-${PR_NUMBER}.diff"
           python3 scripts/github/pr_review.py classify \
             --pr "$PR_NUMBER" \
             --pr-json ".agents/state/pr-${PR_NUMBER}-raw.json" \
@@ -115,6 +126,7 @@ jobs:
           fi
           echo "skip=false" >> "$GITHUB_OUTPUT"
           echo "required_tier=${req_tier}" >> "$GITHUB_OUTPUT"
+          echo "base_sha=${base_sha}" >> "$GITHUB_OUTPUT"
           echo "head_sha=${head_sha}" >> "$GITHUB_OUTPUT"
           echo "carryover=${carryover}" >> "$GITHUB_OUTPUT"
 
@@ -219,6 +231,7 @@ jobs:
       - name: Record review decision and post head-bound attestation
         env:
           GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ needs.review.outputs.base_sha }}
           HEAD_SHA: ${{ needs.review.outputs.head_sha }}
           REQ_TIER: ${{ needs.review.outputs.required_tier }}
           CARRYOVER: ${{ needs.review.outputs.carryover }}
@@ -228,17 +241,24 @@ jobs:
         run: |
           [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || { echo "PR_NUMBER must be an integer"; exit 1; }
           [[ "$HEAD_SHA" =~ ^[0-9a-f]{7,40}$ ]] || { echo "invalid head sha"; exit 1; }
-          # Always recompute diff and PR metadata directly in publish so patch_id
-          # and carryover verification never rely on the model job's artifact.
+          # Always recompute PR metadata and immutable commit-to-commit diffs directly in publish
+          # so patch_id and carryover verification never trust the model job's artifact or a mutable PR ref.
           gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
             --json number,title,body,isDraft,isCrossRepository,headRefOid,author,labels,files,additions,deletions,changedFiles,reviewDecision,reviews,comments \
             > ".agents/state/pr-${PR_NUMBER}-publish-meta.json"
-          assoc="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.author_association')"
-          jq --arg assoc "$assoc" '. + {authorAssociation: $assoc}' \
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" > ".agents/state/pr-${PR_NUMBER}-publish-rest.json"
+          assoc="$(jq -r '.author_association // "NONE"' ".agents/state/pr-${PR_NUMBER}-publish-rest.json")"
+          live_base="$(jq -r '.base.sha // ""' ".agents/state/pr-${PR_NUMBER}-publish-rest.json")"
+          rest_head="$(jq -r '.head.sha // ""' ".agents/state/pr-${PR_NUMBER}-publish-rest.json")"
+          jq --arg assoc "$assoc" --arg base_sha "$live_base" '. + {authorAssociation: $assoc, baseRefOid: $base_sha}' \
             ".agents/state/pr-${PR_NUMBER}-publish-meta.json" > ".agents/state/pr-${PR_NUMBER}-publish-raw.json"
           live_head="$(jq -r '.headRefOid // ""' ".agents/state/pr-${PR_NUMBER}-publish-raw.json")"
+          # For model reviews, bind patch_id strictly to the exact immutable BASE_SHA...HEAD_SHA snapshot reviewed.
           diff_args=()
-          if [ "$live_head" = "$HEAD_SHA" ] && gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" > ".agents/state/pr-${PR_NUMBER}-publish.diff"; then
+          if [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] && [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] \
+             && gh api -H "Accept: application/vnd.github.v3.diff" \
+                "repos/${GITHUB_REPOSITORY}/compare/${BASE_SHA}...${HEAD_SHA}" \
+                > ".agents/state/pr-${PR_NUMBER}-publish.diff"; then
             diff_args=(--diff-file ".agents/state/pr-${PR_NUMBER}-publish.diff")
           fi
           reviewer="github-actions[bot]"
@@ -255,11 +275,16 @@ jobs:
             exit 0
           fi
           if [ "$CARRYOVER" = "true" ]; then
-            if [ "$live_head" = "$HEAD_SHA" ] && [ "${#diff_args[@]}" -gt 0 ]; then
+            # Verify live head still matches HEAD_SHA and diff the exact immutable live_base...HEAD_SHA commits.
+            if [ "$live_head" = "$HEAD_SHA" ] && [ "$rest_head" = "$HEAD_SHA" ] \
+               && [[ "$live_base" =~ ^[0-9a-f]{40}$ ]] && [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] \
+               && gh api -H "Accept: application/vnd.github.v3.diff" \
+                  "repos/${GITHUB_REPOSITORY}/compare/${live_base}...${HEAD_SHA}" \
+                  > ".agents/state/pr-${PR_NUMBER}-publish-carryover.diff"; then
               python3 scripts/github/pr_review.py check-carryover \
                 --pr "$PR_NUMBER" --head-sha "$HEAD_SHA" --required-tier "$REQ_TIER" \
                 --pr-json ".agents/state/pr-${PR_NUMBER}-publish-raw.json" \
-                --diff-file ".agents/state/pr-${PR_NUMBER}-publish.diff" \
+                --diff-file ".agents/state/pr-${PR_NUMBER}-publish-carryover.diff" \
                 --owner "${GITHUB_REPOSITORY_OWNER}" \
                 > ".agents/state/pr-${PR_NUMBER}-publish-carryover.json"
             else
@@ -275,7 +300,7 @@ jobs:
               extra=()
               if [ -n "$carried_session" ]; then extra+=(--session-id "$carried_session"); fi
               python3 scripts/github/pr_review.py record-review "${common[@]}" \
-                --status approved --tier "$carried_tier" --capacity-cap \
+                --status approved --tier "$carried_tier" \
                 --reason patch-equivalent-rebase \
                 --carried-from-sha "$carried_from" --patch-id "$carried_patch" \
                 --provider "$carried_provider" --model "$carried_model" \

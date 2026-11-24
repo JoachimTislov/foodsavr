@@ -104,17 +104,22 @@ merges. Read the gate's latest run summary when assessing the queue.
 - **Freeze modes**: an open issue labeled `merge/freeze` (or repository
   variable `MERGE_GATE_FREEZE=batch`) places the gate in `batch` freeze,
   pausing normal `merge/auto` PRs and Dependabot auto opt-in while keeping
-  their `merge/auto` labels intact. `MERGE_GATE_FREEZE=all` pauses all gate
-  mutations including priority PRs. Never strip `merge/auto` from paused batch
-  PRs merely to hold them during a freeze.
+  their `merge/auto` labels intact. `MERGE_GATE_FREEZE=all` stops all PR
+  merges, branch updates/rebases, and Dependabot auto opt-in (including
+  priority PRs), while speculative train cleanup still deletes existing
+  ephemeral `merge-train/pr-*` refs. Never strip `merge/auto` from paused
+  batch PRs merely to hold them during a freeze.
 - **Priority preemption**: PRs labeled `merge/priority` + `merge/auto` run
   ahead of normal `merge/auto` PRs and are allowed through during a `batch`
   freeze. Priority PRs that are `risk/security` still require human merge
   (never bypassed by the gate).
 - **Pre-landing freeze**: if the freeze-aware gate is not yet on `develop`,
   disable `merge-gate.yml` (`gh workflow disable merge-gate.yml`) in addition
-  to opening the `merge/freeze` issue, then re-enable `merge-gate.yml` once
-  the gate update lands.
+  to opening the `merge/freeze` issue. Because disabling a workflow only stops
+  new runs from starting, wait for any queued or in-progress `merge-gate.yml`
+  runs to finish (or cancel them with `gh run cancel`), confirm no gate runs
+  remain active, and recheck the queue before starting urgent work. Re-enable
+  `merge-gate.yml` once the gate update lands.
 - **Thaw**: remove `merge/freeze` from the coordinating issue (and clear
   `MERGE_GATE_FREEZE` if set) once preempting PRs are merged; paused batch
   PRs resume automatically in their planned queue order.

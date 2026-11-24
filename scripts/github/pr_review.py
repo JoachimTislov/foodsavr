@@ -731,7 +731,7 @@ def compute_patch_id(diff_text: str) -> str | None:
     """
     if not isinstance(diff_text, str) or not diff_text.strip():
         return None
-    raw_lines = [line.rstrip("\r") for line in diff_text.splitlines()]
+    raw_lines = [line.rstrip("\r") for line in diff_text.split("\n")]
     blocks: list[list[str]] = []
     current: list[str] = []
     has_git_headers = any(line.startswith("diff --git ") for line in raw_lines)
@@ -995,6 +995,25 @@ def _is_valid_capacity_cap(
     )
 
 
+def _extract_timestamp(item: Any, keys: tuple[str, ...]) -> datetime | None:
+    raw: Any = None
+    for key in keys:
+        raw = item.get(key) if isinstance(item, dict) else getattr(item, key, None)
+        if raw is not None and raw != "":
+            break
+    if isinstance(raw, datetime):
+        return raw if raw.tzinfo is not None else raw.replace(tzinfo=timezone.utc)
+    if isinstance(raw, str):
+        text = raw.strip()
+        if text:
+            try:
+                parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+                return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+            except ValueError:
+                return None
+    return None
+
+
 def find_patch_equivalent_attestation(
     *,
     pr_number: int,
@@ -1010,8 +1029,10 @@ def find_patch_equivalent_attestation(
     """Return a qualifying prior approved attestation matching ``current_patch_id``, or None.
 
     Fails closed on missing/empty ``current_patch_id``, ``human``/``exempt`` tiers,
-    truncated diffs, self-attestation, untrusted authors, insufficient tiers, or
-    blocking ``CHANGES_REQUESTED`` / ``blocked`` reviews on the current head or patch.
+    truncated diffs, self-attestation, untrusted authors, insufficient tiers (no
+    cross-head capacity-cap bypass), or blocking ``CHANGES_REQUESTED`` / ``blocked``
+    reviews on the current head or patch. Non-approving statuses such as ``skipped``
+    never clear an active blocking veto.
     """
     if required_tier not in TIER_RANK:
         raise ValueError(f"unknown required_tier: {required_tier!r}")
@@ -1023,67 +1044,8 @@ def find_patch_equivalent_attestation(
 
     req_rank = TIER_RANK[required_tier]
     author_key = normalize_bot(pr_author) if pr_author else ""
-    best_candidate: dict[str, Any] | None = None
-    best_score: tuple[int, int, int] = (-1, -1, -1)
-    latest_patch_status: str | None = None
-    order = 0
-
-    def _consider(
-        *,
-        attested: dict[str, Any],
-        effective_sha: str,
-        author: str,
-        bot: bool,
-        trusted: bool,
-        from_comment: bool,
-    ) -> bool:
-        """Process one attestation; returns True if it vetoes carryover on current head."""
-        nonlocal best_candidate, best_score, latest_patch_status, order
-        order += 1
-        if not trusted:
-            return False
-        if attested.get("pr") not in {None, pr_number}:
-            return False
-        status = str(attested.get("status") or "").lower()
-        if effective_sha == head_sha and status in {"blocked", "changes_requested"}:
-            return True
-        att_patch = str(attested.get("patch_id") or "").strip()
-        if att_patch != patch_key:
-            return False
-        latest_patch_status = status
-        if status != "approved":
-            return False
-        if attested.get("diff_truncated"):
-            return False
-        tier = str(attested.get("tier") or "")
-        if tier not in TIER_RANK or not effective_sha:
-            return False
-        meets_tier = TIER_RANK[tier] >= req_rank
-        capped_ok = from_comment and _is_valid_capacity_cap(
-            attested=attested,
-            pr_number=pr_number,
-            required_tier=required_tier,
-            author=author,
-            bot=bot,
-            trusted=trusted,
-        )
-        if not (meets_tier or capped_ok):
-            return False
-        score = (1 if meets_tier else 0, TIER_RANK[tier], order)
-        if score > best_score:
-            best_score = score
-            best_candidate = {
-                "carried_from_sha": str(attested.get("carried_from_sha") or effective_sha),
-                "source_sha": effective_sha,
-                "tier": tier,
-                "required_tier": required_tier,
-                "cap_reason": PROVIDER_CAP if (capped_ok and not meets_tier) else None,
-                "provider": attested.get("provider"),
-                "model": attested.get("model"),
-                "session_id": attested.get("session_id"),
-                "patch_id": patch_key,
-            }
-        return False
+    events: list[tuple[datetime | None, int, dict[str, Any], str]] = []
+    seq = 0
 
     for rev in reviews:
         state, body, author, bot, assoc, commit_oid, _ = _extract_review_fields(rev)
@@ -1094,19 +1056,13 @@ def find_patch_equivalent_attestation(
         if trusted and state == "CHANGES_REQUESTED" and (not commit_oid or commit_oid == head_sha):
             return None
         attested = parse_attestation(body)
-        if attested is None:
+        if attested is None or not trusted:
             continue
         att_sha = str(attested.get("head_sha") or "")
         effective_sha = att_sha if (not commit_oid or commit_oid == att_sha) else commit_oid
-        if _consider(
-            attested=attested,
-            effective_sha=effective_sha,
-            author=author,
-            bot=bot,
-            trusted=trusted,
-            from_comment=False,
-        ):
-            return None
+        ts = _extract_timestamp(rev, ("submittedAt", "submitted_at", "createdAt", "created_at"))
+        seq += 1
+        events.append((ts, seq, attested, effective_sha))
 
     for comment in comments:
         body, author, bot, assoc = _extract_comment_fields(comment)
@@ -1117,17 +1073,61 @@ def find_patch_equivalent_attestation(
             continue
         human = is_human_maintainer(author, bot=bot, author_association=assoc, owner=owner)
         trusted = human or is_trusted_actor(author, bot=bot, author_association=assoc, owner=owner, trusted_bots=trusted_bots)
-        if _consider(
-            attested=attested,
-            effective_sha=str(attested.get("head_sha") or ""),
-            author=author,
-            bot=bot,
-            trusted=trusted,
-            from_comment=True,
-        ):
-            return None
+        if not trusted:
+            continue
+        ts = _extract_timestamp(comment, ("createdAt", "created_at", "submittedAt", "submitted_at"))
+        seq += 1
+        events.append((ts, seq, attested, str(attested.get("head_sha") or "")))
 
-    if latest_patch_status in {"blocked", "changes_requested"}:
+    if events and all(ev[0] is not None for ev in events):
+        events.sort(key=lambda ev: (ev[0], ev[1]))  # type: ignore[arg-type, return-value]
+
+    best_candidate: dict[str, Any] | None = None
+    best_score: tuple[int, int] = (-1, -1)
+    patch_vetoed = False
+
+    for order_idx, (_, _, attested, effective_sha) in enumerate(events, start=1):
+        if attested.get("pr") not in {None, pr_number}:
+            continue
+        status = str(attested.get("status") or "").lower()
+        if effective_sha == head_sha and status in {"blocked", "changes_requested"}:
+            return None
+        att_patch = str(attested.get("patch_id") or "").strip()
+        if att_patch != patch_key:
+            continue
+        if status in {"blocked", "changes_requested"}:
+            patch_vetoed = True
+            best_candidate = None
+            best_score = (-1, -1)
+            continue
+        if status != "approved":
+            # Non-approving outcomes (e.g. skipped) never clear a prior veto.
+            continue
+        if attested.get("diff_truncated"):
+            continue
+        tier = str(attested.get("tier") or "")
+        if tier not in TIER_RANK or not effective_sha:
+            continue
+        # Cross-head carryover strictly requires the approved tier to meet required_tier.
+        if TIER_RANK[tier] < req_rank:
+            continue
+        patch_vetoed = False
+        score = (TIER_RANK[tier], order_idx)
+        if score > best_score:
+            best_score = score
+            best_candidate = {
+                "carried_from_sha": str(attested.get("carried_from_sha") or effective_sha),
+                "source_sha": effective_sha,
+                "tier": tier,
+                "required_tier": required_tier,
+                "cap_reason": None,
+                "provider": attested.get("provider"),
+                "model": attested.get("model"),
+                "session_id": attested.get("session_id"),
+                "patch_id": patch_key,
+            }
+
+    if patch_vetoed:
         return None
     return best_candidate
 

@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 import importlib.util
+import io
+import json
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("merge_gate", ROOT / "scripts/github/merge_gate.py")
@@ -539,6 +543,21 @@ class PatchEquivalentMergeGateTest(unittest.TestCase):
         p_needs = pr(10, head="newhead", reviews=[], comments=[old_comment])
         self.assertTrue(gate.needs_patch_id(p_needs))
 
+        p_untrusted_current = pr(
+            10,
+            head="newhead",
+            reviews=[],
+            comments=[
+                old_comment,
+                {
+                    "body": '<!-- agent-review: {"pr": 10, "head_sha": "newhead", "tier": "deep", "status": "approved"} -->',
+                    "author": {"__typename": "User", "login": "stranger"},
+                    "authorAssociation": "NONE",
+                },
+            ],
+        )
+        self.assertTrue(gate.needs_patch_id(p_untrusted_current))
+
         p_exact = pr(10, head="oldhead", reviews=[], comments=[old_comment])
         self.assertFalse(gate.needs_patch_id(p_exact))
 
@@ -557,6 +576,30 @@ class PatchEquivalentMergeGateTest(unittest.TestCase):
             ],
         )
         self.assertFalse(gate.needs_patch_id(p_no_patch))
+
+    def test_populate_patch_ids_uses_immutable_compare_diff_and_fails_closed_without_base(self):
+        old_comment = {
+            "body": '<!-- agent-review: {"pr": 10, "head_sha": "oldhead", "tier": "fast", "status": "approved", "patch_id": "sha256:old"} -->',
+            "author": {"__typename": "Bot", "login": "github-actions[bot]"},
+        }
+        p_with_base = pr(10, head="head123", base="base123", reviews=[], comments=[old_comment])
+        p_no_base = pr(11, head="head456", base="", reviews=[], comments=[old_comment])
+        gh = gate.GitHub("owner/repo", apply=False)
+        calls: list[tuple[str, ...]] = []
+
+        def fake_run(*args: str, stdin: str | None = None) -> str:
+            calls.append(args)
+            return "diff --git a/a.txt b/a.txt\n@@ -1 +1 @@\n-a\n+b\n"
+
+        gh.run = fake_run  # type: ignore[method-assign]
+        gh.populate_patch_ids([p_with_base, p_no_base])
+
+        self.assertEqual(
+            calls,
+            [("api", "-H", "Accept: application/vnd.github.v3.diff", "repos/owner/repo/compare/base123...head123")],
+        )
+        self.assertIsNotNone(p_with_base.patch_id)
+        self.assertIsNone(p_no_base.patch_id)
 
     def test_plan_merges_when_patch_id_matches_prior_approved_head(self):
         old_comment = {
@@ -585,7 +628,46 @@ class FreezePriorityAndRaceTest(unittest.TestCase):
         states = {n: s for n, s, _ in result.report}
         self.assertEqual(states[1], "in flight")
 
-        # Once stalled past STALL_AFTER, it no longer blocks the behind PR
+        # Old head commit (> STALL_AFTER) with a freshly started Agent review still stays in flight
+        fresh_review_on_old_head = pr(
+            1,
+            state="CLEAN",
+            rollup="SUCCESS",
+            reviews=[],
+            review_running=True,
+            head_time=NOW - timedelta(hours=3),
+            review_started_at=NOW - timedelta(minutes=5),
+        )
+        res_fresh = gate.plan([fresh_review_on_old_head, behind], NOW, owner="owner")
+        self.assertEqual(res_fresh.actions, [])
+        self.assertEqual({n: s for n, s, _ in res_fresh.report}[1], "in flight")
+
+        # Old head commit with freshly labeled queued review (startedAt not yet set) also stays in flight
+        queued_after_label = pr(
+            1,
+            state="CLEAN",
+            rollup="SUCCESS",
+            reviews=[],
+            review_running=True,
+            head_time=NOW - timedelta(hours=3),
+            labeled_at=NOW - timedelta(minutes=3),
+            review_started_at=None,
+        )
+        self.assertEqual(actions([queued_after_label, behind], owner="owner"), [])
+
+        # Fresh head commit whose Agent review check run itself stalled past STALL_AFTER unblocks behind PR
+        stalled_check_run = pr(
+            1,
+            state="CLEAN",
+            rollup="SUCCESS",
+            reviews=[],
+            review_running=True,
+            head_time=NOW - timedelta(minutes=5),
+            review_started_at=NOW - timedelta(hours=2),
+        )
+        self.assertEqual(actions([stalled_check_run, behind], owner="owner"), [("update", 2)])
+
+        # Once stalled past STALL_AFTER without review_started_at, it no longer blocks the behind PR
         stalled_review = pr(
             1, state="CLEAN", rollup="SUCCESS", reviews=[], review_running=True,
             head_time=NOW - timedelta(hours=2),
@@ -622,6 +704,12 @@ class FreezePriorityAndRaceTest(unittest.TestCase):
         self.assertEqual(gate.resolve_freeze_mode("true", [])[0], "all")
         # Unknown values fail closed to all
         self.assertEqual(gate.resolve_freeze_mode("weird-value", [])[0], "all")
+        # Failed freeze-issue lookup fails closed to all when env does not override it
+        err_mode, err_reason = gate.resolve_freeze_mode("", [], lookup_error="502 Bad Gateway")
+        self.assertEqual(err_mode, "all")
+        self.assertIn("502 Bad Gateway", err_reason)
+        # Explicit MERGE_GATE_FREEZE=batch still overrides a failed issue lookup
+        self.assertEqual(gate.resolve_freeze_mode("batch", [], lookup_error="502")[0], "batch")
 
     def test_freeze_batch_and_all_preserve_normal_prs_and_allow_priority_under_batch(self):
         normal = pr(1, files=["docs/a.md"])
@@ -782,6 +870,228 @@ class SpeculativeMergeTrainTest(unittest.TestCase):
             notes2 = gh.sync_train(tp2, remote_url=str(origin))
             self.assertTrue(any("train #30: merge-train/pr-30 unchanged" in n for n in notes2), notes2)
             self.assertEqual(_git(origin, "rev-parse", "refs/heads/merge-train/pr-30"), train30_sha)
+
+    def test_sync_train_ejects_failed_tree_without_poisoning_downstream_and_retries_on_fix(self):
+        def _git(cwd: Path, *args: str) -> str:
+            res = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True)
+            return res.stdout.strip()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            origin = root / "origin.git"
+            seed = root / "seed"
+            origin.mkdir()
+            seed.mkdir()
+            _git(origin, "init", "--bare")
+            _git(seed, "init", "-b", "develop")
+            _git(seed, "config", "user.name", "Test")
+            _git(seed, "config", "user.email", "test@example.com")
+            _git(seed, "remote", "add", "origin", str(origin))
+
+            (seed / "a.txt").write_text("base\n", encoding="utf-8")
+            (seed / "b.txt").write_text("base\n", encoding="utf-8")
+            (seed / "c.txt").write_text("base\n", encoding="utf-8")
+            _git(seed, "add", ".")
+            _git(seed, "commit", "-m", "base")
+            base_sha = _git(seed, "rev-parse", "HEAD")
+            _git(seed, "push", "origin", "HEAD:refs/heads/develop")
+
+            _git(seed, "checkout", "-q", "-B", "pr10", base_sha)
+            (seed / "a.txt").write_text("from-10\n", encoding="utf-8")
+            _git(seed, "add", "a.txt")
+            _git(seed, "commit", "-m", "pr 10")
+            sha10 = _git(seed, "rev-parse", "HEAD")
+            _git(seed, "push", "origin", f"{sha10}:refs/pull/10/head")
+
+            _git(seed, "checkout", "-q", "-B", "pr20", base_sha)
+            (seed / "b.txt").write_text("from-20-broken\n", encoding="utf-8")
+            _git(seed, "add", "b.txt")
+            _git(seed, "commit", "-m", "pr 20")
+            sha20 = _git(seed, "rev-parse", "HEAD")
+            _git(seed, "push", "origin", f"{sha20}:refs/pull/20/head")
+
+            _git(seed, "checkout", "-q", "-B", "pr30", base_sha)
+            (seed / "c.txt").write_text("from-30\n", encoding="utf-8")
+            _git(seed, "add", "c.txt")
+            _git(seed, "commit", "-m", "pr 30")
+            sha30 = _git(seed, "rev-parse", "HEAD")
+            _git(seed, "push", "origin", f"{sha30}:refs/pull/30/head")
+
+            p10 = pr(10, head=sha10, state="CLEAN")
+            p20 = pr(20, head=sha20, state="BEHIND")
+            p30 = pr(30, head=sha30, state="BEHIND")
+            gh = gate.GitHub("owner/repo", apply=True)
+
+            # Initial sync pushes both merge-train/pr-20 and merge-train/pr-30 (with #20 included)
+            tp1 = gate.plan_train([p10, p20, p30], [], depth=3, owner="owner", history=[])
+            gh.sync_train(tp1, remote_url=str(origin))
+            failed_tree20 = _git(origin, "rev-parse", "refs/heads/merge-train/pr-20^{tree}")
+            self.assertEqual(_git(origin, "show", "refs/heads/merge-train/pr-30:b.txt"), "from-20-broken")
+
+            # Next run observes merge-train/pr-20 failed at failed_tree20 -> ejects #20 from train_tip,
+            # keeps tombstone ref, and replays #30 cleanly WITHOUT #20's changes!
+            tp2 = gate.plan_train(
+                [p10, p20, p30],
+                ["merge-train/pr-20", "merge-train/pr-30"],
+                depth=3,
+                owner="owner",
+                history=[],
+            )
+            notes2 = gh.sync_train(
+                tp2,
+                remote_url=str(origin),
+                failed_train_trees={"merge-train/pr-20": failed_tree20},
+            )
+            self.assertTrue(any("train #20: ejected (merge-train/pr-20 failed checks" in n for n in notes2), notes2)
+            self.assertTrue(any("train #30: pushed merge-train/pr-30" in n for n in notes2), notes2)
+            # Tombstone ref stays present so subsequent runs remember the failed tree
+            self.assertEqual(_git(origin, "rev-parse", "refs/heads/merge-train/pr-20^{tree}"), failed_tree20)
+            # Downstream #30 now contains #10 + #30 only (b.txt reverted to base!)
+            self.assertEqual(_git(origin, "show", "refs/heads/merge-train/pr-30:a.txt"), "from-10")
+            self.assertEqual(_git(origin, "show", "refs/heads/merge-train/pr-30:b.txt"), "base")
+            self.assertEqual(_git(origin, "show", "refs/heads/merge-train/pr-30:c.txt"), "from-30")
+
+            # Once PR #20 pushes a fix (different tree), it automatically rejoins the train!
+            _git(seed, "checkout", "-q", "-B", "pr20", base_sha)
+            (seed / "b.txt").write_text("from-20-fixed\n", encoding="utf-8")
+            _git(seed, "add", "b.txt")
+            _git(seed, "commit", "-m", "pr 20 fixed")
+            sha20_fixed = _git(seed, "rev-parse", "HEAD")
+            _git(seed, "push", "--force", "origin", f"{sha20_fixed}:refs/pull/20/head")
+
+            p20_fixed = pr(20, head=sha20_fixed, state="BEHIND")
+            tp3 = gate.plan_train(
+                [p10, p20_fixed, p30],
+                ["merge-train/pr-20", "merge-train/pr-30"],
+                depth=3,
+                owner="owner",
+                history=[],
+            )
+            notes3 = gh.sync_train(
+                tp3,
+                remote_url=str(origin),
+                failed_train_trees={"merge-train/pr-20": failed_tree20},
+            )
+            self.assertTrue(any("train #20: pushed merge-train/pr-20" in n for n in notes3), notes3)
+            self.assertEqual(_git(origin, "show", "refs/heads/merge-train/pr-30:b.txt"), "from-20-fixed")
+
+    def test_train_ref_states_parses_graphql_prefix_and_rollup(self):
+        gh = gate.GitHub("owner/repo", apply=False)
+        payload = {
+            "data": {
+                "repository": {
+                    "refs": {
+                        "nodes": [
+                            {
+                                "name": "pr-20",
+                                "prefix": "refs/heads/merge-train/",
+                                "target": {
+                                    "oid": "1111111",
+                                    "tree": {"oid": "tree20"},
+                                    "statusCheckRollup": {
+                                        "contexts": {
+                                            "nodes": [
+                                                {
+                                                    "__typename": "CheckRun",
+                                                    "name": "Check & Test",
+                                                    "status": "COMPLETED",
+                                                    "conclusion": "FAILURE",
+                                                    "startedAt": "2026-11-21T12:00:00Z",
+                                                    "checkSuite": {
+                                                        "app": {"slug": "github-actions"},
+                                                        "workflowRun": {"databaseId": 1, "workflow": {"name": "CI"}},
+                                                    },
+                                                }
+                                            ]
+                                        }
+                                    },
+                                },
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        gh.run = lambda *args, **kwargs: json.dumps(payload)  # type: ignore[method-assign]
+        states = gh.train_ref_states()
+        self.assertIn("merge-train/pr-20", states)
+        self.assertEqual(states["merge-train/pr-20"].tree_oid, "tree20")
+        self.assertEqual(states["merge-train/pr-20"].rollup, "FAILURE")
+
+
+class MainFreezeSafetyTest(unittest.TestCase):
+    def test_main_fails_closed_and_writes_summary_when_freeze_issues_lookup_fails(self):
+        ready_pr = pr(10, files=["docs/a.md"])
+        executed: list[tuple[str, int]] = []
+
+        class FakeGitHub(gate.GitHub):
+            def prs(self):
+                return [ready_pr]
+
+            def freeze_issues(self):
+                raise RuntimeError("gh api failed: 502 Bad Gateway")
+
+            def populate_patch_ids(self, prs):
+                pass
+
+            def execute(self, action, p):
+                executed.append((action, p.number))
+                return "merged"
+
+            def train_ref_states(self):
+                raise AssertionError("train_ref_states should be skipped on freeze lookup error")
+
+        stdout = io.StringIO()
+        with mock.patch.object(gate, "GitHub", FakeGitHub), mock.patch.object(gate, "serialize", return_value=True):
+            with redirect_stdout(stdout):
+                rc = gate.main(["--repo", "owner/repo", "--apply"])
+
+        self.assertEqual(rc, 0)
+        self.assertEqual(executed, [])
+        out = stdout.getvalue()
+        self.assertIn("**Integration freeze active:** `all`", out)
+        self.assertIn("freeze-issue lookup failed", out)
+        self.assertIn("train sync skipped", out)
+
+    def test_main_rechecks_live_freeze_state_before_executing_merge(self):
+        normal_pr = pr(10, files=["docs/a.md"])
+        executed: list[tuple[str, int]] = []
+        freeze_calls = 0
+
+        class FakeGitHub(gate.GitHub):
+            def prs(self):
+                return [normal_pr]
+
+            def freeze_issues(self):
+                nonlocal freeze_calls
+                freeze_calls += 1
+                # First lookup (before planning) is unfrozen; second lookup (right before merge) sees #455!
+                return [] if freeze_calls == 1 else [{"number": 455, "title": "Urgent freeze"}]
+
+            def populate_patch_ids(self, prs):
+                pass
+
+            def execute(self, action, p):
+                executed.append((action, p.number))
+                return "merged"
+
+            def train_ref_states(self):
+                return {}
+
+            def sync_train(self, train_plan, **kwargs):
+                return []
+
+        stdout = io.StringIO()
+        with mock.patch.object(gate, "GitHub", FakeGitHub), mock.patch.object(gate, "serialize", return_value=True):
+            with redirect_stdout(stdout):
+                rc = gate.main(["--repo", "owner/repo", "--apply"])
+
+        self.assertEqual(rc, 0)
+        self.assertEqual(executed, [])
+        self.assertGreaterEqual(freeze_calls, 2)
+        out = stdout.getvalue()
+        self.assertIn("#10: merge skipped — integration freeze (batch:", out)
+        self.assertIn("#455", out)
 
 
 if __name__ == "__main__":
