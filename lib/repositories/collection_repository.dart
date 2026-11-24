@@ -46,14 +46,6 @@ class CollectionRepository implements ICollectionRepository {
   }
 
   @override
-  Future<List<Collection>> getAll() async {
-    final querySnapshot = await _firestore.collection(_collectionName).get();
-    return querySnapshot.docs
-        .map((doc) => Collection.fromJson(doc.data()))
-        .toList();
-  }
-
-  @override
   Future<List<Collection>> getCollections(
     String userId, {
     bool serverOnly = false,

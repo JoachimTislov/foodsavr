@@ -47,9 +47,6 @@ class FakeProductRepository implements IProductRepository {
       products.removeWhere((p) => p.id == id);
 
   @override
-  Future<List<Product>> getAll() async => products;
-
-  @override
   Future<List<Product>> getGlobalProducts() async =>
       products.where((p) => p.isGlobal).toList();
 
