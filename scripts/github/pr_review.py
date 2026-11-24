@@ -2578,7 +2578,10 @@ def cmd_record_review(args: argparse.Namespace) -> int:
         spec_findings=spec_findings,
     )
     if args.output_review:
-        diff = Path(args.diff_file).read_text(encoding="utf-8", errors="replace") if args.diff_file else ""
+        diff = (
+            Path(args.diff_file).read_text(encoding="utf-8", errors="replace")
+            if args.diff_file and Path(args.diff_file).exists() else ""
+        )
         payload = github_review_payload(
             record["head_sha"], effective_status, review_output or summary or reason or "",
             diff, markdown.rstrip().splitlines()[-1],

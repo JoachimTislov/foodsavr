@@ -344,6 +344,21 @@ class PrepareReviewTest(unittest.TestCase):
             self.assertEqual(len(plan["skip_reason"].splitlines()), 1)
             self.assertFalse(result.exists())
 
+    def test_output_review_tolerates_a_missing_diff_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            review = Path(tmp) / "review.json"
+            with contextlib.redirect_stdout(io.StringIO()):
+                pr_review.main([
+                    "record-review", "--pr", "420", "--head-sha", "8c88d23",
+                    "--bot", "--required-tier", "fast", "--tier", "fast",
+                    "--status", "skipped", "--provider", "deterministic-gate", "--model", "policy-verifier",
+                    "--summary", "skipped", "--diff-file", str(Path(tmp) / "missing.diff"),
+                    "--output-review", str(review), "--history", str(Path(tmp) / "history.jsonl"),
+                ])
+            payload = json.loads(review.read_text())
+            self.assertEqual(payload["commit_id"], "8c88d23")
+            self.assertEqual(payload["comments"], [])
+
     def test_pr_420_runner_failure_skips_review_instead_of_blocking(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = Path(tmp) / "result.json"
