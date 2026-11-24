@@ -13,7 +13,9 @@ on:
       - ".github/workflows/build-android.yml"
       - ".github/workflows/release-gated.yml"
       - "scripts/release/**"
-      - "scripts/ci/**"
+      - "scripts/ci/write_android_test_config.sh"
+      - "scripts/ci/write_firebase_options.sh"
+      - ".github/actions/setup-flutter-app/**"
   workflow_dispatch:
 
 concurrency:

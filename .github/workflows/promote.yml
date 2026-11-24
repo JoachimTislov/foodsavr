@@ -69,6 +69,10 @@ jobs:
           RELEASE_GATE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_GATE_APP_PRIVATE_KEY }}
         run: |
           if [ -n "$RELEASE_GATE_APP_ID" ] && [ -n "$RELEASE_GATE_APP_PRIVATE_KEY" ]; then
+            if ! printf '%s\n' "$RELEASE_GATE_APP_PRIVATE_KEY" | grep -q -- '-----BEGIN .*PRIVATE KEY-----'; then
+              echo "::error::RELEASE_GATE_APP_PRIVATE_KEY is not a valid PEM private key. Re-upload the GitHub App .pem file (gh secret set RELEASE_GATE_APP_PRIVATE_KEY < path/to/key.pem)."
+              exit 1
+            fi
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 

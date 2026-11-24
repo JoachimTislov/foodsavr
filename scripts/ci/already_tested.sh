@@ -6,10 +6,16 @@
 # Pull request synchronize events (typically a rebase onto a moved base) also skip
 # when the previous head has a green run of the workflow and the tree diff old head
 # -> new head touches nothing in the workflow's scope (the pathspecs).
-# Usage: already_tested.sh <workflow-file.yml> [pathspec...]   (needs GH_TOKEN)
+# Usage: already_tested.sh [--push-only-reuse] <workflow-file.yml> [pathspec...]   (needs GH_TOKEN)
 set -euo pipefail
 out="${GITHUB_OUTPUT:-/dev/stdout}"
 skip() { echo "skip=$1" >> "$out"; echo "already_tested: skip=$1 ($2)" >&2; exit 0; }
+
+push_only_reuse=false
+if [ "${1:-}" = "--push-only-reuse" ]; then
+  push_only_reuse=true
+  shift
+fi
 
 repo="${GITHUB_REPOSITORY:?}"
 if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ]; then
@@ -43,13 +49,20 @@ has_non_skipped_run() {
   for run_id in $run_ids; do
     local executed
     executed=$(gh api "repos/$repo/actions/runs/$run_id/jobs" \
-      --jq '[.jobs[] | select(.conclusion == "success" and (.name | test("already|detect|skip|preflight"; "i") | not))] | length' 2>/dev/null || echo 0)
+      --jq '[.jobs[] | select(.conclusion == "success" and (.name | test("already|detect|skip|preflight|validation status"; "i") | not))] | length' 2>/dev/null || echo 0)
     if [ "${executed:-0}" -gt 0 ]; then
       return 0
     fi
   done
   return 1
 }
+
+if [ "$push_only_reuse" = "true" ]; then
+  if has_non_skipped_run "$sha" push; then
+    skip true "workflow $wf already succeeded on a push run for commit $sha"
+  fi
+  skip false "full push validation required on release branch for commit $sha"
+fi
 
 if has_non_skipped_run "$sha"; then
   skip true "workflow $wf already succeeded with executed jobs on commit $sha"

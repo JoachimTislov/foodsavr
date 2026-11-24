@@ -39,10 +39,15 @@ class LocalCiTest(unittest.TestCase):
 
     def test_groups_for_changed_files(self):
         self.assertEqual(ci.groups_for(["lib/main.dart"]), ["dart"])
+        self.assertEqual(ci.groups_for(["lib/main.dart", ".agents/events/2026/11/x.jsonl"]), ["dart"])
+        self.assertEqual(ci.groups_for([".agents/events/2026/11/x.jsonl"]), [])
+        self.assertEqual(ci.groups_for([".agents/events/2026/11/x.jsonl", ".agents/skills/x/SKILL.md"]), ["agents"])
         self.assertEqual(ci.groups_for(["specs/source-of-truth/status.md"]), ["agents", "docs"])
         self.assertEqual(ci.groups_for([".github/workflows/merge-gate.yml"]), ["agents", "workflows"])
         self.assertEqual(ci.groups_for(["Makefile"]), ["agents"])
         self.assertEqual(ci.groups_for(["README.md"]), ["docs"])
+        self.assertEqual(ci.groups_for(["scripts/release/prepare_android.py"]), ["release"])
+        self.assertEqual(ci.groups_for(["scripts/infra/bootstrap_support.py"]), ["infra"])
 
     def test_group_paths_match_their_workflows(self):
         self.assertEqual(set(ci.GROUPS["agents"].paths), first_paths("agent-system.yml"))
@@ -59,10 +64,13 @@ class LocalCiTest(unittest.TestCase):
         # Every test file in an uncovered directory must be a conscious exclusion, not an oversight.
         uncovered = {p.parent.name for p in (ROOT / "scripts").glob("*/test_*.py")} - set(ci.PYTHON_TEST_DIRS)
         self.assertEqual(uncovered, {"infra"})
+        self.assertIn(["python3", "-m", "unittest", "discover", "-s", "scripts/infra", "-p", "test_*.py"],
+                      ci.GROUPS["infra"].commands)
 
     def test_new_ci_scripts_trigger_the_agents_group(self):
-        self.assertEqual(ci.groups_for(["scripts/ci/validation_status.py"]), ["agents", "dart"])
-        self.assertEqual(ci.groups_for(["scripts/ci/test_validation_status.py"]), ["agents", "dart"])
+        self.assertEqual(ci.groups_for(["scripts/ci/validation_status.py"]), ["agents"])
+        self.assertEqual(ci.groups_for(["scripts/ci/test_validation_status.py"]), ["agents"])
+        self.assertEqual(ci.groups_for(["scripts/ci/select_tests.dart"]), ["dart"])
         self.assertEqual(ci.groups_for(["scripts/setup/test_setupctl.py"]), ["agents"])
 
     def test_workflows_run_the_same_commands(self):
@@ -70,6 +78,7 @@ class LocalCiTest(unittest.TestCase):
         self.assertIn("scripts/ci/local_ci.py --group agents", (workflows / "agent-system.yml").read_text())
         self.assertIn("scripts/ci/local_ci.py --group docs", (workflows / "docs-pages.yml").read_text())
         checks = (workflows / "ci-checks.yml").read_text()
+        self.assertIn("scripts/ci/local_ci.py --group release", checks)
         for command in ci.GROUPS["dart"].commands:
             self.assertIn(" ".join(command), checks)
 

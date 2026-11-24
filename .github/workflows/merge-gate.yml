@@ -8,8 +8,6 @@ on:
     workflows:
       - "Format, Analyze, Check Localizations and Run Tests"
       - "Validation"
-      - "Web Build"
-      - "Android Build"
       - "Agent system validation"
       - "Agent review"
       - "Documentation Pages"
@@ -37,7 +35,10 @@ jobs:
        ((github.event.action == 'labeled' && github.event.label.name == 'merge/auto') ||
         github.event.action == 'ready_for_review' ||
         (github.event.action == 'opened' && !github.event.pull_request.draft))) ||
-      (github.event_name == 'workflow_run' && github.actor == 'dependabot[bot]')
+      (github.event_name == 'workflow_run' &&
+       github.actor == 'dependabot[bot]' &&
+       github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -52,7 +53,14 @@ jobs:
   gate:
     name: Integrate ready PRs
     # Dependabot-triggered events get no repository secrets; `dispatch` covers them.
-    if: github.event_name != 'pull_request_target' && github.actor != 'dependabot[bot]'
+    # Ignore non-PR or non-success workflow_run completions so failed/cancelled/release
+    # runs do not fan out redundant gate executions.
+    if: >-
+      github.event_name != 'pull_request_target' &&
+      github.actor != 'dependabot[bot]' &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.event == 'pull_request' &&
+        github.event.workflow_run.conclusion == 'success'))
     # No concurrency group: cancelled queued runs would mark develop red. The
     # script serializes instead (older runs finish first, superseded ones exit).
     permissions:
@@ -69,6 +77,10 @@ jobs:
           HAS_LEGACY_TOKEN: ${{ secrets.MERGE_GATE_TOKEN != '' }}
         run: |
           if [ -n "$RELEASE_GATE_APP_ID" ] && [ -n "$RELEASE_GATE_APP_PRIVATE_KEY" ]; then
+            if ! printf '%s\n' "$RELEASE_GATE_APP_PRIVATE_KEY" | grep -q -- '-----BEGIN .*PRIVATE KEY-----'; then
+              echo "::error::RELEASE_GATE_APP_PRIVATE_KEY is not a valid PEM private key. Re-upload the GitHub App .pem file (gh secret set RELEASE_GATE_APP_PRIVATE_KEY < path/to/key.pem)."
+              exit 1
+            fi
             echo "app=true" >> "$GITHUB_OUTPUT"
             echo "ready=true" >> "$GITHUB_OUTPUT"
           elif [[ "$HAS_LEGACY_TOKEN" == true ]]; then

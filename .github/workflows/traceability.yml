@@ -34,3 +34,5 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           scripts/agents/agentctl check-pr --base "$BASE_SHA" --head "$HEAD_SHA"
+      - name: Validate agent event logs
+        run: python3 scripts/agents/check_logs.py

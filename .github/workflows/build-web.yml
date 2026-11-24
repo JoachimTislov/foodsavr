@@ -11,7 +11,7 @@ on:
       - "pubspec.yaml"
       - "pubspec.lock"
       - ".github/workflows/build-web.yml"
-      - "scripts/ci/**"
+      - ".github/actions/setup-flutter-app/**"
   workflow_dispatch:
 
 concurrency:
