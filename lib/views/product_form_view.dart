@@ -265,8 +265,9 @@ class _ProductFormContentState extends State<_ProductFormContent> {
                   onAdd: _addExpiry,
                   onScan: _scanExpiry,
                   onRemove: (idx) => setState(() {
-                    if (identical(_expiries[idx], _suggested))
+                    if (identical(_expiries[idx], _suggested)) {
                       _suggested = null;
+                    }
                     _expiries.removeAt(idx);
                   }),
                 ),
