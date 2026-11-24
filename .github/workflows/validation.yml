@@ -2,7 +2,7 @@ name: Validation
 
 on:
   push:
-    branches: [daily, weekly, stable]
+    branches: [daily, weekly, stable, 'merge-train/**']
   pull_request:
     branches: [develop]
     types: [opened, synchronize, reopened, labeled]
@@ -12,7 +12,7 @@ concurrency:
   # Label events other than merge/auto get their own group so they never cancel a running validation.
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}${{ (github.event.action == 'labeled' && github.event.label.name != 'merge/auto') && format('-label-{0}', github.run_id) || '' }}
   # See ci-checks.yml: Dependabot runs are not cancelled by their own rebases.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
+  cancel-in-progress: ${{ (github.event_name == 'pull_request' && github.actor != 'dependabot[bot]') || startsWith(github.ref, 'refs/heads/merge-train/') }}
 
 jobs:
   # `Validation result` is a commit status, not a check run: GitHub counts a
@@ -81,7 +81,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          fetch-depth: ${{ (github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]') && 0 || 1 }}
+          fetch-depth: ${{ ((github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]') || startsWith(github.ref, 'refs/heads/merge-train/')) && 0 || 1 }}
+      - name: Fetch develop base for speculative train diff
+        if: startsWith(github.ref, 'refs/heads/merge-train/')
+        run: git fetch --no-tags origin develop:refs/heads/develop
       - name: Skip if merged tree or unchanged target already validated
         id: tested
         env:
@@ -102,6 +105,7 @@ jobs:
         id: filter
         if: github.event_name != 'workflow_dispatch'
         with:
+          base: ${{ startsWith(github.ref, 'refs/heads/merge-train/') && 'develop' || '' }}
           filters: |
             web:
               - 'lib/**'

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import importlib.util
+import subprocess
 import sys
+import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -651,7 +653,139 @@ class FreezePriorityAndRaceTest(unittest.TestCase):
         self.assertEqual([(a, p.number) for a, p in res_open.actions], [("merge", 5)])
 
 
+class SpeculativeMergeTrainTest(unittest.TestCase):
+    def test_resolve_train_depth(self):
+        self.assertEqual(gate.resolve_train_depth(None), gate.DEFAULT_TRAIN_DEPTH)
+        self.assertEqual(gate.resolve_train_depth(""), gate.DEFAULT_TRAIN_DEPTH)
+        self.assertEqual(gate.resolve_train_depth("0"), 0)
+        self.assertEqual(gate.resolve_train_depth("2"), 2)
+        self.assertEqual(gate.resolve_train_depth(99), gate.MAX_TRAIN_DEPTH)
+        self.assertEqual(gate.resolve_train_depth(-3), 0)
+        self.assertEqual(gate.resolve_train_depth("bogus"), 0)
+
+    def test_plan_train_orders_priority_retains_slot0_and_deletes_stale(self):
+        prs = [
+            pr(10, state="BEHIND", rollup="SUCCESS"),
+            pr(11, state="BEHIND", rollup="SUCCESS"),
+            pr(12, state="BEHIND", rollup="SUCCESS"),
+            pr(20, state="CLEAN", rollup="PENDING", labels=(gate.LABEL, gate.PRIORITY_LABEL)),
+        ]
+        existing = [
+            "merge-train/pr-20",  # slot 0 existing ref must be retained while open
+            "merge-train/pr-10",
+            "merge-train/pr-12",  # outside depth=2 (slots: 20, 10, 11)
+            "merge-train/pr-99",  # merged/stale ref
+        ]
+        tp = gate.plan_train(prs, existing, depth=2, owner="owner", history=[])
+        self.assertEqual([(s.pr.number, s.push) for s in tp.slots], [(20, False), (10, True), (11, True)])
+        self.assertEqual(tp.delete_refs, ["merge-train/pr-12", "merge-train/pr-99"])
+
+    def test_plan_train_respects_batch_and_all_freeze(self):
+        normal = pr(10, state="BEHIND")
+        prio1 = pr(20, state="CLEAN", rollup="PENDING", labels=(gate.LABEL, gate.PRIORITY_LABEL))
+        prio2 = pr(21, state="BEHIND", labels=(gate.LABEL, gate.PRIORITY_LABEL))
+        existing = ["merge-train/pr-10", "merge-train/pr-21"]
+
+        batch_plan = gate.plan_train([normal, prio1, prio2], existing, depth=3, freeze_mode="batch", owner="owner", history=[])
+        self.assertEqual([(s.pr.number, s.push) for s in batch_plan.slots], [(20, False), (21, True)])
+        self.assertEqual(batch_plan.delete_refs, ["merge-train/pr-10"])
+
+        all_plan = gate.plan_train([normal, prio1, prio2], existing, depth=3, freeze_mode="all", owner="owner", history=[])
+        self.assertEqual(all_plan.slots, [])
+        self.assertEqual(all_plan.delete_refs, ["merge-train/pr-10", "merge-train/pr-21"])
+
+        disabled = gate.plan_train([normal, prio1, prio2], existing, depth=0, freeze_mode="none", owner="owner", history=[])
+        self.assertEqual(disabled.slots, [])
+        self.assertEqual(disabled.delete_refs, ["merge-train/pr-10", "merge-train/pr-21"])
+
+    def test_plan_train_excludes_unreviewed_forks_and_security_prs(self):
+        unreviewed = pr(10, state="CLEAN", reviews=[])
+        fork_pr = pr(11, state="CLEAN", fork=True)
+        sec_pr = pr(12, state="CLEAN", labels=(gate.LABEL, gate.SECURITY_LABEL))
+        ok1 = pr(13, state="CLEAN")
+        ok2 = pr(14, state="BEHIND")
+        tp = gate.plan_train([unreviewed, fork_pr, sec_pr, ok1, ok2], [], depth=3, owner="owner", history=[])
+        self.assertEqual([(s.pr.number, s.push) for s in tp.slots], [(13, False), (14, True)])
+
+    def test_sync_train_linear_replay_idempotent_push_conflict_ejection_and_cleanup(self):
+        def _git(cwd: Path, *args: str) -> str:
+            res = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True)
+            return res.stdout.strip()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            origin = root / "origin.git"
+            seed = root / "seed"
+            origin.mkdir()
+            seed.mkdir()
+            _git(origin, "init", "--bare")
+            _git(seed, "init", "-b", "develop")
+            _git(seed, "config", "user.name", "Test")
+            _git(seed, "config", "user.email", "test@example.com")
+            _git(seed, "remote", "add", "origin", str(origin))
+
+            (seed / "shared.txt").write_text("base\n", encoding="utf-8")
+            (seed / "other.txt").write_text("base\n", encoding="utf-8")
+            _git(seed, "add", ".")
+            _git(seed, "commit", "-m", "base")
+            base_sha = _git(seed, "rev-parse", "HEAD")
+            _git(seed, "push", "origin", "HEAD:refs/heads/develop")
+            # Seed a stale train ref to verify cleanup
+            _git(seed, "push", "origin", "HEAD:refs/heads/merge-train/pr-99")
+
+            # PR #10 modifies shared.txt
+            _git(seed, "checkout", "-q", "-B", "pr10", base_sha)
+            (seed / "shared.txt").write_text("from-pr-10\n", encoding="utf-8")
+            _git(seed, "add", "shared.txt")
+            _git(seed, "commit", "-m", "pr 10")
+            sha10 = _git(seed, "rev-parse", "HEAD")
+            _git(seed, "push", "origin", f"{sha10}:refs/pull/10/head")
+
+            # PR #20 conflicts with PR #10 on shared.txt
+            _git(seed, "checkout", "-q", "-B", "pr20", base_sha)
+            (seed / "shared.txt").write_text("from-pr-20-conflict\n", encoding="utf-8")
+            _git(seed, "add", "shared.txt")
+            _git(seed, "commit", "-m", "pr 20")
+            sha20 = _git(seed, "rev-parse", "HEAD")
+            _git(seed, "push", "origin", f"{sha20}:refs/pull/20/head")
+
+            # PR #30 modifies other.txt (clean against PR #10!)
+            _git(seed, "checkout", "-q", "-B", "pr30", base_sha)
+            (seed / "other.txt").write_text("from-pr-30\n", encoding="utf-8")
+            _git(seed, "add", "other.txt")
+            _git(seed, "commit", "-m", "pr 30")
+            sha30 = _git(seed, "rev-parse", "HEAD")
+            _git(seed, "push", "origin", f"{sha30}:refs/pull/30/head")
+
+            p10 = pr(10, head=sha10, state="CLEAN")
+            p20 = pr(20, head=sha20, state="BEHIND")
+            p30 = pr(30, head=sha30, state="BEHIND")
+            tp = gate.plan_train([p10, p20, p30], ["merge-train/pr-99"], depth=3, owner="owner", history=[])
+            gh = gate.GitHub("owner/repo", apply=True)
+
+            notes1 = gh.sync_train(tp, remote_url=str(origin))
+            self.assertTrue(any("train #20: ejected" in n for n in notes1), notes1)
+            self.assertTrue(any("train #30: pushed merge-train/pr-30" in n for n in notes1), notes1)
+            self.assertTrue(any("train cleanup: deleted merge-train/pr-99" in n for n in notes1), notes1)
+
+            # Verify origin refs: pr-30 exists, pr-20 and pr-99 do not, and pr-30 is strictly linear with both changes
+            refs = _git(origin, "for-each-ref", "--format=%(refname)", "refs/heads/merge-train/").splitlines()
+            self.assertEqual(refs, ["refs/heads/merge-train/pr-30"])
+            train30_sha = _git(origin, "rev-parse", "refs/heads/merge-train/pr-30")
+            self.assertEqual(_git(origin, "show", "refs/heads/merge-train/pr-30:shared.txt"), "from-pr-10")
+            self.assertEqual(_git(origin, "show", "refs/heads/merge-train/pr-30:other.txt"), "from-pr-30")
+            self.assertEqual(_git(origin, "rev-list", "--merges", f"{base_sha}..{train30_sha}"), "")
+            self.assertEqual(len(_git(origin, "rev-list", f"{base_sha}..{train30_sha}").splitlines()), 2)
+
+            # Second sync with identical state must NOT push merge-train/pr-30 again
+            tp2 = gate.plan_train([p10, p20, p30], ["merge-train/pr-30"], depth=3, owner="owner", history=[])
+            notes2 = gh.sync_train(tp2, remote_url=str(origin))
+            self.assertTrue(any("train #30: merge-train/pr-30 unchanged" in n for n in notes2), notes2)
+            self.assertEqual(_git(origin, "rev-parse", "refs/heads/merge-train/pr-30"), train30_sha)
+
+
 if __name__ == "__main__":
     unittest.main()
+
 
 

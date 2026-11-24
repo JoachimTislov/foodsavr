@@ -117,4 +117,5 @@ jobs:
           RUNS_TOKEN: ${{ github.token }}
           AGENT_APP_SLUG: ${{ vars.AGENT_APP_SLUG }}
           MERGE_GATE_FREEZE: ${{ vars.MERGE_GATE_FREEZE }}
+          MERGE_TRAIN_DEPTH: ${{ vars.MERGE_TRAIN_DEPTH }}
         run: python3 scripts/github/merge_gate.py --repo "${{ github.repository }}" --apply

@@ -118,6 +118,12 @@ merges. Read the gate's latest run summary when assessing the queue.
 - **Thaw**: remove `merge/freeze` from the coordinating issue (and clear
   `MERGE_GATE_FREEZE` if set) once preempting PRs are merged; paused batch
   PRs resume automatically in their planned queue order.
+- **Speculative merge train**: `merge_gate.py` maintains ephemeral
+  `merge-train/pr-<N>` branches (depth controlled by `MERGE_TRAIN_DEPTH`,
+  default `3`, `0` disables) so queued PRs pre-validate on the predicted
+  post-merge linear tree and reuse results via `already_tested.sh` on rebase.
+  Treat `merge-train/pr-*` branches as gate-managed; do not base human or
+  agent feature work on them or push to them manually.
 
 
 ## Dependabot PR updates
