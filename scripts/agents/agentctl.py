@@ -1945,6 +1945,10 @@ def validate_declarative_manifests() -> list[str]:
                     errors.append(f"{RUNNERS}: provider {provider}.prompt_mode is invalid")
                 if spec.get("prompt_mode") == "flag" and not isinstance(spec.get("prompt_flag"), str):
                     errors.append(f"{RUNNERS}: provider {provider}.prompt_flag is required for flag prompt mode")
+                if "max_prompt_argv_bytes" in spec:
+                    cap = spec["max_prompt_argv_bytes"]
+                    if type(cap) is not int or cap < 1:
+                        errors.append(f"{RUNNERS}: provider {provider}.max_prompt_argv_bytes must be a positive integer")
                 if "model_flag" in spec and (not isinstance(spec["model_flag"], str) or not spec["model_flag"].strip()):
                     errors.append(f"{RUNNERS}: provider {provider}.model_flag must be a non-empty string")
                 if "default_model" in spec and (not isinstance(spec["default_model"], str) or not spec["default_model"].strip()):
@@ -3051,14 +3055,19 @@ def provider_command(
         model_flag = spec.get("model_flag", "--model")
         if model_flag and model_flag not in command:
             command.extend([model_flag, model])
-    if spec.get("prompt_mode") == "stdin":
+    prompt_mode = spec.get("prompt_mode")
+    if prompt_mode == "stdin" or (provider == "codex" and prompt_mode != "flag"):
         if provider == "codex":
             command.extend(["--cd", str(workdir), "-"])
         return command, prompt
-    if spec.get("prompt_mode") == "flag":
+    cap = spec.get("max_prompt_argv_bytes")
+    if cap is not None:
+        # Linux counts the trailing NUL separately from the configured payload cap.
+        prompt_bytes = len(prompt.encode("utf-8"))
+        if prompt_bytes > cap:
+            raise ValueError(f"{provider} prompt is {prompt_bytes} UTF-8 bytes, exceeding its {cap}-byte argv limit")
+    if prompt_mode == "flag":
         return [*command, spec.get("prompt_flag", "--prompt"), prompt], None
-    if provider == "codex":
-        return [*command, "--cd", str(workdir), "-"], prompt
     return [*command, prompt], None
 
 
@@ -3129,12 +3138,14 @@ def _session_id_from_payload(value: dict[str, Any]) -> str | None:
     return None
 
 
-def extract_session_id(output: str) -> str | None:
-    for value in parse_provider_payloads(output):
-        candidate = _session_id_from_payload(value)
-        if candidate:
-            return candidate
-    match = re.search(r"\b[0-9a-f]{8}-[0-9a-f-]{27,}\b", output, re.I)
+def extract_session_id(output: str, *additional_streams: str) -> str | None:
+    streams = (output, *additional_streams)
+    for stream in streams:
+        for value in parse_provider_payloads(stream):
+            candidate = _session_id_from_payload(value)
+            if candidate:
+                return candidate
+    match = re.search(r"\b[0-9a-f]{8}-[0-9a-f-]{27,}\b", "\n".join(streams), re.I)
     return match.group(0) if match else None
 
 
@@ -3158,11 +3169,11 @@ def _usage_snapshot_from_payload(value: dict[str, Any]) -> dict[str, int | float
     return snapshot
 
 
-def extract_usage(output: str) -> dict[str, int | float]:
+def extract_usage(output: str, *additional_streams: str) -> dict[str, int | float]:
     """Normalize common provider usage fields without retaining provider payloads."""
     snapshots: dict[str, dict[str, int | float]] = {}
     latest: dict[str, int | float] | None = None
-    for value in parse_provider_payloads(output):
+    for value in (payload for stream in (output, *additional_streams) for payload in parse_provider_payloads(stream)):
         snapshot = _usage_snapshot_from_payload(value)
         if not snapshot:
             continue
@@ -3192,9 +3203,10 @@ def normalize_usage_totals(usage: dict[str, int | float]) -> dict[str, int | flo
 def normalized_events(provider: str, output: str) -> list[dict[str, Any]]:
     events = []
     for value in parse_provider_payloads(output):
+        event_type = str(value.get("type") or value.get("event") or "provider.output")
         event: dict[str, Any] = {
             "provider": provider,
-            "type": value.get("type") or value.get("event") or "provider.output",
+            "type": event_type,
         }
         session_id = _session_id_from_payload(value)
         if session_id:
@@ -3204,8 +3216,43 @@ def normalized_events(provider: str, output: str) -> list[dict[str, Any]]:
             usage["total_tokens"] = usage["input_tokens"] + usage["output_tokens"]
         if usage:
             event["usage"] = usage
+        rate_limit = value.get("rate_limit_info")
+        if event_type == "rate_limit_event" and isinstance(rate_limit, dict) and rate_limit.get("status") == "rejected":
+            event.update(hu.quota_error_details({"code": "rate_limit_exceeded", "details": rate_limit}))
+        elif (
+            event_type == "error" or event_type.endswith((".failed", ".error"))
+            or value.get("is_error") is True or value.get("isError") is True
+            or value.get("error") or (event_type == "provider.output" and any(
+                key in value for key in ("code", "status_code", "statusCode")
+            ))
+            or str(value.get("status")).lower() in {"error", "failed", "failure", "resource_exhausted", "429"}
+        ):
+            diagnostic = value
+            if isinstance(value.get("error"), (str, dict, list)) and value["error"]:
+                # Prefer the actual error over any accompanying assistant output.
+                diagnostic = {key: item for key, item in value.items() if key not in {"result", "response"}}
+            event.update(hu.quota_error_details(diagnostic))
         events.append(event)
     return events
+
+
+def plain_quota_diagnostics(*streams: str) -> dict[str, str]:
+    # A model can quote quota errors in JSON responses. Only inspect diagnostics
+    # outside structured output here. Structured error envelopes are handled above.
+    lines = []
+    for stream in streams:
+        try:
+            json.loads(stream)
+            continue
+        except json.JSONDecodeError:
+            pass
+        for line in stream.splitlines():
+            try:
+                json.loads(line)
+            except json.JSONDecodeError:
+                if not re.match(r'^\s*"[^"]+"\s*:', line):
+                    lines.append(line)
+    return hu.quota_error_details("\n".join(lines))
 
 
 def append_event(path: Path, event: dict[str, Any]) -> None:
@@ -3464,15 +3511,20 @@ def export_worktree_changes(worktree: Path, base_revision: str, run_dir: Path) -
     """Persist a permission-restricted portable patch for an isolated run."""
     env = isolated_git_env()
     # Mark new files intent-to-add so the diff carries them; the worktree is disposable.
-    subprocess.run(["git", "-C", str(worktree), "add", "--intent-to-add", "--all"], cwd=worktree, env=env, capture_output=True, text=True, timeout=30, check=False)
-    diff = subprocess.run(
-        ["git", "-C", str(worktree), "diff", "--binary", base_revision, "--"],
+    indexed = subprocess.run(
+        ["git", "-C", str(worktree), "add", "--intent-to-add", "--all"],
         cwd=worktree, env=env, capture_output=True, text=True, timeout=30, check=False,
     )
+    if indexed.returncode != 0:
+        raise ValueError((indexed.stderr or indexed.stdout).strip() or "git add --intent-to-add failed")
+    diff = subprocess.run(
+        ["git", "-C", str(worktree), "diff", "--binary", base_revision, "--"],
+        cwd=worktree, env=env, capture_output=True, timeout=30, check=False,
+    )
     if diff.returncode != 0:
-        raise ValueError((diff.stderr or diff.stdout).strip() or "git diff failed")
+        raise ValueError((diff.stderr or diff.stdout).decode("utf-8", errors="replace").strip() or "git diff failed")
     patch = run_dir / "changes.patch"
-    patch.write_text(diff.stdout, encoding="utf-8")
+    patch.write_bytes(diff.stdout)
     patch.chmod(0o600)
     return path_reference(patch)
 
@@ -3620,26 +3672,41 @@ def review_verdict(provider: str, output: str) -> str | None:
 
 def write_provider_artifact(
     path: Path, provider: str, output: str, exit_code: int, capture_raw: bool, *, capture_verdict: bool = False,
-) -> None:
-    session_id = extract_session_id(output)
-    events = normalized_events(provider, output)
+    stderr: str = "",
+) -> dict[str, Any]:
+    events = normalized_events(provider, output) + normalized_events(provider, stderr)
+    failures = [event for event in events if event.get("failure_kind") == "quota_exhausted"]
+    if exit_code:
+        if detail := plain_quota_diagnostics(output, stderr):
+            failures.append(detail)
+    elif any(event["type"] == "turn.completed" for event in events):
+        # Codex can emit retry errors before a successful turn.
+        failures = []
+    session_id = extract_session_id(output, stderr)
+    combined_output = "\n".join(part for part in (output, stderr) if part)
     normalized: dict[str, Any] = {
         "provider": provider,
         "exit_code": exit_code,
         "session_id": f"{provider}:{session_id}" if session_id else None,
-        "usage": extract_usage(output),
+        "usage": extract_usage(output, stderr),
         "events": events,
-        "stderr_or_unstructured_output_present": bool(output and not events),
+        "stderr_or_unstructured_output_present": bool(combined_output and not events),
     }
+    if failures:
+        normalized["failure_kind"] = "quota_exhausted"
+        resets = [failure["resets_at"] for failure in failures if "resets_at" in failure]
+        if resets:
+            normalized["resets_at"] = min(resets)
     if capture_raw:
-        normalized["raw_output"] = redacted_output(output)
+        normalized["raw_output"] = redacted_output(combined_output)
     if capture_verdict:
-        review_text = extract_provider_output(provider, output)
+        review_text = extract_provider_output(provider, output) or extract_provider_output(provider, stderr)
         normalized["review_output"] = tail_bounded_output(redacted_output(review_text))
-        if exit_code == 0:
+        if exit_code == 0 and not failures:
             normalized["review_verdict"] = parse_review_verdict(review_text)
     write_json(path, normalized)
     path.chmod(0o600)
+    return normalized
 
 
 def append_ledger_event(run_id: str, workflow_id: str, provider: str, status: str, artifact: str | None = None, references: dict[str, list[str]] | None = None, *, reason: str | None = None) -> str:
@@ -4068,6 +4135,7 @@ def workflow_run(args: argparse.Namespace) -> int:
         result["base_revision"] = base_revision
         write_result(run_dir / "result.json", result)
     had_failure = False
+    quota_failure: dict[str, str] = {}
     for step in workflow["steps"]:
         step_id = step["id"]
         candidates = step.get("providers") or list(specs)
@@ -4079,138 +4147,144 @@ def workflow_run(args: argparse.Namespace) -> int:
             if step.get("on_failure", "stop") != "continue":
                 break
             continue
-        selected: str | None = provider
-        decision: RouteDecision | None = None
-        if selected is None:
-            selected_candidates = available_providers(candidates, specs)
-            policy_safe = [name for name in selected_candidates if provider_is_safe(name, workflow, specs)]
-            decision, profile, route_reason = resolve_step_route(
-                workflow, step, policy_safe, specs, router, policy,
-                explicit_model=explicit_model, quota_snapshots=quota_snapshots,
-            )
-            selected = decision.provider if decision else None
-        else:
-            decision, profile, route_reason = resolve_step_route(
-                workflow, step, [selected], specs, router, policy,
-                explicit_provider=selected, explicit_model=explicit_model, quota_snapshots=quota_snapshots,
-            )
-            selected = decision.provider if decision else None
-        if route_reason.startswith("external-router-http-"):
-            router = {**router, "decision_provider": {**router["decision_provider"], "enabled": False}}
-        selected_model = (
-            decision.model
-            if decision and (decision.model != "default" or specs.get(selected or "", {}).get("default_model"))
-            else (explicit_model or (step.get("model") if isinstance(step.get("model"), str) else None))
-        )
-        reasoning_effort = decision.reasoning_effort if decision else profile.reasoning_effort
-        append_event(events_path, {
-            "type": "step.started",
-            "step_id": step_id,
-            "route_reason": route_reason,
-            "work_type": profile.work_type.value,
-            "tier": profile.tier.value,
-            "selected_model": selected_model,
-        })
-        if selected is None:
-            reason = f"Manual step required for {step_id}: no executable provider ({route_reason})."
-            result["reason"] = reason
-            result["steps"].append({
-                "id": step_id,
-                "status": "unavailable",
-                "acceptance_results": [],
-                "reason": reason,
-                "route_reason": route_reason,
-                "work_type": profile.work_type.value,
-                "tier": profile.tier.value,
-                "reasoning_effort": reasoning_effort,
-                "selected_model": selected_model,
-            })
-            append_event(events_path, {"type": "step.completed", "step_id": step_id, "status": "unavailable", "reason": reason})
-            had_failure = True
-            break
-        if not provider_is_safe(selected, workflow, specs):
-            result["steps"].append({
-                "id": step_id,
-                "status": "unavailable",
-                "acceptance_results": [],
-                "provider": selected,
-                "selected_model": selected_model,
-                "work_type": profile.work_type.value,
-                "tier": profile.tier.value,
-                "reasoning_effort": reasoning_effort,
-                "reason": f"provider adapter {selected} has not verified enforcement of the requested permissions",
-                "route_reason": route_reason,
-            })
-            append_event(events_path, {"type": "step.completed", "step_id": step_id, "status": "unavailable", "provider": selected})
-            had_failure = True
-            if step.get("on_failure", "stop") != "continue":
-                break
-            continue
-        prompt = workflow_prompt(workflow, step, run_id, resolved_context)
-        spec = effective_spec(specs[selected], workflow["permissions"])
-        effective_model = selected_model if (explicit_model or step.get("model") or spec.get("model_flag")) else None
-        attempts = []
-        step_succeeded = False
-        for attempt in range(1, workflow["limits"]["max_attempts"] + 1):
+        available = available_providers(candidates, specs) if provider is None else [provider]
+        policy_safe = [name for name in available if provider_is_safe(name, workflow, specs)]
+        attempts: list[dict[str, Any]] = []
+        ordinary_attempts = 0
+        reroute = True
+        step_reason: str | None = None
+        prompt: str | None = None
+        while True:
+            if reroute:
+                decision, profile, route_reason = resolve_step_route(
+                    workflow, step, policy_safe, specs, router, policy,
+                    explicit_provider=provider, explicit_model=explicit_model, quota_snapshots=quota_snapshots,
+                )
+                if route_reason.startswith("external-router-http-"):
+                    router = {**router, "decision_provider": {**router["decision_provider"], "enabled": False}}
+                selected = decision.provider if decision else None
+                selected_model = (
+                    decision.model
+                    if decision and (decision.model != "default" or specs.get(decision.provider, {}).get("default_model"))
+                    else (explicit_model or (step.get("model") if isinstance(step.get("model"), str) else None))
+                )
+                reasoning_effort = decision.reasoning_effort if decision else profile.reasoning_effort
+                if not attempts:
+                    append_event(events_path, {
+                        "type": "step.started", "step_id": step_id, "route_reason": route_reason,
+                        "work_type": profile.work_type.value, "tier": profile.tier.value, "selected_model": selected_model,
+                    })
+                if selected is None:
+                    final_status = "unavailable"
+                    if route_reason in {"all-providers-quota-exhausted", "requested-model-quota-exhausted"}:
+                        quota_candidates = [provider] if provider else policy_safe
+                        requested_model = explicit_model or step.get("model")
+                        if requested_model and not provider:
+                            matching = [name for name in quota_candidates if requested_model in specs[name].get("models", {})]
+                            quota_candidates = matching or quota_candidates
+                        reset = hu.earliest_quota_reset(quota_candidates, quota_snapshots)
+                        quota_failure = {"failure_kind": "quota_exhausted"}
+                        if reset:
+                            quota_failure["resets_at"] = reset
+                        step_reason = "quota-exhausted"
+                    else:
+                        step_reason = f"Manual step required for {step_id}: no executable provider ({route_reason})."
+                        had_failure = True
+                        result["reason"] = step_reason
+                    if attempts:
+                        selected = attempts[-1]["provider"]
+                        selected_model = attempts[-1]["selected_model"]
+                    break
+                if selected not in policy_safe:
+                    final_status = "unavailable"
+                    step_reason = f"provider adapter {selected} has not verified enforcement of the requested permissions"
+                    had_failure = True
+                    break
+                spec = effective_spec(specs[selected], workflow["permissions"])
+                effective_model = selected_model if (explicit_model or step.get("model") or spec.get("model_flag")) else None
+                if prompt is None:
+                    prompt = workflow_prompt(workflow, step, run_id, resolved_context)
+                reroute = False
+
+            attempt = len(attempts) + 1
+            attempt_result: dict[str, Any] = {
+                "attempt": attempt, "provider": selected, "selected_model": selected_model, "acceptance_results": [],
+            }
+            failure = {}
             try:
                 command, stdin = provider_command(selected, spec, prompt, execution_root, model=effective_model)
                 completed = subprocess.run(
                     command, input=stdin, capture_output=True, text=True,
                     cwd=execution_root, timeout=workflow["limits"]["timeout_seconds"], check=False,
                 )
-                output = (completed.stdout or "") + (completed.stderr or "")
                 artifact = (run_dir / f"{step_id}.attempt-{attempt}.json").resolve()
                 try:
                     artifact.relative_to(run_dir.resolve())
                 except ValueError as error:
                     raise ValueError("provider artifact escaped the run directory") from error
                 artifact.parent.mkdir(parents=True, exist_ok=True)
-                write_provider_artifact(
-                    artifact, selected, output, completed.returncode, capture_raw,
+                data = write_provider_artifact(
+                    artifact, selected, completed.stdout or "", completed.returncode, capture_raw,
                     capture_verdict=(workflow["id"] == "integrate-pr" and step_id == "verify-gate") or profile.work_type.value == "review",
+                    stderr=completed.stderr or "",
                 )
-                session_id = extract_session_id(output)
-                usage = extract_usage(output)
-                for event in normalized_events(selected, output):
+                failure = {key: data[key] for key in ("failure_kind", "resets_at") if key in data}
+                namespaced = data["session_id"]
+                usage = data["usage"]
+                artifact_ref = path_reference(artifact)
+                attempt_result.update(session_id=namespaced, artifact=artifact_ref, usage=usage, **failure)
+                result["artifacts"].append(artifact_ref)
+                for event in data["events"]:
                     append_event(events_path, {"type": "provider.event", "step_id": step_id, "attempt": attempt, **event})
-                append_event(events_path, {"type": "attempt.completed", "step_id": step_id, "attempt": attempt, "usage": usage})
-                acceptance_results = run_acceptance(
-                    step, execution_root, workflow.get("permissions", {}), policy.get("allow_hosts", [])
-                )
-                acceptance_passed = acceptance_satisfied(
-                    acceptance_results, required=policy.get("require_acceptance", True)
-                )
-                append_event(events_path, {"type": "acceptance.completed", "step_id": step_id, "attempt": attempt, "passed": acceptance_passed})
-                session_required = policy.get("require_session_id", True)
-                session_valid = session_id is not None or not session_required
-                attempt_status = "succeeded" if completed.returncode == 0 and acceptance_passed and session_valid else (
-                    "failed" if completed.returncode != 0 or not session_valid else "awaiting_acceptance"
-                )
-                attempts.append({
-                    "attempt": attempt, "status": attempt_status, "acceptance_results": acceptance_results,
-                    "session_id": f"{selected}:{session_id}" if session_id else None,
-                    "artifact": path_reference(artifact),
-                    "usage": usage,
-                    "reason": None if session_valid else "provider did not expose a required session ID",
+                append_event(events_path, {
+                    "type": "attempt.completed", "step_id": step_id, "provider": selected,
+                    "attempt": attempt, "usage": usage, **failure,
                 })
-                result["artifacts"].append(path_reference(artifact))
-                if session_id:
-                    namespaced = f"{selected}:{session_id}"
+                if failure:
+                    attempt_result.update(status="unavailable", reason="quota-exhausted")
+                else:
+                    acceptance_results = run_acceptance(
+                        step, execution_root, workflow.get("permissions", {}), policy.get("allow_hosts", []),
+                    )
+                    acceptance_passed = acceptance_satisfied(
+                        acceptance_results, required=policy.get("require_acceptance", True),
+                    )
+                    append_event(events_path, {
+                        "type": "acceptance.completed", "step_id": step_id, "attempt": attempt, "passed": acceptance_passed,
+                    })
+                    session_valid = namespaced is not None or not policy.get("require_session_id", True)
+                    attempt_result.update(
+                        status=("failed" if completed.returncode != 0 or not session_valid
+                                else "succeeded" if acceptance_passed else "awaiting_acceptance"),
+                        acceptance_results=acceptance_results,
+                        reason=None if session_valid else "provider did not expose a required session ID",
+                    )
+                if namespaced:
                     if namespaced not in result["session_ids"]:
                         result["session_ids"].append(namespaced)
                     append_session_record(
-                        selected, session_id, run_id, f"Workflow {workflow['id']} step {step_id}",
-                        status=attempt_status, attempt=attempt, usage=usage, references=workflow.get("references"),
+                        selected, namespaced.split(":", 1)[1], run_id, f"Workflow {workflow['id']} step {step_id}",
+                        status=attempt_result["status"], attempt=attempt, usage=usage, references=workflow.get("references"),
                     )
-                if attempt_status == "succeeded":
-                    step_succeeded = True
-                    break
-                if step.get("on_failure", "stop") != "retry":
-                    break
             except (OSError, ValueError, sqlite3.Error, subprocess.TimeoutExpired) as error:
-                attempts.append({"attempt": attempt, "status": "failed", "acceptance_results": [], "error": str(error)})
-                if step.get("on_failure", "stop") != "retry":
-                    break
+                attempt_result.update(status="unavailable" if failure else "failed", error=str(error))
+            attempts.append(attempt_result)
+            if failure:
+                hu.invalidate_quota_cache(QUOTA_CACHE, selected)
+                # Keep the provider excluded for this run even if its reset time elapses.
+                quota_snapshots[selected] = hu.HarnessUsageSnapshot(
+                    selected, "ok", (hu.UsageWindow("live", "runtime limit", 100, resets_at=failure.get("resets_at"), disabled=True),),
+                )
+                reroute = True
+                continue
+            final_status = attempt_result["status"]
+            ordinary_attempts += 1
+            if (
+                final_status == "succeeded" or step.get("on_failure", "stop") != "retry"
+                or ordinary_attempts >= workflow["limits"]["max_attempts"]
+            ):
+                break
+
         step_usage: dict[str, int | float] = {}
         for item in attempts:
             for field, value in item.get("usage", {}).items():
@@ -4219,68 +4293,38 @@ def workflow_run(args: argparse.Namespace) -> int:
             step_usage = normalize_usage_totals(step_usage)
             for field, value in step_usage.items():
                 result["usage"][field] = result["usage"].get(field, 0) + value
-        if not step_succeeded:
-            final_status = "awaiting_acceptance" if attempts and attempts[-1]["status"] == "awaiting_acceptance" else "failed"
-            had_failure = had_failure or final_status == "failed"
-            if final_status == "awaiting_acceptance":
-                result["status"] = "awaiting_acceptance"
-            result["steps"].append({
-                "id": step_id,
-                "status": final_status,
-                "provider": selected,
-                "selected_model": selected_model,
-                "work_type": profile.work_type.value,
-                "tier": profile.tier.value,
-                "reasoning_effort": reasoning_effort,
-                "route_reason": route_reason,
-                "attempts": attempts,
-                "usage": step_usage,
-                "acceptance_results": attempts[-1].get("acceptance_results", []) if attempts else [],
-            })
-            append_event(events_path, {
-                "type": "step.completed",
-                "step_id": step_id,
-                "status": final_status,
-                "provider": selected,
-                "selected_model": selected_model,
-                "work_type": profile.work_type.value,
-                "tier": profile.tier.value,
-            })
-            if step.get("on_failure", "stop") != "continue":
-                break
-        else:
-            result["steps"].append({
-                "id": step_id,
-                "status": "succeeded",
-                "provider": selected,
-                "selected_model": selected_model,
-                "work_type": profile.work_type.value,
-                "tier": profile.tier.value,
-                "reasoning_effort": reasoning_effort,
-                "route_reason": route_reason,
-                "attempts": attempts,
-                "usage": step_usage,
-                "acceptance_results": attempts[-1]["acceptance_results"],
-            })
-            append_event(events_path, {
-                "type": "step.completed",
-                "step_id": step_id,
-                "status": "succeeded",
-                "provider": selected,
-                "selected_model": selected_model,
-                "work_type": profile.work_type.value,
-                "tier": profile.tier.value,
-            })
+        had_failure = had_failure or final_status == "failed"
+        if final_status == "awaiting_acceptance":
+            result["status"] = "awaiting_acceptance"
+        step_summary = {
+            "id": step_id, "status": final_status, "selected_model": selected_model,
+            "work_type": profile.work_type.value, "tier": profile.tier.value,
+            "reasoning_effort": reasoning_effort, "route_reason": route_reason,
+            "acceptance_results": attempts[-1]["acceptance_results"] if attempts else [],
+            **({"provider": selected} if selected else {}),
+            **({"attempts": attempts, "usage": step_usage} if attempts else {}),
+            **({"reason": step_reason} if step_reason else {}),
+            **quota_failure,
+        }
+        result["steps"].append(step_summary)
+        append_event(events_path, {
+            "type": "step.completed", "step_id": step_id, "status": final_status,
+            "provider": selected, "selected_model": selected_model, "work_type": profile.work_type.value,
+            "tier": profile.tier.value, **({"reason": step_reason} if step_reason else {}), **quota_failure,
+        })
         write_result(run_dir / "result.json", result)
+        if decision is None or (final_status != "succeeded" and step.get("on_failure", "stop") != "continue"):
+            break
     if had_failure:
         result["status"] = "failed"
-    elif result["status"] == "awaiting_acceptance":
-        result["status"] = "awaiting_acceptance"
-    else:
+    elif quota_failure:
+        result.update(status="unavailable", reason="quota-exhausted", **quota_failure)
+    elif result["status"] != "awaiting_acceptance":
         result["status"] = "succeeded"
     result["usage"] = normalize_usage_totals(result["usage"])
-    result["providers"] = sorted({step.get("provider") for step in result["steps"] if step.get("provider")})
-    result["models"] = sorted({step.get("selected_model") for step in result["steps"] if step.get("selected_model")})
+    routed = [item for step in result["steps"] for item in (step, *step.get("attempts", []))]
+    result["providers"] = sorted({item["provider"] for item in routed if item.get("provider")})
+    result["models"] = sorted({item["selected_model"] for item in routed if item.get("selected_model")})
     if base_revision and execution_root != ROOT:
         try:
             patch_reference = export_worktree_changes(execution_root, base_revision, run_dir)
@@ -4288,21 +4332,32 @@ def workflow_run(args: argparse.Namespace) -> int:
             result["artifacts"].append(patch_reference)
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             result["patch_error"] = str(error)
-        cleanup_error = cleanup_isolated_worktree(run_dir)
-        if cleanup_error:
-            result["worktree_cleanup_error"] = cleanup_error
+        if "patch_error" in result:
+            append_event(events_path, {"type": "worktree.preserved", "reason": "patch-export-failed"})
         else:
-            append_event(events_path, {"type": "worktree.cleaned"})
+            cleanup_error = cleanup_isolated_worktree(run_dir)
+            if cleanup_error:
+                result["worktree_cleanup_error"] = cleanup_error
+            else:
+                append_event(events_path, {"type": "worktree.cleaned"})
     result["completed_at"] = now()
-    append_event(events_path, {"type": "run.completed", "status": result["status"], "usage": result["usage"]})
-    result["ledger_refs"].append(append_ledger_event(
-        run_id, workflow["id"], ",".join(result["providers"]) or "none", result["status"],
-        path_reference(run_dir / "result.json"),
-        workflow.get("references"), reason=result.get("reason"),
-    ))
+    append_event(events_path, {
+        "type": "run.completed", "status": result["status"], "usage": result["usage"],
+        **({"reason": result["reason"], **quota_failure} if result["status"] == "unavailable" else {}),
+    })
+    try:
+        result["ledger_refs"].append(append_ledger_event(
+            run_id, workflow["id"], ",".join(result["providers"]) or "none", result["status"],
+            path_reference(run_dir / "result.json"),
+            workflow.get("references"), reason=result.get("reason"),
+        ))
+    except OSError as error:
+        if result["status"] != "unavailable":
+            raise
+        result["ledger_error"] = str(error)
     write_result(run_dir / "result.json", result)
     print(json.dumps(result, indent=2, sort_keys=True))
-    return 0 if result["status"] == "succeeded" else 1
+    return 0 if result["status"] in {"succeeded", "unavailable"} else 1
 
 
 def workflow_cancel(args: argparse.Namespace) -> int:

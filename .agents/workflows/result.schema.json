@@ -1,6 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent workflow result",
+  "$defs": {
+    "failure_kind": {"type": "string"},
+    "resets_at": {"type": "string", "format": "date-time"}
+  },
   "type": "object",
   "required": ["workflow_id", "run_id", "status", "started_at", "steps", "session_ids", "artifacts", "events", "usage", "ledger_refs"],
   "allOf": [
@@ -15,6 +19,9 @@
     "status": {"enum": ["planned", "running", "succeeded", "failed", "cancelled", "unavailable", "awaiting_acceptance"]},
     "started_at": {"type": "string"},
     "completed_at": {"type": "string", "minLength": 1},
+    "reason": {"type": "string"},
+    "failure_kind": {"$ref": "#/$defs/failure_kind"},
+    "resets_at": {"$ref": "#/$defs/resets_at"},
     "steps": {
       "type": "array",
       "items": {
@@ -23,7 +30,19 @@
         "properties": {
           "id": {"type": "string"},
           "status": {"enum": ["planned", "running", "succeeded", "failed", "cancelled", "unavailable", "awaiting_acceptance"]},
+          "failure_kind": {"$ref": "#/$defs/failure_kind"},
+          "resets_at": {"$ref": "#/$defs/resets_at"},
           "acceptance_results": {"type": "array", "items": {"type": "object"}},
+          "attempts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "failure_kind": {"$ref": "#/$defs/failure_kind"},
+                "resets_at": {"$ref": "#/$defs/resets_at"}
+              }
+            }
+          },
           "session_id": {"type": ["string", "null"]},
           "artifact": {"type": ["string", "null"]}
         },

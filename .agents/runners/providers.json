@@ -75,6 +75,7 @@
       "headless": ["--output-format", "json", "--mode", "plan", "--sandbox", "--disable-slash-commands"],
       "prompt_mode": "flag",
       "prompt_flag": "--print",
+      "max_prompt_argv_bytes": 131071,
       "model_flag": "--model",
       "default_model": "gemini-4-hydrogen",
       "cost_rank": 1,

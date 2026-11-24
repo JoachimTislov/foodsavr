@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import select
 import shutil
 import subprocess
@@ -31,6 +32,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 DEFAULT_TIMEOUT_SECONDS = 5.0
 DEFAULT_EXHAUSTION_THRESHOLD = 95.0
@@ -80,11 +82,93 @@ def _epoch_to_iso(value: Any) -> str | None:
     if value <= 0:
         return None
     # Handle milliseconds vs seconds defensively.
-    seconds = value / 1000.0 if value > 10_000_000_000 else float(value)
     try:
+        seconds = value / 1000.0 if value > 10_000_000_000 else float(value)
         return iso_utc(datetime.fromtimestamp(seconds, tz=timezone.utc))
     except (OverflowError, OSError, ValueError):
         return None
+
+
+QUOTA_ERROR = re.compile(
+    r"\b(?:usage_limit_reached|insufficient_quota|quota_exceeded|rate_limit_exceeded|"
+    r"rate_limit_error|resource_exhausted|too many requests|"
+    r"(?:usage|rate) limit (?:reached|exceeded)|"
+    r"(?:hit|reached) your [^.\n]{0,60}\blimit\b|"
+    r"quota(?: limit)? (?:has been )?(?:reached|exceeded|exhausted|will reset)|"
+    r"(?:exceeded|exhausted) [^.\n]{0,30}\bquota|exhausted your capacity|"
+    r"(?:http(?: error)?|(?:status|error)(?: code)?)\s*[:=]?\s*429|^429(?=[:\s]|$))\b",
+    re.IGNORECASE | re.MULTILINE,
+)
+RESET_ISO = re.compile(
+    r"\b(?:resets?(?: at| on| time)?|try again at|retry (?:at|after))\s*[:=]?\s*"
+    r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2}))",
+    re.IGNORECASE,
+)
+RESET_CLOCK = re.compile(
+    r"\bresets?\s+(?:at\s+)?(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)\s+\(([^()]+)\)",
+    re.IGNORECASE,
+)
+RESET_DELAY = re.compile(
+    r"\b(?:reset(?:s)?\s+(?:in|after)|try again in|retry (?:in|after))\s+((?:\d+\s*[hms]\s*)+)",
+    re.IGNORECASE,
+)
+
+
+def _reset_from_message(message: str, ref: datetime) -> datetime | None:
+    if match := RESET_ISO.search(message):
+        return parse_iso(match[1])
+    if match := RESET_CLOCK.search(message):
+        hour, minute, period, zone = match.groups()
+        try:
+            local = ref.astimezone(ZoneInfo(zone))
+        except (ZoneInfoNotFoundError, ValueError):
+            return None
+        reset_hour = (int(hour) % 12) + (12 if period.lower() == "pm" else 0)
+        candidate = local.replace(hour=reset_hour, minute=int(minute or 0), second=0, microsecond=0)
+        return candidate if candidate > local else candidate + timedelta(days=1)
+    if match := RESET_DELAY.search(message):
+        try:
+            units = {"h": 3600, "m": 60, "s": 1}
+            seconds = sum(int(amount) * units[unit.lower()] for amount, unit in re.findall(r"(\d+)\s*([hms])", match[1], re.I))
+            return ref + timedelta(seconds=seconds)
+        except (ValueError, OverflowError):
+            return None
+    return None
+
+
+def quota_error_details(error: Any, *, now: datetime | None = None) -> dict[str, str]:
+    """Recognize a usage-limit diagnostic and normalize a supplied reset to UTC."""
+    ref = now or utc_now()
+    nodes = [(None, error)]
+    exhausted = False
+    resets: list[datetime] = []
+    while nodes:
+        key, value = nodes.pop()
+        if isinstance(value, dict):
+            nodes.extend((re.sub(r"[_-]", "", name).lower(), item) for name, item in value.items())
+        elif isinstance(value, list):
+            nodes.extend((key, item) for item in value)
+        elif key in {"resetsat", "resetat", "resettime", "quotaresettime", "quotaresettimestamp"}:
+            if isinstance(value, str) and value.isascii() and value.isdecimal() and len(value) <= 16:
+                value = int(value)
+            reset = parse_iso(value) if isinstance(value, str) else parse_iso(_epoch_to_iso(value))
+            if reset is not None:
+                resets.append(reset)
+        elif key in {"code", "status", "statuscode", "httpstatus", "httpstatuscode"} and str(value) == "429":
+            exhausted = True
+        elif isinstance(value, str) and key in {
+            None, "code", "status", "type", "reason", "error", "errors", "message", "result", "detail", "details", "response",
+        }:
+            message = re.sub(r"\bdisk quota (?:reached|exceeded|exhausted)\b", "", value, flags=re.I)
+            exhausted |= bool(QUOTA_ERROR.search(message) or re.fullmatch(r"(?:error:\s*)?quota", message.strip(), re.I))
+            if reset := _reset_from_message(message, ref):
+                resets.append(reset)
+    if not exhausted:
+        return {}
+    details = {"failure_kind": "quota_exhausted"}
+    if resets:
+        details["resets_at"] = iso_utc(min(resets))
+    return details
 
 
 @dataclass(frozen=True)
@@ -918,6 +1002,29 @@ def _quota_cache_key(provider: str, env: Mapping[str, str]) -> str:
         except OSError:
             pass
     return hashlib.sha256(json.dumps(identity).encode()).hexdigest()
+
+
+def invalidate_quota_cache(cache_dir: Path, provider: str) -> None:
+    """Discard a probe that has been contradicted by a live usage-limit error."""
+    if provider in SUPPORTED_PROVIDERS:
+        try:
+            (cache_dir / f"{provider}.json").unlink(missing_ok=True)
+        except OSError:
+            # Routing still excludes the provider for the current run.
+            pass
+
+
+def earliest_quota_reset(
+    candidates: list[str], snapshots: Mapping[str, HarnessUsageSnapshot], *, now: datetime | None = None,
+) -> str | None:
+    ref = now or utc_now()
+    resets = [
+        reset
+        for name in candidates if name in snapshots
+        for window in snapshots[name].exhausted_windows(ref)
+        if (reset := parse_iso(window.resets_at)) is not None
+    ]
+    return iso_utc(min(resets)) if resets else None
 
 
 def probe_all(

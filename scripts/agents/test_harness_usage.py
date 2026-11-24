@@ -315,6 +315,32 @@ class QuotaCacheTest(unittest.TestCase):
             self.assertEqual(hu.probe_all(["codex"], now=later, **options)["codex"].min_remaining_percent(later), 70)
 
 
+class QuotaErrorTest(unittest.TestCase):
+    def test_provider_usage_limit_signals_and_resets(self):
+        cases = [
+            ("You've hit your limit · resets 4pm (Europe/Oslo)", "2026-11-22T15:00:00Z"),
+            ({"code": "usage_limit_reached", "resets_at": NOW.timestamp() + 3600}, "2026-11-22T13:00:00Z"),
+            ({"code": 429, "status": "RESOURCE_EXHAUSTED", "message": "Quota exceeded",
+              "details": [{"metadata": {"quotaResetTimeStamp": "2026-11-22T16:00:00+01:00"}}]},
+             "2026-11-22T15:00:00Z"),
+            ("Usage limit reached. Try again in 1h 30m", "2026-11-22T13:30:00Z"),
+            ("2026-11-22T12:00:01Z Usage limit reached.\nResets at 2026-11-22T13:00:00Z", "2026-11-22T13:00:00Z"),
+            ("unexpected status 429 Too Many Requests", None),
+            ("insufficient_quota", None),
+        ]
+        for error, reset in cases:
+            with self.subTest(error=error):
+                expected = {"failure_kind": "quota_exhausted"}
+                if reset:
+                    expected["resets_at"] = reset
+                self.assertEqual(hu.quota_error_details(error, now=NOW), expected)
+
+    def test_generic_failures_are_not_usage_limits(self):
+        for error in ("quota probe credential missing", "HTTP 401", "failure at line 429", "disk quota exceeded"):
+            with self.subTest(error=error):
+                self.assertEqual(hu.quota_error_details(error, now=NOW), {})
+
+
 class ResolveStepRouteQuotaTest(unittest.TestCase):
     def test_resolve_step_route_prefers_highest_headroom_and_skips_exhausted(self):
         import agentctl  # noqa: E402

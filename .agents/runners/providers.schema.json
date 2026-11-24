@@ -16,6 +16,7 @@
           "headless": {"type": "array", "items": {"type": "string"}},
           "prompt_mode": {"enum": ["stdin", "argument", "flag"]},
           "prompt_flag": {"type": "string", "minLength": 1},
+          "max_prompt_argv_bytes": {"type": "integer", "minimum": 1},
           "model_flag": {"type": "string", "minLength": 1},
           "default_model": {"type": "string", "minLength": 1},
           "models": {
