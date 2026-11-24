@@ -24,8 +24,18 @@ output "firebase_plan" {
 }
 
 output "deploy_branch" {
-  description = "Effective branch bound to github-deploy-live WIF impersonation."
-  value       = local.effective_deploy_branch
+  description = "Primary branch bound to github-deploy-live WIF impersonation."
+  value       = local.deploy_branches[0]
+}
+
+output "deploy_branches" {
+  description = "All release channels bound to github-deploy-live WIF impersonation."
+  value       = var.allow_preview_refs ? [] : local.deploy_branches
+}
+
+output "hosting_sites" {
+  description = "Hosting sites the environment deploys to (default site first)."
+  value       = local.hosting_sites
 }
 
 output "github_environment" {

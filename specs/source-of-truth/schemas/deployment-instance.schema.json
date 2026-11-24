@@ -151,6 +151,7 @@
       "properties": {
         "currentLevel": { "type": "string" },
         "emulator": { "type": "boolean", "default": false, "description": "Local emulators; no cloud identity, not polled." },
+        "provisioned": { "type": "boolean", "default": true, "description": "False until the cloud project exists (make setup provisions it): identity may be absent; deploys and polls skip the environment." },
         "githubEnvironment": { "type": "string" },
         "firebase": { "$ref": "#/$defs/firebase" },
         "supabase": {
@@ -158,6 +159,14 @@
           "required": ["projectRef"],
           "properties": { "projectRef": { "type": "string" } },
           "additionalProperties": false
+        },
+        "channels": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-z0-9][a-z0-9-]*$" },
+          "additionalProperties": {
+            "anyOf": [{ "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }, { "type": "null" }]
+          },
+          "description": "Release channels (branches, ADR 0007) this environment deploys, each mapped to its Hosting site (null: firebase.siteId). A channel deploys to one environment; production serves stable when it declares none."
         },
         "sharedWith": {
           "type": "array",

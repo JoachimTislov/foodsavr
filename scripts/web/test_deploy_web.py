@@ -41,11 +41,14 @@ class PureTest(unittest.TestCase):
 
     def test_defines_include_optional_values_only_when_set(self):
         with patch.object(dw, "warn") as warned:
-            self.assertEqual(dw.build_defines("production"), ["--dart-define=FLAVOR=production"])
+            self.assertEqual(dw.build_defines("production"), [
+                "--dart-define=FLAVOR=production", "--dart-define=DEPLOY_ENVIRONMENT=production",
+            ])
             warned.assert_called_once()
         full = dw.build_defines("staging", "key", "sentry", "https://e")
         self.assertEqual(full, [
-            "--dart-define=FLAVOR=staging",
+            "--dart-define=FLAVOR=production",
+            "--dart-define=DEPLOY_ENVIRONMENT=staging",
             "--dart-define=RECAPTCHA_ENTERPRISE_SITE_KEY=key",
             "--dart-define=ERROR_REPORTER=sentry",
             "--dart-define=ERROR_COLLECTOR_ENDPOINT=https://e",
@@ -53,9 +56,10 @@ class PureTest(unittest.TestCase):
 
     def test_hosted_access_and_legal_environment_defines(self):
         self.assertEqual(
-            dw.build_defines("production", "key", access_code="fixture-code", legal_environment="test"),
+            dw.build_defines("test", "key", access_code="fixture-code", legal_environment="test"),
             [
                 "--dart-define=FLAVOR=production",
+                "--dart-define=DEPLOY_ENVIRONMENT=test",
                 "--dart-define=WEB_ACCESS_CODE=fixture-code",
                 "--dart-define=LEGAL_ENVIRONMENT=test",
                 "--dart-define=RECAPTCHA_ENTERPRISE_SITE_KEY=key",
@@ -146,20 +150,20 @@ class DotenvTest(unittest.TestCase):
             "main_bundle_sha256": hashlib.sha256(bundle).hexdigest(),
         })
 
-    def test_write_landing_config_maps_testing_project_to_test(self):
+    def test_write_landing_config_follows_the_environment(self):
         about_dir = dw.ROOT / "build/web/about"
         about_dir.mkdir(parents=True)
         out = about_dir / "config.js"
-        with patch.dict(os.environ, {}, clear=True), patch.object(dw, "run") as run:
-            dw.write_landing_config(out, "my-foodsavr-store", "production")
-            run.assert_called_once()
-            args, kwargs = run.call_args
-            self.assertEqual(args[0], ["python3", "scripts/web/write_landing_config.py", str(out)])
-            self.assertEqual(kwargs["env"]["LEGAL_ENVIRONMENT"], "test")
-
-        with patch.dict(os.environ, {}, clear=True), patch.object(dw, "run") as run:
-            dw.write_landing_config(out, "foodsavr-prod", "staging")
-            self.assertEqual(run.call_args.kwargs["env"]["LEGAL_ENVIRONMENT"], "staging")
+        for environment in ("test", "staging", "production"):
+            with patch.dict(os.environ, {}, clear=True), patch.object(dw, "run") as run:
+                dw.write_landing_config(out, environment)
+                run.assert_called_once()
+                args, kwargs = run.call_args
+                self.assertEqual(args[0], ["python3", "scripts/web/write_landing_config.py", str(out)])
+                self.assertEqual(kwargs["env"]["LEGAL_ENVIRONMENT"], environment)
+        with patch.dict(os.environ, {"LEGAL_ENVIRONMENT": "test"}, clear=True), patch.object(dw, "run") as run:
+            dw.write_landing_config(out, "production")
+            self.assertEqual(run.call_args.kwargs["env"]["LEGAL_ENVIRONMENT"], "test")
 
 
 class DeployTest(unittest.TestCase):
@@ -173,7 +177,7 @@ class DeployTest(unittest.TestCase):
     def test_local_live_blaze_provisions_flutter_then_cleans_maps_before_hosting(self):
         with patch.dict(os.environ, {"PATH": "/usr/bin", "FIREBASE_PLAN": "blaze"}, clear=True), \
                 patch.multiple(dw, **{name: DEFAULT for name in (
-                    "pinned_flutter_dir", "manifest_env", "check_firebase_login", "actions_variable",
+                    "pinned_flutter_dir", "manifest_env", "default_channel", "check_firebase_login", "actions_variable",
                     "preserved", "cmd_build", "cmd_sourcemaps", "cmd_guard", "cmd_deploy",
                 )}) as mocks:
             order = Mock()
@@ -181,9 +185,12 @@ class DeployTest(unittest.TestCase):
                 order.attach_mock(mock, name)
             mocks["pinned_flutter_dir"].return_value = "/pinned/bin"
 
-            def manifest_env(_):
+            def manifest_env(env_name, channel):
                 self.assertEqual(os.environ["PATH"].split(os.pathsep)[0], "/pinned/bin")
+                self.assertEqual((env_name, channel), ("production", "stable"))
                 return {"PROJECT_ID": "selected", "WEB_APP_ID": "web-id"}
+
+            mocks["default_channel"].return_value = "stable"
 
             mocks["manifest_env"].side_effect = manifest_env
             mocks["preserved"].return_value = MagicMock()
@@ -212,6 +219,45 @@ class DeployTest(unittest.TestCase):
                 with self.assertRaisesRegex(SystemExit, "gcloud auth login"):
                     guard.token()
 
+    def test_local_channel_comes_from_the_flag_then_the_environment(self):
+        namespace = Mock(env="test", channel="", target="live", branch="b", expires="4h", web_env_file="")
+        with patch.dict(os.environ, {"CHANNEL": "daily"}), \
+                patch.object(dw, "default_channel") as default, \
+                patch.object(dw, "manifest_env", return_value={
+                    "PROJECT_ID": "p", "WEB_APP_ID": "w", "SITE_ID": "p-daily", "CHANNEL": "daily", "VAR_SUFFIX": "_TEST",
+                }) as manifest:
+            settings, suffix = dw.local_settings(namespace)
+        manifest.assert_called_once_with("test", "daily")
+        default.assert_not_called()
+        self.assertEqual((settings["SITE_ID"], settings["CHANNEL"], suffix), ("p-daily", "daily", "_TEST"))
+
+    def test_unprovisioned_environment_is_refused(self):
+        done = subprocess.CompletedProcess([], 0, "PROVISIONED='false'\nFLAVOR='production'\n", "")
+        with patch.object(dw.subprocess, "run", return_value=done):
+            with self.assertRaisesRegex(SystemExit, "not provisioned yet; run make setup"):
+                dw.manifest_env("production", "stable")
+
+    def test_web_config_writes_the_selected_environment_options(self):
+        config = '{"result":{"sdkConfig":{"projectId":"prod","appId":"1:2:web:3","apiKey":"k"}}}'
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "lib").mkdir()
+            env = {**os.environ, "DEPLOY_ENVIRONMENT": "production", "PROJECT_ID": "prod", "SITE_ID": "prod-site"}
+            subprocess.run([sys.executable, str(ROOT / "scripts/web/write_web_config.py")], cwd=tmp,
+                           input=config, text=True, check=True, env=env)
+            prod = (Path(tmp) / "lib/firebase_options_prod.dart").read_text()
+            self.assertIn("class ProdFirebaseOptions {", prod)
+            self.assertIn("static const bool configured = true;", prod)
+            self.assertFalse((Path(tmp) / "lib/firebase_options.dart").exists())
+            self.assertEqual(json.loads((Path(tmp) / "firebase.json").read_text())["hosting"]["site"], "prod-site")
+
+            env["DEPLOY_ENVIRONMENT"] = "test"
+            env["PROJECT_ID"] = "test-project"
+            failed = subprocess.run([sys.executable, str(ROOT / "scripts/web/write_web_config.py")], cwd=tmp,
+                                    input=config, text=True, env=env, capture_output=True)
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertIn("expected 'test-project'", failed.stderr)
+            self.assertFalse((Path(tmp) / "lib/firebase_options.dart").exists())
+
     def test_hosting_config_excludes_source_maps_even_if_cleanup_leaves_some(self):
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / "lib").mkdir()
@@ -231,12 +277,26 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertNotIn("flutter build web", text)
         self.assertNotIn("hosting:channel:deploy", text)
 
-    def test_missing_config_fails_when_enabled_and_names_the_bypass(self):
+    def test_missing_config_skips_and_names_the_bypass_and_fix(self):
         text = (ROOT / ".github/workflows/firebase-hosting.yml").read_text()
-        self.assertIn("make deploy-web ENV=", text)
-        self.assertIn("make infra-gcp-apply", text)
-        self.assertNotIn("Skipping Firebase Hosting deploy", text)
+        self.assertIn("make deploy-web ENV=$FLAVOR${CHANNEL:+ CHANNEL=$CHANNEL}", text)
+        self.assertIn("make setup", text)
+        self.assertIn('>> "$GITHUB_STEP_SUMMARY"', text)
+        config = text[text.index("- name: Check deploy configuration"):text.index("- name: Checkout code", text.index("Check deploy configuration"))]
+        self.assertNotIn("exit 1", config)
 
+    def test_deploys_only_with_a_service_account_of_the_resolved_project(self):
+        text = (ROOT / ".github/workflows/firebase-hosting.yml").read_text()
+        self.assertIn('"${DEPLOY_SA##*@}" != "$PROJECT_ID.iam.gserviceaccount.com"', text)
+        steps = text[text.index("- name: Checkout code", text.index("deploy:")):]
+        for step in steps.split("- name: ")[1:]:
+            self.assertIn("steps.config.outputs.ready == 'true'", step, step.splitlines()[0])
+
+    def test_release_channels_trigger_and_resolve_through_the_manifest(self):
+        text = (ROOT / ".github/workflows/firebase-hosting.yml").read_text()
+        self.assertIn("branches: [develop, daily, weekly, stable]", text)
+        self.assertIn('levels.dart env --channel "$channel"', text)
+        self.assertIn("PROVISIONED=false", text)
 
 if __name__ == "__main__":
     unittest.main()

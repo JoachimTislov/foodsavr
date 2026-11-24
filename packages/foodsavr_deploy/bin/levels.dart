@@ -3,8 +3,11 @@
 //   levels validate [manifest] [--env E]
 //   levels plan [--to LEVEL] [--env E] [--json]
 //   levels poll [--state FILE] [--metrics FILE] [--summary FILE] [--json]
-//   levels env [--format dotenv|github|tfvars] [--env E]
+//   levels env [--format dotenv|github|tfvars] [--env E] [--channel C]
 //   levels environments [--cloud] [--json]
+//
+// `env --channel C` without `--env` selects the environment that deploys
+// release channel C (exit 3 when none does) and emits that channel's site.
 //
 // The manifest defaults to deploy/instance.yaml in the repository root.
 import 'dart:convert';
@@ -39,16 +42,18 @@ Future<void> main(List<String> argv) async {
     )
     ..addCommand(
       'env',
-      _common()..addOption(
-        'format',
-        defaultsTo: 'dotenv',
-        allowed: [for (final f in EnvFormat.values) f.name],
-      ),
+      _common()
+        ..addOption(
+          'format',
+          defaultsTo: 'dotenv',
+          allowed: [for (final f in EnvFormat.values) f.name],
+        )
+        ..addOption('channel', help: 'Release channel (branch) to deploy'),
     )
     ..addCommand(
       'environments',
       _common()
-        ..addFlag('cloud', help: 'Only non-emulator environments')
+        ..addFlag('cloud', help: 'Only provisioned non-emulator environments')
         ..addFlag('json'),
     );
 
@@ -94,7 +99,7 @@ Future<void> main(List<String> argv) async {
   if (cmd.name == 'environments') {
     final envs = [
       for (final e in instance.environments.values)
-        if (!cmd.flag('cloud') || e.cloud) e,
+        if (!cmd.flag('cloud') || (e.cloud && e.provisioned)) e,
     ];
     if (cmd.flag('json')) {
       stdout.writeln(
@@ -104,6 +109,8 @@ Future<void> main(List<String> argv) async {
               'name': e.name,
               'level': e.currentLevel,
               'emulator': e.emulator,
+              'provisioned': e.provisioned,
+              'channels': e.servedChannels.toList(),
               'varSuffix': varSuffix(e.name),
             },
         ]),
@@ -117,11 +124,23 @@ Future<void> main(List<String> argv) async {
     }
     return;
   }
+  final channel = cmd.name == 'env' ? cmd.option('channel') : null;
+  var envName = cmd.option('env')!;
+  if (channel != null && !cmd.wasParsed('env')) {
+    final served = instance.environmentForChannel(channel);
+    if (served == null) _die('no environment deploys channel $channel', 3);
+    envName = served.name;
+  }
   final Deployment d;
   try {
-    d = Deployment.of(instance, cmd.option('env')!);
+    d = Deployment.of(instance, envName);
   } on ArgumentError catch (e) {
     _die('--env ${e.message}', 64);
+  }
+  if (channel != null &&
+      d.environment.channels.isNotEmpty &&
+      !d.environment.channels.containsKey(channel)) {
+    _die('environment $envName does not deploy channel $channel', 64);
   }
 
   switch (cmd.name) {
@@ -171,7 +190,11 @@ Future<void> main(List<String> argv) async {
       );
     case 'env':
       stdout.write(
-        renderEnv(d, EnvFormat.values.byName(cmd.option('format')!)),
+        renderEnv(
+          d,
+          EnvFormat.values.byName(cmd.option('format')!),
+          channel: channel,
+        ),
       );
   }
 }

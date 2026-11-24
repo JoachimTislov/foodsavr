@@ -16,6 +16,7 @@ from urllib.request import Request, urlopen
 
 from setupctl import (
     HARNESS_AUTH_SECRETS,
+    load_instance_local,
     UPSTREAM_REPO,
     PROFILES,
     ROOT,
@@ -30,6 +31,12 @@ from setupctl import (
 
 sys.path.insert(0, str(ROOT / "scripts"))
 from firebase_options import fingerprint, regenerate  # noqa: E402
+
+sys.path.insert(0, str(ROOT / "scripts/infra"))
+from bootstrap_support import local_state_path  # noqa: E402
+
+PROJECT_ID = re.compile(r"[a-z][a-z0-9-]{4,28}[a-z0-9]")
+CONSOLE = "https://console.firebase.google.com/project"
 
 @dataclass
 class Step:
@@ -79,6 +86,36 @@ from facebook_provider import (  # noqa: E402
     load_env_file,
     load_facebook_credentials,
 )
+
+
+def levels(*args, manifest):
+    try:
+        return subprocess.run(
+            ["dart", "run", "bin/levels.dart", *args, "--manifest", manifest],
+            cwd=ROOT / "packages/foodsavr_deploy", capture_output=True, text=True, timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def manifest_environments(manifest):
+    """Environments declared in the manifest, as `levels environments --json` lists them."""
+    result = levels("environments", "--json", manifest=manifest)
+    if result is None or result.returncode:
+        return []
+    try:
+        environments = json.loads(result.stdout)
+    except ValueError:
+        return []
+    return environments if isinstance(environments, list) else []
+
+
+def primary_environment(environments, requested=""):
+    """The environment the tracked lib/firebase_options.dart targets: test when declared."""
+    if requested:
+        return requested
+    names = {e.get("name") for e in environments if not e.get("emulator")}
+    return "test" if "test" in names else "production"
 
 
 def firebase_identity(env):
@@ -140,6 +177,58 @@ def enable_facebook_provider(project, account, app_id, app_secret):
         get_token=identity_toolkit_token,
         open_url=urlopen,
     )
+
+
+def firebase_json(*args):
+    """Result of a Firebase CLI command with your login, or None."""
+    try:
+        response = subprocess.run(
+            ["firebase", *args, "--non-interactive", "--json"], cwd=ROOT,
+            capture_output=True, text=True, timeout=120,
+        )
+        data = json.loads(response.stdout)
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return None
+    return data.get("result") if response.returncode == 0 and isinstance(data, dict) else None
+
+
+def firebase_project_exists(project):
+    projects = firebase_json("projects:list")
+    return isinstance(projects, list) and any(p.get("projectId") == project for p in projects)
+
+
+def firebase_web_app(project):
+    apps = firebase_json("apps:list", "WEB", "--project", project)
+    if isinstance(apps, list) and apps:
+        return apps[0].get("appId", "")
+    return ""
+
+
+def default_site_exists(project):
+    result = firebase_json("hosting:sites:list", "--project", project)
+    sites = result.get("sites", []) if isinstance(result, dict) else []
+    return any(site.get("name", "").endswith(f"/sites/{project}") for site in sites)
+
+
+def write_production_identity(manifest, project, web_app):
+    """Replace production's `provisioned: false` with its Firebase identity."""
+    path = Path(manifest)
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    try:
+        start = lines.index("  production:\n")
+        marker = lines.index("    provisioned: false\n", start)
+    except ValueError:
+        return False
+    if any(line.strip() and not line.startswith("    ") for line in lines[start + 1:marker]):
+        return False
+    lines[marker:marker + 1] = [
+        "    firebase:\n",
+        f"      projectId: {project}\n",
+        f'      webAppId: "{web_app}"\n',
+        f"      siteId: {project}\n",
+    ]
+    path.write_text("".join(lines), encoding="utf-8")
+    return True
 
 
 def configure_app(repo, role):
@@ -298,6 +387,7 @@ class Setup:
         self.repo = self.state["github"]["target_repo"]
         self.topology = "single"
         self.env = None
+        self.environments = []
         self.project = ""
         self.web_app = ""
 
@@ -527,24 +617,126 @@ class Setup:
                 manifest = str(path.resolve())
                 save_instance_local({"manifest": manifest})
         self.env["MANIFEST"] = str(Path(manifest or ROOT / "deploy/instance.yaml").resolve())
+        self.environments = manifest_environments(self.env["MANIFEST"]) if self.tools["dart"] else []
+        self.env["ENV"] = primary_environment(self.environments, os.environ.get("ENV", ""))
         if self.tools["dart"]:
             self.project, self.web_app = firebase_identity(self.env)
         return self.step(
             "Firebase project", bool(self.project and self.web_app),
             next_action="Check the deployment manifest against https://console.firebase.google.com/.",
+        ) and self.production_project()
+
+    def declared(self, name):
+        return next((e for e in self.environments if e.get("name") == name), None)
+
+    def production_project(self):
+        """Create the separate production project when the manifest declares it unprovisioned."""
+        production = self.declared("production")
+        if self.env["ENV"] == "production" or production is None or production.get("provisioned", True):
+            return True
+        firebase_cli = "https://firebase.google.com/docs/cli"
+
+        def provision():
+            if not shutil.which("firebase"):
+                print(f"Install the Firebase CLI at {firebase_cli}.")
+                return False
+            saved = load_instance_local().get("production_project", "")
+            default = saved or f"{(self.repo or 'foodsavr').rsplit('/', 1)[-1].lower()}-prod"
+            project = input(f"Production Firebase project ID [{default}]: ").strip() or default
+            if not PROJECT_ID.fullmatch(project) or project == self.project:
+                print("Use a new lower-case project ID of 6 to 30 letters, digits or dashes.")
+                return False
+            save_instance_local({"production_project": project})
+            if not firebase_project_exists(project):
+                if not confirm(f"Create the Firebase project {project} with your Firebase login?"):
+                    return False
+                if run("firebase", "projects:create", project, "--display-name", "FoodSavr") or (
+                    not firebase_project_exists(project)
+                ):
+                    print("Create it at https://console.firebase.google.com/ and resume setup.")
+                    return False
+            web_app = firebase_web_app(project)
+            if not web_app:
+                if not confirm(f"Register the FoodSavr web app in {project}?"):
+                    return False
+                created = firebase_json("apps:create", "WEB", "FoodSavr web", "--project", project)
+                web_app = created.get("appId", "") if isinstance(created, dict) else ""
+                if not web_app:
+                    print(f"Add a web app at {CONSOLE}/{project}/settings/general and resume setup.")
+                    return False
+            if not default_site_exists(project) and run(
+                "firebase", "hosting:sites:create", project, "--project", project,
+            ):
+                print(f"Open Hosting at {CONSOLE}/{project}/hosting and resume setup.")
+                return False
+            if not write_production_identity(self.env["MANIFEST"], project, web_app):
+                print(f"Set environments.production.firebase to projectId {project}, webAppId {web_app}"
+                      " in the deployment manifest and remove provisioned: false.")
+                return False
+            print("Updated the deployment manifest; commit it on a branch and open a PR.")
+            print(f"Create the Firestore database at {CONSOLE}/{project}/firestore.")
+            print(f"Enable sign-in providers at {CONSOLE}/{project}/authentication/providers.")
+            return True
+
+        def verify():
+            self.environments = manifest_environments(self.env["MANIFEST"])
+            return bool(firebase_identity({**self.env, "ENV": "production"})[0])
+
+        return self.step(
+            "Production Firebase project", False, provision,
+            "Create it at https://console.firebase.google.com/ and resume setup.", verify,
         )
 
     def firebase_infrastructure(self):
         if not self.firebase:
             return True
-        self.env["SETUP_GCP_OUTPUTS_READY"] = str(int(all(
-            self.github["variables"].get(name) for name in (
+        available = self.tools["terraform"] and self.cloud_authenticated()
+        primary = self.env.get("ENV", "production")
+        if not self.terraform_state(primary):
+            return False
+        names = [primary]
+        production = self.declared("production")
+        if primary != "production" and production and production.get("provisioned", True):
+            names.append("production")
+        return all(self.environment_infrastructure(name, available) for name in names)
+
+    def environment_infrastructure(self, name, available):
+        suffix = "" if name == "production" else f"_{name.upper()}"
+        env = {**self.env, "ENV": name}
+        env["SETUP_GCP_OUTPUTS_READY"] = str(int(all(
+            self.github["variables"].get(f"{variable}{suffix}") for variable in (
                 "GCP_WORKLOAD_IDENTITY_PROVIDER", "GCP_DEPLOY_SERVICE_ACCOUNT",
                 "GCP_TELEMETRY_SERVICE_ACCOUNT", "RECAPTCHA_ENTERPRISE_SITE_KEY",
             )
         )))
-        available = self.tools["terraform"] and self.cloud_authenticated()
-        return terraform_step("Firebase configuration", "scripts/infra/apply.sh", self.env, self.listing, available)
+        title = "Firebase configuration" if name == "production" else f"Firebase configuration ({name})"
+        return terraform_step(title, "scripts/infra/apply.sh", env, self.listing, available)
+
+    def terraform_state(self, name):
+        """Keep local state when the project moves from `production` to another environment."""
+        if name == "production" or not self.project or not self.repo:
+            return True
+        try:
+            legacy = local_state_path(self.repo, f"gcp-{self.project}-production")
+            current = local_state_path(self.repo, f"gcp-{self.project}-{name}")
+        except ValueError:
+            return True
+        if not legacy.is_file():
+            return True
+        if current.is_file():
+            return self.step(
+                f"Terraform state ({name})", False,
+                next_action=f"Both {legacy} and {current} exist; keep the newer one and resume setup.",
+            )
+
+        def move():
+            if not confirm(f"Move the Terraform state of {self.project} from production to {name}?"):
+                return False
+            current.parent.mkdir(parents=True, exist_ok=True)
+            legacy.replace(current)
+            return True
+
+        return self.step(f"Terraform state ({name})", False, move, verify=current.is_file)
 
     def anonymous_sign_in(self):
         if not self.firebase:

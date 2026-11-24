@@ -181,16 +181,34 @@ class _Reader {
     final m = _map(v, p, {
       'currentLevel',
       'emulator',
+      'provisioned',
       'githubEnvironment',
       'firebase',
       'supabase',
       'sharedWith',
+      'channels',
       'triggers',
       'behavior',
     });
     if (m == null) return null;
     final current = _get<String>(m, 'currentLevel', p);
     final emulator = _get<bool>(m, 'emulator', p, required: false) ?? false;
+    final provisioned =
+        _get<bool>(m, 'provisioned', p, required: false) ?? true;
+    final channels = <String, String?>{};
+    if (m['channels'] != null) {
+      final c = m['channels'];
+      if (c is! Map) _err('$p.channels', 'expected a mapping');
+      if (c is Map) {
+        c.forEach((k, site) {
+          if (site != null && site is! String) {
+            _err('$p.channels.$k', 'expected a Hosting site id or null');
+          } else {
+            channels['$k'] = site as String?;
+          }
+        });
+      }
+    }
     final ghEnv = _get<String>(m, 'githubEnvironment', p, required: false);
     final firebase = m['firebase'] == null
         ? null
@@ -265,10 +283,12 @@ class _Reader {
       name: name,
       currentLevel: current,
       emulator: emulator,
+      provisioned: provisioned,
       githubEnvironment: ghEnv,
       firebase: firebase,
       supabase: supabase,
       sharedWith: sharedWith,
+      channels: channels,
       triggers: overrides,
       behavior: behavior,
     );

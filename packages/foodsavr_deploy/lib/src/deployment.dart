@@ -45,6 +45,20 @@ class Deployment {
 
   Level get current => levels[indexOf(currentLevel)];
 
+  /// Hosting site of release [channel]; the default site without one.
+  String? siteFor(String? channel) =>
+      (channel == null ? null : environment.channels[channel]) ??
+      firebase?.siteId;
+
+  /// Hosting sites the channels add beside the project's default site.
+  List<String> get channelSites {
+    final fb = firebase;
+    return [
+      for (final site in {...environment.channels.values.nonNulls})
+        if (fb == null || (site != fb.projectId && site != fb.siteId)) site,
+    ];
+  }
+
   Level? get next {
     final i = indexOf(currentLevel);
     return i >= 0 && i + 1 < levels.length ? levels[i + 1] : null;

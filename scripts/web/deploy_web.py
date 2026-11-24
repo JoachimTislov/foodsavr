@@ -11,16 +11,24 @@ Workflow steps (configuration comes from the environment the workflow sets):
   deploy       deploy a preview channel or live
 
 Manual bypass:
-  local --env ENV [--target live|preview]   run all of the above with your own
-        `firebase login`, CI's pinned Flutter and the manifest in
-        deploy/instance.yaml; Actions variables are read with `gh variable get`
-        when not set in the environment.
+  local --env ENV [--channel CHANNEL] [--target live|preview]   run all of the
+        above with your own `firebase login`, CI's pinned Flutter and the
+        manifest in deploy/instance.yaml; the channel picks the environment's
+        Hosting site (default: its first channel; CHANNEL in the environment
+        also works, e.g. `make deploy-web ENV=test CHANNEL=daily`). Actions
+        variables are read with `gh variable get` when not set in the
+        environment.
 
-Environment: PROJECT_ID, WEB_APP_ID, SITE_ID, FLAVOR, TARGET (live|preview),
-BRANCH, EXPIRES, FIREBASE_TOOLS, WEB_ENV_B64 or WEB_ENV_FILE (assets/.env,
-served publicly; empty when neither is set), ANDROID_APK_URL,
-RECAPTCHA_ENTERPRISE_SITE_KEY, FIREBASE_PLAN, ERROR_REPORTER,
-ERROR_COLLECTOR_ENDPOINT.
+Environment: PROJECT_ID, WEB_APP_ID, SITE_ID, FLAVOR (the manifest
+environment, e.g. test or production), TARGET (live|preview), BRANCH, EXPIRES,
+FIREBASE_TOOLS, WEB_ENV_B64 or WEB_ENV_FILE (assets/.env, served publicly;
+empty when neither is set), ANDROID_APK_URL, RECAPTCHA_ENTERPRISE_SITE_KEY,
+FIREBASE_PLAN, ERROR_REPORTER, ERROR_COLLECTOR_ENDPOINT.
+
+Every hosted build uses the app's remote-backend flavor (`production`) and
+selects its Firebase project with `--dart-define=DEPLOY_ENVIRONMENT=<env>`
+(lib/main.dart), so a test deploy never ships production options and a
+production deploy never falls back to the test project.
 """
 
 from __future__ import annotations
@@ -42,7 +50,10 @@ DEFAULT_FIREBASE_TOOLS = "firebase-tools@15"
 EXPIRES = re.compile(r"^[0-9]+[hdw]$")
 TARGETS = ("live", "preview")
 # Files the build rewrites; `local` restores them so a manual deploy leaves your checkout as it was.
-TOUCHED = ("lib/firebase_options.dart", "assets/.env", "firebase.json")
+TOUCHED = ("lib/firebase_options.dart", "lib/firebase_options_prod.dart", "assets/.env", "firebase.json")
+# App flavor of every hosted build: the remote backend. The manifest environment
+# (test, staging, production) is passed separately as DEPLOY_ENVIRONMENT.
+APP_FLAVOR = "production"
 
 
 def in_actions() -> bool:
@@ -82,9 +93,9 @@ def check_expires(expires: str) -> str:
     return expires
 
 
-def build_defines(flavor: str, recaptcha: str = "", reporter: str = "", endpoint: str = "", *,
+def build_defines(environment: str, recaptcha: str = "", reporter: str = "", endpoint: str = "", *,
                   access_code: str = "", legal_environment: str = "") -> list[str]:
-    defines = [f"--dart-define=FLAVOR={flavor}"]
+    defines = [f"--dart-define=FLAVOR={APP_FLAVOR}", f"--dart-define=DEPLOY_ENVIRONMENT={environment}"]
     if access_code:
         defines.append(f"--dart-define=WEB_ACCESS_CODE={access_code}")
     if legal_environment:
@@ -137,35 +148,33 @@ def write_dotenv() -> None:
 
 def cmd_build() -> None:
     project, app = required("PROJECT_ID"), required("WEB_APP_ID")
-    flavor, target = required("FLAVOR"), os.environ.get("TARGET", "live")
+    environment, target = required("FLAVOR"), os.environ.get("TARGET", "live")
     revision = build_revision()
     config = run(firebase("apps:sdkconfig", "WEB", app, "--project", project, "--json"), capture_output=True, text=True)
-    run(["python3", "scripts/web/write_web_config.py"], input=config.stdout, text=True)
+    run(["python3", "scripts/web/write_web_config.py"], input=config.stdout, text=True,
+        env={**os.environ, "DEPLOY_ENVIRONMENT": environment})
     write_dotenv()
     run(["flutter", "pub", "get"])
     run(["dart", "run", "build_runner", "build", "--delete-conflicting-outputs"])
     run(["flutter", "create", ".", "--platforms", "web"])
     defines = build_defines(
-        flavor,
+        environment,
         os.environ.get("RECAPTCHA_ENTERPRISE_SITE_KEY", ""),
         os.environ.get("ERROR_REPORTER", ""),
         os.environ.get("ERROR_COLLECTOR_ENDPOINT", ""),
         access_code=os.environ.get("WEB_ACCESS_CODE", ""),
-        # ADR 0010: the current FoodSavr cloud project is for testing.
-        legal_environment="test" if project == "my-foodsavr-store" else "",
+        # ADR 0009: each environment ships its own legal documents.
+        legal_environment=environment,
     )
     run(["flutter", "build", "web", *build_flags(os.environ.get("FIREBASE_PLAN", ""), target), *defines])
     write_release_metadata(ROOT / "build/web", revision)
-    write_landing_config(ROOT / "build/web/about/config.js", project, flavor)
+    write_landing_config(ROOT / "build/web/about/config.js", environment)
 
 
-def write_landing_config(output: Path, project: str, flavor: str) -> None:
+def write_landing_config(output: Path, environment: str) -> None:
     if not output.parent.is_dir():
         return
-    legal_env = (
-        os.environ.get("LEGAL_ENVIRONMENT", "").strip()
-        or ("test" if project == "my-foodsavr-store" else flavor)
-    )
+    legal_env = os.environ.get("LEGAL_ENVIRONMENT", "").strip() or environment
     run(
         ["python3", "scripts/web/write_landing_config.py", str(output)],
         env={**os.environ, "LEGAL_ENVIRONMENT": legal_env},
@@ -247,7 +256,8 @@ def cmd_deploy() -> None:
         return
     run(firebase("deploy", "--only", "hosting", "--project", project, "--non-interactive"))
     site = os.environ.get("SITE_ID") or project
-    line = f"Live ({os.environ.get('FLAVOR', '')}): https://{site}.web.app"
+    channel = os.environ.get("CHANNEL", "")
+    line = f"Live ({os.environ.get('FLAVOR', '')}{f', {channel}' if channel else ''}): https://{site}.web.app"
     print(line)
     append_summary(line)
 
@@ -279,17 +289,36 @@ def parse_dotenv(text: str) -> dict[str, str]:
     return values
 
 
-def manifest_env(env_name: str) -> dict[str, str]:
+def manifest_env(env_name: str, channel: str = "") -> dict[str, str]:
     deploy = ROOT / "packages/foodsavr_deploy"
     subprocess.run(["dart", "pub", "get"], cwd=deploy, check=True, capture_output=True)
-    out = subprocess.run(["dart", "run", "bin/levels.dart", "env", "--env", env_name, "--format", "dotenv"],
-                         cwd=deploy, capture_output=True, text=True)
+    command = ["dart", "run", "bin/levels.dart", "env", "--env", env_name, "--format", "dotenv"]
+    if channel:
+        command += ["--channel", channel]
+    out = subprocess.run(command, cwd=deploy, capture_output=True, text=True)
     if out.returncode != 0:
         fail(f"cannot resolve environment '{env_name}' from deploy/instance.yaml: {out.stderr.strip()}")
     values = parse_dotenv(out.stdout)
+    if values.get("PROVISIONED") == "false":
+        fail(f"environment '{env_name}' is not provisioned yet; run make setup to create its Firebase project")
     if not values.get("PROJECT_ID"):
         fail(f"environment '{env_name}' has no Firebase project in deploy/instance.yaml")
     return values
+
+
+def default_channel(env_name: str) -> str:
+    """First release channel the environment deploys, or empty (its default site)."""
+    deploy = ROOT / "packages/foodsavr_deploy"
+    out = subprocess.run(["dart", "run", "bin/levels.dart", "environments", "--json"],
+                         cwd=deploy, capture_output=True, text=True)
+    if out.returncode != 0:
+        return ""
+    try:
+        environments = json.loads(out.stdout)
+    except ValueError:
+        return ""
+    channels = next((e.get("channels") or [] for e in environments if e.get("name") == env_name), [])
+    return channels[0] if channels else ""
 
 
 def actions_variable(name: str) -> str:
@@ -336,11 +365,13 @@ def preserved(paths: tuple[str, ...]):
 
 def local_settings(args: argparse.Namespace) -> tuple[dict[str, str], str]:
     """Deploy settings from the manifest, and the Actions variable suffix of the environment."""
-    values = manifest_env(args.env)
+    channel = args.channel or os.environ.get("CHANNEL", "") or default_channel(args.env)
+    values = manifest_env(args.env, channel)
     settings = {
         "PROJECT_ID": values["PROJECT_ID"],
         "WEB_APP_ID": values.get("WEB_APP_ID", ""),
         "SITE_ID": values.get("SITE_ID", ""),
+        "CHANNEL": values.get("CHANNEL", ""),
         "FLAVOR": values.get("FLAVOR", args.env),
         "TARGET": args.target,
         "BRANCH": args.branch or current_branch(),
@@ -358,6 +389,7 @@ def cmd_local(args: argparse.Namespace) -> int:
     os.environ["PATH"] = f"{pinned_flutter_dir()}{os.pathsep}{os.environ['PATH']}"
     settings, suffix = local_settings(args)
     print(f"Environment {args.env}: project {settings['PROJECT_ID']}, site {settings['SITE_ID'] or settings['PROJECT_ID']}, "
+          f"channel {settings['CHANNEL'] or 'none'}, "
           f"target {args.target}, assets/.env from {args.web_env_file or 'nothing (empty)'}")
     if args.plan:
         print("Plan only: no build, no deploy.")
@@ -398,6 +430,8 @@ def main(argv: list[str] | None = None) -> int:
         sub.add_parser(name)
     local = sub.add_parser("local", help="manual bypass: build and deploy with your own logins")
     local.add_argument("--env", required=True, help="environment in deploy/instance.yaml")
+    local.add_argument("--channel", default="",
+                       help="release channel whose Hosting site to deploy (default: CHANNEL or the first channel)")
     local.add_argument("--target", choices=TARGETS, default="live")
     local.add_argument("--expires", default="4h", help="preview lifetime, e.g. 4h, 1d, 2w")
     local.add_argument("--branch", default="", help="branch naming the preview channel (default: current)")

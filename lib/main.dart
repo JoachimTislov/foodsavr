@@ -14,6 +14,7 @@ import 'package:logger/logger.dart';
 import 'package:openfoodfacts/openfoodfacts.dart';
 
 import 'firebase_options.dart';
+import 'firebase_options_prod.dart';
 import 'interfaces/i_auth_service.dart';
 import 'interfaces/i_error_reporter.dart';
 import 'routes/go_router.dart';
@@ -35,6 +36,22 @@ const dummyOptions = FirebaseOptions(
 );
 
 var initializedAppCheck = false;
+
+/// Deployment environment (deploy/instance.yaml) whose Firebase project the
+/// build talks to; set by scripts/web/deploy_web.py. Local runs default to
+/// the test project.
+const deployEnvironment = String.fromEnvironment(
+  'DEPLOY_ENVIRONMENT',
+  defaultValue: 'test',
+);
+
+/// Firebase options of [environment]: the production project's for
+/// `production`, the tracked test project's otherwise. Production without
+/// configured options throws rather than falling back to test.
+FirebaseOptions firebaseOptionsFor(String environment) =>
+    environment == 'production'
+    ? ProdFirebaseOptions.currentPlatform
+    : DefaultFirebaseOptions.currentPlatform;
 
 /// List of supported flavor names.
 /// - `development`: default; typically uses local emulators and verbose logging.
@@ -92,7 +109,7 @@ void main() async {
     await Firebase.initializeApp(
       options: Config.useEmulators
           ? dummyOptions
-          : DefaultFirebaseOptions.currentPlatform,
+          : firebaseOptionsFor(deployEnvironment),
     );
   } on FirebaseException catch (e) {
     final normalizedMessage = e.message?.toLowerCase() ?? '';
