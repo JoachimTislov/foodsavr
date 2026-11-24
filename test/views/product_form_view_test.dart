@@ -11,6 +11,7 @@ import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/utils/shelf_life.dart';
 import 'package:foodsavr/validation/validators/product_model_validator.dart';
 import 'package:foodsavr/views/product_form_view.dart';
+import 'package:foodsavr/widgets/product/expiries_section.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -295,4 +296,32 @@ void main() {
 
     expect(repository.added.last.expiries, isEmpty);
   });
+
+  testWidgets(
+    'picking a date replaces the suggestion instead of adding stock',
+    (tester) async {
+      await openForm(tester, prefill: scanned, collectionId: 'inv');
+
+      await tester.enterText(find.byType(TextFormField).first, 'Oat drink');
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await settle(tester);
+      await tester.tap(find.text('Dairy').last);
+      await settle(tester);
+      final add = find.descendant(
+        of: find.byType(ExpiriesSection),
+        matching: find.byIcon(Icons.add),
+      );
+      await tester.ensureVisible(add);
+      await settle(tester);
+      await tester.tap(add);
+      await settle(tester);
+      await tester.tap(find.text('OK'));
+      await settle(tester);
+      await tester.tap(find.text('Create'));
+      await settle(tester);
+
+      expect(repository.added.last.expiries, hasLength(1));
+      expect(repository.added.last.expiries.single.quantity, 1);
+    },
+  );
 }

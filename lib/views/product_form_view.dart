@@ -341,11 +341,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
             builder: (context) => const ExpiryScanView(),
           ),
         );
-    if (date != null && mounted) {
-      setState(() {
-        _expiries.add(ExpiryEntry(quantity: 1, expirationDate: date));
-      });
-    }
+    if (date != null && mounted) _acceptExpiry(date);
   }
 
   Future<void> _addExpiry() async {
@@ -360,10 +356,24 @@ class _ProductFormContentState extends State<_ProductFormContent> {
       lastDate: DateTime.now().add(const Duration(days: 365 * 10)),
     );
 
-    if (date != null && mounted) {
-      setState(() {
+    if (date != null && mounted) _acceptExpiry(date);
+  }
+
+  /// A date the user picks or scans replaces the untouched category
+  /// suggestion, keeping its quantity, instead of adding a second unit.
+  void _acceptExpiry(DateTime date) {
+    setState(() {
+      final suggested = _suggested;
+      final index = suggested == null
+          ? -1
+          : _expiries.indexWhere((entry) => identical(entry, suggested));
+      _suggested = null;
+      if (index < 0) {
         _expiries.add(ExpiryEntry(quantity: 1, expirationDate: date));
-      });
-    }
+        return;
+      }
+      _expiriesEdited = true;
+      _expiries[index] = _expiries[index].copyWith(expirationDate: date);
+    });
   }
 }
