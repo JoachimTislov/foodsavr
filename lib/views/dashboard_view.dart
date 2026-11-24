@@ -81,7 +81,10 @@ class DashboardView extends WatchingWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (final card in overviewCards) ...[
-                SizedBox(height: 104, child: card),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 104),
+                  child: card,
+                ),
                 if (card != overviewCards.last) const SizedBox(height: 12),
               ],
             ],
@@ -142,51 +145,58 @@ class DashboardView extends WatchingWidget {
       ],
     );
 
-    final header = Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'dashboard.title'.tr(),
-              style: textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
-              ),
-            ),
-            Text(
-              today,
-              style: textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-        if (isExpanded)
+    final header = SizedBox(
+      width: double.infinity,
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 12,
+        runSpacing: 12,
+        children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              quickActionsTitle,
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  FilledButton.tonalIcon(
-                    onPressed: createProduct,
-                    icon: const Icon(Icons.add_box_outlined),
-                    label: Text('dashboard.createProduct'.tr()),
-                  ),
-                  const SizedBox(width: 12),
-                  FilledButton.icon(
-                    onPressed: createShoppingList,
-                    icon: const Icon(Icons.shopping_cart_outlined),
-                    label: Text('dashboard.createShoppingList'.tr()),
-                  ),
-                ],
+              Text(
+                'dashboard.title'.tr(),
+                style: textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              Text(
+                today,
+                style: textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
-      ],
+          if (isExpanded)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                quickActionsTitle,
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    FilledButton.tonalIcon(
+                      onPressed: createProduct,
+                      icon: const Icon(Icons.add_box_outlined),
+                      label: Text('dashboard.createProduct'.tr()),
+                    ),
+                    FilledButton.icon(
+                      onPressed: createShoppingList,
+                      icon: const Icon(Icons.shopping_cart_outlined),
+                      label: Text('dashboard.createShoppingList'.tr()),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+        ],
+      ),
     );
 
     final body = isExpanded
