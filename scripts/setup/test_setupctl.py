@@ -399,5 +399,79 @@ class ZeroArgDefaultsAndCliTest(unittest.TestCase):
                     self.assertIn("missing stable", err.getvalue())
 
 
+def _policy_json(**over):
+    return setupctl.desired_event_policy() | {"id": 7} | over
+
+
+def _cp(out="", code=0, err=""):
+    return subprocess.CompletedProcess([], code, out, err)
+
+
+class EventPolicyTest(unittest.TestCase):
+    def _read(self, proc):
+        with patch.object(setupctl, "_run", return_value=proc):
+            return setupctl.read_event_policy("alice/foodsavr")
+
+    def test_read_states(self):
+        self.assertEqual(self._read(_cp(json.dumps([_policy_json()])))["state"], "match")
+        self.assertEqual(self._read(_cp("[]"))["state"], "missing")
+        wrong = _policy_json(conditions={"workflow_path": {"include": ["~ALL"], "exclude": []}})
+        self.assertEqual(self._read(_cp(json.dumps([wrong])))["state"], "mismatch")
+        self.assertEqual(self._read(_cp(code=1, err="HTTP 404"))["state"], "unavailable")
+        self.assertEqual(self._read(_cp("not json"))["state"], "unavailable")
+
+    def test_verify_reports_match_mismatch_and_unavailable(self):
+        for state, ok in (("match", True), ("mismatch", False), ("missing", False), ("unavailable", False)):
+            with self.subTest(state=state):
+                probe = _sample_probe(repo="alice/foodsavr", login="alice", is_admin=True, local_ok=True)
+                probe["github"]["event_policy"] = {"state": state, "policy_id": None, "detail": state}
+                checks = {c["name"]: c for c in setupctl.verify_profile(probe, profile="fork-agents")["checks"]}
+                self.assertEqual(checks["actions-event-policy"]["ok"], ok)
+                if not ok:
+                    self.assertIn("apply-event-policy", checks["actions-event-policy"]["remediation"])
+
+    def test_plan_lists_owner_action_until_matched(self):
+        probe = _sample_probe(repo="alice/foodsavr", login="alice", is_admin=True, local_ok=True)
+        probe["github"]["event_policy"] = {"state": "missing"}
+        plan = setupctl.build_plan(probe, profile="fork-agents", topology="single")
+        self.assertIn("apply-event-policy", [a["id"] for a in plan["human_actions"]])
+        probe["github"]["event_policy"] = {"state": "match"}
+        plan = setupctl.build_plan(probe, profile="fork-agents", topology="single")
+        self.assertNotIn("apply-event-policy", [a["id"] for a in plan["human_actions"]])
+
+    def test_apply_guard_idempotence_create_and_update(self):
+        clean = {k: v for k, v in os.environ.items() if k not in setupctl.AGENT_ENV_VARS}
+        with patch.dict(os.environ, {**clean, "AGENT_SESSION_ID": "t:1"}, clear=True):
+            with self.assertRaises(PermissionError):
+                setupctl.apply_event_policy(repo="alice/foodsavr")
+        with patch.dict(os.environ, clean, clear=True):
+            with patch.object(setupctl, "_run", return_value=_cp(json.dumps([_policy_json()]))):
+                with patch.object(setupctl.subprocess, "run") as mock_write:
+                    res = setupctl.apply_event_policy(repo="alice/foodsavr")
+                mock_write.assert_not_called()
+            self.assertTrue(res["already_applied"])
+
+            for listing, method, path in (
+                ("[]", "POST", "repos/alice/foodsavr/actions/policies"),
+                (json.dumps([_policy_json(enforcement="evaluate")]), "PUT", "repos/alice/foodsavr/actions/policies/7"),
+            ):
+                with patch.object(setupctl, "_run", return_value=_cp(listing)):
+                    with patch.object(setupctl.subprocess, "run", return_value=_cp()) as mock_write:
+                        res = setupctl.apply_event_policy(repo="alice/foodsavr")
+                argv = mock_write.call_args.args[0]
+                self.assertEqual((argv[3], argv[4]), (method, path))
+                self.assertEqual(json.loads(mock_write.call_args.kwargs["input"]), setupctl.desired_event_policy())
+                self.assertFalse(res["already_applied"])
+
+            with patch.object(setupctl, "_run", return_value=_cp(code=1, err="HTTP 404")):
+                with self.assertRaises(RuntimeError):
+                    setupctl.apply_event_policy(repo="alice/foodsavr")
+            with patch.object(setupctl, "_run", return_value=_cp("[]")):
+                with patch.object(setupctl.subprocess, "run") as mock_write:
+                    res = setupctl.apply_event_policy(repo="alice/foodsavr", dry_run=True)
+                mock_write.assert_not_called()
+            self.assertEqual(res["state"], "missing")
+
+
 if __name__ == "__main__":
     unittest.main()

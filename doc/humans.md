@@ -15,6 +15,10 @@ Run `make setup`.
 - Add `merge/auto` to a finished two-way-door PR to let the merge gate integrate it. Remove it before you resume work on the branch, then fetch.
 - Contributors outside the repository: see [CONTRIBUTING.md](../CONTRIBUTING.md).
 
+## Actions event policy
+
+GitHub blocks `pull_request_target` in public repositories from 2026-12-02 unless the repository has an Actions event policy. Owner action (Settings -> Actions -> Policies, or the command): `python3 scripts/setup/setupctl.py apply-event-policy --yes`. It allows `pull_request_target` for exactly `agent-review.yml`, `merge-gate.yml` and `github-labels.yml`; `make setup-verify PROFILE=fork-agents` checks it.
+
 ## Live state
 
 Docs drift; look at the system instead.
