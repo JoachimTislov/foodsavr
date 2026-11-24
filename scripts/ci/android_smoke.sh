@@ -2,6 +2,10 @@
 # CI emulator smoke runner. Preserve visual evidence even when startup fails.
 set -euo pipefail
 
+# An emulator that drops offline makes adb print "waiting for device" and block
+# until the job's 60-minute timeout; bound every adb call so the run fails fast.
+adb() { timeout "${ADB_TIMEOUT_SECONDS:-120}" command adb "$@"; }
+
 mkdir -p artifacts/android-visuals
 recording_pid=''
 collect() {
