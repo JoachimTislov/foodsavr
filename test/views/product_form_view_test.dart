@@ -249,4 +249,23 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('choosing Dairy pre-fills an estimated expiry', (tester) async {
+    await openForm(tester, prefill: scanned, collectionId: 'inv');
+
+    await tester.enterText(find.byType(TextFormField).first, 'Oat drink');
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await settle(tester);
+    await tester.tap(find.text('Dairy').last);
+    await settle(tester);
+    await tester.tap(find.text('Create'));
+    await settle(tester);
+
+    final expiries = repository.added.last.expiries;
+    expect(expiries, hasLength(1));
+    final days = expiries.single.expirationDate
+        .difference(DateUtils.dateOnly(DateTime.now()))
+        .inDays;
+    expect(days, 10);
+  });
 }
