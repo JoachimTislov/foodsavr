@@ -16,6 +16,24 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '../..');
+const RECAPTCHA_STORAGE_ACCESS_ERROR = 'requestStorageAccess: Permission denied.';
+
+function isRecaptchaStorageAccessNoise(message, sourceUrl) {
+  if (message !== RECAPTCHA_STORAGE_ACCESS_ERROR && message?.trim() !== RECAPTCHA_STORAGE_ACCESS_ERROR) {
+    return false;
+  }
+  try {
+    const source = new URL(sourceUrl);
+    if (source.protocol !== 'https:' && source.protocol !== 'http:') return false;
+    const isGoogleDomain = ['google.com', 'gstatic.com'].some(
+      (domain) => source.hostname === domain || source.hostname.endsWith(`.${domain}`)
+    );
+    if (!isGoogleDomain) return false;
+    return /recaptcha/i.test(`${source.pathname}${source.search}`);
+  } catch (_) {
+    return false;
+  }
+}
 
 function loadPlaywright() {
   const candidates = [
@@ -115,6 +133,7 @@ async function runProbe(opts) {
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
         const loc = msg.location();
+        if (isRecaptchaStorageAccessNoise(msg.text(), loc?.url || '')) return;
         consoleErrors.push({
           text: msg.text(),
           location: loc?.url ? `${loc.url}:${loc.lineNumber ?? 0}:${loc.columnNumber ?? 0}` : '',
