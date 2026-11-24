@@ -10,8 +10,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / "scripts" / "bisect.py"
-_spec = importlib.util.spec_from_file_location("bisect_cli", SCRIPT)
+SCRIPT = ROOT / "scripts" / "git_bisect.py"
+_spec = importlib.util.spec_from_file_location("git_bisect", SCRIPT)
 bisect_script = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(bisect_script)
 

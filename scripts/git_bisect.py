@@ -13,18 +13,12 @@ Script exit codes: 0 culprit found, 1 no single culprit (only skipped commits
 left or endpoints invalid), 2 usage or setup error, 130 aborted.
 
 Examples:
-  python3 scripts/bisect.py --good v1.2 -- flutter test test/foo_test.dart
-  python3 scripts/bisect.py --good abc123 --probe /tmp/repro_test.dart:test/repro_test.dart \\
+  python3 scripts/git_bisect.py --good v1.2 -- flutter test test/foo_test.dart
+  python3 scripts/git_bisect.py --good abc123 --probe /tmp/repro_test.dart:test/repro_test.dart \\
       --json -- flutter test test/repro_test.dart
-  python3 scripts/bisect.py --good abc123 --interactive --launch 'flutter run -d chrome'
+  python3 scripts/git_bisect.py --good abc123 --interactive --launch 'flutter run -d chrome'
 """
 from __future__ import annotations
-
-import sys
-
-# This file is named like the stdlib `bisect` module; keep its directory off sys.path
-# so stdlib imports (random, tempfile) keep resolving to the real module.
-sys.path[:] = [p for p in sys.path if p not in ("", __import__("os").path.dirname(__import__("os").path.abspath(__file__)))]
 
 import argparse
 import hashlib
@@ -35,6 +29,7 @@ import shlex
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
