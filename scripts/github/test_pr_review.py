@@ -255,6 +255,9 @@ class PrepareReviewTest(unittest.TestCase):
             self.assertIn("<untrusted-pr-context>", verify["prompt"])
             self.assertIn("+print('hi')", verify["prompt"])
             self.assertTrue(verify["prompt"].rstrip().endswith("VERDICT: CHANGES_REQUESTED when it fails."))
+            self.assertEqual(verify["role"], "code-reviewer")
+            self.assertTrue(any("merge gate verifies" in item for item in verify["acceptance"]))
+            self.assertTrue(plan[2]["objective"].startswith("Review a pull request's code changes"))
 
             workflow["context"]["files"] = []
             plan = pr_review.select_review_plan(workflow, "fast", ["codex"], specs,
