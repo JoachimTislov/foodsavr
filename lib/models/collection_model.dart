@@ -23,9 +23,7 @@ abstract class Collection with _$Collection {
       'name': {'stringValue': name},
       'productIds': {
         'arrayValue': {
-          'values': productIds
-              .map((id) => {'integerValue': id.toString()})
-              .toList(),
+          'values': productIds.map((id) => {'stringValue': id}).toList(),
         },
       },
       'userId': {'stringValue': userId},

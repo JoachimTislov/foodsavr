@@ -33,9 +33,6 @@ class _GatedProductRepository implements IProductRepository {
   Future<Product?> get(String id) async => null;
 
   @override
-  Future<List<Product>> getAll() async => _products;
-
-  @override
   Future<List<Product>> getGlobalProducts() async => _products;
 
   @override
@@ -71,9 +68,6 @@ class _CountingProductRepository implements IProductRepository {
     }
     return null;
   }
-
-  @override
-  Future<List<Product>> getAll() async => _products;
 
   @override
   Future<List<Product>> getGlobalProducts() async => _products;

@@ -213,7 +213,7 @@ abstract class Product with _$Product {
 
   Map<String, dynamic> toFirestoreRest() {
     return {
-      'id': {'integerValue': id},
+      'id': {'stringValue': id},
       'name': {'stringValue': name},
       'description': {'stringValue': description},
       'userId': {'stringValue': userId},

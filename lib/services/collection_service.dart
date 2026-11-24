@@ -23,19 +23,6 @@ class CollectionService {
       ? '***'
       : '${userId.substring(0, 3)}***${userId.substring(userId.length - 3)}';
 
-  /// Get all collections (global for all users)
-  Future<List<Collection>> getCollections() async {
-    _logger.i('Fetching all collections.');
-    try {
-      final collections = await _collectionRepository.getAll();
-      _logger.i('Successfully fetched ${collections.length} collections.');
-      return collections;
-    } catch (e) {
-      _logger.e('Error fetching collections: $e');
-      rethrow;
-    }
-  }
-
   /// Get all collections for a specific user
   Future<List<Collection>> getCollectionsForUser(
     String? userId, {

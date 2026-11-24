@@ -4,7 +4,9 @@ import 'package:http/http.dart' as http;
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:foodsavr/services/seeding_service.dart';
+import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/models/product_model.dart';
+import 'package:foodsavr/utils/collection_types.dart';
 
 class MockClient extends Mock implements http.Client {}
 
@@ -230,7 +232,7 @@ void main() {
 
         final rest = product.toFirestoreRest();
 
-        expect(rest['id']['integerValue'], '123');
+        expect(rest['id']['stringValue'], '123');
         expect(rest['name']['stringValue'], 'Milk');
         expect(rest['description']['stringValue'], 'Dairy');
         expect(rest['userId']['stringValue'], 'user_1');
@@ -262,6 +264,36 @@ void main() {
         expect(rest['barcode']['stringValue'], '');
         expect(rest['expiries']['arrayValue']['values'], isEmpty);
       });
+
+      test(
+        'Collection toFirestoreRest encodes id and productIds as strings',
+        () {
+          const collection = Collection(
+            id: 'col_1',
+            name: 'My Inventory',
+            productIds: ['prod_1', 'prod_2'],
+            userId: 'user_1',
+            description: 'Fridge',
+            type: CollectionType.inventory,
+          );
+
+          final rest = collection.toFirestoreRest();
+
+          expect(rest['id'], {'stringValue': 'col_1'});
+          expect(rest['name'], {'stringValue': 'My Inventory'});
+          expect(rest['userId'], {'stringValue': 'user_1'});
+          expect(rest['description'], {'stringValue': 'Fridge'});
+          expect(rest['type'], {'stringValue': 'inventory'});
+          expect(rest['productIds'], {
+            'arrayValue': {
+              'values': [
+                {'stringValue': 'prod_1'},
+                {'stringValue': 'prod_2'},
+              ],
+            },
+          });
+        },
+      );
     });
 
     group('Edge Case Validations', () {

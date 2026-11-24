@@ -42,9 +42,6 @@ class _FakeProductRepository implements IProductRepository {
   }
 
   @override
-  Future<List<Product>> getAll() async => _products;
-
-  @override
   Future<List<Product>> getGlobalProducts() async =>
       _products.where((product) => product.isGlobal).toList();
 

@@ -13,7 +13,4 @@ abstract class IRepository<T, ID> {
 
   /// Delete an entity by ID
   Future<void> delete(ID id);
-
-  /// Get all entities
-  Future<List<T>> getAll();
 }
