@@ -265,6 +265,27 @@ class PrepareReviewTest(unittest.TestCase):
             verify = next(step for step in plan[2]["steps"] if step["id"] == "verify-gate")
             self.assertNotIn("<untrusted-pr-context>", verify["prompt"])
 
+    def test_tool_denying_provider_gets_no_tools_prompt_and_no_listed_context(self):
+        import agentctl
+
+        specs = agentctl.provider_specs()
+        with tempfile.TemporaryDirectory() as tmp:
+            context = Path(tmp) / "pr-78.md"
+            context.write_text("# PR #78\n```diff\n+x = 1\n```\n", encoding="utf-8")
+            workflow = json.loads(pr_review.DEFAULT_WORKFLOW.read_text())
+            workflow.setdefault("context", {})["files"] = ["AGENTS.md", str(context)]
+            workflow["context"]["skills"] = ["pr-merge"]
+            snap = agentctl.hu.HarnessUsageSnapshot("antigravity", "ok", (agentctl.hu.UsageWindow("5h", "5h", 10),))
+            plan = pr_review.select_review_plan(workflow, "fast", ["antigravity"], specs,
+                                                {"decision_provider": {"enabled": False}}, {"antigravity": snap})
+            self.assertIsNotNone(plan)
+            self.assertEqual(plan[1], "antigravity")
+            verify = next(step for step in plan[2]["steps"] if step["id"] == "verify-gate")
+            self.assertIn("Do not run tools or commands", verify["prompt"])
+            self.assertIn("+x = 1", verify["prompt"])
+            self.assertEqual(plan[2]["context"]["files"], [])
+            self.assertEqual(plan[2]["context"]["skills"], [])
+
     def test_pr_420_retries_with_configured_provider_when_quota_is_unknown(self):
         import agentctl
 
