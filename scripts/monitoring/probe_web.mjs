@@ -29,7 +29,8 @@ function isRecaptchaStorageAccessNoise(message, sourceUrl) {
       (domain) => source.hostname === domain || source.hostname.endsWith(`.${domain}`)
     );
     if (!isGoogleDomain) return false;
-    return /recaptcha/i.test(`${source.pathname}${source.search}`);
+    // Path prefix only: a query such as ?continue=/recaptcha/... must not match.
+    return source.pathname.toLowerCase().startsWith('/recaptcha/');
   } catch (_) {
     return false;
   }
