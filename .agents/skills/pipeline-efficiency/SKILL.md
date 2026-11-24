@@ -21,7 +21,7 @@ Run the cheapest exact mirror of CI before every push. Install `.githooks/` once
    ```sh
    python3 scripts/ci/local_ci.py
    ```
-3. `local_ci.py` already runs the infra, release, deploy-manifest and workflow-lint (`actionlint`) groups for changed paths. Run separately only what it cannot:
+3. `local_ci.py` already runs the `agents`, `docs`, `dart`, `release`, `infra` (includes `packages/foodsavr_deploy/**` and `deploy/**`) and `workflows` (`actionlint`) groups for changed paths; there is no separate deploy-manifest group. Run separately only what it cannot:
    - **`firestore.rules` or `firestore-rules/**`**: start the Firestore emulator and run `npm --prefix firestore-rules test`.
    - **Traceability**: confirm every commit carries an `Agent-Session:` trailer (`scripts/agents/agentctl check-pr --base origin/develop --head HEAD`).
    - **Runner environment**: CI sets `GITHUB_REPOSITORY`; when a suite reads it, run it once with `GITHUB_REPOSITORY=example/test-repo` so local settings do not mask a failure.
@@ -53,14 +53,14 @@ Place each check in the earliest, cheapest tier that still enforces its safety p
 |---|---|---|---|
 | **Local pre-push** | Developer / agent worktree | `check_pr_base.py`, `local_ci.py`, `scripts/infra`, `scripts/release`, `foodsavr_deploy`, `actionlint`, secret format validation | Multi-minute emulator boots |
 | **`develop` PR** | Integration gate | Path-filtered `Check & Test` (Dart/Flutter code only), `Traceability`, `PR base`, `Deployment level` (deploy/infra paths only), `Firestore security rules` (rules paths only), `Agent system validation` (agent/script paths excluding `.agents/events/**`); `Validation` (Web smoke + E2E, Android smoke + integration) for app paths, which starts when `merge/auto` is added (before that the `Validation result` status stays pending) | Release APK/Web artifact builds, full site publishes, emulator runs for non-app edits, `synchronize` label churn |
-| **Release channels (`daily`, `weekly`, `stable`)** | Promotion | `develop -> daily` runs the full release `Validation`; `daily -> weekly -> stable` reuse the green `daily` run for the same SHA (`already_tested.sh --push-only-reuse`); `Android Build` and `Web Build` run on every release push; only `stable` publishes GitHub Pages and deploys production | Unverified manual skips |
+| **Release channels (`daily`, `weekly`, `stable`)** | Promotion | `develop -> daily` runs the full release `Validation`; `daily -> weekly -> stable` reuse the green `daily` run for the same SHA (`already_tested.sh --push-only-reuse`); `Android Build` and `Web Build` run on release pushes that touch their app/build paths (path-filtered); only `stable` publishes GitHub Pages and deploys production | Unverified manual skips |
 
 When authoring or tightening `.github/workflows/*.yml`:
 
 - **Align path filters across all three layers**: workflow `paths:` / `dorny/paths-filter`, `scripts/ci/already_tested.sh` pathspecs, and `scripts/ci/local_ci.py` `GROUPS`.
 - **Keep non-app edits out of Flutter/Android jobs**: Python-only `scripts/ci/*.py` and `scripts/release/**` changes belong in Python/Node unit checks, not `flutter build apk` or KVM Android Emulator runs.
 - **Keep append-only event logs out of heavy suites**: `.agents/events/**` records are checked by `check_logs.py` / `traceability.yml`, not the full 300+ test `Agent system validation` suite on unrelated UI/docs PRs.
-- **Trim workflow fan-out**: trigger `merge-gate.yml` `workflow_run` from every workflow whose checks the gate evaluates (so the last one to finish wakes it) and from no others; trigger `github-labels.yml` on `[opened, edited, ready_for_review, converted_to_draft]` rather than every `synchronize`.
+- **Trim workflow fan-out**: keep `merge-gate.yml` `workflow_run` limited to the workflows whose checks the gate evaluates (currently `Format, Analyze, Check Localizations and Run Tests`, `Validation`, `Agent system validation`, `Agent review`, `Documentation Pages`, `Dependency Review`) so the last one to finish wakes it; trigger `github-labels.yml` on `[opened, edited, ready_for_review, converted_to_draft]` rather than every `synchronize`.
 - **Fail loudly on misconfiguration, degrade cleanly on optional providers**: enabled deploys with missing config fail instead of skipping green; optional review tiers with no available provider cap or skip instead of posting `blocked`.
 
 Done when every workflow trigger and path filter matches its tier and mirrors `local_ci.py` and `already_tested.sh`.
@@ -70,11 +70,11 @@ Done when every workflow trigger and path filter matches its tier and mirrors `l
 Under `develop`'s linear-history and strict up-to-date ruleset, eager rebases multiply CI load quadratically (`O(N^2)`). Coordinate with the `pr-merge` skill and `queue-planner` skill:
 
 1. **Batch locally**: group fixes and formatting into one clean push instead of dribbling fixups that cancel in-flight runs.
-2. **Rebase only the next PR**: leave PRs #2..N untouched until PR #1 merges.
+2. **Let the gate rebase opted-in PRs**: the merge gate updates the oldest `BEHIND` PR that carries `merge/auto` once no opted-in PR is running checks (ADR 0006). Rebase manually only branches without `merge/auto` and security-path PRs that need a human merge, and then only the next one in the queue.
    Before rebasing or pushing a branch that carries `merge/auto`, remove the label and fetch: the gate may already have rebased it. Re-add the label only when the branch is finalized again.
 3. **Protect in-flight Validation**: avoid rebasing or pushing a PR while its Validation run is in progress (unless fixing a known failure); cancelling mid-run wastes runner minutes and prevents `already_tested.sh` from reusing a green previous head.
 4. **Order low-blast-radius PRs first**: among independent ready PRs, land docs/agent/script PRs before app PRs so `already_tested.sh` skips re-running Dart and Validation on subsequent app PRs when nothing in their scope changed.
-5. **Opt in once, when finalized**: add `merge/auto` only to a two-way-door PR whose acceptance is met and review feedback is addressed (ADR 0006), and only when it is next in the queue; adding it at creation or mid-review causes open-then-label cancellation races.
+5. **Opt in once, when finalized**: the author adds `merge/auto` to a two-way-door PR once its acceptance is met and review feedback is addressed (ADR 0006), and the gate handles ordering; adding it at creation or mid-review causes open-then-label cancellation races.
 6. **Stack only on true diff dependencies**: cap stack depth at 1; independent work targets `develop`.
 
 Done when each PR runs at most one CI pass per real code change and one rebase at merge time.
