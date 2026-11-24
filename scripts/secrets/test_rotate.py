@@ -261,6 +261,70 @@ class MainTest(unittest.TestCase):
             guard.assert_called_once_with("alice/foodsavr", origin_slug="alice/foodsavr", yes=False)
             self.assertEqual(push_mock.call_args.kwargs["repo"], "alice/foodsavr")
 
+    def test_github_app_private_key_rejects_malformed_before_push_and_verifies_after_sync(self):
+        from contextlib import redirect_stderr, redirect_stdout
+        from io import StringIO
+        from unittest.mock import patch
+
+        valid_pem = subprocess.run(
+            ["openssl", "genrsa", "2048"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        truncated_pem = "\n".join(valid_pem.strip().splitlines()[:-1]) + "\n"
+        escaped_pem = valid_pem.strip().replace("\n", "\\n")
+
+        registry = rotate.load_registry()
+        self.assertEqual(registry["AGENT_APP_PRIVATE_KEY"].validate, "github-app-key")
+        self.assertEqual(registry["RELEASE_GATE_APP_PRIVATE_KEY"].validate, "github-app-key")
+
+        for bad in (truncated_pem, escaped_pem):
+            with (
+                patch.dict(os.environ, {"NEW_RELEASE_GATE_APP_PRIVATE_KEY": bad}, clear=False),
+                patch.object(rotate, "check_github_mutation_guard", return_value=None),
+                patch.object(rotate, "push") as push_mock,
+            ):
+                code = rotate.main(["--repo", "alice/foodsavr", "--app-id", "222", "RELEASE_GATE_APP_PRIVATE_KEY"])
+            self.assertEqual(code, 1)
+            push_mock.assert_not_called()
+
+        out = StringIO()
+        with (
+            patch.dict(os.environ, {"NEW_RELEASE_GATE_APP_PRIVATE_KEY": valid_pem}, clear=False),
+            patch.object(rotate, "check_github_mutation_guard", return_value=None),
+            patch.object(rotate, "push") as push_mock,
+            patch.object(
+                rotate,
+                "verify_github_app_key",
+                return_value=(True, "Verified GitHub App 222 on alice/foodsavr (installation token minted)."),
+            ) as verify_mock,
+            redirect_stdout(out),
+            redirect_stderr(StringIO()),
+        ):
+            code = rotate.main(["--repo", "alice/foodsavr", "--app-id", "222", "RELEASE_GATE_APP_PRIVATE_KEY"])
+        self.assertEqual(code, 0)
+        push_mock.assert_called_once()
+        verify_mock.assert_called_once_with(valid_pem, app_id="222", repo="alice/foodsavr")
+        self.assertIn("Verified GitHub App 222 on alice/foodsavr (installation token minted).", out.getvalue())
+
+        err = StringIO()
+        with (
+            patch.dict(os.environ, {"NEW_RELEASE_GATE_APP_PRIVATE_KEY": valid_pem}, clear=False),
+            patch.object(rotate, "check_github_mutation_guard", return_value=None),
+            patch.object(rotate, "push"),
+            patch.object(
+                rotate,
+                "verify_github_app_key",
+                return_value=(False, "Private key rejected for App 222; generate a new key at https://github.com/settings/apps and re-sync."),
+            ),
+            redirect_stdout(StringIO()),
+            redirect_stderr(err),
+        ):
+            code = rotate.main(["--repo", "alice/foodsavr", "--app-id", "222", "RELEASE_GATE_APP_PRIVATE_KEY"])
+        self.assertEqual(code, 1)
+        self.assertIn("Private key rejected for App 222", err.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

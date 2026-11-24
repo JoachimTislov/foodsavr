@@ -221,10 +221,10 @@ run_wizard() {
 [[ -t 0 && -t 1 ]] || { echo "scripts/human: interactive only; run it yourself in a terminal" >&2; exit 2; }
 
 set_repo_secret() {
-  local name="$1" value="$2"
+  local name="$1" value="$2" app_id="$3"
   local root
   root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-  ( export "NEW_$name=$value"; exec python3 "$root/scripts/secrets/rotate.py" --repo "$REPO_SLUG" --yes "$name" ) >/dev/null 2>&1
+  ( export "NEW_$name=$value"; exec python3 "$root/scripts/secrets/rotate.py" --repo "$REPO_SLUG" --yes --app-id "$app_id" "$name" )
 }
 
 local ROLE="agent"
@@ -307,6 +307,7 @@ if (( MANUAL_URL )); then
   ask MANUAL_APP_ID "App ID:"
   ask AGENT_APP_SLUG "App URL name:"
   ask MANUAL_PEM_PATH "Path to the downloaded private key:"
+  MANUAL_PEM_PATH="${MANUAL_PEM_PATH/#\~/$HOME}"
   [[ -f "$MANUAL_PEM_PATH" ]] || { warn "Download the private key from $APP_SETTINGS_URL and resume setup."; exit 1; }
   APP_ID="$MANUAL_APP_ID"
   PEM_PATH="$MANUAL_PEM_PATH"
@@ -403,11 +404,15 @@ fi
   warn "Use the App ID and URL name from $APP_SETTINGS_URL."
   exit 1
 }
+if ! python3 "$ROOT/scripts/github_app_key.py" validate "$PEM_PATH"; then
+  warn "Generate a valid PEM private key at $APP_SETTINGS_URL and resume setup."
+  exit 1
+fi
 open_url "https://github.com/apps/${AGENT_APP_SLUG}/installations/new"
 say "Install the App on $REPO_SLUG if it is not already installed."
 confirm "Installed?" || exit 1
 
-if ! set_repo_secret "$KEY_SECRET" "$(cat "$PEM_PATH")"; then
+if ! set_repo_secret "$KEY_SECRET" "$(cat "$PEM_PATH")" "$APP_ID"; then
   warn "Resume setup with the existing App and the private key at $PEM_PATH."
   exit 1
 fi
