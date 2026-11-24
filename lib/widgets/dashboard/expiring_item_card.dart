@@ -62,6 +62,7 @@ class ExpiringItemCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
+                flex: 3,
                 child: Text(
                   product.name,
                   maxLines: 1,
@@ -73,12 +74,18 @@ class ExpiringItemCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Text(
-                statusText,
-                style: TextStyle(
-                  color: timeColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+              // Long labels ("Expired 1000 days ago") wrap instead of
+              // overflowing at narrow widths or large text scales.
+              Flexible(
+                flex: 2,
+                child: Text(
+                  statusText,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    color: timeColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
               ),
             ],

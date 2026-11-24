@@ -88,21 +88,11 @@ class DashboardView extends WatchingWidget {
               ],
             ],
           )
-        : windowSize.isCompact
-        ? GridView(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.3,
-            ),
-            children: overviewCards,
-          )
         : LayoutBuilder(
+            // Content-sized cards (no fixed aspect ratio) so large text grows
+            // the card instead of overflowing it.
             builder: (context, constraints) {
-              const columns = 3;
+              final columns = windowSize.isCompact ? 2 : 3;
               const spacing = 12.0;
               final cardWidth =
                   (constraints.maxWidth - spacing * (columns - 1)) / columns;
@@ -115,7 +105,7 @@ class DashboardView extends WatchingWidget {
                       constraints: BoxConstraints(
                         minWidth: cardWidth,
                         maxWidth: cardWidth,
-                        minHeight: 128,
+                        minHeight: windowSize.isCompact ? 104 : 128,
                       ),
                       child: card,
                     ),
