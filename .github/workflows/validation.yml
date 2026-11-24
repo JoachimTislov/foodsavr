@@ -101,8 +101,6 @@ jobs:
               - 'pubspec.yaml'
               - 'pubspec.lock'
               - 'test/e2e/**'
-            e2e:
-              - 'test/e2e/**'
             android:
               - 'lib/**'
               - 'packages/**'
@@ -114,12 +112,6 @@ jobs:
               - 'scripts/ci/write_android_test_config.sh'
               - 'pubspec.yaml'
               - 'pubspec.lock'
-            android_pr:
-              - 'android/**'
-              - 'integration_test/**'
-              - 'test_driver/**'
-              - 'scripts/ci/android_smoke.sh'
-              - 'scripts/ci/write_android_test_config.sh'
             integration:
               - 'integration_test/**'
               - 'test_driver/**'
@@ -148,11 +140,8 @@ jobs:
         env:
           SKIP: ${{ steps.tested.outputs.skip }}
           EVENT_NAME: ${{ github.event_name }}
-          FULL_PR: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'validate/full') }}
           FILTER_WEB: ${{ steps.filter.outputs.web }}
-          FILTER_E2E: ${{ steps.filter.outputs.e2e }}
           FILTER_ANDROID: ${{ steps.filter.outputs.android }}
-          FILTER_ANDROID_PR: ${{ steps.filter.outputs.android_pr }}
           FILTER_INTEGRATION: ${{ steps.filter.outputs.integration }}
           FILTER_RULES: ${{ steps.filter.outputs.rules }}
           DEP_WEB: ${{ steps.dep.outputs.run_web }}
@@ -170,33 +159,14 @@ jobs:
             integration=true
             rules=true
           elif [ "$SKIP" != "true" ]; then
-            if [ "$EVENT_NAME" = "pull_request" ]; then
-              # Fast develop PR tier: run Web smoke (add full Playwright E2E only when test/e2e/ changes
-              # or validate/full is set) and run the ~10m Android emulator only for direct Android or
-              # integration_test edits (or validate/full). Full app-wide Web E2E + Android emulator
-              # validation runs on develop -> daily and release-channel pushes.
-              if [ "$FILTER_WEB" = "true" ] && [ "$DEP_WEB" != "false" ]; then
-                web=true
-                if [ "$FILTER_E2E" = "true" ] || [ "$FULL_PR" = "true" ]; then
-                  web_e2e=true
-                fi
-              fi
-              if [ "$DEP_ANDROID" != "false" ]; then
-                if [ "$FILTER_ANDROID_PR" = "true" ] || { [ "$FULL_PR" = "true" ] && [ "$FILTER_ANDROID" = "true" ]; }; then
-                  android=true
-                fi
-                if [ "$FILTER_ANDROID_PR" = "true" ] || { [ "$FULL_PR" = "true" ] && [ "$FILTER_INTEGRATION" = "true" ]; }; then
-                  integration=true
-                fi
-              fi
-            else
-              if [ "$FILTER_WEB" = "true" ]; then
-                web=true
-                web_e2e=true
-              fi
-              [ "$FILTER_ANDROID" = "true" ] && android=true
-              [ "$FILTER_INTEGRATION" = "true" ] && integration=true
+            # PRs and pushes get the same smoke and E2E coverage; on PRs dep_impact.py
+            # may narrow it to the platforms the change can affect.
+            if [ "$FILTER_WEB" = "true" ] && [ "$DEP_WEB" != "false" ]; then
+              web=true
+              web_e2e=true
             fi
+            [ "$FILTER_ANDROID" = "true" ] && [ "$DEP_ANDROID" != "false" ] && android=true
+            [ "$FILTER_INTEGRATION" = "true" ] && [ "$DEP_ANDROID" != "false" ] && integration=true
           fi
           [ "$FILTER_RULES" = "true" ] && rules=true
           {

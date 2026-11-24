@@ -78,7 +78,7 @@ jobs:
         run: |
           if [ -n "$RELEASE_GATE_APP_ID" ] && [ -n "$RELEASE_GATE_APP_PRIVATE_KEY" ]; then
             if ! printf '%s\n' "$RELEASE_GATE_APP_PRIVATE_KEY" | grep -q -- '-----BEGIN .*PRIVATE KEY-----'; then
-              echo "::error::RELEASE_GATE_APP_PRIVATE_KEY is not a valid PEM private key. Re-upload the GitHub App .pem file (gh secret set RELEASE_GATE_APP_PRIVATE_KEY < path/to/key.pem)."
+              echo "::error::RELEASE_GATE_APP_PRIVATE_KEY is not a valid PEM private key. Re-upload the GitHub App .pem file with scripts/secrets/rotate.py RELEASE_GATE_APP_PRIVATE_KEY."
               exit 1
             fi
             echo "app=true" >> "$GITHUB_OUTPUT"
