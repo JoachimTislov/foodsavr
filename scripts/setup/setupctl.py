@@ -65,6 +65,14 @@ HARNESS_AUTH_SECRETS = (
     "GEMINI_API_KEY",
 )
 
+EVENT_POLICY_NAME = "foodsavr-pull-request-target"
+EVENT_POLICY_WORKFLOWS = (
+    ".github/workflows/agent-review.yml",
+    ".github/workflows/github-labels.yml",
+    ".github/workflows/merge-gate.yml",
+)
+EVENT_POLICY_EVENTS = ("pull_request", "pull_request_target", "push", "workflow_dispatch")
+
 AGENT_ENV_VARS = (
     "AGENT_SESSION_ID",
     "CLAUDECODE",
@@ -214,6 +222,7 @@ def probe_environment(
         "branches": [],
         "variables": {},
         "secret_names": [],
+        "event_policy": None,
     }
 
     if not offline and tools["gh"]:
@@ -252,6 +261,7 @@ def probe_environment(
                     gh_info["branches"] = sorted(line.strip() for line in br_proc.stdout.splitlines() if line.strip())
 
                 if gh_info["is_admin"]:
+                    gh_info["event_policy"] = read_event_policy(target_repo, root=root)
                     var_proc = _run(
                         ["gh", "variable", "list", "--repo", target_repo, "--json", "name,value"],
                         cwd=root,
@@ -485,6 +495,15 @@ def build_plan(
             "title": f"Apply GCP/Firebase stack (WIF + App Check, plan={firebase_plan})",
             "command": f"ENV=production RELEASE_TOPOLOGY={chosen_topology} scripts/infra/apply.sh apply",
             "reason": "Provisions scoped github-deploy-live and github-telemetry-ro WIF service accounts and publishes non-secret vars.",
+        })
+
+    event_policy = gh.get("event_policy") or {}
+    if event_policy.get("state") != "match":
+        human_actions.append({
+            "id": "apply-event-policy",
+            "title": "Record the Actions event policy allowing pull_request_target for the three trusted workflows",
+            "command": f"python3 scripts/setup/setupctl.py apply-event-policy --repo {effective_repo} --yes",
+            "reason": "GitHub blocks pull_request_target in public repositories from 2026-12-02 without an explicit policy.",
         })
 
     if needs_fork:
@@ -785,6 +804,89 @@ def enable_actions(
     return {"repo": repo, "enabled": True, "already_enabled": False, "dry_run": False}
 
 
+def desired_event_policy() -> dict[str, Any]:
+    """Actions event policy (REST `actions/policies`) allowing pull_request_target for exactly three workflows."""
+    return {
+        "name": EVENT_POLICY_NAME,
+        "enforcement": "active",
+        "conditions": {"workflow_path": {"include": list(EVENT_POLICY_WORKFLOWS), "exclude": []}},
+        "rules": [{"type": "restrict_action_events", "parameters": {"allowed_events": list(EVENT_POLICY_EVENTS)}}],
+    }
+
+
+def _policy_matches(actual: dict[str, Any]) -> bool:
+    want = desired_event_policy()
+    try:
+        include = sorted(actual["conditions"]["workflow_path"]["include"])
+        exclude = list(actual["conditions"]["workflow_path"].get("exclude") or [])
+        rules = [r for r in actual.get("rules") or [] if r.get("type") == "restrict_action_events"]
+        events = sorted(rules[0]["parameters"]["allowed_events"]) if len(rules) == 1 else None
+    except (KeyError, TypeError, AttributeError, IndexError):
+        return False
+    return (
+        actual.get("enforcement") == want["enforcement"]
+        and include == sorted(EVENT_POLICY_WORKFLOWS)
+        and not exclude
+        and events == sorted(EVENT_POLICY_EVENTS)
+    )
+
+
+def read_event_policy(repo: str, *, root: Path = ROOT) -> dict[str, Any]:
+    """Read-only GET of the repository Actions policies; compare with `desired_event_policy`.
+
+    Returns `{"state": "match"|"mismatch"|"missing"|"unavailable", "policy_id": int|None, "detail": str}`.
+    """
+    if not REPO_SLUG_RE.fullmatch(repo):
+        raise ValueError(f"Invalid repo slug: {repo!r}")
+    proc = _run(["gh", "api", f"repos/{repo}/actions/policies"], cwd=root)
+    if proc.returncode != 0:
+        return {"state": "unavailable", "policy_id": None, "detail": proc.stderr.strip() or "Actions policies API unavailable"}
+    try:
+        payload = json.loads(proc.stdout)
+    except ValueError:
+        return {"state": "unavailable", "policy_id": None, "detail": "unparseable Actions policies response"}
+    items = payload if isinstance(payload, list) else (payload.get("policies") or [])
+    found = next((i for i in items if isinstance(i, dict) and i.get("name") == EVENT_POLICY_NAME), None)
+    if found is None:
+        return {"state": "missing", "policy_id": None, "detail": f"policy {EVENT_POLICY_NAME!r} not configured"}
+    if not _policy_matches(found):
+        return {"state": "mismatch", "policy_id": found.get("id"), "detail": f"policy {EVENT_POLICY_NAME!r} differs from the recorded posture"}
+    return {"state": "match", "policy_id": found.get("id"), "detail": f"policy {EVENT_POLICY_NAME!r} matches"}
+
+
+def apply_event_policy(
+    *,
+    repo: str,
+    dry_run: bool = False,
+    root: Path = ROOT,
+) -> dict[str, Any]:
+    """Idempotently create or update the Actions event policy."""
+    if not REPO_SLUG_RE.fullmatch(repo):
+        raise ValueError(f"Invalid repo slug: {repo!r}")
+    if not dry_run and is_unattended_agent_env():
+        raise PermissionError("Refusing GitHub Actions policy mutation from an unattended agent environment; run interactively.")
+
+    current = read_event_policy(repo, root=root)
+    if current["state"] == "unavailable":
+        raise RuntimeError(f"Cannot read Actions policies on {repo}: {current['detail']}")
+    if current["state"] == "match" or dry_run:
+        return {"repo": repo, "state": current["state"], "already_applied": current["state"] == "match", "dry_run": dry_run}
+
+    base = f"repos/{repo}/actions/policies"
+    method, path = ("POST", base) if current["state"] == "missing" else ("PUT", f"{base}/{current['policy_id']}")
+    proc = subprocess.run(
+        ["gh", "api", "-X", method, path, "--input", "-"],
+        input=json.dumps(desired_event_policy()),
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"Failed applying Actions event policy on {repo}: {proc.stderr.strip()}")
+    return {"repo": repo, "state": "applied", "already_applied": False, "dry_run": False}
+
+
 def verify_profile(
     probe: dict[str, Any],
     *,
@@ -853,6 +955,15 @@ def verify_profile(
             "RELEASE_GATE_APP_ID + RELEASE_GATE_APP_PRIVATE_KEY",
             f"scripts/human/github/create-agent-app.sh --role release-gate --repo {gh.get('target_repo') or '<owner>/<repo>'}",
         )
+        event_policy = gh.get("event_policy")
+        if event_policy is not None:
+            add(
+                "actions-event-policy",
+                event_policy.get("state") == "match",
+                f"pull_request_target allowed only for {', '.join(EVENT_POLICY_WORKFLOWS)}: {event_policy.get('detail')}",
+                f"python3 scripts/setup/setupctl.py apply-event-policy --repo {gh.get('target_repo') or '<owner>/<repo>'} --yes"
+                " (owner: Settings -> Actions -> Policies)",
+            )
         add(
             "harness-auth",
             any(name in secrets_present for name in HARNESS_AUTH_SECRETS),
@@ -964,6 +1075,12 @@ def main(argv: list[str] | None = None) -> int:
     p_actions.add_argument("--dry-run", action="store_true")
     p_actions.add_argument("--yes", action="store_true")
     p_actions.add_argument("-o", "--output", choices=("text", "json"), default="text")
+
+    p_policy = sub.add_parser("apply-event-policy", help="Record the Actions event policy for pull_request_target")
+    p_policy.add_argument("--repo", default=None)
+    p_policy.add_argument("--dry-run", action="store_true")
+    p_policy.add_argument("--yes", action="store_true")
+    p_policy.add_argument("-o", "--output", choices=("text", "json"), default="text")
 
     p_verify = sub.add_parser("verify", help="Verify setup readiness for a profile")
     p_verify.add_argument("--profile", choices=PROFILES, required=True)
@@ -1117,6 +1234,26 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"{res['repo']}: would enable GitHub Actions.")
                 else:
                     print(f"{res['repo']}: GitHub Actions enabled.")
+            return 0
+
+        if args.command == "apply-event-policy":
+            repo = resolve_repo(args.repo)
+            if not args.dry_run and not args.yes:
+                if is_unattended_agent_env() or not sys.stdin.isatty():
+                    print("Pass --yes to apply the Actions event policy (or run interactively / pass --dry-run).", file=sys.stderr)
+                    return 2
+                if not confirm_interactive(f"Apply the Actions event policy on {repo}?", yes=False):
+                    print("Cancelled.", file=interactive_output)
+                    return 1
+            res = apply_event_policy(repo=repo, dry_run=args.dry_run)
+            if args.output == "json":
+                print(json.dumps(res, indent=2, sort_keys=True))
+            elif res["already_applied"]:
+                print(f"{res['repo']}: Actions event policy already applied.")
+            elif args.dry_run:
+                print(f"{res['repo']}: would apply the Actions event policy ({res['state']}).")
+            else:
+                print(f"{res['repo']}: Actions event policy applied.")
             return 0
 
         if args.command == "verify":
