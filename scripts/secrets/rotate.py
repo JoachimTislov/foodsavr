@@ -189,28 +189,46 @@ def _resolve_sync_path(raw: str, *, env=os.environ, root: Path = ROOT) -> Path:
 
 
 def _prompt_pem(name: str) -> str:
-    entry = input(f"Path to .pem file for {name} (or paste PEM): ").strip()
-    if entry.startswith("-----BEGIN "):
-        lines = [entry]
-        for line in sys.stdin:
-            stripped = line.rstrip("\r\n")
-            lines.append(stripped)
-            if stripped.strip().startswith("-----END "):
-                break
-        return "\n".join(lines) + "\n"
-    candidate = Path(entry).expanduser()
-    if candidate.is_file():
-        return candidate.read_text(encoding="utf-8")
+    import termios
+
+    fd = sys.stdin.fileno()
+    settings = termios.tcgetattr(fd)
+    hidden = settings.copy()
+    hidden[3] &= ~termios.ECHO
+    try:
+        termios.tcsetattr(fd, termios.TCSAFLUSH, hidden)
+        print(f"Path to .pem file for {name} (or paste PEM, input hidden): ", end="", file=sys.stderr, flush=True)
+        entry = sys.stdin.readline().strip()
+        if entry.startswith("-----BEGIN "):
+            lines = [entry]
+            for line in sys.stdin:
+                stripped = line.rstrip("\r\n")
+                lines.append(stripped)
+                if stripped.strip().startswith("-----END "):
+                    break
+            return "\n".join(lines) + "\n"
+    finally:
+        termios.tcsetattr(fd, termios.TCSAFLUSH, settings)
+        print(file=sys.stderr)
+
+    if entry:
+        candidate = Path(entry).expanduser()
+        try:
+            if candidate.is_file():
+                return candidate.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            raise ValueError(f"{name}: cannot read the PEM file.") from None
     return entry
 
 
 def generate(secret: Secret, *, env=os.environ, prompt=getpass.getpass, interactive=None, root: Path = ROOT) -> str:
     if secret.generate == "random":
         if secret.alphabet == "urlsafe":
-            return secrets.token_urlsafe(secret.length)[: secret.length]
-        alphabet = ALPHABETS[secret.alphabet]
-        return "".join(secrets.choice(alphabet) for _ in range(secret.length))
-    if secret.generate == "sync" and secret.sync_file:
+            value = secrets.token_urlsafe(secret.length)[: secret.length]
+        else:
+            alphabet = ALPHABETS[secret.alphabet]
+            value = "".join(secrets.choice(alphabet) for _ in range(secret.length))
+    elif secret.generate == "sync" and secret.sync_file:
         source = _resolve_sync_path(secret.sync_file, env=env, root=root)
         raw_bytes = source.read_bytes()
         if not raw_bytes.strip():

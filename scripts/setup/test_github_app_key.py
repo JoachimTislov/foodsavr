@@ -127,6 +127,23 @@ class GithubAppKeyTest(unittest.TestCase):
         self.assertEqual(len(msg_404.splitlines()), 1)
         self.assertIn("https://github.com/alice/foodsavr/settings/installations", msg_404)
 
+    def test_repo_and_installation_id_are_mutually_exclusive(self):
+        open_url = Mock()
+        ok, message = gak.verify_installation_token(
+            self.pkcs1_pem, app_id="12345", repo="alice/foodsavr",
+            installation_id="987654", open_url=open_url,
+        )
+        self.assertFalse(ok)
+        self.assertIn("Choose either", message)
+        open_url.assert_not_called()
+
+        with patch.object(sys, "stderr"), self.assertRaises(SystemExit) as error:
+            gak.main([
+                "verify", "-", "--app-id", "12345", "--repo", "alice/foodsavr",
+                "--installation-id", "987654",
+            ])
+        self.assertEqual(error.exception.code, 2)
+
     def test_cli_validate_command_with_temp_pem_file(self):
         with tempfile.TemporaryDirectory() as td:
             good = Path(td) / "good.pem"

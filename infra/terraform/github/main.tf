@@ -30,11 +30,11 @@ data "github_repository" "this" {
 locals {
   channel_branches = var.channel_branches != null ? var.channel_branches : (
     var.release_topology == "single"
-    ? [var.default_branch]
+    ? ["develop"]
     : (
       var.release_topology == "two-stage"
-      ? [var.default_branch, "stable"]
-      : [var.default_branch, "daily", "weekly", "stable"]
+      ? ["develop", "stable"]
+      : ["develop", "daily", "weekly", "stable"]
     )
   )
 

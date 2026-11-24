@@ -986,7 +986,8 @@ def main(argv: list[str] | None = None) -> int:
             return True
         if is_unattended_agent_env() or not sys.stdin.isatty():
             return None
-        reply = input(f"{prompt} [y/N]: ").strip().lower()
+        print(f"{prompt} [y/N]: ", end="", file=interactive_output, flush=True)
+        reply = input().strip().lower()
         return reply in {"y", "yes"}
 
     def format_branches_summary(res: dict[str, Any], *, dry_run: bool) -> str:
@@ -998,6 +999,7 @@ def main(argv: list[str] | None = None) -> int:
         return f"{res['repo']} ({res['topology']}): {verb} {details}"
 
     args = parser.parse_args(argv)
+    interactive_output = sys.stderr if getattr(args, "output", None) == "json" else sys.stdout
     try:
         if args.command == "probe":
             result = probe_environment(repo=args.repo, offline=args.offline)
@@ -1057,9 +1059,9 @@ def main(argv: list[str] | None = None) -> int:
                         print(format_branches_summary(preview, dry_run=False))
                     return 0
                 missing_list = ", ".join(preview["created"])
-                print(f"{repo} ({topology}): missing {missing_list}")
+                print(f"{repo} ({topology}): missing {missing_list}", file=interactive_output)
                 if not confirm_interactive(f"Create {missing_list} on {repo}?", yes=False):
-                    print("Cancelled.")
+                    print("Cancelled.", file=interactive_output)
                     return 1
             res = ensure_branches(
                 repo=repo,
@@ -1081,7 +1083,7 @@ def main(argv: list[str] | None = None) -> int:
                     return 2
                 preview = fork_repository(upstream=upstream, dry_run=True)
                 if not confirm_interactive(f"Fork {upstream} -> {preview['fork']}?", yes=False):
-                    print("Cancelled.")
+                    print("Cancelled.", file=interactive_output)
                     return 1
             res = fork_repository(upstream=upstream, dry_run=args.dry_run)
             if args.output == "json":
@@ -1104,7 +1106,7 @@ def main(argv: list[str] | None = None) -> int:
                         print(f"{repo}: GitHub Actions already enabled.")
                     return 0
                 if not confirm_interactive(f"Enable GitHub Actions on {repo}?", yes=False):
-                    print("Cancelled.")
+                    print("Cancelled.", file=interactive_output)
                     return 1
             res = enable_actions(repo=repo, dry_run=args.dry_run)
             if args.output == "json":

@@ -168,7 +168,7 @@ def configure_harness(repo):
 
 def terraform_step(title, script, env, listing, prerequisites):
     if not prerequisites:
-        return process(Step(title), listing)
+        return process(Step(title, False), listing)
     with TemporaryDirectory(prefix="foodsavr-setup-") as directory:
         plan = str(Path(directory) / "review.tfplan")
         plan_env = {**env, "PLAN_OUT": plan, "TF_DETAILED_EXITCODE": "1"}

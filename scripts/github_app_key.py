@@ -184,7 +184,9 @@ def verify_installation_token(
     installation_id: int | str | None = None,
     open_url: Callable[..., Any] | None = None,
 ) -> tuple[bool, str]:
-    """Verify a GitHub App key by minting a JWT and an installation access token."""
+    """Verify a GitHub App key for either a repository or an explicit installation."""
+    if repo and installation_id is not None:
+        return False, "Choose either a GitHub repository or an installation ID to verify."
     install_url = f"https://github.com/{repo}/settings/installations" if repo else APP_SETTINGS_URL
     vars_url = f"https://github.com/{repo}/settings/variables/actions" if repo else APP_SETTINGS_URL
     try:
@@ -254,7 +256,7 @@ def verify_installation_token(
     if not isinstance(token_data, dict) or not isinstance(token_data.get("token"), str) or not token_data["token"]:
         return False, f"GitHub API did not return an installation token for App {app_id_str}; check {install_url}."
 
-    target = f" on {repo}" if repo else ""
+    target = f" on {repo}" if repo else f" for installation {inst_id}"
     return True, f"Verified GitHub App {app_id_str}{target} (installation token minted)."
 
 
@@ -274,8 +276,9 @@ def main(argv: list[str] | None = None) -> int:
     p_ver = sub.add_parser("verify", help="Verify a PEM key by minting a GitHub App installation token")
     p_ver.add_argument("path", type=Path, help="Path to PEM file, or - for stdin")
     p_ver.add_argument("--app-id", required=True)
-    p_ver.add_argument("--repo", default=None)
-    p_ver.add_argument("--installation-id", default=None)
+    target = p_ver.add_mutually_exclusive_group()
+    target.add_argument("--repo", default=None)
+    target.add_argument("--installation-id", default=None)
 
     args = parser.parse_args(argv)
     try:

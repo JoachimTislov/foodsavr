@@ -11,7 +11,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 spec = importlib.util.spec_from_file_location("rotate", Path(__file__).with_name("rotate.py"))
 rotate = importlib.util.module_from_spec(spec)
@@ -121,6 +121,47 @@ class GenerateTest(unittest.TestCase):
         value = rotate.generate(rotate.Secret("R", generate="random", length=40, alphabet="hex"))
         self.assertEqual(len(value), 40)
         self.assertTrue(set(value) <= set("0123456789abcdef"))
+
+    def test_random_values_run_validation(self):
+        for alphabet in ("hex", "urlsafe"):
+            with self.subTest(alphabet=alphabet), self.assertRaises(ValueError):
+                rotate.generate(rotate.Secret("R", generate="random", alphabet=alphabet, validate="github-app-key"))
+
+    def test_pem_prompt_disables_echo_before_reading_and_restores_it(self):
+        import termios
+
+        settings = [0, 0, 0, termios.ECHO]
+        with (
+            patch.object(rotate.sys, "stdin") as stdin,
+            patch.object(rotate.sys, "stderr"),
+            patch.object(termios, "tcgetattr", return_value=settings),
+            patch.object(termios, "tcsetattr") as set_attrs,
+        ):
+            stdin.fileno.return_value = 7
+
+            def read_header():
+                self.assertFalse(set_attrs.call_args.args[2][3] & termios.ECHO)
+                return "-----BEGIN PRIVATE KEY-----\n"
+
+            stdin.readline.side_effect = read_header
+            stdin.__iter__.return_value = iter(["test-body\n", "-----END PRIVATE KEY-----\n"])
+            self.assertEqual(
+                rotate._prompt_pem("APP_KEY"),
+                "-----BEGIN PRIVATE KEY-----\ntest-body\n-----END PRIVATE KEY-----\n",
+            )
+            set_attrs.assert_called_with(7, termios.TCSAFLUSH, settings)
+
+            stdin.readline.side_effect = KeyboardInterrupt
+            with self.assertRaises(KeyboardInterrupt):
+                rotate._prompt_pem("APP_KEY")
+            set_attrs.assert_called_with(7, termios.TCSAFLUSH, settings)
+
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "key.pem"
+                path.write_text("test-file-body")
+                stdin.readline.side_effect = None
+                stdin.readline.return_value = str(path)
+                self.assertEqual(rotate._prompt_pem("APP_KEY"), "test-file-body")
 
     def test_manual_prefers_env_then_prompt(self):
         secret = rotate.Secret("M")

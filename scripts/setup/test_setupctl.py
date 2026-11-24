@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
+
 import importlib.util
 import json
 import os
@@ -303,8 +306,6 @@ class ZeroArgDefaultsAndCliTest(unittest.TestCase):
             self.assertIn("-X", mock_run.call_args_list[1].args[0])
 
     def test_cli_ensure_branches_zero_args_interactive_and_concise_output(self):
-        from contextlib import redirect_stderr, redirect_stdout
-        from io import StringIO
 
         clean_env = {k: v for k, v in os.environ.items() if k not in setupctl.AGENT_ENV_VARS}
         # Non-TTY without --yes fails cleanly with exit 2.
@@ -370,6 +371,32 @@ class ZeroArgDefaultsAndCliTest(unittest.TestCase):
         self.assertIn("alice/foodsavr (full-channels): Created daily (from develop), weekly (from develop), stable (from weekly)", text)
         self.assertNotIn("abc1234", text)
         self.assertNotIn("{", text)
+
+    def test_interactive_mutations_keep_json_stdout_clean(self):
+        cases = (
+            ("ensure-branches", "ensure_branches", {"created": ["stable"]}, "Create stable"),
+            ("fork", "fork_repository", {"fork": "alice/foodsavr"}, "Fork"),
+            ("enable-actions", "enable_actions", {"already_enabled": False}, "Enable GitHub Actions"),
+        )
+        for command, method, result, prompt in cases:
+            with self.subTest(command=command):
+                out, err = StringIO(), StringIO()
+                with (
+                    patch.object(setupctl, "is_unattended_agent_env", return_value=False),
+                    patch.object(setupctl, "resolve_repo", return_value="alice/foodsavr"),
+                    patch.object(setupctl, "resolve_upstream", return_value="owner/foodsavr"),
+                    patch.object(setupctl, "resolve_topology", return_value="two-stage"),
+                    patch.object(setupctl, method, return_value=result),
+                    patch.object(setupctl.sys.stdin, "isatty", return_value=True),
+                    patch("builtins.input", return_value="y"),
+                    redirect_stdout(out),
+                    redirect_stderr(err),
+                ):
+                    self.assertEqual(setupctl.main([command, "-o", "json"]), 0)
+                self.assertEqual(json.loads(out.getvalue()), result)
+                self.assertIn(prompt, err.getvalue())
+                if command == "ensure-branches":
+                    self.assertIn("missing stable", err.getvalue())
 
 
 if __name__ == "__main__":

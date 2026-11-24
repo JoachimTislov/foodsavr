@@ -89,8 +89,13 @@ if [ -z "$topology" ] && [ -z "${TFVARS_FILE:-}" ]; then
   topology=single
 fi
 if [ -n "$topology" ]; then
-  branches="$(python3 "$root/scripts/setup/setupctl.py" topology "$topology")"
-  tf_args+=("-var=release_topology=$topology" "-var=channel_branches=$branches")
+  tf_args+=("-var=release_topology=$topology")
+  # A later tfvars assignment can change topology. Let Terraform derive the
+  # channels from the effective topology unless the file supplies them.
+  if [ -z "${TFVARS_FILE:-}" ]; then
+    branches="$(python3 "$root/scripts/setup/setupctl.py" topology "$topology")"
+    tf_args+=("-var=channel_branches=$branches")
+  fi
 fi
 [ -n "${DEFAULT_BRANCH:-}" ] && tf_args+=("-var=default_branch=$DEFAULT_BRANCH")
 [ -n "${AGENT_APP_ID:-}" ] && tf_args+=("-var=agent_app_id=$AGENT_APP_ID")
