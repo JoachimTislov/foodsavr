@@ -218,8 +218,11 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
       body: SafeArea(
         child: Column(
           children: [
+            // Fixed shares keep the preview visible when the panel is tall
+            // (short landscape windows, large text); the panel scrolls.
             if (camera != null)
               Expanded(
+                flex: 3,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -229,7 +232,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
                 ),
               ),
             Expanded(
-              flex: camera == null ? 1 : 0,
+              flex: camera == null ? 1 : 2,
               child: Center(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(Material3Config.spacing24),
