@@ -16,6 +16,7 @@ import sys
 import tempfile
 import unittest
 import urllib.error
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -590,6 +591,8 @@ class AgentctlTest(unittest.TestCase):
                     return subprocess.CompletedProcess(command, 0, stdout="base-sha\n", stderr="")
                 if command[0] == "fake":
                     return subprocess.CompletedProcess(command, 0, stdout=json.dumps({"session_id": "isolated-session"}), stderr="")
+                if command[:4] == ["git", "-C", str(kwargs.get("cwd")), "diff"]:
+                    return subprocess.CompletedProcess(command, 0, stdout=b"", stderr=b"")
                 return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
             output = io.StringIO()
@@ -615,11 +618,13 @@ class AgentctlTest(unittest.TestCase):
 
     def test_workflow_execution_uses_quota_by_default_and_stops_when_exhausted(self) -> None:
         module = load_agentctl_module()
-        workflow = json.loads(WORKFLOW.read_text())
+        workflow = json.loads((ROOT / ".agents/workflows/integrate-pr.json").read_text())
         workflow["steps"][0]["on_failure"] = "continue"
+        future = module.hu.utc_now() + timedelta(hours=1)
+        resets = [module.hu.iso_utc(future), module.hu.iso_utc(future + timedelta(hours=1))]
         quota = {
-            name: module.hu.HarnessUsageSnapshot(name, "ok", (module.hu.UsageWindow("5h", "5h", 99),))
-            for name in ("codex", "claude")
+            name: module.hu.HarnessUsageSnapshot(name, "ok", (module.hu.UsageWindow("5h", "5h", 99, resets_at=reset),))
+            for name, reset in zip(("codex", "claude"), resets)
         }
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -637,15 +642,126 @@ class AgentctlTest(unittest.TestCase):
                     path=str(path), provider="auto", execute=True, database=str(root / "knowledge.sqlite3"),
                 ))
 
-            self.assertEqual(status, 1)
+            self.assertEqual(status, 0)
             result = json.loads(output.getvalue())
             self.assertEqual(len(result["steps"]), 1)
-            self.assertIn("Manual step required", result["reason"])
+            self.assertEqual(result["status"], "unavailable")
+            self.assertEqual(result["reason"], "quota-exhausted")
+            self.assertEqual(result["failure_kind"], "quota_exhausted")
+            self.assertEqual(result["resets_at"], resets[0])
             self.assertEqual(result["steps"][0]["route_reason"], "all-providers-quota-exhausted")
             probe.assert_called_once()
             command.assert_not_called()
             ledger.assert_called_once()
             self.assertEqual(ledger.call_args.kwargs["reason"], result["reason"])
+            result_path = root / "runs" / result["run_id"] / "result.json"
+            review = subprocess.run(
+                [sys.executable, str(ROOT / "scripts/github/pr_review.py"), "record-review",
+                 "--pr", "1", "--head-sha", "a" * 40, "--bot", "--no-record",
+                 "--history", str(root / "history.jsonl"), "--workflow-result", str(result_path)],
+                capture_output=True, text=True, check=True,
+            )
+            self.assertEqual(json.loads(review.stdout)["attestation_marker"]["status"], "skipped")
+
+    def test_mid_run_quota_fails_over_or_preserves_partial_work(self) -> None:
+        module = load_agentctl_module()
+        workflow = {
+            "schema_version": 1, "id": "quota-test", "objective": "exercise quota recovery", "context": {},
+            "worktree": {"mode": "isolated"},
+            "steps": [{
+                "id": "run", "role": "writer", "prompt": "write safely", "providers": ["codex", "claude"],
+                "acceptance": ["command passes"], "acceptance_commands": ["true"], "on_failure": "retry",
+            }],
+            "limits": {"max_attempts": 1, "timeout_seconds": 5},
+            "permissions": {"filesystem": "workspace-write", "network": "none", "git": "read-only", "github": "none"},
+        }
+        first_reset = module.hu.utc_now() + timedelta(hours=1)
+        last_reset = first_reset + timedelta(hours=1)
+        quota = {
+            name: module.hu.HarnessUsageSnapshot(name, "ok", (module.hu.UsageWindow("5h", "5h", used),))
+            for name, used in (("codex", 10), ("claude", 20))
+        }
+        real_run = subprocess.run
+        for all_exhausted in (False, True):
+            with self.subTest(all_exhausted=all_exhausted), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                repo = root / "repo"
+                real_run(["git", "init", "-q", str(repo)], env=module_env(), check=True)
+                real_run(["git", "-C", str(repo), "config", "core.autocrlf", "false"], env=module_env(), check=True)
+                real_run(
+                    ["git", "-C", str(repo), "-c", "user.name=Test", "-c", "user.email=test@example.org",
+                     "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", "commit", "--allow-empty", "-qm", "base"],
+                    env=module_env(), check=True,
+                )
+                path = root / "workflow.json"
+                path.write_text(json.dumps(workflow))
+                policy_path = root / "policy.json"
+                policy_path.write_text(json.dumps({**module.load_json(module.POLICY), "filesystem": "workspace-write"}))
+                cache = root / "quota"
+                cache.mkdir()
+                for name in quota:
+                    (cache / f"{name}.json").write_text("{}")
+                called = []
+
+                def run(command, **kwargs):
+                    if command[0] == "codex":
+                        called.append("codex")
+                        (kwargs["cwd"] / "partial.txt").write_bytes(b"recover this\r\n")
+                        output = "\n".join([
+                            json.dumps({"type": "thread.started", "thread_id": "partial-codex"}),
+                            json.dumps({"type": "turn.failed", "error": {
+                                "code": "usage_limit_reached", "resets_at": int(last_reset.timestamp()),
+                            }}),
+                        ])
+                        return subprocess.CompletedProcess(command, 1, stdout=output, stderr="")
+                    if command[0] == "claude":
+                        called.append("claude")
+                        self.assertFalse((cache / "codex.json").exists())
+                        self.assertTrue((kwargs["cwd"] / "partial.txt").exists())
+                        output = json.dumps({
+                            "type": "result", "session_id": "fallback-claude",
+                            "result": "The issue mentions \"Usage limit reached\".",
+                        })
+                        stderr = f"Usage limit reached.\nResets at {module.hu.iso_utc(first_reset)}" if all_exhausted else ""
+                        return subprocess.CompletedProcess(command, int(all_exhausted), stdout=output, stderr=stderr)
+                    return real_run(command, **kwargs)
+
+                output = io.StringIO()
+                ledger = root / "ledger.jsonl"
+                with patch.dict(os.environ, {**module_env(), "AGENT_LEDGER_FILE": str(ledger)}, clear=True), \
+                     patch.object(module, "ROOT", repo), patch.object(module, "POLICY", policy_path), \
+                     patch.object(module, "QUOTA_CACHE", cache), patch.object(module, "INDEX", root / "sessions.jsonl"), \
+                     patch.object(module, "available_providers", side_effect=lambda names, specs: names), \
+                     patch.object(module, "provider_is_safe", return_value=True), \
+                     patch.object(module.hu, "probe_all", return_value=quota.copy()), \
+                     patch.object(module, "resolve_workflow_context", return_value=""), \
+                     patch.object(module.subprocess, "run", side_effect=run), contextlib.redirect_stdout(output):
+                    status = module.workflow_run(argparse.Namespace(
+                        path=str(path), provider="auto", execute=True, database=str(root / "knowledge.sqlite3"),
+                    ))
+
+                self.assertEqual(status, 0)
+                self.assertEqual(called, ["codex", "claude"])
+                result = json.loads(output.getvalue())
+                self.assertEqual(result["status"], "unavailable" if all_exhausted else "succeeded")
+                self.assertEqual(result["session_ids"], ["codex:partial-codex", "claude:fallback-claude"])
+                attempts = result["steps"][0]["attempts"]
+                self.assertEqual([(item["provider"], item["attempt"]) for item in attempts], [("codex", 1), ("claude", 2)])
+                self.assertEqual(attempts[0]["failure_kind"], "quota_exhausted")
+                artifact = json.loads(Path(attempts[0]["artifact"]).read_text())
+                self.assertEqual(artifact["resets_at"], module.hu.iso_utc(last_reset))
+                self.assertEqual(artifact["events"][-1]["failure_kind"], "quota_exhausted")
+                events = [json.loads(line) for line in Path(result["events"]).read_text().splitlines()]
+                self.assertTrue(any(event.get("failure_kind") == "quota_exhausted" for event in events))
+                self.assertIn(b"+recover this\r\n", Path(result["patch"]).read_bytes())
+                self.assertFalse(Path(result["worktree"]).exists())
+                self.assertEqual(json.loads(ledger.read_text())["status"], result["status"])
+                if all_exhausted:
+                    self.assertEqual(result["reason"], "quota-exhausted")
+                    self.assertEqual(result["resets_at"], module.hu.iso_utc(first_reset))
+                    self.assertFalse((cache / "claude.json").exists())
+                else:
+                    self.assertTrue((cache / "claude.json").exists())
 
     def test_execute_retries_and_records_attempt_outcomes(self) -> None:
         module = load_agentctl_module()
@@ -777,6 +893,69 @@ class AgentctlTest(unittest.TestCase):
             command, stdin = module.provider_command("claude", spec, prompt)
             self.assertEqual(stdin, prompt)
             self.assertNotIn(prompt, command)
+
+    def test_antigravity_caps_the_utf8_prompt_argument(self) -> None:
+        module = load_agentctl_module()
+        spec = module.provider_specs()["antigravity"]
+        prompt = "ø" * 65_535 + "a"
+        command, stdin = module.provider_command("antigravity", spec, prompt)
+        self.assertIsNone(stdin)
+        self.assertEqual(command[-2:], ["--print", prompt])
+        with self.assertRaisesRegex(ValueError, r"antigravity prompt is 131072 UTF-8 bytes.*131071"):
+            module.provider_command("antigravity", spec, prompt + "a")
+
+    def test_provider_artifact_classifies_structured_usage_errors(self) -> None:
+        module = load_agentctl_module()
+        reset = "2026-11-26T15:00:00Z"
+        cases = {
+            "antigravity": {"code": 429, "message": "Quota exceeded", "quotaResetTimeStamp": reset},
+            "claude": {"type": "result", "is_error": True, "result": f"You've hit your limit. Resets at {reset}"},
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            for provider, payload in cases.items():
+                with self.subTest(provider=provider):
+                    path = Path(directory) / f"{provider}.json"
+                    module.write_provider_artifact(path, provider, json.dumps(payload), 0, False, capture_verdict=True)
+                    artifact = json.loads(path.read_text())
+                    self.assertEqual(artifact["failure_kind"], "quota_exhausted")
+                    self.assertEqual(artifact["resets_at"], reset)
+                    self.assertNotIn("review_verdict", artifact)
+
+    def test_provider_artifact_ignores_quota_quotes_in_model_output(self) -> None:
+        module = load_agentctl_module()
+        output = json.dumps({
+            "type": "result", "is_error": True, "error": {"message": "invalid model requested"},
+            "result": "The issue says usage limit reached.",
+        }, indent=2)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "provider.json"
+            module.write_provider_artifact(path, "claude", output + "\nunrelated diagnostic", 1, False)
+            self.assertNotIn("failure_kind", json.loads(path.read_text()))
+
+    def test_workflow_reports_oversized_antigravity_prompt_as_a_failed_attempt(self) -> None:
+        module = load_agentctl_module()
+        workflow = json.loads((ROOT / ".agents/workflows/integrate-pr.json").read_text())
+        workflow["steps"] = [workflow["steps"][0]]
+        workflow["steps"][0]["prompt"] = "ø" * 65_536
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "workflow.json"
+            path.write_text(json.dumps(workflow))
+            output = io.StringIO()
+            with patch.object(module, "provider_is_safe", return_value=True), \
+                 patch.object(module.hu, "probe_all", return_value={}), \
+                 patch.object(module, "resolve_workflow_context", return_value=""), \
+                 patch.object(module.subprocess, "run") as run, \
+                 patch.object(module, "append_ledger_event", return_value="ledger#prompt-limit"), \
+                 contextlib.redirect_stdout(output):
+                status = module.workflow_run(argparse.Namespace(
+                    path=str(path), provider="antigravity", execute=True, database=str(root / "knowledge.sqlite3"),
+                ))
+            run.assert_not_called()
+            self.assertEqual(status, 1)
+            attempt = json.loads(output.getvalue())["steps"][0]["attempts"][0]
+            self.assertEqual(attempt["status"], "failed")
+            self.assertRegex(attempt["error"], r"antigravity prompt is \d+ UTF-8 bytes, exceeding its 131071-byte argv limit")
 
     def test_router_plan_has_a_local_policy_safe_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
