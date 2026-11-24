@@ -1,0 +1,1 @@
+{"commits": ["71bf6b9c2d81f1b3e769b86868eb0d9e963cfebc"], "event": "removed dead abstractions, unscoped getAll() reads, and fixed toFirestoreRest() string IDs (#357)", "issues": ["#357", "#429"], "session_id": "antigravity:b6480cd2-6f79-4b64-8c7a-1af322961391", "stream": "ledger", "timestamp": "2026-11-24T14:02:04+00:00"}

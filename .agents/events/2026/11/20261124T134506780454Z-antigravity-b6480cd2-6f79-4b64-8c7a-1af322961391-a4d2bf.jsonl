@@ -1,0 +1,1 @@
+{"commits": [], "harness": "antigravity", "issues": ["#357", "#429"], "provider": "google", "prs": [], "session_id": "antigravity:b6480cd2-6f79-4b64-8c7a-1af322961391", "sources": [], "started_at": "2026-11-24T13:45:06+00:00", "status": "active", "stream": "sessions", "summary": "Implement issue #357: remove dead abstractions and unscoped full-collection reads"}
