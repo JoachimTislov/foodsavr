@@ -217,10 +217,12 @@ jobs:
           node-version: '22'
       - name: Generate web platform files
         run: flutter create . --platforms web
+      - name: Start Firebase Emulators (background)
+        uses: ./.github/actions/start-firebase-emulators
+        with:
+          mode: start
       - name: Build web
         run: flutter build web --release
-      - name: Start Firebase Emulators
-        uses: ./.github/actions/start-firebase-emulators
       - name: Serve web build
         run: |
           npx -y serve build/web -l 4173 --no-clipboard &
@@ -233,6 +235,10 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium
+      - name: Wait for Firebase Emulators
+        uses: ./.github/actions/start-firebase-emulators
+        with:
+          mode: wait
       - name: Run Playwright smoke tests
         working-directory: test/e2e
         run: npx playwright test --project=smoke
@@ -267,19 +273,33 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-          # Gradle dependency cache: uncached runs hit Maven Central 429 rate limits.
-          cache: gradle
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
       - name: Set up Flutter app
         uses: ./.github/actions/setup-flutter-app
         with:
           flutter-version: "3.47.6"
           dotenv-content: "CI_TEST=1"
           write-dummy-google-services: "true"
+      - name: Start Firebase Emulators (background)
+        uses: ./.github/actions/start-firebase-emulators
+        with:
+          mode: start
+      - name: Cache Android AVD
+        id: avd-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-34-x86_64-google_apis-v1
       - name: Build development debug APK
         if: ${{ needs.changes.outputs.android == 'true' }}
         run: flutter build apk --flavor development --debug --dart-define=EMULATOR_HOST=10.0.2.2
-      - name: Start Firebase Emulators
+      - name: Wait for Firebase Emulators
         uses: ./.github/actions/start-firebase-emulators
+        with:
+          mode: wait
       - name: Run Android smoke and integration tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
         env:
@@ -288,11 +308,12 @@ jobs:
           api-level: 34
           arch: x86_64
           target: google_apis
+          force-avd-creation: ${{ steps.avd-cache.outputs.cache-hit != 'true' }}
           script: |
             [ "$RUN_ANDROID_SMOKE" != "true" ] || bash scripts/ci/android_smoke.sh
             adb reverse tcp:8080 tcp:8080
             adb reverse tcp:9099 tcp:9099
-            flutter test integration_test --flavor development --no-pub
+            flutter test integration_test/all_tests.dart --flavor development --no-pub
       - name: Upload emulator screenshots and video
         if: always()
         uses: actions/upload-artifact@v4

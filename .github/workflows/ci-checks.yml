@@ -123,6 +123,15 @@ jobs:
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed .
 
+      - name: Cache build_runner state
+        uses: actions/cache@v4
+        with:
+          path: .dart_tool/build
+          key: build-runner-${{ runner.os }}-3.47.6-${{ hashFiles('pubspec.lock', 'lib/**/*.dart', 'packages/**/*.dart') }}
+          restore-keys: |
+            build-runner-${{ runner.os }}-3.47.6-${{ hashFiles('pubspec.lock') }}-
+            build-runner-${{ runner.os }}-3.47.6-
+
       - name: Build generative code
         run: dart run build_runner build --delete-conflicting-outputs
 

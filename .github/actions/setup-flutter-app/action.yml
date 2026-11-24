@@ -87,6 +87,16 @@ runs:
           android/app/src/development/debug/google-services.json \
           > android/app/src/production/debug/google-services.json
 
+    - name: Cache build_runner state
+      if: inputs.run-build-runner == 'true'
+      uses: actions/cache@v4
+      with:
+        path: .dart_tool/build
+        key: build-runner-${{ runner.os }}-${{ inputs.flutter-version }}-${{ hashFiles('pubspec.lock', 'lib/**/*.dart', 'packages/**/*.dart') }}
+        restore-keys: |
+          build-runner-${{ runner.os }}-${{ inputs.flutter-version }}-${{ hashFiles('pubspec.lock') }}-
+          build-runner-${{ runner.os }}-${{ inputs.flutter-version }}-
+
     - name: Build generative code
       if: inputs.run-build-runner == 'true'
       shell: bash
