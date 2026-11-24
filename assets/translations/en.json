@@ -109,7 +109,16 @@
 		"createProduct": "Create Product",
 		"createShoppingList": "New Shopping List",
 		"expired": "Expired",
-		"expiredCount": "{count} expired items",
+		"expiredCount": {
+			"zero": "{count} expired items",
+			"one": "{count} expired item",
+			"other": "{count} expired items"
+		},
+		"expiredDaysAgo": {
+			"zero": "Expired {days} days ago",
+			"one": "Expired {days} day ago",
+			"other": "Expired {days} days ago"
+		},
 		"expiringSoon": "Expiring Soon",
 		"globalProducts": "Global Products",
 		"moveItems": "Move items between inventories",

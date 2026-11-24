@@ -134,11 +134,26 @@ void main() {
     expect(firstCardWidth(tester), cardWidth(400 - 48, 2));
   });
 
-  testWidgets('medium width shows three fixed-height columns', (tester) async {
+  testWidgets('medium width reserves three columns with a 128 dp minimum', (
+    tester,
+  ) async {
     await pump(tester, 700);
     expect(find.text('Quick Actions').hitTestable(), findsOneWidget);
     expect(firstCardWidth(tester), cardWidth(700 - 48, 3));
     expect(tester.getSize(find.byType(OverviewCard).first).height, 128);
+  });
+
+  testWidgets('medium overview cards grow at 2x text scaling', (tester) async {
+    await pump(tester, 700, textScale: 2);
+
+    expect(tester.takeException(), isNull);
+    final cards = find.byType(OverviewCard);
+    expect(cards, findsNWidgets(2));
+    for (final card in cards.evaluate()) {
+      final size = tester.getSize(find.byWidget(card.widget));
+      expect(size.width, closeTo(cardWidth(700 - 48, 3), 0.01));
+      expect(size.height, greaterThan(128));
+    }
   });
 
   testWidgets('expanded width uses a two-thirds and one-third split', (

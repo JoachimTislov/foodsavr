@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'plural_translation_keys.dart';
+
 final _trMethodRegex = RegExp(r'''['"]([^'"]+)['"]\.tr(?:With)?\s*\(''');
 final _trFunctionRegex = RegExp(r'''(?:\b|_)tr\s*\(\s*['"]([^'"]+)['"]''');
 
@@ -74,6 +76,7 @@ Set<String> _extractUsedKeys(
       if (shouldIgnore) continue;
 
       final content = entity.readAsStringSync();
+      usedKeys.addAll(pluralTranslationKeys(content));
       for (final match in _trMethodRegex.allMatches(content)) {
         usedKeys.add(match.group(1)!);
       }

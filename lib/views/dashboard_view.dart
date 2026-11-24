@@ -74,8 +74,7 @@ class DashboardView extends WatchingWidget {
       style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
     );
 
-    // Compact keeps two square-ish columns, Medium three fixed-height columns,
-    // Expanded stacks the cards in the side column.
+    // Medium and Expanded let cards grow beyond their minimum heights.
     final overviewGrid = isExpanded
         ? Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -89,23 +88,40 @@ class DashboardView extends WatchingWidget {
               ],
             ],
           )
-        : GridView(
+        : windowSize.isCompact
+        ? GridView(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: windowSize.isCompact
-                ? const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 1.3,
-                  )
-                : const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    mainAxisExtent: 128,
-                  ),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1.3,
+            ),
             children: overviewCards,
+          )
+        : LayoutBuilder(
+            builder: (context, constraints) {
+              const columns = 3;
+              const spacing = 12.0;
+              final cardWidth =
+                  (constraints.maxWidth - spacing * (columns - 1)) / columns;
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: [
+                  for (final card in overviewCards)
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minWidth: cardWidth,
+                        maxWidth: cardWidth,
+                        minHeight: 128,
+                      ),
+                      child: card,
+                    ),
+                ],
+              );
+            },
           );
 
     final quickActionsTitle = Semantics(
