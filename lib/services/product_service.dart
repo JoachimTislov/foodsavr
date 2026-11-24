@@ -259,25 +259,25 @@ class ProductService {
     int expiringSoonDays = PreferencesConfig.defaultExpiringSoonDays,
   }) async {
     final products = await getProducts(userId);
-    return products
-        .where(
-          (p) => p.isExpiringSoonWithin(expiringSoonDays) || p.isExpiringToday,
-        )
-        .toList()
-      ..sort(
-        (a, b) =>
-            (a.daysUntilExpiration ?? 0).compareTo(b.daysUntilExpiration ?? 0),
-      );
+    final upcoming = [
+      for (final product in products)
+        if (product.daysUntilFirstExpiry(expired: false) case final int days
+            when days == 0 || days <= expiringSoonDays)
+          (product: product, days: days),
+    ]..sort((a, b) => a.days.compareTo(b.days));
+    return [for (final entry in upcoming) entry.product];
   }
 
   /// Returns products for [userId] with at least one expired quantity, oldest
   /// expiry first.
   Future<List<Product>> getExpired(String? userId) async {
     final products = await getProducts(userId);
-    return products.where((p) => p.isExpired).toList()..sort(
-      (a, b) =>
-          (a.daysUntilExpiration ?? 0).compareTo(b.daysUntilExpiration ?? 0),
-    );
+    final expired = [
+      for (final product in products)
+        if (product.daysUntilFirstExpiry(expired: true) case final int days)
+          (product: product, days: days),
+    ]..sort((a, b) => a.days.compareTo(b.days));
+    return [for (final entry in expired) entry.product];
   }
 
   /// Fetches all global products (catalog)

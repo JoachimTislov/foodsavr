@@ -76,11 +76,7 @@ class DashboardController extends ChangeNotifier {
     if (generation != _loadGeneration) return;
 
     _expired = results[0] as List<Product>;
-    final expiredIds = {for (final p in _expired) p.id};
-    _expiringSoon = [
-      for (final p in results[1] as List<Product>)
-        if (!expiredIds.contains(p.id)) p,
-    ];
+    _expiringSoon = results[1] as List<Product>;
     _inventories = results[2] as List<Collection>;
     notifyListeners();
   }

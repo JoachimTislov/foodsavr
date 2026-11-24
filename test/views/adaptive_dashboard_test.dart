@@ -18,6 +18,7 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../helpers/in_memory_preferences_repository.dart';
+import '../helpers/test_translation_loader.dart';
 
 class _Auth extends Mock implements IAuthService {}
 
@@ -26,8 +27,10 @@ class _Products extends Mock implements ProductService {}
 class _Collections extends Mock implements CollectionService {}
 
 void main() {
+  late TestTranslationLoader translations;
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    translations = TestTranslationLoader();
     SharedPreferences.setMockInitialValues({});
     SharedPreferencesAsyncPlatform.instance =
         InMemorySharedPreferencesAsync.empty();
@@ -86,7 +89,15 @@ void main() {
       EasyLocalization(
         supportedLocales: const [Locale('en')],
         path: 'assets/translations',
-        child: const MaterialApp(home: Scaffold(body: DashboardView())),
+        assetLoader: translations,
+        child: Builder(
+          builder: (context) => MaterialApp(
+            localizationsDelegates: context.localizationDelegates,
+            supportedLocales: context.supportedLocales,
+            locale: context.locale,
+            home: const Scaffold(body: DashboardView()),
+          ),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -101,11 +112,13 @@ void main() {
 
   testWidgets('compact width keeps two columns', (tester) async {
     await pump(tester, 400);
+    expect(find.text('Quick Actions').hitTestable(), findsOneWidget);
     expect(firstCardWidth(tester), cardWidth(400 - 48, 2));
   });
 
   testWidgets('medium width shows three fixed-height columns', (tester) async {
     await pump(tester, 700);
+    expect(find.text('Quick Actions').hitTestable(), findsOneWidget);
     expect(firstCardWidth(tester), cardWidth(700 - 48, 3));
     expect(tester.getSize(find.byType(OverviewCard).first).height, 128);
   });
@@ -114,6 +127,7 @@ void main() {
     tester,
   ) async {
     await pump(tester, 1600);
+    expect(find.text('Quick Actions').hitTestable(), findsOneWidget);
     final content = tester.getSize(find.byType(ContentConstraint));
     expect(content.width, 1600 - 64);
     final column = tester.getSize(

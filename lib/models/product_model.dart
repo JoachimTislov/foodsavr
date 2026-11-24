@@ -173,6 +173,18 @@ abstract class Product with _$Product {
     });
   }
 
+  /// Days to the oldest expired entry or the nearest non-expired entry.
+  int? daysUntilFirstExpiry({required bool expired}) {
+    int? first;
+    for (final entry in expiries) {
+      final days = entry.daysUntilExpiration;
+      if ((days < 0) == expired && (first == null || days < first)) {
+        first = days;
+      }
+    }
+    return first;
+  }
+
   // Soonest days until expiration (negative if expired)
   int? get daysUntilExpiration {
     if (expiries.isEmpty) return null;

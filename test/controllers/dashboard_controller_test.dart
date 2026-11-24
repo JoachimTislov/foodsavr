@@ -81,37 +81,38 @@ void main() {
   });
 
   group('DashboardController', () {
-    test('splits expired from expiring soon, oldest expired first', () async {
-      when(() => mockAuthService.getUserId()).thenReturn('user_1');
-      when(() => mockProductService.getExpired('user_1')).thenAnswer(
-        (_) async => [
-          _productExpiringIn('ten', -10),
-          _productExpiringIn('one', -1),
-        ],
-      );
-      when(
-        () => mockProductService.getExpiringSoon(
-          'user_1',
-          expiringSoonDays: any(named: 'expiringSoonDays'),
-        ),
-      ).thenAnswer(
-        (_) async => [
-          _productExpiringIn('one', -1),
-          _productExpiringIn('three', 3),
-        ],
-      );
-      when(
-        () => mockCollectionService.getCollectionsForUser(
-          'user_1',
-          type: CollectionType.inventory,
-        ),
-      ).thenAnswer((_) async => []);
+    test(
+      'keeps products with both expired and upcoming entries in both lists',
+      () async {
+        final mixed = _productExpiringIn('mixed', -1).copyWith(
+          expiries: [
+            ..._productExpiringIn('past', -1).expiries,
+            ..._productExpiringIn('tomorrow', 1).expiries,
+          ],
+        );
+        when(() => mockAuthService.getUserId()).thenReturn('user_1');
+        when(
+          () => mockProductService.getExpired('user_1'),
+        ).thenAnswer((_) async => [_productExpiringIn('ten', -10), mixed]);
+        when(
+          () => mockProductService.getExpiringSoon(
+            'user_1',
+            expiringSoonDays: any(named: 'expiringSoonDays'),
+          ),
+        ).thenAnswer((_) async => [mixed, _productExpiringIn('three', 3)]);
+        when(
+          () => mockCollectionService.getCollectionsForUser(
+            'user_1',
+            type: CollectionType.inventory,
+          ),
+        ).thenAnswer((_) async => []);
 
-      await controller.load();
+        await controller.load();
 
-      expect(controller.expired.map((p) => p.id), ['ten', 'one']);
-      expect(controller.expiringSoon.map((p) => p.id), ['three']);
-    });
+        expect(controller.expired.map((p) => p.id), ['ten', 'mixed']);
+        expect(controller.expiringSoon.map((p) => p.id), ['mixed', 'three']);
+      },
+    );
 
     test('initial state is empty', () {
       expect(controller.expiringSoon, isEmpty);

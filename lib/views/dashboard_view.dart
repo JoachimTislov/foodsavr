@@ -105,6 +105,14 @@ class DashboardView extends WatchingWidget {
             children: overviewCards,
           );
 
+    final quickActionsTitle = Semantics(
+      header: true,
+      child: Text(
+        'dashboard.actions'.tr(),
+        style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+      ),
+    );
+
     final quickActions = Row(
       children: [
         DashboardActionChip(
@@ -156,18 +164,25 @@ class DashboardView extends WatchingWidget {
           ],
         ),
         if (isExpanded)
-          Row(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              FilledButton.tonalIcon(
-                onPressed: createProduct,
-                icon: const Icon(Icons.add_box_outlined),
-                label: Text('dashboard.createProduct'.tr()),
-              ),
-              const SizedBox(width: 12),
-              FilledButton.icon(
-                onPressed: createShoppingList,
-                icon: const Icon(Icons.shopping_cart_outlined),
-                label: Text('dashboard.createShoppingList'.tr()),
+              quickActionsTitle,
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  FilledButton.tonalIcon(
+                    onPressed: createProduct,
+                    icon: const Icon(Icons.add_box_outlined),
+                    label: Text('dashboard.createProduct'.tr()),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton.icon(
+                    onPressed: createShoppingList,
+                    icon: const Icon(Icons.shopping_cart_outlined),
+                    label: Text('dashboard.createShoppingList'.tr()),
+                  ),
+                ],
               ),
             ],
           ),
@@ -201,12 +216,7 @@ class DashboardView extends WatchingWidget {
               const SizedBox(height: 12),
               overviewGrid,
               const SizedBox(height: 24),
-              Text(
-                'dashboard.actions'.tr(),
-                style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              quickActionsTitle,
               const SizedBox(height: 12),
               quickActions,
             ],
