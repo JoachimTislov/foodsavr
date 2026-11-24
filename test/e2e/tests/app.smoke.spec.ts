@@ -55,9 +55,11 @@ test('app does not hit uncaught page errors or console errors', async ({ page })
 test('landing renders and auth view is reachable', async ({ page }) => {
   await openApp(page);
   await waitForDashboard(page);
-  // Open the profile route directly: Flutter's tab transition can leave
-  // inactive branch semantics in place while the destination is mounting.
-  await openApp(page, '/#/settings/profile');
+  const settings = page.getByRole('tab', { name: 'Settings' });
+  await settings.click();
+  await expect(settings).toHaveAttribute('aria-selected', 'true');
+  // The settings tile groups the account name and email in one semantics node.
+  await page.getByText('bob@example.com').dispatchEvent('click');
   await expect(page.getByText('bob@example.com', { exact: true })).toBeVisible();
   await page.getByText('Log Out', { exact: true }).click();
   await expect(page.getByText('Inventory Login')).toBeVisible();

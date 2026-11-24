@@ -1,0 +1,1 @@
+{"event": "Verified all five Web smoke tests with Auth and Firestore emulators. The final test uses the Settings tab and profile tile, preserves logout and sign-in assertions, and works with the existing CI server. make check passed.", "prs": ["#421"], "session_id": "codex:01a20a6e-a961-7820-a9e7-b103a506c170", "stream": "ledger", "timestamp": "2026-11-24T06:55:47+00:00"}
