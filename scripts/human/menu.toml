@@ -223,7 +223,7 @@ target = "promote"
 step = "promote.yml"
 needs = "gh login that may push the channel branch; DISPATCH=1 uses the Actions token instead"
 vars = [
-  { name = "CHANNEL", prompt = "Channel", choices = ["nightly", "beta", "stable", "release"], required = true },
+  { name = "CHANNEL", prompt = "Channel", choices = ["daily", "weekly", "stable"], required = true },
   { name = "SOURCE", prompt = "Source branch (empty: the channel's default)" },
   { name = "DISPATCH", prompt = "Run promote.yml on Actions instead of locally (1 or empty)" },
 ]
@@ -248,7 +248,7 @@ title = "Produce the web release candidate artifact"
 target = "release-candidate"
 step = "release-gated.yml"
 needs = "gh login"
-vars = [{ name = "REF", prompt = "Ref (empty: release)" }]
+vars = [{ name = "REF", prompt = "Ref (empty: stable)" }]
 
 [[entry]]
 id = "deploy-web"
@@ -283,7 +283,7 @@ target = "android-apk"
 step = "android-drive-test.yml"
 needs = "gh login; with LOCAL=1 GOOGLE_DRIVE_FOLDER_ID, GOOGLE_DRIVE_OAUTH_JSON and lib/firebase_options.dart"
 vars = [
-  { name = "REF", prompt = "Ref (empty: release)" },
+  { name = "REF", prompt = "Ref (empty: stable)" },
   { name = "LOCAL", prompt = "Build and upload from this machine (1 or empty)" },
 ]
 
@@ -302,7 +302,7 @@ title = "Publish the documentation to GitHub Pages"
 target = "docs-publish"
 step = "docs-pages.yml / deploy"
 needs = "gh login; Pages publishing only works from Actions"
-vars = [{ name = "REF", prompt = "Ref (empty: release)" }]
+vars = [{ name = "REF", prompt = "Ref (empty: stable)" }]
 
 # --- monitoring and healing -------------------------------------------------
 

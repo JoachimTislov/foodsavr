@@ -39,9 +39,9 @@ build-remote:
 
 # Fast-forward a release channel (promote.yml) with scripts/github/promote_release.py.
 # Dry run unless APPLY=1 (pushes with your gh login; DISPATCH=1 runs promote.yml instead).
-# Usage: make promote CHANNEL=<nightly|beta|stable|release> [SOURCE=<branch>] [APPLY=1] [DISPATCH=1]
+# Usage: make promote CHANNEL=<daily|weekly|stable> [SOURCE=<branch>] [APPLY=1] [DISPATCH=1]
 promote:
-	@case "$(CHANNEL)" in nightly|beta|stable|release) ;; *) echo "Usage: make promote CHANNEL=<nightly|beta|stable|release> [SOURCE=<branch>] [APPLY=1] [DISPATCH=1]" >&2; exit 1;; esac
+	@case "$(CHANNEL)" in daily|weekly|stable) ;; *) echo "Usage: make promote CHANNEL=<daily|weekly|stable> [SOURCE=<branch>] [APPLY=1] [DISPATCH=1]" >&2; exit 1;; esac
 	@if [ -n "$(DISPATCH)" ]; then \
 		python3 scripts/github/dispatch_workflow.py promote --ref "$${WORKFLOW_REF:-develop}" \
 			--input channel="$(CHANNEL)" --input source="$(or $(SOURCE),default)" --input dry_run=$(if $(APPLY_FLAG),false,true); \
@@ -62,34 +62,34 @@ deploy-web:
 		$(if $(EXPIRES),--expires "$(EXPIRES)") $(if $(WEB_ENV_FILE),--web-env-file "$(WEB_ENV_FILE)") \
 		$(if $(YES),--yes) $(if $(PLAN),--plan)
 
-# Release candidate (release-gated.yml) only reacts to push-triggered Web Builds on `release`;
+# Release candidate (release-gated.yml) only reacts to push-triggered Web Builds on `stable`;
 # this dispatches Web Build, whose `web-build` artifact is the candidate (gh run download).
-# Usage: make release-candidate [REF=release]
+# Usage: make release-candidate [REF=stable]
 release-candidate:
-	@python3 scripts/github/dispatch_workflow.py build-web --ref "$(or $(REF),release)"
+	@python3 scripts/github/dispatch_workflow.py build-web --ref "$(or $(REF),stable)"
 	@echo "Release (Gated) does not react to dispatched runs; download the candidate with: gh run download <run-id> -n web-build"
 
 # Android test APK to Google Drive (android-drive-test.yml). Dispatches the workflow, or
 # with LOCAL=1 builds with CI's pinned Flutter and uploads from this machine, which needs
 # GOOGLE_DRIVE_FOLDER_ID and GOOGLE_DRIVE_OAUTH_JSON in the environment and your local
 # lib/firebase_options.dart.
-# Usage: make android-apk [REF=release] [LOCAL=1]
+# Usage: make android-apk [REF=stable] [LOCAL=1]
 android-apk:
 	@if [ -n "$(LOCAL)" ]; then \
 		export PATH="$$(dirname "$$(python3 scripts/ci/local_ci.py --flutter-bin)"):$$PATH"; \
 		bash scripts/release/android_drive.sh build && bash scripts/release/android_drive.sh upload; \
 	else \
-		python3 scripts/github/dispatch_workflow.py android-drive-test --ref "$(or $(REF),release)" --input ref="$(or $(REF),release)"; \
+		python3 scripts/github/dispatch_workflow.py android-drive-test --ref "$(or $(REF),stable)" --input ref="$(or $(REF),stable)"; \
 	fi
 
 # Documentation site: build locally (the docs-pages.yml build job), or publish to GitHub
-# Pages, which only works from Actions (dispatches docs-pages.yml on release).
-# Usage: make docs-build | make docs-publish [REF=release]
+# Pages, which only works from Actions (dispatches docs-pages.yml on stable).
+# Usage: make docs-build | make docs-publish [REF=stable]
 docs-build:
 	@python3 scripts/ci/local_ci.py --group docs
 
 docs-publish:
-	@python3 scripts/github/dispatch_workflow.py docs-pages --ref "$(or $(REF),release)"
+	@python3 scripts/github/dispatch_workflow.py docs-pages --ref "$(or $(REF),stable)"
 
 # Poll one environment's usage against its level limits (deployment-level.yml) with your
 # gcloud login. Usage: make deployment-poll ENV=<environment>
