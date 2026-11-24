@@ -1,10 +1,28 @@
 name: Start Firebase Emulators
 description: Write permissive CI emulator rules/config and start Auth + Firestore emulators.
 
+inputs:
+  mode:
+    description: "Execution mode: start-and-wait (default), start (background without waiting), or wait (wait for already-started emulators)"
+    required: false
+    default: "start-and-wait"
+
 runs:
   using: composite
   steps:
+    - name: Cache Firebase CLI and emulator binaries
+      if: inputs.mode != 'wait'
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.npm
+          ~/.cache/firebase/emulators
+        key: firebase-emulators-${{ runner.os }}-15
+        restore-keys: |
+          firebase-emulators-${{ runner.os }}-
+
     - name: Start Firebase Emulators
+      if: inputs.mode != 'wait'
       shell: bash
       run: |
         cat > firebase.json <<'EOT'
@@ -29,8 +47,22 @@ runs:
           }
         }
         EOT
-        npx -y firebase-tools@latest emulators:start --project demo-project &
-        for i in $(seq 1 60); do
-          curl -s http://localhost:4000 > /dev/null && break
+        nohup npx -y firebase-tools@15 emulators:start --project demo-project > firebase-emulators.log 2>&1 < /dev/null &
+
+    - name: Wait for Firebase Emulators
+      if: inputs.mode != 'start'
+      shell: bash
+      run: |
+        emulator_up=false
+        for i in $(seq 1 90); do
+          if curl -s http://localhost:4000 > /dev/null && curl -s http://localhost:8080 > /dev/null && curl -s http://localhost:9099 > /dev/null; then
+            emulator_up=true
+            break
+          fi
           sleep 2
         done
+        if [ "$emulator_up" != "true" ]; then
+          echo "Firebase emulators did not become ready in time" >&2
+          tail -n 100 firebase-emulators.log >&2 || true
+          exit 1
+        fi
