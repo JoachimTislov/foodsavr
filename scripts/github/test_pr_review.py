@@ -258,6 +258,8 @@ class PrepareReviewTest(unittest.TestCase):
             self.assertEqual(verify["role"], "code-reviewer")
             self.assertTrue(any("merge gate verifies" in item for item in verify["acceptance"]))
             self.assertTrue(plan[2]["objective"].startswith("Review a pull request's code changes"))
+            self.assertIn("never block only because the diff is truncated", verify["prompt"])
+            self.assertNotIn("pr-merge", plan[2]["context"].get("skills", []))
 
             workflow["context"]["files"] = []
             plan = pr_review.select_review_plan(workflow, "fast", ["codex"], specs,
