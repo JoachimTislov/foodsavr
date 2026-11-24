@@ -281,7 +281,7 @@ group = "release"
 title = "Deliver the Android test APK to Google Drive"
 target = "android-apk"
 step = "android-drive-test.yml"
-needs = "gh login; with LOCAL=1 GOOGLE_DRIVE_FOLDER_ID, GOOGLE_DRIVE_OAUTH_JSON and lib/firebase_options.dart"
+needs = "gh login; with LOCAL=1 GOOGLE_DRIVE_FOLDER_ID and GOOGLE_DRIVE_OAUTH_JSON"
 vars = [
   { name = "REF", prompt = "Ref (empty: stable)" },
   { name = "LOCAL", prompt = "Build and upload from this machine (1 or empty)" },

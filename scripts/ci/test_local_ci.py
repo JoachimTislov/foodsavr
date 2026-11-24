@@ -84,7 +84,6 @@ class LocalCiTest(unittest.TestCase):
             def run(command, **kwargs):
                 commands.append(command)
                 self.assertTrue((ci.ROOT / "assets/.env").is_file())
-                self.assertIn("DefaultFirebaseOptions", (ci.ROOT / "lib/firebase_options.dart").read_text())
                 if command == ["flutter", "pub", "get"]:
                     analysis.write_text("rewritten")
                 else:
@@ -107,16 +106,11 @@ class LocalCiTest(unittest.TestCase):
 
     def test_dart_workspace_preserves_existing_ci_files(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(ci, "ROOT", Path(directory)):
-            (ci.ROOT / "lib").mkdir()
             (ci.ROOT / "assets").mkdir()
-            options = ci.ROOT / "lib/firebase_options.dart"
             dotenv = ci.ROOT / "assets/.env"
-            options.write_text("custom options")
             dotenv.write_text("FOO=bar\n")
             with ci.dart_workspace():
-                self.assertEqual(options.read_text(), "custom options")
                 self.assertEqual(dotenv.read_text(), "FOO=bar\n")
-            self.assertEqual(options.read_text(), "custom options")
             self.assertEqual(dotenv.read_text(), "FOO=bar\n")
 
     def test_flutter_bin_prints_selected_executable(self):

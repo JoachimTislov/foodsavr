@@ -1,7 +1,4 @@
-.PHONY: firebase-options deploy-firestore-rules start-firebase-emulators kill-firebase-emulators view-emulator locale-seed rules-test remote-seed 
-firebase-options:
-	@base64 -w 0 lib/firebase_options.dart | gh secret set FIREBASE_OPTIONS_B64
-	@base64 -w 0 lib/firebase_options.dart | gh secret set FIREBASE_OPTIONS_B64 --app dependabot
+.PHONY: deploy-firestore-rules start-firebase-emulators kill-firebase-emulators view-emulator locale-seed rules-test remote-seed
 
 # Manual deploy of the tracked firestore.rules (ADR 0010) to the Firebase
 # project of one environment in deploy/instance.yaml. Deploys stay manual until

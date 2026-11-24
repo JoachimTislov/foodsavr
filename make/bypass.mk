@@ -72,8 +72,7 @@ release-candidate:
 
 # Android test APK to Google Drive (android-drive-test.yml). Dispatches the workflow, or
 # with LOCAL=1 builds with CI's pinned Flutter and uploads from this machine, which needs
-# GOOGLE_DRIVE_FOLDER_ID and GOOGLE_DRIVE_OAUTH_JSON in the environment and your local
-# lib/firebase_options.dart.
+# GOOGLE_DRIVE_FOLDER_ID and GOOGLE_DRIVE_OAUTH_JSON in the environment.
 # Usage: make android-apk [REF=stable] [LOCAL=1]
 android-apk:
 	@if [ -n "$(LOCAL)" ]; then \

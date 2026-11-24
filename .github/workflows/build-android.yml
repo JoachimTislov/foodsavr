@@ -44,7 +44,6 @@ jobs:
         uses: ./.github/actions/setup-flutter-app
         with:
           flutter-version: "3.47.6"
-          firebase-options-b64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
           write-dummy-google-services: "true"
 
       - name: Build development debug APK

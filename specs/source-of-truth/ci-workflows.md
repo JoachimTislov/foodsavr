@@ -17,9 +17,7 @@ Absorbed from `.github/workflows/` @ 103a70f:
 
 Every automated step has a manual bypass that runs the same script locally with your own login, or dispatches the workflow: `make human LIST=1` lists them with what each needs from you (`scripts/human/menu.toml` is the single source; `scripts/human/test_humanctl.py` fails when an entry does not resolve). Examples: `make pr-merge` (merges on green required checks and `Validation result`, regardless of the adaptive review tier, bound to the verified head SHA), `make validate`, `make promote`, `make deploy-web`.
 
-Workflow secrets fail gracefully. Missing or malformed `FIREBASE_OPTIONS_B64` uses a compile-only placeholder
-for CI builds and records one summary line. You need valid Firebase options
-for Android delivery. Missing `CODECOV_TOKEN` skips the optional coverage upload
+Workflow secrets fail gracefully. Missing `CODECOV_TOKEN` skips the optional coverage upload
 with a warning. Release and Drive credentials remain explicit prerequisites;
 their jobs stop with a named missing-secret error before attempting a publish.
 
@@ -86,13 +84,12 @@ an Actions artifact, publish to Play, or write an APK into the repository. The
 automatic Android delivery workflow and Play internal deployment have been
 removed.
 The workflow requires `GOOGLE_DRIVE_FOLDER_ID` and
-`GOOGLE_DRIVE_OAUTH_JSON`. It uses the existing `FIREBASE_OPTIONS_B64` Actions
-secret for the Firebase test project and derives the matching native Android
-configuration from it. `ANDROID_ENV_B64` may provide the bundled runtime
-configuration; when absent, the workflow uses non-secret API endpoint defaults.
-The Drive job requires the Firebase secret because a compile-only placeholder
-would not be a usable remote-backend APK. It uses the debug signing key
-intended for direct test installation.
+`GOOGLE_DRIVE_OAUTH_JSON`. It reads the tracked `lib/firebase_options.dart`
+for the Firebase test project and derives the matching native Android
+configuration from it (`scripts/ci/write_android_test_config.sh`).
+`ANDROID_ENV_B64` may provide the bundled runtime configuration; when absent,
+the workflow uses non-secret API endpoint defaults. It uses the debug signing
+key intended for direct test installation.
 
 For one-time interactive setup, run `bash scripts/release/setup_drive_deployment.sh`.
 It lists the available Drive folders and lets you select one, authorizes the
@@ -129,7 +126,7 @@ single-line encoded files, for example `base64 -w 0 <file>` on Linux.
 | `GOOGLE_DRIVE_OAUTH_JSON` | OAuth JSON containing `client_id`, `client_secret`, and `refresh_token` for a user who can write to the folder. |
 | `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | Play publishing service-account JSON with access to this app's testing releases. |
 
-The existing `FIREBASE_OPTIONS_B64` secret remains in use for normal CI builds.
+Normal CI builds use the tracked `lib/firebase_options.dart`.
 Drive authorization must allow file creation in the selected folder. Use a
 durable OAuth grant with the Drive API enabled; the workflow refreshes access
 tokens automatically. It preserves the folder's access settings and doesn't
