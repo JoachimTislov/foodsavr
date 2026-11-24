@@ -68,6 +68,7 @@ NON_SECRET_ENV_KEYS = {
     "FLUTTER_ROOT", "ANDROID_HOME", "ANDROID_SDK_ROOT", "JAVA_HOME",
 }
 NON_SECRET_ENV_PREFIXES = ("XDG_", "LC_")
+MAX_REVIEW_OUTPUT_BYTES = 16 * 1024
 _VERSION_CACHE: dict[tuple[tuple[str, ...], str], str | None] = {}
 
 
@@ -3061,55 +3062,108 @@ def provider_command(
     return [*command, prompt], None
 
 
-def extract_session_id(output: str) -> str | None:
-    keys = ("session_id", "sessionId", "sessionID", "thread_id", "threadId", "conversation_id", "conversationId")
+def parse_provider_payloads(output: str) -> list[dict[str, Any]]:
+    stripped = output.strip()
+    if not stripped:
+        return []
+    try:
+        whole = json.loads(stripped)
+        if isinstance(whole, dict):
+            return [whole]
+        if isinstance(whole, list):
+            return [item for item in whole if isinstance(item, dict)]
+    except json.JSONDecodeError:
+        pass
+
+    payloads: list[dict[str, Any]] = []
     for line in output.splitlines():
+        line_stripped = line.strip()
+        if not line_stripped:
+            continue
         try:
-            value = json.loads(line)
+            value = json.loads(line_stripped)
         except json.JSONDecodeError:
             continue
         if isinstance(value, dict):
-            candidates_dicts = [value]
-            for nested_key in ("result", "data", "metadata", "session"):
-                nested = value.get(nested_key)
-                if isinstance(nested, dict):
-                    candidates_dicts.append(nested)
-            for item in candidates_dicts:
-                for key in keys:
-                    candidate = item.get(key)
-                    if isinstance(candidate, str) and candidate:
-                        return candidate
+            payloads.append(value)
+        elif isinstance(value, list):
+            payloads.extend(item for item in value if isinstance(item, dict))
+    if payloads:
+        return payloads
+
+    decoder = json.JSONDecoder()
+    idx = 0
+    length = len(output)
+    while idx < length:
+        brace = output.find("{", idx)
+        bracket = output.find("[", idx)
+        candidates = [pos for pos in (brace, bracket) if pos != -1]
+        if not candidates:
+            break
+        start = min(candidates)
+        try:
+            value, end = decoder.raw_decode(output, start)
+        except json.JSONDecodeError:
+            idx = start + 1
+            continue
+        if isinstance(value, dict):
+            payloads.append(value)
+        elif isinstance(value, list):
+            payloads.extend(item for item in value if isinstance(item, dict))
+        idx = end
+    return payloads
+
+
+def _session_id_from_payload(value: dict[str, Any]) -> str | None:
+    keys = ("session_id", "sessionId", "sessionID", "thread_id", "threadId", "conversation_id", "conversationId")
+    candidates_dicts = [value]
+    for nested_key in ("result", "data", "metadata", "session"):
+        nested = value.get(nested_key)
+        if isinstance(nested, dict):
+            candidates_dicts.append(nested)
+    for item in candidates_dicts:
+        for key in keys:
+            candidate = item.get(key)
+            if isinstance(candidate, str) and candidate:
+                return candidate
+    return None
+
+
+def extract_session_id(output: str) -> str | None:
+    for value in parse_provider_payloads(output):
+        candidate = _session_id_from_payload(value)
+        if candidate:
+            return candidate
     match = re.search(r"\b[0-9a-f]{8}-[0-9a-f-]{27,}\b", output, re.I)
     return match.group(0) if match else None
 
 
-def extract_usage(output: str) -> dict[str, int | float]:
-    """Normalize common provider usage fields without retaining provider payloads."""
-    snapshots: dict[str, dict[str, int | float]] = {}
-    latest: dict[str, int | float] | None = None
+def _usage_snapshot_from_payload(value: dict[str, Any]) -> dict[str, int | float]:
     aliases = {
         "input_tokens": ("input_tokens", "prompt_tokens"),
         "output_tokens": ("output_tokens", "completion_tokens"),
         "total_tokens": ("total_tokens",),
         "cost_usd": ("cost_usd", "cost"),
     }
-    for line in output.splitlines():
-        try:
-            value = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(value, dict):
-            continue
-        usage = value.get("usage") if isinstance(value.get("usage"), dict) else value
-        if not isinstance(usage, dict):
-            continue
-        snapshot: dict[str, int | float] = {}
-        for normalized, keys in aliases.items():
-            for key in keys:
-                candidate = usage.get(key)
-                if isinstance(candidate, (int, float)) and not isinstance(candidate, bool) and math.isfinite(candidate) and candidate >= 0:
-                    snapshot[normalized] = candidate
-                    break
+    usage = value.get("usage") if isinstance(value.get("usage"), dict) else value
+    if not isinstance(usage, dict):
+        return {}
+    snapshot: dict[str, int | float] = {}
+    for normalized, keys in aliases.items():
+        for key in keys:
+            candidate = usage.get(key)
+            if isinstance(candidate, (int, float)) and not isinstance(candidate, bool) and math.isfinite(candidate) and candidate >= 0:
+                snapshot[normalized] = candidate
+                break
+    return snapshot
+
+
+def extract_usage(output: str) -> dict[str, int | float]:
+    """Normalize common provider usage fields without retaining provider payloads."""
+    snapshots: dict[str, dict[str, int | float]] = {}
+    latest: dict[str, int | float] | None = None
+    for value in parse_provider_payloads(output):
+        snapshot = _usage_snapshot_from_payload(value)
         if not snapshot:
             continue
         identity = value.get("request_id") or value.get("event_id") or value.get("id")
@@ -3137,21 +3191,17 @@ def normalize_usage_totals(usage: dict[str, int | float]) -> dict[str, int | flo
 
 def normalized_events(provider: str, output: str) -> list[dict[str, Any]]:
     events = []
-    for line in output.splitlines():
-        try:
-            value = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(value, dict):
-            continue
+    for value in parse_provider_payloads(output):
         event: dict[str, Any] = {
             "provider": provider,
             "type": value.get("type") or value.get("event") or "provider.output",
         }
-        session_id = extract_session_id(line)
+        session_id = _session_id_from_payload(value)
         if session_id:
             event["session_id"] = f"{provider}:{session_id}"
-        usage = extract_usage(line)
+        usage = _usage_snapshot_from_payload(value)
+        if "input_tokens" in usage and "output_tokens" in usage:
+            usage["total_tokens"] = usage["input_tokens"] + usage["output_tokens"]
         if usage:
             event["usage"] = usage
         events.append(event)
@@ -3444,46 +3494,156 @@ def redacted_output(output: str) -> str:
     return result
 
 
-def review_verdict(provider: str, output: str) -> str | None:
-    response = ""
-    for line in output.splitlines():
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
+def _message_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                if block:
+                    parts.append(block)
+            elif isinstance(block, dict):
+                text = block.get("text")
+                if isinstance(text, str) and text:
+                    parts.append(text)
+        return "\n".join(parts)
+    if isinstance(content, dict):
+        for key in ("response", "text", "result"):
+            candidate = content.get(key)
+            if isinstance(candidate, str) and candidate:
+                return candidate
+        if "content" in content:
+            return _message_text(content["content"])
+    return ""
+
+
+def extract_provider_output(provider: str, output: str) -> str:
+    """Extract the provider's final assistant text response from structured CLI output."""
+    payloads = parse_provider_payloads(output)
+    if not payloads:
+        return ""
+
+    primary = ""
+    fallback = ""
+    for event in payloads:
+        if provider == "claude":
+            if event.get("type") == "result":
+                text = _message_text(event.get("result"))
+                if text.strip():
+                    primary = text
+            elif event.get("type") == "assistant":
+                msg = event.get("message")
+                text = _message_text(msg if msg is not None else event.get("content"))
+                if text.strip():
+                    fallback = text
+            elif isinstance(event.get("response"), str) and event["response"].strip():
+                fallback = event["response"]
+        elif provider == "codex":
+            if event.get("type") == "item.completed":
+                item = event.get("item")
+                if isinstance(item, dict):
+                    item_type = item.get("type")
+                    role = item.get("role")
+                    if item_type == "agent_message" or (item_type == "message" and role in (None, "assistant")):
+                        text = _message_text(item.get("text") if "text" in item else item.get("content"))
+                        if text.strip():
+                            primary = text
+            elif event.get("type") == "response.output_text.done" and isinstance(event.get("text"), str):
+                if event["text"].strip():
+                    fallback = event["text"]
+            elif event.get("type") == "response.completed" and isinstance(event.get("response"), dict):
+                for item in event["response"].get("output", []) or []:
+                    if isinstance(item, dict) and item.get("role") in (None, "assistant"):
+                        text = _message_text(item.get("content"))
+                        if text.strip():
+                            fallback = text
+        elif provider == "antigravity":
+            if isinstance(event.get("response"), str) and event["response"].strip():
+                primary = event["response"]
+            elif "result" in event:
+                text = _message_text(event.get("result"))
+                if text.strip():
+                    fallback = text
+            elif event.get("type") == "assistant":
+                msg = event.get("message")
+                text = _message_text(msg if msg is not None else event.get("content"))
+                if text.strip():
+                    fallback = text
+            elif isinstance(event.get("output_text"), str) and event["output_text"].strip():
+                fallback = event["output_text"]
+        else:
+            for key in ("result", "response", "output_text", "text"):
+                if key in event:
+                    text = _message_text(event.get(key))
+                    if text.strip():
+                        primary = text
+                        break
+            if event.get("type") == "item.completed" and isinstance(event.get("item"), dict):
+                text = _message_text(event["item"].get("text") or event["item"].get("content"))
+                if text.strip():
+                    fallback = text
+
+    return primary or fallback
+
+
+_VERDICT_LINE_RE = re.compile(
+    r"^[#>*\-\s_`]*VERDICT[*_`]*\s*:\s*[*_`]*\s*(APPROVE|CHANGES_REQUESTED)[*_`.\s!]*$"
+)
+_VERDICT_INLINE_RE = re.compile(r"\bVERDICT:\s*(APPROVE|CHANGES_REQUESTED)\b")
+
+
+def parse_review_verdict(text: str) -> str | None:
+    if not isinstance(text, str) or not text.strip():
+        return None
+    for line in reversed(text.strip().splitlines()):
+        stripped = line.strip()
+        if not stripped:
             continue
-        if not isinstance(event, dict):
-            continue
-        if provider == "claude" and event.get("type") == "result":
-            response = event.get("result")
-        elif provider == "antigravity" and "response" in event:
-            response = event["response"]
-        elif provider == "codex" and event.get("type") == "item.completed":
-            item = event.get("item")
-            if isinstance(item, dict) and item.get("type") == "agent_message":
-                response = item.get("text")
-    if isinstance(response, str) and response.strip():
-        match = re.fullmatch(r"VERDICT:\s*(APPROVE|CHANGES_REQUESTED)", response.strip().splitlines()[-1].strip())
+        match = _VERDICT_LINE_RE.match(stripped)
         if match:
             return match[1]
-    return None
+    inline = _VERDICT_INLINE_RE.findall(text)
+    return inline[-1] if inline else None
+
+
+def tail_bounded_output(text: str, max_bytes: int = MAX_REVIEW_OUTPUT_BYTES) -> str:
+    if not text:
+        return ""
+    encoded = text.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return text
+    tail = encoded[-max_bytes:]
+    idx = 0
+    while idx < len(tail) and (tail[idx] & 0xC0) == 0x80:
+        idx += 1
+    return tail[idx:].decode("utf-8", errors="ignore")
+
+
+def review_verdict(provider: str, output: str) -> str | None:
+    return parse_review_verdict(extract_provider_output(provider, output))
 
 
 def write_provider_artifact(
     path: Path, provider: str, output: str, exit_code: int, capture_raw: bool, *, capture_verdict: bool = False,
 ) -> None:
     session_id = extract_session_id(output)
-    normalized = {
+    events = normalized_events(provider, output)
+    normalized: dict[str, Any] = {
         "provider": provider,
         "exit_code": exit_code,
         "session_id": f"{provider}:{session_id}" if session_id else None,
         "usage": extract_usage(output),
-        "events": normalized_events(provider, output),
-        "stderr_or_unstructured_output_present": bool(output and not normalized_events(provider, output)),
+        "events": events,
+        "stderr_or_unstructured_output_present": bool(output and not events),
     }
     if capture_raw:
         normalized["raw_output"] = redacted_output(output)
-    if capture_verdict and exit_code == 0:
-        normalized["review_verdict"] = review_verdict(provider, output)
+    if capture_verdict:
+        review_text = extract_provider_output(provider, output)
+        normalized["review_output"] = tail_bounded_output(redacted_output(review_text))
+        if exit_code == 0:
+            normalized["review_verdict"] = parse_review_verdict(review_text)
     write_json(path, normalized)
     path.chmod(0o600)
 
@@ -4013,7 +4173,7 @@ def workflow_run(args: argparse.Namespace) -> int:
                 artifact.parent.mkdir(parents=True, exist_ok=True)
                 write_provider_artifact(
                     artifact, selected, output, completed.returncode, capture_raw,
-                    capture_verdict=workflow["id"] == "integrate-pr" and step_id == "verify-gate",
+                    capture_verdict=(workflow["id"] == "integrate-pr" and step_id == "verify-gate") or profile.work_type.value == "review",
                 )
                 session_id = extract_session_id(output)
                 usage = extract_usage(output)

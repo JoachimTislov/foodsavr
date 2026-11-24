@@ -1690,6 +1690,97 @@ class AgentctlTest(unittest.TestCase):
             self.assertEqual(len(captured_reqs), 1)
             self.assertEqual(captured_reqs[0][2].get("model"), "future-router-v2")
 
+    def test_review_artifact_persists_bounded_redacted_output_and_verdict(self) -> None:
+        module = load_agentctl_module()
+        with tempfile.TemporaryDirectory() as directory:
+            tmp = Path(directory)
+
+            # 1. Antigravity warning prefix + bold verdict + secret redaction
+            agy_artifact = tmp / "agy.attempt-1.json"
+            agy_stdout = (
+                "warning: --mode plan has no effect while slash command expansion is disabled.\n"
+                + json.dumps({
+                    "conversation_id": "conv-agy-1",
+                    "status": "SUCCESS",
+                    "response": "## Standards\nClean code; bearer=secret-tok-999\n\n**VERDICT: APPROVE**",
+                    "usage": {"input_tokens": 100, "output_tokens": 25},
+                })
+            )
+            with patch.dict(module.os.environ, {"REVIEW_SECRET": "top-secret-env-value-1234"}):
+                module.write_provider_artifact(
+                    agy_artifact, "antigravity", agy_stdout, 0, False, capture_verdict=True,
+                )
+            agy_data = json.loads(agy_artifact.read_text())
+            self.assertNotIn("raw_output", agy_data)
+            self.assertEqual(agy_data["review_verdict"], "APPROVE")
+            self.assertIn("## Standards", agy_data["review_output"])
+            self.assertIn("bearer=[REDACTED]", agy_data["review_output"])
+            self.assertNotIn("secret-tok-999", agy_data["review_output"])
+            self.assertNotIn("--mode plan", agy_data["review_output"])
+
+            # 2. Codex NDJSON keeps final agent_message and parses CHANGES_REQUESTED
+            codex_artifact = tmp / "codex.attempt-1.json"
+            codex_stdout = "\n".join([
+                json.dumps({"type": "thread.started", "thread_id": "th-codex-1"}),
+                json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": "Inspecting diff..."}}),
+                json.dumps({
+                    "type": "item.completed",
+                    "item": {
+                        "type": "agent_message",
+                        "text": "## Standards\n- Fix null check in foo.py\n\nVERDICT: CHANGES_REQUESTED.",
+                    },
+                }),
+            ])
+            module.write_provider_artifact(
+                codex_artifact, "codex", codex_stdout, 0, False, capture_verdict=True,
+            )
+            codex_data = json.loads(codex_artifact.read_text())
+            self.assertEqual(codex_data["review_verdict"], "CHANGES_REQUESTED")
+            self.assertIn("Fix null check in foo.py", codex_data["review_output"])
+            self.assertNotIn("Inspecting diff...", codex_data["review_output"])
+
+            # 3. Claude result and >16KB tail bounding with UTF-8 multi-byte characters and secret at boundary
+            claude_artifact = tmp / "claude.attempt-1.json"
+            padding = ("é" * 10000) + "\ntoken=boundary-leak-secret-xyz\n"
+            final_tail = "\n## Spec\n- Missing edge case test\n\nVERDICT: CHANGES_REQUESTED"
+            claude_stdout = json.dumps({
+                "type": "result",
+                "session_id": "cl-1",
+                "result": padding + final_tail,
+            })
+            module.write_provider_artifact(
+                claude_artifact, "claude", claude_stdout, 0, False, capture_verdict=True,
+            )
+            claude_data = json.loads(claude_artifact.read_text())
+            self.assertEqual(claude_data["review_verdict"], "CHANGES_REQUESTED")
+            self.assertLessEqual(len(claude_data["review_output"].encode("utf-8")), 16 * 1024)
+            self.assertTrue(claude_data["review_output"].endswith("VERDICT: CHANGES_REQUESTED"))
+            self.assertNotIn("boundary-leak-secret-xyz", claude_data["review_output"])
+            self.assertIn("token=[REDACTED]", claude_data["review_output"])
+
+            # 4. Empty or warning-only output keeps empty review_output and None verdict
+            empty_artifact = tmp / "empty.attempt-1.json"
+            module.write_provider_artifact(
+                empty_artifact,
+                "antigravity",
+                json.dumps({"conversation_id": "conv-empty", "status": "SUCCESS", "response": ""}),
+                0,
+                False,
+                capture_verdict=True,
+            )
+            empty_data = json.loads(empty_artifact.read_text())
+            self.assertEqual(empty_data["review_output"], "")
+            self.assertIsNone(empty_data["review_verdict"])
+
+            # 5. Verdict parser handles markdown heading/code formatting
+            for sample, expected in (
+                ("### VERDICT: APPROVE", "APPROVE"),
+                ("`VERDICT: CHANGES_REQUESTED`", "CHANGES_REQUESTED"),
+                ("**VERDICT:** APPROVE\n\nLooks ready.", "APPROVE"),
+                ("No verdict provided here.", None),
+            ):
+                self.assertEqual(module.parse_review_verdict(sample), expected)
+
 
 SESSION_ENV_VARS = ("CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "T3CODE_THREAD_ID", "AGENT_SESSION_ID", "AGENT_HARNESS",
                     "AGENT_PROVIDER", "GITHUB_ACTIONS", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT", "GITHUB_REPOSITORY", "PR_BODY", "PR_AUTHOR")

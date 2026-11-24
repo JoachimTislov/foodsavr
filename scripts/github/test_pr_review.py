@@ -340,6 +340,165 @@ class AttestationAndHistoryStoreTest(unittest.TestCase):
                     self.assertNotIn("raw_output", json.loads(artifact.read_text()))
                     self.assertEqual(pr_review.extract_verdict({"artifacts": [artifact.name]}, root), "APPROVE")
 
+    def test_record_review_empty_output_skips_with_no_review_output(self):
+        import agentctl
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifact = root / "verify-gate.attempt-1.json"
+            agentctl.write_provider_artifact(
+                artifact,
+                "antigravity",
+                json.dumps({
+                    "conversation_id": "conv-empty",
+                    "status": "SUCCESS",
+                    "response": "",
+                    "usage": {"input_tokens": 100, "output_tokens": 0},
+                }),
+                0,
+                False,
+                capture_verdict=True,
+            )
+            result = root / "result.json"
+            result.write_text(json.dumps({
+                "status": "succeeded",
+                "artifacts": [artifact.name],
+                "steps": [{
+                    "id": "verify-gate",
+                    "status": "succeeded",
+                    "provider": "antigravity",
+                    "selected_model": "gemini-4-argon",
+                    "attempts": [{"status": "succeeded", "session_id": "antigravity:conv-empty", "artifact": artifact.name}],
+                }],
+            }))
+            markdown = root / "review.md"
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                pr_review.main([
+                    "record-review", "--pr", "428", "--head-sha", "abc1234",
+                    "--bot", "--required-tier", "deep",
+                    "--workflow-result", str(result), "--output-markdown", str(markdown),
+                    "--history", str(root / "history.jsonl"),
+                ])
+            payload = json.loads(out.getvalue())
+            self.assertEqual(payload["record"]["status"], "skipped")
+            self.assertEqual(payload["record"]["reason"], "no-review-output")
+            self.assertEqual(payload["attestation_marker"]["status"], "skipped")
+            self.assertEqual(payload["attestation_marker"]["reason"], "no-review-output")
+            body = markdown.read_text()
+            self.assertIn("**Outcome:** `skipped` (`no-review-output`)", body)
+            self.assertIn("no-review-output", body)
+            self.assertNotIn("## Standards", body)
+            self.assertNotIn("## Spec", body)
+            self.assertNotIn("Checked against repository coding standards", body)
+
+    def test_record_review_changes_requested_blocks_and_renders_split_findings(self):
+        import agentctl
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifact = root / "verify-gate.attempt-1.json"
+            review_text = (
+                "## Standards\n"
+                "- Missing test coverage in `scripts/agents/agentctl.py`.\n\n"
+                "## Spec\n"
+                "- Issue #431 AC 3 requires `no-review-output` skip status.\n\n"
+                "VERDICT: CHANGES_REQUESTED"
+            )
+            agentctl.write_provider_artifact(
+                artifact,
+                "codex",
+                json.dumps({
+                    "type": "item.completed",
+                    "item": {"type": "agent_message", "text": review_text},
+                }),
+                0,
+                False,
+                capture_verdict=True,
+            )
+            result = root / "result.json"
+            result.write_text(json.dumps({
+                "status": "succeeded",
+                "artifacts": [artifact.name],
+                "steps": [{
+                    "id": "verify-gate",
+                    "status": "succeeded",
+                    "provider": "codex",
+                    "selected_model": "gpt-6.1-terra",
+                    "attempts": [{"status": "succeeded", "session_id": "codex:th-1", "artifact": artifact.name}],
+                }],
+            }))
+            markdown = root / "review.md"
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                pr_review.main([
+                    "record-review", "--pr", "431", "--head-sha", "def5678",
+                    "--bot", "--required-tier", "deep",
+                    "--workflow-result", str(result), "--output-markdown", str(markdown),
+                    "--history", str(root / "history.jsonl"),
+                ])
+            payload = json.loads(out.getvalue())
+            self.assertEqual(payload["record"]["status"], "blocked")
+            self.assertEqual(payload["attestation_marker"]["status"], "blocked")
+            body = markdown.read_text()
+            self.assertIn("**Outcome:** `blocked`", body)
+            self.assertIn("## Standards\n\n- Missing test coverage in `scripts/agents/agentctl.py`.", body)
+            self.assertIn("## Spec\n\n- Issue #431 AC 3 requires `no-review-output` skip status.", body)
+            self.assertNotIn("Checked against repository coding standards", body)
+            self.assertNotIn("Checked against linked issue", body)
+
+    def test_record_review_approve_renders_unsplit_findings_under_standards(self):
+        import agentctl
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifact = root / "verify-gate.attempt-1.json"
+            review_text = (
+                "Reviewed all changed Python files; error handling and redaction look solid.\n\n"
+                "**VERDICT: APPROVE**"
+            )
+            agentctl.write_provider_artifact(
+                artifact,
+                "antigravity",
+                json.dumps({
+                    "conversation_id": "conv-ok",
+                    "status": "SUCCESS",
+                    "response": review_text,
+                }),
+                0,
+                False,
+                capture_verdict=True,
+            )
+            result = root / "result.json"
+            result.write_text(json.dumps({
+                "status": "succeeded",
+                "artifacts": [artifact.name],
+                "steps": [{
+                    "id": "verify-gate",
+                    "status": "succeeded",
+                    "provider": "antigravity",
+                    "selected_model": "gemini-4-argon",
+                    "attempts": [{"status": "succeeded", "session_id": "antigravity:conv-ok", "artifact": artifact.name}],
+                }],
+            }))
+            markdown = root / "review.md"
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                pr_review.main([
+                    "record-review", "--pr", "431", "--head-sha", "999aaaa",
+                    "--bot", "--required-tier", "deep",
+                    "--workflow-result", str(result), "--output-markdown", str(markdown),
+                    "--history", str(root / "history.jsonl"),
+                ])
+            payload = json.loads(out.getvalue())
+            self.assertEqual(payload["record"]["status"], "approved")
+            self.assertEqual(payload["attestation_marker"]["status"], "approved")
+            body = markdown.read_text()
+            self.assertIn("**Outcome:** `approved`", body)
+            self.assertIn("## Standards\n\nReviewed all changed Python files; error handling and redaction look solid.", body)
+            self.assertNotIn("## Spec", body)
+            self.assertNotIn("Checked against linked issue", body)
+
     def test_format_and_parse_attestation_round_trip(self):
         cls = pr_review.classify_pr(
             number=42,
