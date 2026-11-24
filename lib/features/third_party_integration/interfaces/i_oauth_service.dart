@@ -6,6 +6,9 @@ abstract class IOAuthService {
   Future<void> authorize(Provider provider);
   void cancelAuthorization(Provider provider);
   Future<List<Connection>> getConnections();
+
+  /// Revokes the grant at the store when possible and clears its tokens.
+  Future<void> disconnect(Provider provider);
   Future<Map<String, dynamic>?> fetchUserProfile(Provider provider);
   WebViewController get webViewController;
 }

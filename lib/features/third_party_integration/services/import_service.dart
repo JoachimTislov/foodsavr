@@ -2,6 +2,7 @@ import 'package:foodsavr/features/third_party_integration/clients/coop_client.da
 import 'package:foodsavr/features/third_party_integration/clients/rema_client.dart';
 import 'package:foodsavr/features/third_party_integration/interfaces/i_import_service.dart';
 import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';
+import 'package:foodsavr/features/third_party_integration/services/store_credentials.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/models/product_model.dart';
 import 'package:foodsavr/services/secure_storage_service.dart';
@@ -18,10 +19,27 @@ class ImportService implements IImportService {
 
   // Clients read provider keys from the environment on construction, so they
   // are created on first use to keep startup independent of the env file.
-  late final RemaClient _remaClient = RemaClient(_logger, _storage, _client);
-  late final CoopClient _coopClient = CoopClient(_logger, _storage, _client);
+  late final RemaClient _remaClient = RemaClient(
+    _logger,
+    _credentials,
+    _client,
+  );
+  late final CoopClient _coopClient = CoopClient(
+    _logger,
+    _credentials,
+    _client,
+  );
+  late final StoreCredentials _credentials =
+      _injectedCredentials ?? StoreCredentials(_storage, _client, _logger);
+  final StoreCredentials? _injectedCredentials;
 
-  ImportService(this._authService, this._logger, this._storage, this._client);
+  ImportService(
+    this._authService,
+    this._logger,
+    this._storage,
+    this._client, {
+    StoreCredentials? credentials,
+  }) : _injectedCredentials = credentials;
 
   @override
   Future<void> getReceiptById(String id) {

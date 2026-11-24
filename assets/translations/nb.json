@@ -257,9 +257,23 @@
 			"actions": {
 				"connect": "Koble til",
 				"connecting": "Kobler til",
-				"disconnect": "Koble fra"
+				"disconnect": "Koble fra",
+				"reconnect": "Koble til på nytt"
 			},
-			"title": "Dagligvareintegrasjoner"
+			"title": "Dagligvareintegrasjoner",
+			"status": {
+				"connected": "Tilkoblet",
+				"notConnected": "Ikke tilkoblet",
+				"reconnectRequired": "Innloggingen er utløpt",
+				"unavailable": "Midlertidig utilgjengelig"
+			},
+			"reconnectHint": "Innloggingen hos {provider} er utløpt eller trukket tilbake. Koble til på nytt for at den skal fortsette å virke.",
+			"unavailableHint": "Fikk ikke kontakt med {provider}. Tilkoblingen beholdes; prøv igjen senere.",
+			"noConnections": "Ingen dagligvareintegrasjoner er tilgjengelige på denne enheten.",
+			"disconnectDialog": {
+				"title": "Koble fra {provider}?",
+				"description": "FoodSavr slutter å bruke {provider}-kontoen din. Du kan koble til igjen når som helst. Listene og produktene dine forblir som de er."
+			}
 		},
 		"app_installed": "Appen er installert",
 		"app_version": "App-versjon",

@@ -4,7 +4,7 @@ import 'package:foodsavr/models/product_model.dart';
 import 'base_client.dart';
 
 final class CoopClient extends Client {
-  CoopClient(super.logger, super.storage, super.client)
+  CoopClient(super.logger, super.credentials, super.client)
     : super(provider: Provider.coop);
 
   Future<List<Product>> getProducts() async {

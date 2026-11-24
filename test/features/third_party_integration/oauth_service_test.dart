@@ -9,6 +9,8 @@ import 'package:foodsavr/services/secure_storage_service.dart';
 import 'package:http/http.dart';
 import 'package:http/testing.dart';
 import 'package:logger/logger.dart';
+import 'support/fake_accounts.dart';
+
 // The platform interface provides the WebView test seam.
 import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart'; // ignore: depend_on_referenced_packages
 
@@ -18,7 +20,7 @@ void main() {
   late _WebViewPlatform platform;
   late OAuthService service;
 
-  setUp(() {
+  setUp(() async {
     dotenv.loadFromString(
       envString: '''
 REMA_CLIENT_ID=test
@@ -31,10 +33,12 @@ REMA_TOKEN_URL=https://store.example/token
     FlutterSecureStorage.setMockInitialValues({});
     platform = _WebViewPlatform();
     WebViewPlatform.instance = platform;
+    final accounts = FakeAccounts();
     service = OAuthService(
-      Logger(),
-      SecureStorage(const FlutterSecureStorage()),
+      Logger(level: Level.off),
+      SecureStorage(const FlutterSecureStorage(), auth: accounts.auth),
     );
+    await accounts.use(FakeAccounts.user('a'));
   });
 
   test('rejects mismatched state before exchanging a code', () async {

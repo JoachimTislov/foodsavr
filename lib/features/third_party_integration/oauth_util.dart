@@ -22,7 +22,7 @@ class OAuthUtil {
   }
 
   String env(String key) => dotenv.get(_key(key));
-  String? _maybeEnv(String key) => dotenv.maybeGet(_key(key));
+  String? maybeEnv(String key) => dotenv.maybeGet(_key(key));
 
   Map<String, String> get baseParams => {
     'client_id': env('CLIENT_ID'),
@@ -39,7 +39,7 @@ class OAuthUtil {
       'code_challenge': _generateCodeChallenge(_codeVerifier),
       'scope': env('SCOPES'),
       'state': _state,
-      'audience': _maybeEnv('AUDIENCE'),
+      'audience': maybeEnv('AUDIENCE'),
     };
     return Uri.parse(env('AUTHORIZATION_URL')).replace(queryParameters: params);
   }
