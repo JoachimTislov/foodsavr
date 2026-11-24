@@ -28,19 +28,9 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from checks import QUEUE_CHECK, queue_check_state, rollup_state  # noqa: E402
 
-TOPOLOGIES = ("single", "two-stage", "full-channels")
+from release_topology import TOPOLOGIES, TOPOLOGY_CHANNELS  # noqa: E402
 
-CHANNELS: dict[str, str] = {
-    "daily": "develop",
-    "weekly": "daily",
-    "stable": "weekly",
-}
-
-TOPOLOGY_CHANNELS: dict[str, dict[str, str]] = {
-    "single": {},
-    "two-stage": {"stable": "develop"},
-    "full-channels": CHANNELS,
-}
+CHANNELS = TOPOLOGY_CHANNELS["full-channels"]
 
 SCHEDULE_PROMOTIONS: dict[str, list[tuple[str, str]]] = {
     # Daily cut: develop -> daily

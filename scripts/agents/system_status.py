@@ -11,12 +11,22 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import sys
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "github"))
+from branch_governance import default_branch_required_checks  # noqa: E402
+from release_topology import TOPOLOGY_CHANNELS, UPSTREAM_REPO  # noqa: E402
+from workflow_inventory import (  # noqa: E402
+    DEFAULT_BRANCH_TREE_ENDPOINT,
+    WORKFLOWS_ENDPOINT,
+    active_orphaned_workflows,
+)
 
 API_VERSION = "agents.foodsavr.dev/v1alpha1"
 KIND = "AgentSystem"
@@ -76,7 +86,7 @@ def validate_system_manifest(manifest: Any, source: Path | str) -> list[str]:
 
     ci = spec.get("ciRunners")
     if isinstance(ci, dict):
-        for field in ("providerAuthSecretsAnyOf", "agentAppSecretsAllOf", "mergeGateSecretsAllOf"):
+        for field in ("providerAuthSecretsAnyOf", "agentAppSecretsAllOf", "releaseGateAppSecretsAllOf"):
             if not _non_empty_str_list(ci.get(field)):
                 errors.append(f"{source}: spec.ciRunners.{field} must be a non-empty array of strings")
         if "mergeGateWorkflow" in ci and not _non_empty_str(ci.get("mergeGateWorkflow")):
@@ -89,8 +99,6 @@ def validate_system_manifest(manifest: Any, source: Path | str) -> list[str]:
 
     gov = spec.get("governance")
     if isinstance(gov, dict):
-        if not _non_empty_str_list(gov.get("requiredStatusChecks")):
-            errors.append(f"{source}: spec.governance.requiredStatusChecks must be a non-empty array of strings")
         if "disallowDuplicateRequiredChecks" in gov and not isinstance(gov.get("disallowDuplicateRequiredChecks"), bool):
             errors.append(f"{source}: spec.governance.disallowDuplicateRequiredChecks must be a boolean")
 
@@ -112,8 +120,6 @@ def validate_system_manifest(manifest: Any, source: Path | str) -> list[str]:
 
     delivery = spec.get("delivery")
     if isinstance(delivery, dict):
-        if not _non_empty_str_list(delivery.get("requiredBranches")):
-            errors.append(f"{source}: spec.delivery.requiredBranches must be a non-empty array of strings")
         if not _non_empty_str(delivery.get("promoteWorkflow")):
             errors.append(f"{source}: spec.delivery.promoteWorkflow must be a non-empty string")
         if "detectOrphanedWorkflows" in delivery and not isinstance(delivery.get("detectOrphanedWorkflows"), bool):
@@ -142,7 +148,7 @@ def _run_json(cmd: list[str], cwd: Path, timeout: float = 8.0) -> tuple[bool, An
 def default_gh_api(root: Path, endpoint: str) -> tuple[bool, Any, str]:
     if not shutil.which("gh"):
         return False, None, "gh CLI not installed"
-    return _run_json(["gh", "api", endpoint], cwd=root, timeout=8.0)
+    return _run_json(["gh", "api", "--method", "GET", endpoint], cwd=root, timeout=8.0)
 
 
 def default_gcloud_bucket_check(root: Path, bucket: str, project: str | None) -> tuple[str, str]:
@@ -228,16 +234,20 @@ def _extract_repo_remote_state(
     monitor_wf = obs["webMonitorWorkflow"]
     promote_wf = delivery["promoteWorkflow"]
 
+    repo_endpoint = "repos/{owner}/{repo}"
     endpoints = {
+        "repo": repo_endpoint,
         "secrets": "repos/{owner}/{repo}/actions/secrets?per_page=100",
         "variables": "repos/{owner}/{repo}/actions/variables?per_page=100",
         "branches": "repos/{owner}/{repo}/branches?per_page=100",
-        "workflows": "repos/{owner}/{repo}/actions/workflows?per_page=100",
+        "workflows": f"{repo_endpoint}/{WORKFLOWS_ENDPOINT}",
         "rulesets": "repos/{owner}/{repo}/rulesets?per_page=100",
         "merge_runs": f"repos/{{owner}}/{{repo}}/actions/workflows/{merge_wf}/runs?per_page=1",
         "monitor_runs": f"repos/{{owner}}/{{repo}}/actions/workflows/{monitor_wf}/runs?per_page=1",
         "promote_runs": f"repos/{{owner}}/{{repo}}/actions/workflows/{promote_wf}/runs?per_page=1",
     }
+    if delivery.get("detectOrphanedWorkflows", True):
+        endpoints["default_tree"] = f"{repo_endpoint}/{DEFAULT_BRANCH_TREE_ENDPOINT}"
     results: dict[str, tuple[bool, Any, str]] = {}
     with ThreadPoolExecutor(max_workers=len(endpoints)) as pool:
         futures = {key: pool.submit(gh_api, root, ep) for key, ep in endpoints.items()}
@@ -382,6 +392,12 @@ def observe_agent_system(
         ok_br, br_payload, br_err = raw["branches"]
         ok_wf, wf_payload, wf_err = raw["workflows"]
         ok_rs, _, rs_err = raw["rulesets"]
+        ok_repo, repo_payload, repo_err = raw["repo"]
+        default_branch = (
+            repo_payload.get("default_branch") or meta["defaultBranch"]
+            if ok_repo and isinstance(repo_payload, dict)
+            else meta["defaultBranch"]
+        )
 
         secret_names = (
             {item["name"] for item in sec_payload.get("secrets", []) if isinstance(item, dict) and "name" in item}
@@ -433,18 +449,18 @@ def observe_agent_system(
         if secret_names is None:
             components.append(_remote_unavailable("ci-runners", "merge-gate", "MergeGateReady", "GitHubAPIError", sec_err))
         else:
-            release_app = "RELEASE_GATE_APP_PRIVATE_KEY" in secret_names and (
-                "RELEASE_GATE_APP_ID" in secret_names or bool((variables or {}).get("RELEASE_GATE_APP_ID"))
-            )
-            has_gate_credentials = release_app or all(s in secret_names for s in ci["mergeGateSecretsAllOf"])
+            release_app_missing = [
+                name for name in ci["releaseGateAppSecretsAllOf"]
+                if name not in secret_names and not (name == "RELEASE_GATE_APP_ID" and (variables or {}).get(name))
+            ]
             ok_mg, mg_runs, _ = raw["merge_runs"]
             conclusion, run_id = _latest_run_conclusion(mg_runs) if ok_mg else (None, None)
-            if not has_gate_credentials:
+            if release_app_missing:
                 components.append(_component(
-                    "ci-runners", "merge-gate", "0/1", "NotReady", "MissingMergeGateToken",
-                    "Release-Gate App and legacy token are unconfigured.",
+                    "ci-runners", "merge-gate", "0/1", "NotReady", "MissingReleaseGateApp",
+                    f"Missing Release-Gate App configuration: {', '.join(release_app_missing)}.",
                     condition_type="MergeGateReady", owner="owner",
-                    remediation="Configure the Release-Gate App or MERGE_GATE_TOKEN.",
+                    remediation="Use the Release-Gate GitHub App entry in `make human`.",
                 ))
             elif conclusion in {"failure", "timed_out", "startup_failure"}:
                 components.append(_component(
@@ -456,7 +472,7 @@ def observe_agent_system(
             else:
                 components.append(_component(
                     "ci-runners", "merge-gate", "1/1", "Ready", "Healthy",
-                    f"Secret configured; latest run={conclusion or 'none'}.",
+                    f"Release-Gate App configured; latest run={conclusion or 'none'}.",
                     condition_type="MergeGateReady",
                 ))
 
@@ -464,7 +480,6 @@ def observe_agent_system(
         if not ok_rs:
             components.append(_remote_unavailable("ci-runners", "governance", "GovernanceEnforced", "GitHubAPIError", rs_err))
         else:
-            default_branch = meta["defaultBranch"]
             checks_found: list[str] = []
             for rs in remote["ruleset_details"]:
                 inc = rs.get("conditions", {}).get("ref_name", {}).get("include", [])
@@ -476,12 +491,16 @@ def observe_agent_system(
                             ctx = entry.get("context")
                             if isinstance(ctx, str):
                                 checks_found.append(ctx)
-            missing_checks = [c for c in gov["requiredStatusChecks"] if c not in checks_found]
+            required_checks = default_branch_required_checks()
+            missing_checks = [c for c in required_checks if c not in checks_found]
+            unexpected_checks = sorted(set(checks_found) - set(required_checks))
             dupes = [c for c, count in Counter(checks_found).items() if count > 1] if gov.get("disallowDuplicateRequiredChecks", True) else []
-            if missing_checks or dupes:
+            if missing_checks or unexpected_checks or dupes:
                 parts: list[str] = []
                 if missing_checks:
                     parts.append(f"missing required check(s): {', '.join(missing_checks)}")
+                if unexpected_checks:
+                    parts.append(f"unexpected required check(s): {', '.join(unexpected_checks)}")
                 if dupes:
                     parts.append(f"duplicate required check(s): {', '.join(dupes)}")
                 components.append(_component(
@@ -492,7 +511,7 @@ def observe_agent_system(
             else:
                 components.append(_component(
                     "ci-runners", "governance", "1/1", "Ready", "RulesetAligned",
-                    f"Required checks enforced on {default_branch}: {', '.join(gov['requiredStatusChecks'])}.",
+                    f"Required checks enforced on {default_branch}: {', '.join(required_checks)}.",
                     condition_type="GovernanceEnforced",
                 ))
 
@@ -599,10 +618,24 @@ def observe_agent_system(
                 ))
 
         # 10. delivery/promote-channels
-        if branch_names is None:
-            components.append(_remote_unavailable("delivery", "promote-channels", "ReleasePipelineReady", "GitHubAPIError", br_err))
+        topology = (variables or {}).get("RELEASE_TOPOLOGY")
+        if variables is not None and not topology and ok_repo and isinstance(repo_payload, dict):
+            repo_name = repo_payload.get("full_name", "")
+            if repo_name:
+                topology = "full-channels" if repo_name.casefold() == UPSTREAM_REPO.casefold() else "single"
+        if branch_names is None or not topology:
+            detail = br_err if branch_names is None else var_err or repo_err or "Release topology could not be determined."
+            components.append(_remote_unavailable("delivery", "promote-channels", "ReleasePipelineReady", "GitHubAPIError", detail))
+        elif topology not in TOPOLOGY_CHANNELS:
+            components.append(_component(
+                "delivery", "promote-channels", "0/1", "NotReady", "InvalidReleaseTopology",
+                f"Unknown release topology: {topology!r}.",
+                condition_type="ReleasePipelineReady", owner="owner",
+                remediation=f"Set RELEASE_TOPOLOGY to one of: {', '.join(TOPOLOGY_CHANNELS)}.",
+            ))
         else:
-            missing_branches = [b for b in delivery["requiredBranches"] if b not in branch_names]
+            required_branches = [default_branch, *TOPOLOGY_CHANNELS[topology]]
+            missing_branches = [branch for branch in required_branches if branch not in branch_names]
             ok_pr, pr_runs, _ = raw["promote_runs"]
             conclusion, run_id = _latest_run_conclusion(pr_runs) if ok_pr else (None, None)
             if missing_branches:
@@ -612,7 +645,7 @@ def observe_agent_system(
                     condition_type="ReleasePipelineReady", owner="owner",
                     remediation=f"Create missing branch(es) on origin: {', '.join(missing_branches)}.",
                 ))
-            elif conclusion in {"failure", "timed_out", "startup_failure"}:
+            elif TOPOLOGY_CHANNELS[topology] and conclusion in {"failure", "timed_out", "startup_failure"}:
                 components.append(_component(
                     "delivery", "promote-channels", "0/1", "Failed", "PromoteWorkflowFailed",
                     f"Latest {delivery['promoteWorkflow']} run {run_id} ended with {conclusion}.",
@@ -622,35 +655,38 @@ def observe_agent_system(
             else:
                 components.append(_component(
                     "delivery", "promote-channels", "1/1", "Ready", "Healthy",
-                    f"All {len(delivery['requiredBranches'])} channel branches exist; latest run={conclusion or 'none'}.",
+                    f"All {topology} topology branches exist; latest run={conclusion or 'none'}.",
                     condition_type="ReleasePipelineReady",
                 ))
 
         # 11. delivery/workflows (orphaned active GitHub Actions workflows)
-        if not ok_wf or not isinstance(wf_payload, dict):
-            components.append(_remote_unavailable("delivery", "workflows", "WorkflowsClean", "GitHubAPIError", wf_err))
-        else:
-            orphans: list[str] = []
-            if delivery.get("detectOrphanedWorkflows", True):
-                for wf in wf_payload.get("workflows", []):
-                    if not isinstance(wf, dict) or wf.get("state") != "active":
-                        continue
-                    path = wf.get("path", "")
-                    if isinstance(path, str) and path.startswith(".github/workflows/") and not (root / path).exists():
-                        orphans.append(f"{path} (id {wf.get('id')})")
-            if orphans:
-                components.append(_component(
-                    "delivery", "workflows", "0/1", "Degraded", "OrphanedActiveWorkflows",
-                    f"Active in GitHub API but deleted from repo: {', '.join(orphans)}",
-                    condition_type="WorkflowsClean", owner="owner",
-                    remediation="Disable orphaned workflow(s) via `gh workflow disable <id>`.",
-                ))
+        orphans: dict[int, str] = {}
+        workflow_error = ""
+        if delivery.get("detectOrphanedWorkflows", True):
+            ok_tree, tree_payload, tree_err = raw["default_tree"]
+            if not ok_wf or not ok_tree:
+                workflow_error = wf_err or tree_err or "GitHub workflow data unavailable."
             else:
-                components.append(_component(
-                    "delivery", "workflows", "1/1", "Ready", "Healthy",
-                    "All active repository workflow files exist on the current branch.",
-                    condition_type="WorkflowsClean",
-                ))
+                try:
+                    orphans = active_orphaned_workflows(wf_payload, tree_payload)
+                except ValueError as error:
+                    workflow_error = str(error)
+        if workflow_error:
+            components.append(_remote_unavailable("delivery", "workflows", "WorkflowsClean", "GitHubAPIError", workflow_error))
+        elif orphans:
+            names = ", ".join(f"{name} (id {wid})" for wid, name in orphans.items())
+            components.append(_component(
+                "delivery", "workflows", "0/1", "Degraded", "OrphanedActiveWorkflows",
+                f"Active workflows missing from the default branch: {names}",
+                condition_type="WorkflowsClean", owner="owner",
+                remediation="Run `make disable-orphaned-workflows`.",
+            ))
+        else:
+            components.append(_component(
+                "delivery", "workflows", "1/1", "Ready", "Healthy",
+                "All active repository workflow files exist on the default branch.",
+                condition_type="WorkflowsClean",
+            ))
 
     evaluated = [c for c in components if c["status"] != "Unknown"] if offline else components
     ready_count = sum(1 for c in components if c["status"] == "Ready")

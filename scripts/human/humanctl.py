@@ -23,6 +23,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts/github"))
+from workflow_inventory import (  # noqa: E402
+    DEFAULT_BRANCH_TREE_ENDPOINT,
+    WORKFLOWS_ENDPOINT,
+    active_orphaned_workflows,
+)
+
 HUMAN = ROOT / "scripts/human"
 MENU = HUMAN / "menu.toml"
 BYPASS_MK = ROOT / "make/bypass.mk"
@@ -247,6 +254,68 @@ def ask(prompt: str, default: str = "") -> str:
     return reply or default
 
 
+def _github_get(endpoint: str) -> dict:
+    result = subprocess.run(
+        ["gh", "api", "--method", "GET", endpoint],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    return json.loads(result.stdout)
+
+
+def disable_orphaned_workflows() -> int:
+    """List active orphans and disable the confirmed set on the selected repo."""
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        print(GUARD_MESSAGE, file=sys.stderr)
+        return 2
+    try:
+        repo = _github_get("repos/{owner}/{repo}")["full_name"]
+        endpoint = f"repos/{repo}"
+
+        def find_orphans() -> dict[int, str]:
+            return active_orphaned_workflows(
+                _github_get(f"{endpoint}/{WORKFLOWS_ENDPOINT}"),
+                _github_get(f"{endpoint}/{DEFAULT_BRANCH_TREE_ENDPOINT}"),
+            )
+
+        orphans = find_orphans()
+        if not orphans:
+            print(f"No active orphaned workflows in {repo}.")
+            return 0
+
+        print(f"Active workflows missing from the default branch of {repo}:")
+        for name in orphans.values():
+            print(f"  - {name}")
+        if ask("Disable these workflows? [y/N]").lower() not in {"y", "yes"}:
+            return 0
+
+        # Refresh after the prompt in case the default branch or workflow state changed.
+        still_orphaned = find_orphans()
+        failed = False
+        for workflow_id, name in orphans.items():
+            if workflow_id not in still_orphaned:
+                continue
+            result = subprocess.run(
+                ["gh", "workflow", "disable", str(workflow_id), "--repo", repo],
+                cwd=ROOT,
+                timeout=30,
+            )
+            failed |= result.returncode != 0
+            if result.returncode == 0:
+                print(f"Disabled {name}.")
+        return int(failed)
+    except EOFError:
+        return 0
+    except subprocess.CalledProcessError as error:
+        print(error.stderr.strip() or str(error), file=sys.stderr)
+    except (OSError, subprocess.TimeoutExpired, KeyError, ValueError) as error:
+        print(f"Could not reconcile orphaned workflows: {error}", file=sys.stderr)
+    return 1
+
+
 def collect(entry: Entry) -> dict[str, str] | None:
     values: dict[str, str] = {}
     for var in entry.vars:
@@ -332,7 +401,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--list", action="store_true", help="print the menu as plain text")
     parser.add_argument("--check", action="store_true", help="verify every entry resolves; exit 1 on problems")
+    parser.add_argument("--disable-orphaned-workflows", action="store_true", help="confirm and disable active orphaned workflows")
     args = parser.parse_args(argv)
+    if args.disable_orphaned_workflows:
+        return disable_orphaned_workflows()
     registry = load_registry()
     entries = all_entries(registry)
     if args.check:

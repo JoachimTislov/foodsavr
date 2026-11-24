@@ -103,7 +103,7 @@ FoodSavr uses **free GitHub Actions Linux runners** (`ubuntu-latest` / `ubuntu-2
 - Owner-only interactive setup wizards live under `scripts/human/` and must be run by the human owner, never by agents:
   - `scripts/human/github/create-agent-app.sh` — provisions `AGENT_APP_ID`, `AGENT_APP_PRIVATE_KEY`, and repository variable `AGENT_APP_SLUG` (no `Workflows` permission so agent patches cannot alter CI; PRs/pushes made by the App trigger CI unlike `github.token`).
   - `scripts/human/agents/login-claude-runner.sh` / `scripts/human/agents/sync-codex-runner.sh` — configures harness logins (`CLAUDE_CODE_OAUTH_TOKEN`, `CODEX_AUTH_JSON_B64`).
-  - `MERGE_GATE_TOKEN` — fine-grained PAT (`Contents`, `Pull requests`, `Issues`, `Workflows` read/write) required so gate merges/rebases trigger downstream CI and release workflows.
+  - The **Create the Release-Gate GitHub App** entry in `make human` provisions `RELEASE_GATE_APP_ID` and `RELEASE_GATE_APP_PRIVATE_KEY`. The App authenticates merge-gate integrations and release promotions (ADR 0008).
 
 ### 3.5 Remaining Integration Gaps (Spec-Ahead / Tracked)
 
