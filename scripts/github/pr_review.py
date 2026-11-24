@@ -1078,6 +1078,7 @@ def parse_pr_json_payload(data: dict[str, Any]) -> dict[str, Any]:
 
 
 MAX_INLINE_DIFF_CHARS = 30000
+TOOL_DENYING_PROVIDERS = frozenset({"antigravity"})
 MAX_INLINE_CONTEXT_CHARS = 40000
 
 
@@ -1931,9 +1932,14 @@ def select_review_plan(
         axes = "repository standards" if tier == "fast" else "repository standards and the originating specification"
         # Headless providers may deny shell tools, so the PR context travels inside the prompt.
         staged = staged_pr_context_text(workflow)
+        # Headless Antigravity auto-denies shell tools and then returns an empty response,
+        # so it must be told not to use them; other providers may read the repository.
+        no_tools = decision.provider in TOOL_DENYING_PROVIDERS and bool(staged)
         context_block = (
-            "\n\nThe PR metadata and bounded diff follow. You do not need to run tools to read them.\n"
-            "<untrusted-pr-context>\n" + staged + "\n</untrusted-pr-context>\n"
+            "\n\nThe PR metadata and bounded diff follow."
+            + (" Do not run tools or commands; review only this context.\n" if no_tools
+               else " You do not need to run tools to read them.\n")
+            + "<untrusted-pr-context>\n" + staged + "\n</untrusted-pr-context>\n"
         ) if staged else ""
         review_step = {
             **verify,
@@ -1961,7 +1967,11 @@ def select_review_plan(
             for step in workflow["steps"]
         ]
         objective = "Review a pull request's code changes against repository standards and its originating specification."
-        return tier, decision.provider, {**workflow, "objective": objective, "steps": steps}
+        prepared = {**workflow, "objective": objective, "steps": steps}
+        if no_tools:
+            # Listed files and skills invite reads the provider will deny.
+            prepared["context"] = {**workflow.get("context", {}), "files": [], "skills": []}
+        return tier, decision.provider, prepared
     return None
 
 
