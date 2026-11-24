@@ -141,6 +141,28 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('upcoming card shows expired status once its entries expire', (
+    tester,
+  ) async {
+    // The list was loaded before midnight; the only entry has since expired.
+    when(
+      () => products.getExpiringSoon(
+        'user',
+        expiringSoonDays: any(named: 'expiringSoonDays'),
+      ),
+    ).thenAnswer((_) async => [_expiringIn('stale', -1)]);
+
+    await pump(tester);
+
+    expect(
+      find.descendant(
+        of: find.byType(ExpiringSoonSection),
+        matching: find.text('Expired 1 day ago'),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('shows expired items, oldest first, above expiring soon', (
     tester,
   ) async {
