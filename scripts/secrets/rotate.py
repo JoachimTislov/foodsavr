@@ -390,10 +390,12 @@ def main(argv: list[str] | None = None) -> int:
             filtered.append(dataclasses.replace(secret, sinks=kept))
         selected = filtered
 
+    origin_slug = origin_repo_slug()
+    target_repo = args.repo or origin_slug
     if not args.dry_run and any(GITHUB_SINKS.keys() & set(s.sinks) for s in selected):
         guard_error = check_github_mutation_guard(
-            args.repo,
-            origin_slug=origin_repo_slug(),
+            target_repo,
+            origin_slug=origin_slug,
             yes=args.yes,
         )
         if guard_error:
@@ -413,7 +415,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"would {verb} {label}{target}")
             continue
         try:
-            push(secret, generate(secret), env_path=args.env_file, repo=args.repo)
+            push(secret, generate(secret), env_path=args.env_file, repo=target_repo)
             if secret.generate == "sync":
                 print(f"synced {label}; not rotated: change its source to rotate it")
             else:

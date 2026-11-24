@@ -64,8 +64,7 @@ title = "Fork upstream (contributors; GitHub secrets are owner-only)"
 target = "setup-fork"
 step = ""
 needs = "gh login"
-vars = [{ name = "UPSTREAM", prompt = "Upstream (owner/foodsavr)", required = true }]
-apply_assign = "YES=1"
+vars = [{ name = "UPSTREAM", prompt = "Upstream (empty: upstream remote or JoachimTislov/foodsavr)" }]
 
 [[entry]]
 id = "setup-branches"
@@ -75,10 +74,9 @@ target = "setup-branches"
 step = "promote.yml"
 needs = "gh login with push rights"
 vars = [
-  { name = "REPO", prompt = "Repository (owner/repo)", required = true },
-  { name = "TOPOLOGY", prompt = "Topology", choices = ["single", "two-stage", "full-channels"], required = true },
+  { name = "REPO", prompt = "Repository (empty: origin remote)" },
+  { name = "TOPOLOGY", prompt = "Topology (empty: RELEASE_TOPOLOGY or full-channels)", choices = ["single", "two-stage", "full-channels"] },
 ]
-apply_assign = "YES=1"
 
 [[entry]]
 id = "setup-enable-actions"
@@ -87,7 +85,7 @@ title = "Enable GitHub Actions on a fork (do this last)"
 target = "setup-enable-actions"
 step = ""
 needs = "gh login with admin rights on the fork"
-vars = [{ name = "REPO", prompt = "Repository (owner/repo)", required = true }]
+vars = [{ name = "REPO", prompt = "Repository (empty: origin remote)" }]
 
 [[entry]]
 id = "social-auth-setup"

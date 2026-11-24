@@ -139,6 +139,43 @@ class WizardTest(TestCase):
             self.assertIn(url, out.getvalue())
             self.assertIn(url, err.getvalue())
 
+    def test_release_branches_lists_missing_and_creates_with_single_confirm(self):
+        state = {
+            "local_config": {},
+            "github": {"target_repo": "alice/foodsavr", "branches": ["develop"]},
+        }
+        listing_out = StringIO()
+        listing_instance = wizard.Setup("alice/foodsavr", "fork-agents", state, listing=True)
+        listing_instance.topology = "full-channels"
+        listing_instance.state = state
+        with redirect_stdout(listing_out):
+            self.assertTrue(listing_instance.release_branches())
+        self.assertEqual(listing_out.getvalue(), "Release channels\n")
+
+        out = StringIO()
+        updated_state = {
+            "local_config": {},
+            "github": {"target_repo": "alice/foodsavr", "branches": list(wizard.TOPOLOGY_BRANCHES["full-channels"])},
+        }
+        instance = wizard.Setup("alice/foodsavr", "fork-agents", state, listing=False)
+        instance.topology = "full-channels"
+        instance.state = state
+        with (
+            patch.object(wizard, "confirm", return_value=True) as mock_confirm,
+            patch.object(wizard, "ensure_branches") as mock_ensure,
+            patch.object(wizard, "probe_environment", return_value=updated_state),
+            redirect_stdout(out),
+        ):
+            self.assertTrue(instance.release_branches())
+        mock_confirm.assert_called_once_with("Create missing release channels (daily, weekly, stable)?")
+        mock_ensure.assert_called_once_with(
+            repo="alice/foodsavr",
+            topology="full-channels",
+            default_branch="develop",
+        )
+        self.assertIn("Missing release channels (full-channels) on alice/foodsavr: daily, weekly, stable", out.getvalue())
+        self.assertIn("Release channels ready.", out.getvalue())
+
     def test_wizard_has_no_menu_paths_or_merge_gate_token(self):
         source = (Path(wizard.__file__)).read_text(encoding="utf-8")
         self.assertNotIn("MERGE_GATE_TOKEN", source)

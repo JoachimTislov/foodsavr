@@ -53,9 +53,17 @@ class MenuResolvesTest(unittest.TestCase):
             self.assertIn(entry.id, text)
 
     def test_list_runs_without_a_terminal(self):
-        out = subprocess.run(["make", "human", "LIST=1"], cwd=ROOT, capture_output=True, text=True, stdin=subprocess.DEVNULL)
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertIn("make pr-merge PR=", out.stdout)
+        listed = subprocess.run(
+            ["python3", str(ROOT / "scripts/human/humanctl.py"), "--list"],
+            cwd=ROOT, capture_output=True, text=True, stdin=subprocess.DEVNULL,
+        )
+        self.assertEqual(listed.returncode, 0, listed.stderr)
+        self.assertIn("make pr-merge PR=", listed.stdout)
+        alias = subprocess.run(
+            ["make", "human", "LIST=1"],
+            cwd=ROOT, capture_output=True, text=True, stdin=subprocess.DEVNULL,
+        )
+        self.assertEqual(alias.returncode, 0, alias.stderr)
 
     def test_interactive_menu_refuses_without_a_terminal(self):
         out = subprocess.run(["python3", str(ROOT / "scripts/human/humanctl.py")], capture_output=True, text=True,

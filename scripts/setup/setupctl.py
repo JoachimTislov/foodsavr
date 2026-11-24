@@ -713,6 +713,79 @@ def fork_repository(
     return {"upstream": upstream, "fork": fork_slug, "commands": [" ".join(c) for c in commands], "dry_run": False}
 
 
+def resolve_repo(repo: str | None = None, *, root: Path = ROOT) -> str:
+    if repo:
+        if not REPO_SLUG_RE.fullmatch(repo):
+            raise ValueError(f"Invalid repo slug: {repo!r}")
+        return repo
+    remotes = detect_git_remotes(root)
+    origin_repo = parse_github_repo(remotes.get("origin", ""))
+    if origin_repo and REPO_SLUG_RE.fullmatch(origin_repo):
+        return origin_repo
+    local_repo = load_instance_local(root).get("repo")
+    if isinstance(local_repo, str) and REPO_SLUG_RE.fullmatch(local_repo):
+        return local_repo
+    raise ValueError("Cannot determine repository from origin remote; pass --repo <owner>/<repo>.")
+
+
+def resolve_topology(repo: str, topology: str | None = None, *, root: Path = ROOT) -> str:
+    if topology:
+        if topology not in TOPOLOGIES:
+            raise ValueError(f"Unsupported topology: {topology!r}")
+        return topology
+    var_proc = _run(["gh", "api", f"repos/{repo}/actions/variables/RELEASE_TOPOLOGY", "--jq", ".value"], cwd=root)
+    candidate = var_proc.stdout.strip() if var_proc.returncode == 0 else ""
+    if candidate in TOPOLOGIES:
+        return candidate
+    return "full-channels"
+
+
+def resolve_upstream(upstream: str | None = None, *, root: Path = ROOT) -> str:
+    if upstream:
+        if not REPO_SLUG_RE.fullmatch(upstream):
+            raise ValueError(f"Invalid upstream repo slug: {upstream!r}")
+        return upstream
+    remotes = detect_git_remotes(root)
+    upstream_repo = parse_github_repo(remotes.get("upstream", ""))
+    if upstream_repo and REPO_SLUG_RE.fullmatch(upstream_repo):
+        return upstream_repo
+    origin_repo = parse_github_repo(remotes.get("origin", ""))
+    if origin_repo and origin_repo.casefold() != UPSTREAM_REPO.casefold():
+        parent_proc = _run(["gh", "api", f"repos/{origin_repo}", "--jq", ".parent.full_name // empty"], cwd=root)
+        parent = parent_proc.stdout.strip() if parent_proc.returncode == 0 else ""
+        if parent and REPO_SLUG_RE.fullmatch(parent):
+            return parent
+    return UPSTREAM_REPO
+
+
+def enable_actions(
+    *,
+    repo: str,
+    dry_run: bool = False,
+    root: Path = ROOT,
+) -> dict[str, Any]:
+    """Idempotently enable GitHub Actions on a repository."""
+    if not REPO_SLUG_RE.fullmatch(repo):
+        raise ValueError(f"Invalid repo slug: {repo!r}")
+    if not dry_run and is_unattended_agent_env():
+        raise PermissionError("Refusing GitHub Actions mutation from an unattended agent environment; run interactively.")
+
+    get_proc = _run(["gh", "api", f"repos/{repo}/actions/permissions", "--jq", ".enabled"], cwd=root)
+    if get_proc.returncode != 0:
+        raise RuntimeError(f"Cannot read Actions permissions on {repo}: {get_proc.stderr.strip()}")
+    already_enabled = get_proc.stdout.strip().lower() == "true"
+    if already_enabled or dry_run:
+        return {"repo": repo, "enabled": True, "already_enabled": already_enabled, "dry_run": dry_run}
+
+    put_proc = _run(
+        ["gh", "api", "-X", "PUT", f"repos/{repo}/actions/permissions", "-F", "enabled=true"],
+        cwd=root,
+    )
+    if put_proc.returncode != 0:
+        raise RuntimeError(f"Failed enabling GitHub Actions on {repo}: {put_proc.stderr.strip()}")
+    return {"repo": repo, "enabled": True, "already_enabled": False, "dry_run": False}
+
+
 def verify_profile(
     probe: dict[str, Any],
     *,
@@ -874,18 +947,24 @@ def main(argv: list[str] | None = None) -> int:
     p_scaffold.add_argument("-o", "--output", choices=("text", "json"), default="text")
 
     p_branches = sub.add_parser("ensure-branches", help="Create missing channel branches via GitHub Refs API")
-    p_branches.add_argument("--repo", required=True)
-    p_branches.add_argument("--topology", choices=TOPOLOGIES, required=True)
+    p_branches.add_argument("--repo", default=None)
+    p_branches.add_argument("--topology", choices=TOPOLOGIES, default=None)
     p_branches.add_argument("--default-branch", default="develop")
     p_branches.add_argument("--dry-run", action="store_true")
     p_branches.add_argument("--yes", action="store_true")
     p_branches.add_argument("-o", "--output", choices=("text", "json"), default="text")
 
     p_fork = sub.add_parser("fork", help="Fork upstream safely and wire remotes + gh default")
-    p_fork.add_argument("--upstream", default=UPSTREAM_REPO)
+    p_fork.add_argument("--upstream", default=None)
     p_fork.add_argument("--dry-run", action="store_true")
     p_fork.add_argument("--yes", action="store_true")
     p_fork.add_argument("-o", "--output", choices=("text", "json"), default="text")
+
+    p_actions = sub.add_parser("enable-actions", help="Enable GitHub Actions on a repository")
+    p_actions.add_argument("--repo", default=None)
+    p_actions.add_argument("--dry-run", action="store_true")
+    p_actions.add_argument("--yes", action="store_true")
+    p_actions.add_argument("-o", "--output", choices=("text", "json"), default="text")
 
     p_verify = sub.add_parser("verify", help="Verify setup readiness for a profile")
     p_verify.add_argument("--profile", choices=PROFILES, required=True)
@@ -901,6 +980,22 @@ def main(argv: list[str] | None = None) -> int:
     p_wizard.add_argument("--repo", default=None)
     p_wizard.add_argument("--profile", choices=PROFILES)
     p_wizard.add_argument("--list", action="store_true", help="List incomplete steps without changing setup")
+
+    def confirm_interactive(prompt: str, *, yes: bool) -> bool | None:
+        if yes:
+            return True
+        if is_unattended_agent_env() or not sys.stdin.isatty():
+            return None
+        reply = input(f"{prompt} [y/N]: ").strip().lower()
+        return reply in {"y", "yes"}
+
+    def format_branches_summary(res: dict[str, Any], *, dry_run: bool) -> str:
+        if not res["created"]:
+            present = ", ".join(res["already_present"]) or res["base_branch"]
+            return f"{res['repo']} ({res['topology']}): release channels ready ({present})."
+        details = ", ".join(f"{b} (from {res['seeds'][b]['source']})" for b in res["created"])
+        verb = "Would create" if dry_run else "Created"
+        return f"{res['repo']} ({res['topology']}): {verb} {details}"
 
     args = parser.parse_args(argv)
     try:
@@ -943,31 +1038,84 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "ensure-branches":
+            repo = resolve_repo(args.repo)
+            topology = resolve_topology(repo, args.topology)
             if not args.dry_run and not args.yes:
-                print("Pass --yes to create missing branches on GitHub (or --dry-run to preview).", file=sys.stderr)
-                return 2
+                if is_unattended_agent_env() or not sys.stdin.isatty():
+                    print("Pass --yes to create missing branches on GitHub (or run interactively / pass --dry-run).", file=sys.stderr)
+                    return 2
+                preview = ensure_branches(
+                    repo=repo,
+                    topology=topology,
+                    default_branch=args.default_branch,
+                    dry_run=True,
+                )
+                if not preview["created"]:
+                    if args.output == "json":
+                        print(json.dumps(preview, indent=2, sort_keys=True))
+                    else:
+                        print(format_branches_summary(preview, dry_run=False))
+                    return 0
+                missing_list = ", ".join(preview["created"])
+                print(f"{repo} ({topology}): missing {missing_list}")
+                if not confirm_interactive(f"Create {missing_list} on {repo}?", yes=False):
+                    print("Cancelled.")
+                    return 1
             res = ensure_branches(
-                repo=args.repo,
-                topology=args.topology,
+                repo=repo,
+                topology=topology,
                 default_branch=args.default_branch,
                 dry_run=args.dry_run,
             )
             if args.output == "json":
                 print(json.dumps(res, indent=2, sort_keys=True))
             else:
-                print(f"Repo: {res['repo']} | {'Would create' if args.dry_run else 'Created'}: "
-                      f"{res['seeds']} | Present: {res['already_present']} | Legacy: {res['legacy_present']}")
+                print(format_branches_summary(res, dry_run=args.dry_run))
             return 0
 
         if args.command == "fork":
+            upstream = resolve_upstream(args.upstream)
             if not args.dry_run and not args.yes:
-                print("Pass --yes to fork on GitHub (or --dry-run to preview).", file=sys.stderr)
-                return 2
-            res = fork_repository(upstream=args.upstream, dry_run=args.dry_run)
+                if is_unattended_agent_env() or not sys.stdin.isatty():
+                    print("Pass --yes to fork on GitHub (or run interactively / pass --dry-run).", file=sys.stderr)
+                    return 2
+                preview = fork_repository(upstream=upstream, dry_run=True)
+                if not confirm_interactive(f"Fork {upstream} -> {preview['fork']}?", yes=False):
+                    print("Cancelled.")
+                    return 1
+            res = fork_repository(upstream=upstream, dry_run=args.dry_run)
             if args.output == "json":
                 print(json.dumps(res, indent=2, sort_keys=True))
             else:
                 print(f"Fork: {res['fork']} (upstream={res['upstream']})")
+            return 0
+
+        if args.command == "enable-actions":
+            repo = resolve_repo(args.repo)
+            if not args.dry_run and not args.yes:
+                if is_unattended_agent_env() or not sys.stdin.isatty():
+                    print("Pass --yes to enable GitHub Actions (or run interactively / pass --dry-run).", file=sys.stderr)
+                    return 2
+                preview = enable_actions(repo=repo, dry_run=True)
+                if preview["already_enabled"]:
+                    if args.output == "json":
+                        print(json.dumps(preview, indent=2, sort_keys=True))
+                    else:
+                        print(f"{repo}: GitHub Actions already enabled.")
+                    return 0
+                if not confirm_interactive(f"Enable GitHub Actions on {repo}?", yes=False):
+                    print("Cancelled.")
+                    return 1
+            res = enable_actions(repo=repo, dry_run=args.dry_run)
+            if args.output == "json":
+                print(json.dumps(res, indent=2, sort_keys=True))
+            else:
+                if res["already_enabled"]:
+                    print(f"{res['repo']}: GitHub Actions already enabled.")
+                elif args.dry_run:
+                    print(f"{res['repo']}: would enable GitHub Actions.")
+                else:
+                    print(f"{res['repo']}: GitHub Actions enabled.")
             return 0
 
         if args.command == "verify":

@@ -207,7 +207,13 @@ provider() { # idp clientId clientSecret
 }
 if [ -n "$auth_config" ]; then
   provider google.com "${web_client_id:-}" "${GOOGLE_WEB_CLIENT_SECRET:-}"
-  provider facebook.com "${FACEBOOK_APP_ID:-}" "${FACEBOOK_APP_SECRET:-}"
+  fb_args=("$project")
+  [ "$check_only" = 0 ] || fb_args+=(--check)
+  if fb_out="$(python3 scripts/setup/facebook_provider.py "${fb_args[@]}" 2>&1)"; then
+    ok "$fb_out"
+  else
+    miss "$fb_out"
+  fi
 
   IFS=',' read -r -a wanted <<<"${AUTH_DOMAINS:-}"
   domains="$(printf '%s' "$auth_config" | json "print('\n'.join(d.get('authorizedDomains', [])))")"
