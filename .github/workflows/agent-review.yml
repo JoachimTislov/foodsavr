@@ -347,6 +347,8 @@ jobs:
           post_review
 
       - name: Persist review history to the history branch
+        # The decision is appended before the review is posted; keep it even when posting fails.
+        if: ${{ !cancelled() }}
         env:
           HISTORY_TOKEN: ${{ github.token }}
         run: scripts/github/review_history.sh push "$HISTORY_TOKEN"
