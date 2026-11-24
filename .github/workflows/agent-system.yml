@@ -16,6 +16,7 @@ on:
       - 'logs/**'
       - '**/*.jsonl'
       - '**/*.log'
+      - '!.agents/events/**'
       - 'AGENTS.md'
       - 'CLAUDE.md'
       - 'GEMINI.md'

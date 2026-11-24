@@ -61,7 +61,7 @@ GROUPS: dict[str, Group] = {
             ".github/instructions/**", ".github/copilot-instructions.md", ".github/workflows/agent-implement.yml",
             ".github/workflows/agent-review.yml", "scripts/human/**", "scripts/setup/agent_router.sh",
             "scripts/setup/setupctl.py", "scripts/setup/test_*.py",
-            "log/**", "logs/**", "**/*.jsonl", "**/*.log",
+            "log/**", "logs/**", "**/*.jsonl", "**/*.log", "!.agents/events/**",
         ],
         commands=[
             ["python3", "-m", "py_compile", "scripts/agents/agentctl.py", "scripts/agents/agent_skills.py",
@@ -102,8 +102,7 @@ GROUPS: dict[str, Group] = {
     ),
     "dart": Group(
         paths=["**.dart", "lib/**", "packages/**", "test/**", "assets/**",
-               ".github/workflows/build-android.yml", ".github/workflows/release-gated.yml",
-               "scripts/release/**", "scripts/ci/**", "pubspec.yaml", "pubspec.lock",
+               "scripts/ci/*.dart", "pubspec.yaml", "pubspec.lock",
                "analysis_options.yaml", "integration_test/**", "test_driver/**"],
         commands=[
             ["flutter", "pub", "get"],
@@ -114,6 +113,21 @@ GROUPS: dict[str, Group] = {
             ["dart", "run", "scripts/ci/check_shape_sync.dart"],
             ["dart", "run", "scripts/ci/select_tests.dart"],
             ["dart", "run", "scripts/ci/run_tests.dart"],
+        ],
+    ),
+    "release": Group(
+        paths=["scripts/release/**", ".github/workflows/build-android.yml",
+               ".github/workflows/android-drive-test.yml", ".github/workflows/release-gated.yml"],
+        commands=[
+            ["node", "--test", "scripts/release/release_gate.test.cjs"],
+            ["python3", "-m", "unittest", "discover", "-s", "scripts/release", "-p", "*_test.py"],
+        ],
+    ),
+    "infra": Group(
+        paths=["scripts/infra/**", "deploy/**", "packages/foodsavr_deploy/**",
+               "infra/terraform/**", ".github/workflows/deployment-level.yml"],
+        commands=[
+            ["python3", "-m", "unittest", "discover", "-s", "scripts/infra", "-p", "test_*.py"],
         ],
     ),
     "workflows": Group(paths=[".github/workflows/**", ".github/actions/**"], commands=[["actionlint"]]),
@@ -137,9 +151,21 @@ def glob_re(pattern: str) -> re.Pattern[str]:
     return re.compile(out + r"\Z")
 
 
+def path_matches(patterns: list[str], path: str) -> bool:
+    """GitHub Actions paths-filter order: later `!pattern` negations exclude earlier matches."""
+    matched = False
+    for pattern in patterns:
+        if pattern.startswith("!"):
+            if matched and glob_re(pattern[1:]).match(path):
+                matched = False
+        elif glob_re(pattern).match(path):
+            matched = True
+    return matched
+
+
 def groups_for(files: list[str]) -> list[str]:
     return [name for name, group in GROUPS.items()
-            if any(glob_re(p).match(f) for p in group.paths for f in files)]
+            if any(path_matches(group.paths, f) for f in files)]
 
 
 def git(*args: str) -> str:
@@ -228,6 +254,8 @@ def precheck(name: str) -> str | None:
         for rel in CI_FILES:
             if (ROOT / rel).is_symlink() and not (ROOT / rel).exists():
                 return f"{rel} is a dangling symlink"
+    if name == "release" and not shutil.which("node"):
+        return "node not installed"
     if name == "workflows" and not shutil.which("actionlint"):
         return "actionlint not installed"
     return None

@@ -73,6 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       web: ${{ steps.decide.outputs.web }}
+      web_e2e: ${{ steps.decide.outputs.web_e2e }}
       android: ${{ steps.decide.outputs.android }}
       integration: ${{ steps.decide.outputs.integration }}
       rules: ${{ steps.decide.outputs.rules }}
@@ -85,7 +86,7 @@ jobs:
         id: tested
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/ci/already_tested.sh validation.yml lib packages web assets android integration_test test_driver test/e2e pubspec.yaml pubspec.lock
+        run: scripts/ci/already_tested.sh --push-only-reuse validation.yml lib packages web assets android integration_test test_driver test/e2e pubspec.yaml pubspec.lock
       - name: Path filters
         uses: dorny/paths-filter@v3
         id: filter
@@ -100,6 +101,8 @@ jobs:
               - 'pubspec.yaml'
               - 'pubspec.lock'
               - 'test/e2e/**'
+            e2e:
+              - 'test/e2e/**'
             android:
               - 'lib/**'
               - 'packages/**'
@@ -107,10 +110,16 @@ jobs:
               - 'assets/**'
               - '.github/workflows/release-gated.yml'
               - '.github/workflows/build-android.yml'
-              - 'scripts/release/**'
-              - 'scripts/ci/**'
+              - 'scripts/ci/android_smoke.sh'
+              - 'scripts/ci/write_android_test_config.sh'
               - 'pubspec.yaml'
               - 'pubspec.lock'
+            android_pr:
+              - 'android/**'
+              - 'integration_test/**'
+              - 'test_driver/**'
+              - 'scripts/ci/android_smoke.sh'
+              - 'scripts/ci/write_android_test_config.sh'
             integration:
               - 'integration_test/**'
               - 'test_driver/**'
@@ -139,30 +148,60 @@ jobs:
         env:
           SKIP: ${{ steps.tested.outputs.skip }}
           EVENT_NAME: ${{ github.event_name }}
+          FULL_PR: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'validate/full') }}
           FILTER_WEB: ${{ steps.filter.outputs.web }}
+          FILTER_E2E: ${{ steps.filter.outputs.e2e }}
           FILTER_ANDROID: ${{ steps.filter.outputs.android }}
+          FILTER_ANDROID_PR: ${{ steps.filter.outputs.android_pr }}
           FILTER_INTEGRATION: ${{ steps.filter.outputs.integration }}
           FILTER_RULES: ${{ steps.filter.outputs.rules }}
           DEP_WEB: ${{ steps.dep.outputs.run_web }}
           DEP_ANDROID: ${{ steps.dep.outputs.run_android }}
         run: |
           web=false
+          web_e2e=false
           android=false
           integration=false
           rules=false
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             web=true
+            web_e2e=true
             android=true
             integration=true
             rules=true
           elif [ "$SKIP" != "true" ]; then
-            [ "$FILTER_WEB" = "true" ] && [ "$DEP_WEB" != "false" ] && web=true
-            [ "$FILTER_ANDROID" = "true" ] && [ "$DEP_ANDROID" != "false" ] && android=true
-            [ "$FILTER_INTEGRATION" = "true" ] && [ "$DEP_ANDROID" != "false" ] && integration=true
+            if [ "$EVENT_NAME" = "pull_request" ]; then
+              # Fast develop PR tier: run Web smoke (add full Playwright E2E only when test/e2e/ changes
+              # or validate/full is set) and run the ~10m Android emulator only for direct Android or
+              # integration_test edits (or validate/full). Full app-wide Web E2E + Android emulator
+              # validation runs on develop -> daily and release-channel pushes.
+              if [ "$FILTER_WEB" = "true" ] && [ "$DEP_WEB" != "false" ]; then
+                web=true
+                if [ "$FILTER_E2E" = "true" ] || [ "$FULL_PR" = "true" ]; then
+                  web_e2e=true
+                fi
+              fi
+              if [ "$DEP_ANDROID" != "false" ]; then
+                if [ "$FILTER_ANDROID_PR" = "true" ] || { [ "$FULL_PR" = "true" ] && [ "$FILTER_ANDROID" = "true" ]; }; then
+                  android=true
+                fi
+                if [ "$FILTER_ANDROID_PR" = "true" ] || { [ "$FULL_PR" = "true" ] && [ "$FILTER_INTEGRATION" = "true" ]; }; then
+                  integration=true
+                fi
+              fi
+            else
+              if [ "$FILTER_WEB" = "true" ]; then
+                web=true
+                web_e2e=true
+              fi
+              [ "$FILTER_ANDROID" = "true" ] && android=true
+              [ "$FILTER_INTEGRATION" = "true" ] && integration=true
+            fi
           fi
           [ "$FILTER_RULES" = "true" ] && rules=true
           {
             echo "web=$web"
+            echo "web_e2e=$web_e2e"
             echo "android=$android"
             echo "integration=$integration"
             echo "rules=$rules"
@@ -213,6 +252,7 @@ jobs:
         working-directory: test/e2e
         run: npx playwright test --project=smoke
       - name: Run Playwright E2E tests
+        if: ${{ needs.changes.outputs.web_e2e == 'true' }}
         working-directory: test/e2e
         run: npx playwright test --project=chromium
       - name: Upload Playwright artifacts

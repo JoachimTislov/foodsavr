@@ -2,9 +2,13 @@ name: Synchronize GitHub labels
 
 on:
   issues:
-    types: [opened, edited, reopened, closed]
+    types: [opened, edited, reopened]
   pull_request_target:
-    types: [opened, edited, synchronize, ready_for_review, converted_to_draft, closed]
+    types: [opened, edited, ready_for_review, converted_to_draft]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

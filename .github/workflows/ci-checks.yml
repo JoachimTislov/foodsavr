@@ -9,10 +9,7 @@ on:
       - "packages/**"
       - "test/**"
       - "assets/**"
-      - ".github/workflows/build-android.yml"
-      - ".github/workflows/release-gated.yml"
-      - "scripts/release/**"
-      - "scripts/ci/**"
+      - "scripts/ci/*.dart"
       - "pubspec.yaml"
       - "pubspec.lock"
       - "analysis_options.yaml"
@@ -38,6 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run: ${{ steps.decide.outputs.run }}
+      run_release: ${{ steps.decide.outputs.run_release }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -55,27 +53,47 @@ jobs:
               - "packages/**"
               - "test/**"
               - "assets/**"
+              - "scripts/ci/*.dart"
               - "pubspec.yaml"
               - "pubspec.lock"
               - "analysis_options.yaml"
               - "integration_test/**"
               - "test_driver/**"
+            release:
+              - "scripts/release/**"
               - ".github/workflows/build-android.yml"
               - ".github/workflows/android-drive-test.yml"
               - ".github/workflows/release-gated.yml"
-              - "scripts/release/**"
-              - "scripts/ci/**"
 
       - name: Decide
         id: decide
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "run_release=${{ steps.paths.outputs.release == 'true' }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_release=true" >> "$GITHUB_OUTPUT"
+          fi
           if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ steps.paths.outputs.code }}" != "true" ]; then
             echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
           scripts/ci/already_tested.sh ci-checks.yml ':(glob)**/*.dart' lib packages test assets/translations pubspec.yaml pubspec.lock analysis_options.yaml integration_test test_driver
           if grep -q 'skip=true' "$GITHUB_OUTPUT"; then echo "run=false" >> "$GITHUB_OUTPUT"; else echo "run=true" >> "$GITHUB_OUTPUT"; fi
+
+  release-scripts:
+    name: Check release scripts
+    needs: gate
+    if: needs.gate.outputs.run_release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Run release script tests
+        run: python3 scripts/ci/local_ci.py --group release
 
   check:
     name: Check & Test
@@ -95,11 +113,6 @@ jobs:
           flutter-version: 3.47.6
           run-pub-get: "false"
           run-build-runner: "false"
-
-      - name: Check Android release orchestration
-        run: |
-          node --test scripts/release/release_gate.test.cjs
-          python3 -m unittest discover -s scripts/release -p '*_test.py'
 
       - name: Install dependencies
         run: flutter pub get
