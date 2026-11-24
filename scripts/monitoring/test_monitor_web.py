@@ -141,6 +141,46 @@ exports.chromium = { launch: async () => ({ newContext: async () => context, clo
             self.assertEqual(report["raw_findings"]["console_errors"], [])
 
     @unittest.skipUnless(shutil.which("node"), "requires Node to run the web probe")
+    def test_probe_reports_query_only_recaptcha_match(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            script = root / "scripts/monitoring/probe_web.mjs"
+            script.parent.mkdir(parents=True)
+            shutil.copyfile(MONITOR / script.name, script)
+            package = root / "test/e2e/node_modules/playwright"
+            package.mkdir(parents=True)
+            (root / "test/e2e/package.json").write_text("{}")
+            (package / "index.js").write_text("""
+const callbacks = {};
+const page = {
+  on: (event, callback) => { callbacks[event] = callback; },
+  goto: async () => {
+    callbacks.console({ type: () => 'error', text: () => 'requestStorageAccess: Permission denied.',
+      location: () => ({ url: 'https://accounts.google.com/signin?continue=/recaptcha/enterprise/anchor', lineNumber: 1, columnNumber: 1 }) });
+    callbacks.requestfinished({
+      url: () => 'https://example.com/main.dart.js', resourceType: () => 'script',
+      response: async () => ({ ok: () => true, body: async () => Buffer.from('loaded bundle') }),
+    });
+  },
+  title: async () => '',
+  locator: () => ({ first: () => ({ waitFor: async () => {} }) }),
+  evaluate: async () => [],
+  removeAllListeners: () => {},
+};
+const context = {
+  newPage: async () => page,
+  request: { get: async () => ({ ok: () => false }) },
+};
+exports.chromium = { launch: async () => ({ newContext: async () => context, close: async () => {} }) };
+""")
+            result = subprocess.run([
+                "node", str(script), "--url", "https://example.com", "--settle-ms", "0",
+            ], cwd=root, capture_output=True, text=True)
+            report = json.loads(result.stdout)
+            self.assertFalse(report["ok"])
+            self.assertEqual(len(report["raw_findings"]["console_errors"]), 1)
+
+    @unittest.skipUnless(shutil.which("node"), "requires Node to run the web probe")
     def test_probe_reports_app_origin_storage_access_error(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
