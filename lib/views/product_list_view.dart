@@ -46,10 +46,14 @@ class _ProductListViewState extends State<ProductListView> {
   late final ListQueryState _query;
   late final PreferencesController _preferences;
   Product? _selected;
+  bool _canScan = false;
 
   @override
   void initState() {
     super.initState();
+    BarcodeScannerService.hasCamera().then((canScan) {
+      if (mounted && canScan) setState(() => _canScan = true);
+    });
     _controller = ProductListController(
       productService: getIt<ProductService>(),
       collectionService: getIt<CollectionService>(),
@@ -162,17 +166,11 @@ class _ProductListViewState extends State<ProductListView> {
                 await _reloadProductsAfterMutation();
               }
             },
-            // Without a camera (web, desktop) the flow opens manual entry, so
-            // the button must not promise a scanner.
-            icon: Icon(
-              BarcodeScannerService.supportsCameraScanning
-                  ? Icons.qr_code_scanner
-                  : Icons.add,
-            ),
+            // Without a camera the flow opens manual entry, so the button
+            // must not promise a scanner.
+            icon: Icon(_canScan ? Icons.qr_code_scanner : Icons.add),
             label: Text(
-              BarcodeScannerService.supportsCameraScanning
-                  ? 'product.scanBarcode'.tr()
-                  : 'product.add'.tr(),
+              _canScan ? 'product.scanBarcode'.tr() : 'product.add'.tr(),
             ),
           ),
         ],

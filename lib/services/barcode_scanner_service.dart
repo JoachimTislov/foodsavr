@@ -20,6 +20,20 @@ class BarcodeScannerService {
         cameras.firstOrNull;
   }
 
+  static Future<bool>? _hasCamera;
+
+  /// Whether this device can scan with a camera; detected once and cached.
+  static Future<bool> hasCamera() => _hasCamera ??= () async {
+    try {
+      return await findCamera() != null;
+    } catch (_) {
+      return false;
+    }
+  }();
+
+  @visibleForTesting
+  static void resetCameraDetection() => _hasCamera = null;
+
   final BarcodeScanner _barcodeScanner = BarcodeScanner();
 
   Future<List<Barcode>> processImage(InputImage inputImage) =>
