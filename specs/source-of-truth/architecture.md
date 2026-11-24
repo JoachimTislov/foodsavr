@@ -7,7 +7,7 @@ Flutter/Firebase app with layered architecture (see root `INDEX.md` and `doc/imp
 - **UI** (`lib/views/`, `lib/widgets/`) — screens and reusable components; services injected via `getIt<Service>()`; controller layer with `watch_it` reactivity for dashboard and collection lists.
 - **Adaptive layout** (`lib/constants/adaptive_layout.dart`) — Material 3 window size classes: compact (<600 dp) uses the bottom navigation bar; medium (600-839) and expanded (>=840) use a navigation rail (labels beside icons from 1200); expanded windows show list and detail side by side (`MasterDetailLayout`) and cap page content at a readable width.
 - **Service** (`lib/services/`, `lib/features/third_party_integration/services/`) — business logic; depends on repository interfaces.
-- **Data** (`lib/interfaces/`, `lib/repositories/`) — `i_repository`/`i_service` base contracts and feature contracts.
+- **Data** (`lib/interfaces/`, `lib/repositories/`) — `i_repository` base contract and feature contracts.
 - **Domain** (`lib/models/`) — plain data classes with `toJson`/`fromJson`.
 - **Shared core** (`packages/foodsavr_core/`) — pure Dart package: `line_item.dart`, `normalizer.dart`, `matcher.dart`, `shelf_life.dart`, `confidence_gate.dart`, `pipeline.dart`. The skeleton landed in #202; app-side ingestion does not yet route through it.
 

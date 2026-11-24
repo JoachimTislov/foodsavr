@@ -7,7 +7,7 @@ This document maps the core files and folders of the codebase. Instead of guessi
 ## Layers Summary
 - **UI (`views/`, `widgets/`)**: Screens and reusable components; inject services via `getIt<Service>()`.
 - **Service (`services/`)**: Business logic, validation, orchestration; depends on repository **interfaces**.
-- **Data (`interfaces/`, `repositories/`)**: Base contracts (`i_repository`, `i_service`) and feature contracts.
+- **Data (`interfaces/`, `repositories/`)**: Base contract (`i_repository`) and feature contracts.
 - **Domain (`models/`)**: Plain data classes with `toJson`/`fromJson` and computed properties.
 
 ## Core Entities & Structure
