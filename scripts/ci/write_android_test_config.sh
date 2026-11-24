@@ -5,8 +5,8 @@ options='lib/firebase_options.dart'
 google_services='android/app/src/production/debug/google-services.json'
 env_file='assets/.env'
 
-if [ ! -s "$options" ] || grep -q 'not configured\|not configured for fork' "$options"; then
-  echo '::error::FIREBASE_OPTIONS_B64 must contain the real test-project configuration for the Drive APK.'
+if [ ! -s "$options" ] || grep -q 'not configured for fork\|not configured for this CI run' "$options"; then
+  echo '::error::lib/firebase_options.dart must contain the real test-project configuration for the Drive APK.'
   exit 1
 fi
 
@@ -19,9 +19,11 @@ from pathlib import Path
 
 source = Path(sys.argv[1]).read_text()
 output = Path(sys.argv[2])
+android_match = re.search(r"FirebaseOptions\s+android\s*=\s*FirebaseOptions\((.*?)\);", source, re.DOTALL)
+block = android_match.group(1) if android_match else source
 
 def value(name):
-    match = re.search(rf"\b{name}\s*(?:[:=])\s*(['\"])(.*?)\1", source)
+    match = re.search(rf"\b{name}\s*(?:[:=])\s*(['\"])(.*?)\1", block)
     if not match or not match.group(2):
         raise SystemExit(f"::error::Firebase options is missing {name}")
     return match.group(2)

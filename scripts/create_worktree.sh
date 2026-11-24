@@ -68,13 +68,7 @@ LINK_MAP=(
     "android/app/google-services.json:$MAIN_DIR/android/app/google-services.json"
     "ios/Runner/GoogleService-Info.plist:$MAIN_DIR/ios/Runner/GoogleService-Info.plist"
     "macos/Runner/GoogleService-Info.plist:$MAIN_DIR/macos/Runner/GoogleService-Info.plist"
-    "lib/firebase_options.dart:$MAIN_DIR/lib/firebase_options.dart"
 )
-
-usable_firebase_options() {
-    grep -q 'class DefaultFirebaseOptions' "$1" 2>/dev/null &&
-        ! grep -q 'Compile-only stub written by scripts/ci/local_ci.py' "$1"
-}
 
 for entry in "${LINK_MAP[@]}"; do
     DEST_REL="${entry%%:*}"
@@ -84,14 +78,7 @@ for entry in "${LINK_MAP[@]}"; do
         ! git -C "$TARGET_DIR" check-ignore -q -- "$DEST_REL"; then
         continue
     fi
-    if [[ "$SRC" == "$MAIN_DIR/"* && "$DEST_REL" == "lib/firebase_options.dart" ]] &&
-        ! usable_firebase_options "$SRC"; then
-        SRC="$SOURCE_DIR/$DEST_REL"
-        if ! usable_firebase_options "$SRC"; then
-            echo "  Skipped: $DEST_REL (no usable local Firebase options)"
-            continue
-        fi
-    elif [[ "$SRC" == "$MAIN_DIR/"* && ! -e "$SRC" ]]; then
+    if [[ "$SRC" == "$MAIN_DIR/"* && ! -e "$SRC" ]]; then
         SRC="$SOURCE_DIR/$DEST_REL"
     fi
     if [[ -e "$SRC" ]]; then

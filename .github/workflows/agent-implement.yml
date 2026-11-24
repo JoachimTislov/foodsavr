@@ -178,24 +178,7 @@ jobs:
       - name: Verify patch
         if: steps.patch.outputs.changed == 'true'
         id: verify
-        env:
-          FIREBASE_OPTIONS_B64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
         run: |
-          if [ -n "$FIREBASE_OPTIONS_B64" ]; then
-            echo "$FIREBASE_OPTIONS_B64" | base64 -d > lib/firebase_options.dart
-          else
-            cat > lib/firebase_options.dart <<'EOF'
-          import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
-          class DefaultFirebaseOptions {
-            static const FirebaseOptions currentPlatform = FirebaseOptions(
-              apiKey: 'dummy-api-key',
-              appId: '1:000000000000:android:0000000000000000',
-              messagingSenderId: '000000000000',
-              projectId: 'foodsavr-local-dev',
-            );
-          }
-          EOF
-          fi
           echo 'CI_TEST=1' > assets/.env
           flutter pub get
           dart run build_runner build --delete-conflicting-outputs

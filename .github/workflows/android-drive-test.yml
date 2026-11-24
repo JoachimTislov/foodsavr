@@ -24,14 +24,12 @@ jobs:
     env:
       GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
       GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
-      FIREBASE_OPTIONS_B64: ${{ secrets.FIREBASE_OPTIONS_B64 }}
       ANDROID_ENV_B64: ${{ secrets.ANDROID_ENV_B64 }}
     steps:
       - name: Check Drive configuration
         run: |
           test -n "$GOOGLE_DRIVE_FOLDER_ID" || { echo '::error::Missing GOOGLE_DRIVE_FOLDER_ID'; exit 1; }
           test -n "$GOOGLE_DRIVE_OAUTH_JSON" || { echo '::error::Missing GOOGLE_DRIVE_OAUTH_JSON'; exit 1; }
-          test -n "$FIREBASE_OPTIONS_B64" || { echo '::error::Missing FIREBASE_OPTIONS_B64 for the remote test APK'; exit 1; }
 
       - uses: actions/checkout@v6
         with:

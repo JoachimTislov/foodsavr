@@ -14,7 +14,6 @@ functions
 firebase.json
 storage.rules
 google-services.json
-firebase_options.dart
 .gemini/policies
 .pr_comments_cache.json
 research/*

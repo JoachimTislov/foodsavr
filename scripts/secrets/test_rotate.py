@@ -29,7 +29,8 @@ def registry_from(text: str):
 class RegistryTest(unittest.TestCase):
     def test_checked_in_registry_is_valid(self):
         registry = rotate.load_registry()
-        self.assertIn("FIREBASE_OPTIONS_B64", registry)
+        self.assertNotIn("FIREBASE_OPTIONS_B64", registry)
+        self.assertIn("CODEX_AUTH_JSON_B64", registry)
         self.assertTrue(registry["FACEBOOK_CLIENT_TOKEN"].public)
         self.assertFalse(registry["FACEBOOK_APP_SECRET"].public)
 

@@ -38,7 +38,7 @@ Extract:
 - `github.login`, `github.target_repo`, `github.is_admin`, `github.needs_fork`
 - `github.rulesets_supported` (automatically `false` on private GitHub Free repos)
 - `github.branches`, `github.variables`, `github.secret_names`
-- `local_files` (`firebase_options`, `dotenv`, `google_services`, `hooks_configured`)
+- `local_files` (`dotenv`, `google_services`, `instance_local`, `hooks_configured`)
 
 ### 2. Collect minimal multiple-choice decisions
 

@@ -201,20 +201,8 @@ def docs_python() -> str:
     return str(python)
 
 
-FIREBASE_STUB = """// Compile-only stub written by scripts/ci/local_ci.py; removed after the run.
-import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
-
-class DefaultFirebaseOptions {
-  static FirebaseOptions get currentPlatform => const FirebaseOptions(
-    apiKey: 'local-ci',
-    appId: 'local-ci',
-    messagingSenderId: 'local-ci',
-    projectId: 'local-ci',
-  );
-}
-"""
 # CI writes these from secrets / `touch`; locally they may be absent.
-CI_FILES = {"lib/firebase_options.dart": FIREBASE_STUB, "assets/.env": ""}
+CI_FILES = {"assets/.env": ""}
 RESTORED = ["analysis_options.yaml", "pubspec.lock"]
 
 
@@ -233,8 +221,10 @@ def precheck(name: str) -> str | None:
         if not shutil.which("flutter") and not ci_flutter_version():
             return "flutter not on PATH and no CI Flutter version is pinned"
         options = ROOT / "lib/firebase_options.dart"
-        if options.exists() and "DefaultFirebaseOptions" not in options.read_text(errors="replace"):
-            return "lib/firebase_options.dart is invalid (regenerate with flutterfire configure)"
+        if options.is_symlink() and not options.exists():
+            return "lib/firebase_options.dart is a dangling symlink"
+        if not options.exists() or "DefaultFirebaseOptions" not in options.read_text(errors="replace"):
+            return "lib/firebase_options.dart is missing or invalid (restore from git or flutterfire configure)"
         for rel in CI_FILES:
             if (ROOT / rel).is_symlink() and not (ROOT / rel).exists():
                 return f"{rel} is a dangling symlink"

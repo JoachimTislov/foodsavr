@@ -53,7 +53,6 @@ def _sample_probe(
         "upstream_repo": None,
         "local_config": {},
         "local_files": {
-            "firebase_options": local_ok,
             "dotenv": local_ok,
             "google_services": local_ok,
             "instance_local": local_ok,
@@ -95,7 +94,7 @@ class ParseAndScaffoldTest(unittest.TestCase):
             first = setupctl.scaffold_local(root=root, profile="local-dev", topology="single", repo="alice/foodsavr")
             self.assertEqual(
                 sorted(first["created"]),
-                ["android/app/google-services.json", "assets/.env", "lib/firebase_options.dart"],
+                ["android/app/google-services.json", "assets/.env"],
             )
             self.assertTrue(first["hooks_configured"])
             self.assertEqual(first["instance_local"], ".agents/instance.local.json")
@@ -104,7 +103,7 @@ class ParseAndScaffoldTest(unittest.TestCase):
             (root / "assets/.env").write_text("CUSTOM_KEY=1\n", encoding="utf-8")
             second = setupctl.scaffold_local(root=root, profile="local-dev", topology="single", repo="alice/foodsavr")
             self.assertEqual(second["created"], [])
-            self.assertEqual(len(second["skipped"]), 3)
+            self.assertEqual(len(second["skipped"]), 2)
             self.assertEqual((root / "assets/.env").read_text(encoding="utf-8"), "CUSTOM_KEY=1\n")
 
 
@@ -134,7 +133,7 @@ class PlanAndVerifyTest(unittest.TestCase):
             self.assertIn('release_topology    = "single"', tfvars)
             self.assertIn("enable_rulesets     = false", tfvars)
 
-    def test_full_cloud_plan_includes_gcp_and_firebase_options(self):
+    def test_full_cloud_plan_includes_gcp_without_firebase_options_secret(self):
         probe = _sample_probe(
             repo="alice/foodsavr",
             login="alice",
@@ -150,7 +149,7 @@ class PlanAndVerifyTest(unittest.TestCase):
         self.assertNotIn("fork-repo", human_ids)
         self.assertNotIn("create-agent-app", human_ids)
         self.assertIn("apply-gcp-terraform", human_ids)
-        self.assertIn("sync-firebase-options", human_ids)
+        self.assertNotIn("sync-firebase-options", human_ids)
 
     def test_verify_profile_passes_when_requirements_met(self):
         probe = _sample_probe(
