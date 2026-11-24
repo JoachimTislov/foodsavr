@@ -728,6 +728,7 @@ def format_attestation_marker(
     status: str = "approved",
     required_tier: str | None = None,
     cap_reason: str | None = None,
+    reason: str | None = None,
     provider: str | None = None,
     model: str | None = None,
     session_id: str | None = None,
@@ -741,6 +742,8 @@ def format_attestation_marker(
     }
     if cap_reason:
         payload["cap_reason"] = cap_reason
+    if reason:
+        payload["reason"] = reason
     if provider:
         payload["provider"] = provider
     if model:
@@ -757,12 +760,13 @@ def format_review_markdown(
     review_tier: str | None = None,
     required_tier: str | None = None,
     cap_reason: str | None = None,
+    reason: str | None = None,
     provider: str | None = None,
     model: str | None = None,
     session_id: str | None = None,
     summary: str = "",
-    standards_findings: str = "No blocking standards violations found.",
-    spec_findings: str = "Matches issue and source-of-truth specification.",
+    standards_findings: str | None = None,
+    spec_findings: str | None = None,
 ) -> str:
     required_tier = required_tier or classification.required_tier
     effective_tier = review_tier or required_tier
@@ -772,6 +776,7 @@ def format_review_markdown(
         tier=effective_tier,
         required_tier=required_tier,
         cap_reason=cap_reason,
+        reason=reason,
         status=status,
         provider=provider,
         model=model,
@@ -786,7 +791,7 @@ def format_review_markdown(
         + (f" (escalated from `{classification.escalated_from}`)" if classification.escalated else ""),
         f"- **Executed tier:** `{effective_tier}`"
         + (" (limited by available review providers)" if cap_reason == PROVIDER_CAP else ""),
-        f"- **Outcome:** `{status}`",
+        f"- **Outcome:** `{status}`" + (f" (`{reason}`)" if reason else ""),
         f"- **Provider / Model:** `{provider or 'none'}` / `{model or 'none'}`",
         f"- **Session:** `{session_id or 'none'}`",
         f"- **Areas:** {', '.join(f'`{a}`' for a in classification.areas) or '`none`'}",
@@ -796,7 +801,7 @@ def format_review_markdown(
         lines.extend([
             "",
             "### History Escalation",
-            *[f"- {reason}" for reason in classification.escalation_reasons],
+            *[f"- {esc_reason}" for esc_reason in classification.escalation_reasons],
         ])
     if classification.recommended_static_checks:
         lines.extend([
@@ -804,10 +809,17 @@ def format_review_markdown(
             "### Recommended Verification Checks",
             *[f"- `{chk}`" for chk in classification.recommended_static_checks],
         ])
-    if status != "skipped" and provider != "deterministic-gate" and "standards" in TIER_AXES[effective_tier]:
-        lines.extend(["", "## Standards", "", standards_findings])
-    if status != "skipped" and provider != "deterministic-gate" and "spec" in TIER_AXES[effective_tier]:
-        lines.extend(["", "## Spec", "", spec_findings])
+    if status != "skipped" and provider != "deterministic-gate":
+        effective_standards = (
+            "No blocking standards violations found." if standards_findings is None else standards_findings.strip()
+        )
+        effective_spec = (
+            "Matches issue and source-of-truth specification." if spec_findings is None else spec_findings.strip()
+        )
+        if effective_standards and ("standards" in TIER_AXES[effective_tier] or standards_findings is not None):
+            lines.extend(["", "## Standards", "", effective_standards])
+        if effective_spec and ("spec" in TIER_AXES[effective_tier] or spec_findings is not None):
+            lines.extend(["", "## Spec", "", effective_spec])
     if summary:
         lines.extend(["", "### Summary", "", summary])
     lines.extend(["", marker, ""])
@@ -1592,15 +1604,117 @@ def bisect_learn(
     }
 
 
-def extract_verdict(result: dict[str, Any], root: Path) -> str | None:
-    """Return the last agent verdict (APPROVE or CHANGES_REQUESTED) found in the run's step artifacts."""
-    verdict: str | None = None
-    for artifact in result.get("artifacts", []) or []:
-        path = Path(str(artifact))
-        if not path.is_absolute():
-            path = root / path
-        if not path.is_file() or "verify-gate" not in path.name:
+VERDICT_LINE_RE = re.compile(
+    r"^[#>*\-\s_`]*VERDICT[*_`]*\s*:\s*[*_`]*\s*(APPROVE|CHANGES_REQUESTED)[*_`.\s!]*$"
+)
+STANDARDS_HEADING_RE = re.compile(
+    r"^(?:#{1,6}\s+(?:code\s+)?standards(?:\s+(?:findings|review|check|compliance))?\s*:?|"
+    r"\*\*(?:code\s+)?standards(?:\s+(?:findings|review|check|compliance))?\s*:?\*\*\s*:?)\s*$",
+    re.IGNORECASE,
+)
+SPEC_HEADING_RE = re.compile(
+    r"^(?:#{1,6}\s+spec(?:s|ifications?)?(?:\s+(?:findings|review|check|compliance))?\s*:?|"
+    r"\*\*spec(?:s|ifications?)?(?:\s+(?:findings|review|check|compliance))?\s*:?\*\*\s*:?)\s*$",
+    re.IGNORECASE,
+)
+FENCE_RE = re.compile(r"^\s*(?:```|~~~)")
+
+
+def parse_verdict_text(text: str) -> str | None:
+    if not isinstance(text, str) or not text.strip():
+        return None
+    for line in reversed(text.strip().splitlines()):
+        stripped = line.strip()
+        if not stripped:
             continue
+        match = VERDICT_LINE_RE.match(stripped)
+        if match:
+            return match[1]
+    found = VERDICT_RE.findall(text)
+    return found[-1] if found else None
+
+
+def split_review_sections(review_text: str) -> tuple[str, str]:
+    """Split review text on Standards/Spec headings when present; otherwise put all text under Standards."""
+    cleaned = review_text.strip()
+    if not cleaned:
+        return "", ""
+
+    preamble: list[str] = []
+    standards_lines: list[str] = []
+    spec_lines: list[str] = []
+    current_section: str | None = None
+    saw_heading = False
+    in_fence = False
+
+    for line in cleaned.splitlines():
+        if FENCE_RE.match(line):
+            in_fence = not in_fence
+        elif not in_fence:
+            stripped = line.strip()
+            if STANDARDS_HEADING_RE.match(stripped):
+                saw_heading = True
+                current_section = "standards"
+                continue
+            if SPEC_HEADING_RE.match(stripped):
+                saw_heading = True
+                current_section = "spec"
+                continue
+
+        if current_section == "standards":
+            standards_lines.append(line)
+        elif current_section == "spec":
+            spec_lines.append(line)
+        else:
+            preamble.append(line)
+
+    if not saw_heading:
+        return cleaned, ""
+
+    if preamble and any(item.strip() for item in preamble):
+        standards_lines = [*preamble, "", *standards_lines] if standards_lines else preamble
+
+    return "\n".join(standards_lines).strip(), "\n".join(spec_lines).strip()
+
+
+def _resolve_artifact_path(artifact: Any, roots: list[Path]) -> Path | None:
+    raw = str(artifact or "").strip()
+    if not raw:
+        return None
+    path = Path(raw)
+    if path.is_absolute():
+        return path if path.is_file() else None
+    for base in roots:
+        candidate = base / path
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def extract_review_outcome(result: dict[str, Any], root: Path | list[Path]) -> tuple[str | None, str]:
+    """Return the last (verdict, review_output) from verify-gate step artifacts."""
+    roots = [root] if isinstance(root, Path) else list(root)
+    candidate_refs: list[Any] = list(result.get("artifacts", []) or [])
+    for step in result.get("steps", []) or []:
+        if isinstance(step, dict) and step.get("id") == "verify-gate":
+            for attempt in step.get("attempts", []) or []:
+                if isinstance(attempt, dict) and attempt.get("artifact"):
+                    candidate_refs.append(attempt["artifact"])
+
+    seen: set[Path] = set()
+    artifact_paths: list[Path] = []
+    for ref in candidate_refs:
+        resolved = _resolve_artifact_path(ref, roots)
+        if resolved is None or "verify-gate" not in resolved.name:
+            continue
+        key = resolved.resolve()
+        if key not in seen:
+            seen.add(key)
+            artifact_paths.append(resolved)
+
+    verdict: str | None = None
+    review_output = ""
+    for path in artifact_paths:
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -1609,13 +1723,28 @@ def extract_verdict(result: dict[str, Any], root: Path) -> str | None:
             payload = json.loads(text)
         except json.JSONDecodeError:
             payload = None
-        if isinstance(payload, dict) and "review_verdict" in payload:
-            value = payload["review_verdict"]
-            verdict = value if value in ("APPROVE", "CHANGES_REQUESTED") else None
-            continue
-        found = VERDICT_RE.findall(text)
-        if found:
-            verdict = found[-1]
+        if isinstance(payload, dict):
+            raw_review_output = payload.get("review_output")
+            review_output = raw_review_output.strip() if isinstance(raw_review_output, str) else ""
+            if "review_verdict" in payload:
+                value = payload["review_verdict"]
+                if value in ("APPROVE", "CHANGES_REQUESTED"):
+                    verdict = value
+                else:
+                    verdict = parse_verdict_text(review_output) if review_output else None
+                continue
+            if isinstance(raw_review_output, str):
+                verdict = parse_verdict_text(review_output) if review_output else None
+                continue
+        else:
+            review_output = text.strip()
+        verdict = parse_verdict_text(text)
+    return verdict, review_output
+
+
+def extract_verdict(result: dict[str, Any], root: Path) -> str | None:
+    """Return the last agent verdict (APPROVE or CHANGES_REQUESTED) found in the run's step artifacts."""
+    verdict, _ = extract_review_outcome(result, root)
     return verdict
 
 
@@ -1849,30 +1978,47 @@ def cmd_record_review(args: argparse.Namespace) -> int:
     session_id = args.session_id
     status = args.status
     summary = args.summary
+    reason: str | None = None
+    standards_findings: str | None = args.standards_findings or None
+    spec_findings: str | None = args.spec_findings or None
 
     if args.workflow_result and Path(args.workflow_result).exists():
-        wf_res = json.loads(Path(args.workflow_result).read_text(encoding="utf-8"))
+        wf_path = Path(args.workflow_result)
+        wf_res = json.loads(wf_path.read_text(encoding="utf-8"))
         verify = next((step for step in wf_res.get("steps", []) if step.get("id") == "verify-gate"), {})
         last_attempt = (verify.get("attempts") or [{}])[-1]
         provider = provider or verify.get("provider")
         model = model or verify.get("selected_model")
         session_id = session_id or last_attempt.get("session_id")
-        if not status:
-            wf_status = wf_res.get("status")
-            if wf_status == "succeeded":
-                # A succeeded run only proves the agent finished; the verdict comes from its output.
-                verdict = extract_verdict(wf_res, ROOT)
-                status = {"APPROVE": "approved", "CHANGES_REQUESTED": "blocked"}.get(verdict or "", "commented")
-            elif wf_status == "planned":
-                status = "commented"
+        wf_status = wf_res.get("status")
+        if wf_status == "succeeded":
+            # A succeeded run only proves the agent finished; verdict and findings come from its output.
+            verdict, review_output = extract_review_outcome(wf_res, [wf_path.resolve().parent, ROOT])
+            if not review_output:
+                if not status:
+                    status = "skipped"
+                reason = "no-review-output"
+                summary = summary or "Model review skipped (no-review-output). The review step produced no output."
             else:
+                if not status:
+                    status = {"APPROVE": "approved", "CHANGES_REQUESTED": "blocked"}.get(verdict or "", "commented")
+                parsed_standards, parsed_spec = split_review_sections(review_output)
+                if not standards_findings:
+                    standards_findings = parsed_standards
+                if spec_findings is None:
+                    spec_findings = parsed_spec
+        elif wf_status == "planned":
+            if not status:
+                status = "commented"
+        else:
+            if not status:
                 status = "skipped"
-                failed_step = verify or next(
-                    (step for step in wf_res.get("steps", []) if step.get("status") == "failed"), {},
-                )
-                provider = provider or failed_step.get("provider")
-                model = model or failed_step.get("selected_model")
-                summary = summary or "Model review skipped. The workflow failed before completing verification."
+            failed_step = verify or next(
+                (step for step in wf_res.get("steps", []) if step.get("status") == "failed"), {},
+            )
+            provider = provider or failed_step.get("provider")
+            model = model or failed_step.get("selected_model")
+            summary = summary or "Model review skipped. The workflow failed before completing verification."
 
     required_tier = args.required_tier or classification.required_tier
     if status == "skipped":
@@ -1919,6 +2065,8 @@ def cmd_record_review(args: argparse.Namespace) -> int:
     }
     if cap_reason:
         record["cap_reason"] = cap_reason
+    if reason:
+        record["reason"] = reason
     if not args.no_record:
         append_history_record(record, history_path)
 
@@ -1928,12 +2076,13 @@ def cmd_record_review(args: argparse.Namespace) -> int:
         review_tier=review_tier,
         required_tier=required_tier,
         cap_reason=cap_reason,
+        reason=reason,
         provider=provider,
         model=model,
         session_id=session_id,
         summary=record["summary"],
-        standards_findings=args.standards_findings or "Checked against repository coding standards and baseline code smells.",
-        spec_findings=args.spec_findings or "Checked against linked issue and source-of-truth specifications.",
+        standards_findings=standards_findings,
+        spec_findings=spec_findings,
     )
     if args.output_markdown:
         out_md = Path(args.output_markdown)
