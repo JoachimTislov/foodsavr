@@ -147,6 +147,7 @@ class PR:
     files_truncated: bool = False
     reviews: list[Review | dict[str, Any]] = field(default_factory=list)
     comments: list[dict[str, Any]] = field(default_factory=list)
+    patch_id: str | None = None
 
     @property
     def moves_scope(self) -> bool:
@@ -377,6 +378,7 @@ def blocker(
         pr_author=pr.author,
         owner=owner,
         trusted_bots=trusted_bots,
+        current_patch_id=pr.patch_id,
     )
     if not ok:
         return review_blocker
@@ -480,6 +482,23 @@ def plan(
     return Plan(actions, report)
 
 
+def needs_patch_id(pr: PR) -> bool:
+    """True when an opted-in PR has a prior attestation carrying patch_id on an older head."""
+    if LABEL not in pr.labels or pr.draft or pr.fork:
+        return False
+    has_prior_patch = False
+    for item in (*pr.reviews, *pr.comments):
+        body = item.get("body", "") if isinstance(item, dict) else getattr(item, "body", "")
+        att = pr_review.parse_attestation(str(body or ""))
+        if not att:
+            continue
+        if att.get("head_sha") == pr.head and str(att.get("status") or "").lower() == "approved":
+            return False
+        if att.get("patch_id") and str(att.get("status") or "").lower() == "approved":
+            has_prior_patch = True
+    return has_prior_patch
+
+
 class GitHub:
     def __init__(self, repo: str, apply: bool):
         self.owner, self.name = repo.split("/", 1)
@@ -504,6 +523,18 @@ class GitHub:
             if not page["pageInfo"]["hasNextPage"]:
                 return [from_node(node) for node in nodes]
             cursor = page["pageInfo"]["endCursor"]
+
+    def populate_patch_ids(self, prs: list[PR]) -> None:
+        """Compute current patch_id for opted-in PRs that may carry over a prior review."""
+        for pr in prs:
+            if not needs_patch_id(pr):
+                continue
+            try:
+                diff_text = self.run("pr", "diff", str(pr.number), "--repo", self.repo)
+            except RuntimeError:
+                pr.patch_id = None
+                continue
+            pr.patch_id = pr_review.compute_patch_id(diff_text)
 
     def execute(self, action: str, pr: PR) -> str:
         if not self.apply:
@@ -609,6 +640,7 @@ def main(argv: list[str] | None = None) -> int:
                 break
             time.sleep(10)
             prs = gh.prs()
+        gh.populate_patch_ids(prs)
         result = plan(prs, datetime.now(timezone.utc), owner=gh.owner, trusted_bots=trusted_bots)
         rows = result.report
         merged = False

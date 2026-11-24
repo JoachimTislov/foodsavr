@@ -528,5 +528,52 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(p.rebase_requested, datetime(2026, 11, 21, 11, 0, tzinfo=timezone.utc))
 
 
+class PatchEquivalentMergeGateTest(unittest.TestCase):
+    def test_needs_patch_id_only_when_prior_head_has_patch_id_attestation(self):
+        old_comment = {
+            "body": '<!-- agent-review: {"pr": 10, "head_sha": "oldhead", "tier": "fast", "status": "approved", "patch_id": "sha256:abc"} -->',
+            "author": {"__typename": "Bot", "login": "github-actions[bot]"},
+        }
+        p_needs = pr(10, head="newhead", reviews=[], comments=[old_comment])
+        self.assertTrue(gate.needs_patch_id(p_needs))
+
+        p_exact = pr(10, head="oldhead", reviews=[], comments=[old_comment])
+        self.assertFalse(gate.needs_patch_id(p_exact))
+
+        p_unlabeled = pr(10, head="newhead", labels=(), reviews=[], comments=[old_comment])
+        self.assertFalse(gate.needs_patch_id(p_unlabeled))
+
+        p_no_patch = pr(
+            10,
+            head="newhead",
+            reviews=[],
+            comments=[
+                {
+                    "body": '<!-- agent-review: {"pr": 10, "head_sha": "oldhead", "tier": "fast", "status": "approved"} -->',
+                    "author": {"__typename": "Bot", "login": "github-actions[bot]"},
+                }
+            ],
+        )
+        self.assertFalse(gate.needs_patch_id(p_no_patch))
+
+    def test_plan_merges_when_patch_id_matches_prior_approved_head(self):
+        old_comment = {
+            "body": '<!-- agent-review: {"pr": 12, "head_sha": "1111111", "tier": "fast", "status": "approved", "patch_id": "sha256:same"} -->',
+            "author": {"__typename": "Bot", "login": "github-actions[bot]"},
+        }
+        # Matching patch_id passes the review gate without re-running the model
+        p_ok = pr(12, head="2222222", reviews=[], comments=[old_comment], patch_id="sha256:same")
+        self.assertEqual(actions([p_ok], owner="owner"), [("merge", 12)])
+
+        # Changed patch_id stays blocked
+        p_changed = pr(12, head="2222222", reviews=[], comments=[old_comment], patch_id="sha256:different")
+        self.assertEqual(actions([p_changed], owner="owner"), [])
+
+        # Missing patch_id fails closed
+        p_missing = pr(12, head="2222222", reviews=[], comments=[old_comment], patch_id=None)
+        self.assertEqual(actions([p_missing], owner="owner"), [])
+
+
 if __name__ == "__main__":
     unittest.main()
+
