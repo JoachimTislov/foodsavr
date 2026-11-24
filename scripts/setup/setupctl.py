@@ -36,14 +36,13 @@ from tempfile import NamedTemporaryFile
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
-UPSTREAM_REPO = "JoachimTislov/foodsavr"
-INSTANCE_LOCAL_PATH = Path(".agents/instance.local.json")
-
-PROFILES = ("local-dev", "fork-agents", "full-cloud")
 # Promotion owns the channel graph. Setup consumes it without copying branch names.
 sys.path.insert(0, str(ROOT / "scripts/github"))
 from promote_release import TOPOLOGIES, TOPOLOGY_CHANNELS  # noqa: E402
+from release_topology import UPSTREAM_REPO  # noqa: E402
 
+INSTANCE_LOCAL_PATH = Path(".agents/instance.local.json")
+PROFILES = ("local-dev", "fork-agents", "full-cloud")
 FIREBASE_PLANS = ("spark", "blaze")
 INTEGRATION_BRANCH = next(
     source for channels in TOPOLOGY_CHANNELS.values() for source in channels.values() if source not in channels

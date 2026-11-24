@@ -1,0 +1,1 @@
+{"commits": [], "harness": "codex", "issues": [], "provider": "openai", "prs": ["#430"], "session_id": "codex:01a20df1-b261-7ef1-b2e2-94bf534d5bb3", "sources": [], "started_at": "2026-11-24T14:25:07+00:00", "status": "active", "stream": "sessions", "summary": "Rebase PR #430 onto develop"}

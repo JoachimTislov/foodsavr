@@ -23,20 +23,16 @@
         "AGENT_APP_ID",
         "AGENT_APP_PRIVATE_KEY"
       ],
-      "mergeGateSecretsAllOf": [
-        "MERGE_GATE_TOKEN"
-      ],
-      "mergeGateWorkflow": "merge-gate.yml"
+      "mergeGateWorkflow": "merge-gate.yml",
+      "releaseGateAppSecretsAllOf": [
+        "RELEASE_GATE_APP_ID",
+        "RELEASE_GATE_APP_PRIVATE_KEY"
+      ]
     },
     "router": {
       "mode": "local-deterministic"
     },
     "governance": {
-      "requiredStatusChecks": [
-        "Decide whether to run CI",
-        "Check & Test",
-        "Agent session declared"
-      ],
       "disallowDuplicateRequiredChecks": true,
       "traceabilityWorkflow": "traceability.yml"
     },
@@ -54,13 +50,6 @@
       }
     },
     "delivery": {
-      "requiredBranches": [
-        "develop",
-        "nightly",
-        "beta",
-        "stable",
-        "release"
-      ],
       "promoteWorkflow": "promote.yml",
       "detectOrphanedWorkflows": true
     }

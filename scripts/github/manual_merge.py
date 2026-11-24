@@ -23,13 +23,12 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from branch_governance import default_branch_required_checks  # noqa: E402
 from checks import FAILED, IGNORED_WORKFLOWS, effective_runs, _workflow_name  # noqa: E402
 
 BASE = "develop"
 VALIDATION_CONTEXT = "Validation result"
-# Always required, on top of whatever the base branch rules report. Mirrors
-# specs/source-of-truth/ci-workflows.md (default-branch ruleset).
-ALWAYS_REQUIRED = ("Decide whether to run CI", "Check & Test", VALIDATION_CONTEXT)
+ALWAYS_REQUIRED = default_branch_required_checks()
 MERGEABLE_STATES = {"CLEAN", "HAS_HOOKS", "UNSTABLE"}
 
 QUERY = """

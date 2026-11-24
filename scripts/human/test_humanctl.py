@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 import subprocess
 import sys
 import tempfile
@@ -43,7 +44,7 @@ class MenuResolvesTest(unittest.TestCase):
         required = {
             "setup", "infra-github-apply", "infra-gcp-apply", "secrets-rotate", "pr-merge", "validate", "promote",
             "deploy-web", "deploy-firestore-rules", "release-candidate", "android-apk", "docs-publish",
-            "deployment-poll", "monitor-web", "merge-gate",
+            "deployment-poll", "monitor-web", "merge-gate", "disable-orphaned-workflows",
         }
         self.assertEqual(required - listed, set())
 
@@ -70,6 +71,62 @@ class MenuResolvesTest(unittest.TestCase):
                              stdin=subprocess.DEVNULL)
         self.assertEqual(out.returncode, 2)
         self.assertIn("interactive only", out.stderr)
+
+
+class OrphanedWorkflowsTest(unittest.TestCase):
+    def run_entry(self, orphan_state, reply):
+        workflows = {"workflows": [
+            {"id": 1, "name": "Flutter Analyze", "path": ".github/workflows/flutter-analyze.yml", "state": orphan_state},
+            {"id": 2, "name": "Localization Check", "path": ".github/workflows/localization.yml", "state": orphan_state},
+            {"id": 3, "name": "Live workflow", "path": ".github/workflows/live.yml", "state": "active"},
+        ]}
+        tree = {"truncated": False, "tree": [{"type": "blob", "path": ".github/workflows/live.yml"}]}
+        disabled = []
+
+        def run(cmd, **kwargs):
+            if cmd[:2] == ["gh", "api"]:
+                self.assertEqual(cmd[2:4], ["--method", "GET"])
+                payload = {
+                    "repos/{owner}/{repo}": {"full_name": "owner/foodsavr"},
+                    "repos/owner/foodsavr/actions/workflows?per_page=100": workflows,
+                    "repos/owner/foodsavr/git/trees/HEAD?recursive=1": tree,
+                }[cmd[4]]
+                return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(payload))
+            disabled.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0)
+
+        stdout = StringIO()
+        with (
+            patch.object(hc.sys.stdin, "isatty", return_value=True),
+            patch.object(stdout, "isatty", return_value=True),
+            redirect_stdout(stdout),
+            patch.object(hc.subprocess, "run", side_effect=run),
+            patch("builtins.input", return_value=reply) as prompt,
+        ):
+            self.assertEqual(hc.main(["--disable-orphaned-workflows"]), 0)
+        return stdout.getvalue(), prompt.call_count, disabled
+
+    def test_active_orphans_are_named_and_disabled_after_one_confirmation(self):
+        output, prompts, disabled = self.run_entry("active", "y")
+        self.assertIn("  - Flutter Analyze", output)
+        self.assertIn("  - Localization Check", output)
+        self.assertNotIn("Live workflow", output)
+        self.assertEqual(prompts, 1)
+        self.assertEqual(disabled, [
+            ["gh", "workflow", "disable", "1", "--repo", "owner/foodsavr"],
+            ["gh", "workflow", "disable", "2", "--repo", "owner/foodsavr"],
+        ])
+
+    def test_disabled_workflows_need_no_confirmation(self):
+        output, prompts, disabled = self.run_entry("disabled_manually", "y")
+        self.assertIn("No active orphaned workflows", output)
+        self.assertEqual(prompts, 0)
+        self.assertEqual(disabled, [])
+
+    def test_declining_leaves_active_orphans_untouched(self):
+        _, prompts, disabled = self.run_entry("active", "")
+        self.assertEqual(prompts, 1)
+        self.assertEqual(disabled, [])
 
 
 class CheckEntriesTest(unittest.TestCase):

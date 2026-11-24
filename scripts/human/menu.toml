@@ -104,6 +104,14 @@ step = ""
 needs = "gh login"
 
 [[entry]]
+id = "disable-orphaned-workflows"
+group = "setup"
+title = "Disable orphaned workflows"
+target = "disable-orphaned-workflows"
+step = ""
+needs = "gh login with Actions write access"
+
+[[entry]]
 id = "infra-github-plan"
 group = "setup"
 title = "Plan the GitHub infrastructure (rulesets, variables)"
