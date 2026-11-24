@@ -45,7 +45,7 @@ def main():
     hosting = {
         "site": os.environ.get("SITE_ID") or config["projectId"],
         "public": "build/web",
-        "ignore": ["firebase.json", "**/node_modules/**"],
+        "ignore": ["firebase.json", "**/node_modules/**", "**/*.js.map"],
         "rewrites": [{"source": "**", "destination": "/index.html"}],
     }
     apk_url = os.environ.get("ANDROID_APK_URL", "").strip()

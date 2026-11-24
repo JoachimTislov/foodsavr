@@ -3,7 +3,10 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch, call
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import humanctl as hc  # noqa: E402
@@ -89,6 +92,17 @@ class CheckEntriesTest(unittest.TestCase):
 
 
 class ParsingTest(unittest.TestCase):
+    def test_confirmed_apply_overrides_dry_run_with_an_empty_assignment(self):
+        entry = hc.Entry("x", "g", "X", "make", "secrets-rotate", dry_assign="DRY_RUN=1", apply_assign="DRY_RUN=")
+        with patch.object(hc, "ask", return_value="yes"), patch.object(hc.subprocess, "run") as run:
+            run.return_value.returncode = 0
+            with redirect_stdout(StringIO()):
+                hc.run_entry(entry)
+        self.assertEqual(run.call_args_list, [
+            call(["make", "secrets-rotate", "DRY_RUN=1"], cwd=hc.ROOT),
+            call(["make", "secrets-rotate", "DRY_RUN="], cwd=hc.ROOT),
+        ])
+
     def test_script_header_with_continuation(self):
         text = "#!/usr/bin/env bash\n#\n# Intent: login\n# Domain: firebase\n# Area: cli-token\n# Secrets: X\n# Why human: needs\n#   a browser.\n#\nset -e\n"
         header = hc.script_header(text)

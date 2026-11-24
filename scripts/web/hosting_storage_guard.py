@@ -31,9 +31,18 @@ API = "https://firebasehosting.googleapis.com/v1beta1"
 
 
 def token():
-    return os.environ.get("ACCESS_TOKEN") or subprocess.check_output(
-        ["gcloud", "auth", "print-access-token"], text=True
-    ).strip()
+    access_token = os.environ.get("ACCESS_TOKEN", "").strip()
+    if not access_token:
+        try:
+            access_token = subprocess.check_output(
+                ["gcloud", "auth", "print-access-token"], text=True
+            ).strip()
+        except (OSError, subprocess.CalledProcessError):
+            pass
+    if not access_token:
+        sys.exit("::error::Hosting storage check needs Google Cloud credentials. "
+                 "Run `gcloud auth login` or provide a valid ACCESS_TOKEN.")
+    return access_token
 
 
 TOKEN = None
@@ -49,6 +58,9 @@ def call(method, path, params=""):
         with urllib.request.urlopen(req) as res:
             body = res.read()
     except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            sys.exit(f"::error::Hosting storage check denied ({e.code}). "
+                     "Use valid Google Cloud credentials with access to the selected Firebase project.")
         sys.exit(f"::error::{method} {path} -> {e.code}: {e.read().decode()[:500]}")
     return json.loads(body) if body else {}
 

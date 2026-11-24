@@ -2,7 +2,7 @@ name: Web Monitor
 
 # Synthetic post-deploy and scheduled probe for live web health.
 # Emits normalized FaultEvents into fault_intake.py on failure and closes
-# resolved healing issues via verify_and_close.py on clean boots.
+# resolved healing issues via verify_and_close.py on verified post-deploy boots.
 # Fork-safe (ADR 0008): skips cleanly when MONITOR_TARGET_URL is unset outside
 # the upstream repository instead of probing upstream Hosting.
 
@@ -90,7 +90,7 @@ jobs:
           INPUT_URL: ${{ inputs.target_url }}
           VAR_URL: ${{ vars.MONITOR_TARGET_URL }}
           REPO: ${{ github.repository }}
-          DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha }}
           FIREBASE_PLAN: ${{ vars.FIREBASE_PLAN }}
         run: |
           url="${INPUT_URL:-$VAR_URL}"

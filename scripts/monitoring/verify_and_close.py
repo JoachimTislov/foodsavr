@@ -20,6 +20,8 @@ from scripts.monitoring.fault_intake import (  # noqa: E402
     count_healing_attempts,
 )
 
+COMMIT_SHA = re.compile(r"[0-9a-f]{40}")
+
 
 def pr_resolves_issue(pr: dict[str, Any], issue_number: int) -> bool:
     """Return True if a merged PR explicitly closes/fixes/resolves the issue or uses its agent branch."""
@@ -51,8 +53,15 @@ def verify_and_close(
     dry_run: bool = False,
     max_attempts: int = 1,
     probe_summary: str = "",
+    served_revision: str = "",
 ) -> dict[str, Any]:
-    """Close resolved healing issues on clean post-deploy probe or escalate failures."""
+    """Close resolved healing issues on a clean probe of the expected release."""
+    revision_verified = COMMIT_SHA.fullmatch(deployed_sha) and served_revision == deployed_sha
+    if probe_ok and not revision_verified:
+        return {"probe_ok": probe_ok, "dry_run": dry_run, "actions": [],
+                "skipped": "served revision does not match an explicit expected release SHA"}
+
+    reported_sha = served_revision if COMMIT_SHA.fullmatch(served_revision) else "unknown"
     open_issues = gh.list_open_healing_issues()
     actions: list[dict[str, Any]] = []
 
@@ -70,7 +79,7 @@ def verify_and_close(
             comment = (
                 "### Post-Deploy Verification Passed\n\n"
                 f"- **Target URL:** `{target_url}`\n"
-                f"- **Deployed SHA:** `{deployed_sha or 'unknown'}`\n"
+                f"- **Deployed SHA:** `{reported_sha}`\n"
                 f"- **Verification Run:** {run_url or 'n/a'}\n"
                 f"- **Resolved By PR:** {pr_refs}\n"
                 f"- **Probe Result:** {probe_summary or '0 page errors, 0 console errors, 0 HTTP 5xx, Flutter root mounted.'}\n"
@@ -91,7 +100,7 @@ def verify_and_close(
             comment = (
                 "### Post-Deploy Verification Failed — Escalated\n\n"
                 f"- **Target URL:** `{target_url}`\n"
-                f"- **Deployed SHA:** `{deployed_sha or 'unknown'}`\n"
+                f"- **Deployed SHA:** `{reported_sha}`\n"
                 f"- **Verification Run:** {run_url or 'n/a'}\n"
                 f"- **Merged PR:** {pr_refs}\n"
                 f"- **Details:** {probe_summary or 'Live probe failed after merged fix.'}\n\n"
@@ -106,7 +115,7 @@ def verify_and_close(
             comment = (
                 "### Post-Deploy Verification Failed\n\n"
                 f"- **Target URL:** `{target_url}`\n"
-                f"- **Deployed SHA:** `{deployed_sha or 'unknown'}`\n"
+                f"- **Deployed SHA:** `{reported_sha}`\n"
                 f"- **Verification Run:** {run_url or 'n/a'}\n"
                 f"- **Details:** {probe_summary or 'Live probe failed.'}\n"
             )
@@ -123,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--passed", action="store_true", help="Mark verification passed (when no --probe-file)")
     parser.add_argument("--failed", action="store_true", help="Mark verification failed (when no --probe-file)")
     parser.add_argument("--target-url", default="")
-    parser.add_argument("--deployed-sha", default="")
+    parser.add_argument("--deployed-sha", default="", help="Expected release SHA. Required to close issues.")
     parser.add_argument("--run-url", default="")
     parser.add_argument("--repo", default=None)
     parser.add_argument("--dry-run", action="store_true")
@@ -131,11 +140,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     probe_summary = ""
+    served_revision = ""
+    deployed_sha = args.deployed_sha
     if args.probe_file:
         report = json.loads(Path(args.probe_file).read_text(encoding="utf-8"))
         probe_ok = bool(report.get("ok"))
         target_url = args.target_url or str(report.get("target_url") or "")
-        deployed_sha = args.deployed_sha or str(report.get("release_sha") or "")
+        if target_url == report.get("target_url"):
+            served_revision = str(report.get("served_revision") or "")
         raw = report.get("raw_findings") or {}
         probe_summary = (
             f"root_mounted={report.get('root_mounted')}, "
@@ -146,7 +158,6 @@ def main(argv: list[str] | None = None) -> int:
     elif args.passed or args.failed:
         probe_ok = bool(args.passed and not args.failed)
         target_url = args.target_url
-        deployed_sha = args.deployed_sha
     else:
         parser.error("Specify --probe-file or --passed / --failed")
         return 2
@@ -161,6 +172,7 @@ def main(argv: list[str] | None = None) -> int:
         dry_run=args.dry_run,
         max_attempts=args.max_attempts,
         probe_summary=probe_summary,
+        served_revision=served_revision,
     )
     print(json.dumps(result, indent=2))
     return 0
