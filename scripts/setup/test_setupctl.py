@@ -224,5 +224,151 @@ class MutationGuardTest(unittest.TestCase):
         })
 
 
+class ZeroArgDefaultsAndCliTest(unittest.TestCase):
+    def test_resolve_repo_prefers_explicit_then_origin_then_instance_local(self):
+        self.assertEqual(setupctl.resolve_repo("bob/foodsavr"), "bob/foodsavr")
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            with patch.object(setupctl, "detect_git_remotes", return_value={"origin": "git@github.com:alice/foodsavr.git"}):
+                self.assertEqual(setupctl.resolve_repo(root=root), "alice/foodsavr")
+
+            with patch.object(setupctl, "detect_git_remotes", return_value={}):
+                with self.assertRaises(ValueError):
+                    setupctl.resolve_repo(root=root)
+                setupctl.save_instance_local({"repo": "carol/foodsavr"}, root=root)
+                self.assertEqual(setupctl.resolve_repo(root=root), "carol/foodsavr")
+
+    def test_resolve_topology_reads_repo_variable_and_defaults_to_full_channels(self):
+        self.assertEqual(setupctl.resolve_topology("alice/foodsavr", "two-stage"), "two-stage")
+        with patch.object(
+            setupctl,
+            "_run",
+            return_value=subprocess.CompletedProcess([], 0, "two-stage\n", ""),
+        ):
+            self.assertEqual(setupctl.resolve_topology("alice/foodsavr"), "two-stage")
+        with patch.object(
+            setupctl,
+            "_run",
+            return_value=subprocess.CompletedProcess([], 1, "", "404 Not Found"),
+        ):
+            self.assertEqual(setupctl.resolve_topology("alice/foodsavr"), "full-channels")
+
+    def test_resolve_upstream_checks_remote_then_github_parent_then_default(self):
+        self.assertEqual(setupctl.resolve_upstream("org/foodsavr"), "org/foodsavr")
+        with patch.object(
+            setupctl,
+            "detect_git_remotes",
+            return_value={"upstream": "https://github.com/org/foodsavr.git", "origin": "https://github.com/alice/foodsavr.git"},
+        ):
+            self.assertEqual(setupctl.resolve_upstream(), "org/foodsavr")
+
+        with (
+            patch.object(setupctl, "detect_git_remotes", return_value={"origin": "https://github.com/alice/foodsavr.git"}),
+            patch.object(setupctl, "_run", return_value=subprocess.CompletedProcess([], 0, "parent-org/foodsavr\n", "")),
+        ):
+            self.assertEqual(setupctl.resolve_upstream(), "parent-org/foodsavr")
+
+        with (
+            patch.object(setupctl, "detect_git_remotes", return_value={}),
+        ):
+            self.assertEqual(setupctl.resolve_upstream(), setupctl.UPSTREAM_REPO)
+
+    def test_enable_actions_is_idempotent_and_respects_agent_guard(self):
+        with patch.dict(os.environ, {"AGENT_SESSION_ID": "test:123"}, clear=False):
+            with self.assertRaises(PermissionError):
+                setupctl.enable_actions(repo="alice/foodsavr", dry_run=False)
+
+        with patch.object(
+            setupctl,
+            "_run",
+            return_value=subprocess.CompletedProcess([], 0, "true\n", ""),
+        ) as mock_run:
+            res = setupctl.enable_actions(repo="alice/foodsavr", dry_run=False)
+        self.assertTrue(res["already_enabled"])
+        self.assertEqual(mock_run.call_count, 1)
+
+        with patch.object(
+            setupctl,
+            "_run",
+            side_effect=[
+                subprocess.CompletedProcess([], 0, "false\n", ""),
+                subprocess.CompletedProcess([], 0, "", ""),
+            ],
+        ) as mock_run:
+            res = setupctl.enable_actions(repo="alice/foodsavr", dry_run=False)
+        self.assertFalse(res["already_enabled"])
+        self.assertEqual(mock_run.call_count, 2)
+        self.assertIn("-X", mock_run.call_args_list[1].args[0])
+
+    def test_cli_ensure_branches_zero_args_interactive_and_concise_output(self):
+        from contextlib import redirect_stderr, redirect_stdout
+        from io import StringIO
+
+        clean_env = {k: v for k, v in os.environ.items() if k not in setupctl.AGENT_ENV_VARS}
+        # Non-TTY without --yes fails cleanly with exit 2.
+        err = StringIO()
+        with (
+            patch.dict(os.environ, clean_env, clear=True),
+            patch.object(setupctl, "resolve_repo", return_value="alice/foodsavr"),
+            patch.object(setupctl, "resolve_topology", return_value="full-channels"),
+            patch.object(setupctl.sys.stdin, "isatty", return_value=False),
+            redirect_stderr(err),
+        ):
+            code = setupctl.main(["ensure-branches"])
+        self.assertEqual(code, 2)
+        self.assertIn("--yes", err.getvalue())
+
+        # Interactive TTY prompts once and prints concise summary without raw dict/SHAs.
+        out = StringIO()
+        fake_branches = [
+            {
+                "repo": "alice/foodsavr",
+                "topology": "full-channels",
+                "base_branch": "develop",
+                "base_sha": "abc1234",
+                "created": ["daily", "weekly", "stable"],
+                "already_present": [],
+                "seeds": {
+                    "daily": {"source": "develop", "sha": "abc1234"},
+                    "weekly": {"source": "develop", "sha": "abc1234"},
+                    "stable": {"source": "weekly", "sha": "abc1234"},
+                },
+                "legacy_present": [],
+                "dry_run": True,
+            },
+            {
+                "repo": "alice/foodsavr",
+                "topology": "full-channels",
+                "base_branch": "develop",
+                "base_sha": "abc1234",
+                "created": ["daily", "weekly", "stable"],
+                "already_present": [],
+                "seeds": {
+                    "daily": {"source": "develop", "sha": "abc1234"},
+                    "weekly": {"source": "develop", "sha": "abc1234"},
+                    "stable": {"source": "weekly", "sha": "abc1234"},
+                },
+                "legacy_present": [],
+                "dry_run": False,
+            },
+        ]
+        with (
+            patch.dict(os.environ, clean_env, clear=True),
+            patch.object(setupctl, "resolve_repo", return_value="alice/foodsavr"),
+            patch.object(setupctl, "resolve_topology", return_value="full-channels"),
+            patch.object(setupctl.sys.stdin, "isatty", return_value=True),
+            patch.object(setupctl, "ensure_branches", side_effect=fake_branches),
+            patch("builtins.input", return_value="y"),
+            redirect_stdout(out),
+        ):
+            code = setupctl.main(["ensure-branches"])
+        self.assertEqual(code, 0)
+        text = out.getvalue()
+        self.assertIn("alice/foodsavr (full-channels): missing daily, weekly, stable", text)
+        self.assertIn("alice/foodsavr (full-channels): Created daily (from develop), weekly (from develop), stable (from weekly)", text)
+        self.assertNotIn("abc1234", text)
+        self.assertNotIn("{", text)
+
+
 if __name__ == "__main__":
     unittest.main()

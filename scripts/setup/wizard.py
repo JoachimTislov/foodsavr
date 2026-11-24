@@ -73,25 +73,12 @@ def process(step, listing, verify=None):
     return False
 
 
-def load_env_file(path: Path) -> dict[str, str]:
-    if not path.is_file():
-        return {}
-    values: dict[str, str] = {}
-    for raw in path.read_text(encoding="utf-8", errors="ignore").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        if line.startswith("export "):
-            line = line[7:].strip()
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] == "'":
-            value = value[1:-1].replace("'\\''", "'")
-        elif len(value) >= 2 and value[0] == value[-1] == '"':
-            value = value[1:-1]
-        values[key] = value
-    return values
+from facebook_provider import (  # noqa: E402
+    enable_facebook_provider as _enable_facebook_provider,
+    identity_toolkit_token,
+    load_env_file,
+    load_facebook_credentials,
+)
 
 
 def firebase_identity(env):
@@ -117,14 +104,6 @@ def firebase_identity(env):
     if repo.casefold() != env["GITHUB_REPOSITORY"].casefold():
         return "", ""
     return project, values.get("WEB_APP_ID", "")
-
-
-def identity_toolkit_token(account):
-    command = ["gcloud", *([f"--account={account}"] if account else []), "auth", "print-access-token"]
-    try:
-        return subprocess.run(command, capture_output=True, text=True, timeout=20, check=True).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        return ""
 
 
 def identity_toolkit_get(project, account, suffix):
@@ -153,42 +132,14 @@ def facebook_enabled(project, account):
 
 
 def enable_facebook_provider(project, account, app_id, app_secret):
-    if not project or not app_id or not app_secret:
-        return False
-    token = identity_toolkit_token(account)
-    if not token:
-        return False
-    base = f"https://identitytoolkit.googleapis.com/admin/v2/projects/{project}/defaultSupportedIdpConfigs"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "x-goog-user-project": project,
-        "Content-Type": "application/json",
-    }
-    exists = False
-    try:
-        with urlopen(Request(f"{base}/facebook.com", headers=headers), timeout=20):
-            exists = True
-    except HTTPError as error:
-        code = error.code
-        error.close()
-        if code != 404:
-            return False
-    except (OSError, URLError):
-        return False
-    method = "PATCH" if exists else "POST"
-    target = (
-        f"{base}/facebook.com?updateMask=enabled,clientId,clientSecret"
-        if exists
-        else f"{base}?idpId=facebook.com"
+    return _enable_facebook_provider(
+        project,
+        account,
+        app_id,
+        app_secret,
+        get_token=identity_toolkit_token,
+        open_url=urlopen,
     )
-    payload = json.dumps({"enabled": True, "clientId": app_id, "clientSecret": app_secret}).encode("utf-8")
-    request = Request(target, data=payload, headers=headers, method=method)
-    try:
-        with urlopen(request, timeout=20) as response:
-            data = json.load(response)
-            return isinstance(data, dict) and data.get("enabled") is True
-    except (OSError, URLError, ValueError):
-        return False
 
 
 def configure_app(repo, role):
@@ -465,14 +416,23 @@ class Setup:
         return set(TOPOLOGY_BRANCHES[self.topology]) <= set(info["branches"])
 
     def release_branches(self):
+        missing = [b for b in TOPOLOGY_BRANCHES[self.topology] if b not in set(self.github.get("branches", []))]
+
         def create():
-            if not self.repo or not confirm(f"Create missing release branches for {self.repo}?"):
+            if not self.repo:
                 return False
-            ensure_branches(repo=self.repo, topology=self.topology, default_branch=TOPOLOGY_BRANCHES[self.topology][0])
+            print(f"Missing release channels ({self.topology}) on {self.repo}: {', '.join(missing)}")
+            if not confirm(f"Create missing release channels ({', '.join(missing)})?"):
+                return False
+            try:
+                ensure_branches(repo=self.repo, topology=self.topology, default_branch=TOPOLOGY_BRANCHES[self.topology][0])
+            except (PermissionError, RuntimeError, ValueError) as exc:
+                print(exc, file=sys.stderr)
+                return False
             return True
 
         return not self.cloud or self.step(
-            "Release branches", self.branch_refs_ready(self.github), create,
+            "Release channels", not missing, create,
             verify=lambda: self.refresh(self.branch_refs_ready),
         )
 
@@ -612,11 +572,7 @@ class Setup:
         )
 
         def creds():
-            values = load_env_file(ROOT / ".env")
-            return (
-                os.environ.get("FACEBOOK_APP_ID") or values.get("FACEBOOK_APP_ID", ""),
-                os.environ.get("FACEBOOK_APP_SECRET") or values.get("FACEBOOK_APP_SECRET", ""),
-            )
+            return load_facebook_credentials(ROOT)
 
         def ready():
             return facebook_enabled(self.project, account)

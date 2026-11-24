@@ -245,6 +245,22 @@ class MainTest(unittest.TestCase):
             )
             self.assertNotEqual(rejected.returncode, 0)
 
+    def test_main_defaults_target_repo_from_origin(self):
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            reg = Path(tmp, "r.toml")
+            reg.write_text('[secrets.S]\ngenerate = "random"\neffort = "low"\nsinks = ["github"]\n')
+            with (
+                patch.object(rotate, "origin_repo_slug", return_value="alice/foodsavr"),
+                patch.object(rotate, "check_github_mutation_guard", return_value=None) as guard,
+                patch.object(rotate, "push") as push_mock,
+            ):
+                code = rotate.main(["--registry", str(reg), "S"])
+            self.assertEqual(code, 0)
+            guard.assert_called_once_with("alice/foodsavr", origin_slug="alice/foodsavr", yes=False)
+            self.assertEqual(push_mock.call_args.kwargs["repo"], "alice/foodsavr")
+
 
 if __name__ == "__main__":
     unittest.main()
