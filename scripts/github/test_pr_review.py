@@ -238,6 +238,30 @@ class PrepareReviewTest(unittest.TestCase):
             self.assertEqual(verify["providers"], ["claude"])
             self.assertEqual(verify["model"], "claude-sonnet-5-5")
 
+    def test_review_prompt_inlines_staged_pr_context(self):
+        import agentctl
+
+        specs = agentctl.provider_specs()
+        with tempfile.TemporaryDirectory() as tmp:
+            context = Path(tmp) / "pr-77.md"
+            context.write_text("# PR #77\n```diff\n+print('hi')\n```\n", encoding="utf-8")
+            workflow = json.loads(pr_review.DEFAULT_WORKFLOW.read_text())
+            workflow.setdefault("context", {})["files"] = [str(context)]
+            codex = agentctl.hu.HarnessUsageSnapshot("codex", "ok", (agentctl.hu.UsageWindow("5h", "5h", 10),))
+            plan = pr_review.select_review_plan(workflow, "fast", ["codex"], specs,
+                                                {"decision_provider": {"enabled": False}}, {"codex": codex})
+            self.assertIsNotNone(plan)
+            verify = next(step for step in plan[2]["steps"] if step["id"] == "verify-gate")
+            self.assertIn("<untrusted-pr-context>", verify["prompt"])
+            self.assertIn("+print('hi')", verify["prompt"])
+            self.assertTrue(verify["prompt"].rstrip().endswith("VERDICT: CHANGES_REQUESTED when it fails."))
+
+            workflow["context"]["files"] = []
+            plan = pr_review.select_review_plan(workflow, "fast", ["codex"], specs,
+                                                {"decision_provider": {"enabled": False}}, {"codex": codex})
+            verify = next(step for step in plan[2]["steps"] if step["id"] == "verify-gate")
+            self.assertNotIn("<untrusted-pr-context>", verify["prompt"])
+
     def test_pr_420_retries_with_configured_provider_when_quota_is_unknown(self):
         import agentctl
 
