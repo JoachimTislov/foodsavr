@@ -62,7 +62,6 @@ BUMP = re.compile(
 ATTESTATION_RE = re.compile(r"<!--\s*agent-review:\s*(\{.*?\})\s*-->", re.DOTALL)
 # Only merge/squash markers name a PR; a bare "#N" in a body is usually an issue reference.
 PR_NUMBER_RE = re.compile(r"(?:Merge pull request #(\d+)|\(#(\d+)\))", re.IGNORECASE)
-VERDICT_RE = re.compile(r"VERDICT:\s*(APPROVE|CHANGES_REQUESTED)\b")
 SESSION_TRAILER_RE = re.compile(r"^Agent-Session:\s*(\S+)\s*$", re.MULTILINE | re.IGNORECASE)
 
 DEPENDENCY_FILES = frozenset({
@@ -1621,17 +1620,11 @@ FENCE_RE = re.compile(r"^\s*(?:```|~~~)")
 
 
 def parse_verdict_text(text: str) -> str | None:
+    """Return the verdict only from the final non-empty line; earlier quoted verdicts never count."""
     if not isinstance(text, str) or not text.strip():
         return None
-    for line in reversed(text.strip().splitlines()):
-        stripped = line.strip()
-        if not stripped:
-            continue
-        match = VERDICT_LINE_RE.match(stripped)
-        if match:
-            return match[1]
-    found = VERDICT_RE.findall(text)
-    return found[-1] if found else None
+    match = VERDICT_LINE_RE.match(text.strip().splitlines()[-1].strip())
+    return match[1] if match else None
 
 
 def split_review_sections(review_text: str) -> tuple[str, str]:

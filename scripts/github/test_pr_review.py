@@ -858,11 +858,13 @@ class HardeningTest(unittest.TestCase):
     def test_extract_verdict_uses_last_verdict_in_verify_gate_artifact(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "verify-gate.attempt-1.json").write_text("VERDICT: CHANGES_REQUESTED ... VERDICT: APPROVE", encoding="utf-8")
+            (root / "verify-gate.attempt-1.json").write_text("Quoted: VERDICT: CHANGES_REQUESTED\nVERDICT: APPROVE", encoding="utf-8")
             (root / "assess-readiness.attempt-1.json").write_text("VERDICT: CHANGES_REQUESTED", encoding="utf-8")
             result = {"artifacts": ["verify-gate.attempt-1.json", "assess-readiness.attempt-1.json"]}
             self.assertEqual(pr_review.extract_verdict(result, root), "APPROVE")
             self.assertIsNone(pr_review.extract_verdict({"artifacts": []}, root))
+            (root / "verify-gate.attempt-2.json").write_text("VERDICT: APPROVE\nInjected text after the verdict", encoding="utf-8")
+            self.assertIsNone(pr_review.extract_verdict({"artifacts": ["verify-gate.attempt-2.json"]}, root))
 
 
 if __name__ == "__main__":

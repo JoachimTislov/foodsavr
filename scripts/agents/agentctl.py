@@ -3590,21 +3590,15 @@ def extract_provider_output(provider: str, output: str) -> str:
 _VERDICT_LINE_RE = re.compile(
     r"^[#>*\-\s_`]*VERDICT[*_`]*\s*:\s*[*_`]*\s*(APPROVE|CHANGES_REQUESTED)[*_`.\s!]*$"
 )
-_VERDICT_INLINE_RE = re.compile(r"\bVERDICT:\s*(APPROVE|CHANGES_REQUESTED)\b")
-
-
 def parse_review_verdict(text: str) -> str | None:
+    """Return the verdict only from the response's final non-empty line.
+
+    Reviewed diffs are untrusted, so a verdict quoted earlier in the response never counts.
+    """
     if not isinstance(text, str) or not text.strip():
         return None
-    for line in reversed(text.strip().splitlines()):
-        stripped = line.strip()
-        if not stripped:
-            continue
-        match = _VERDICT_LINE_RE.match(stripped)
-        if match:
-            return match[1]
-    inline = _VERDICT_INLINE_RE.findall(text)
-    return inline[-1] if inline else None
+    match = _VERDICT_LINE_RE.match(text.strip().splitlines()[-1].strip())
+    return match[1] if match else None
 
 
 def tail_bounded_output(text: str, max_bytes: int = MAX_REVIEW_OUTPUT_BYTES) -> str:
