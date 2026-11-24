@@ -180,6 +180,23 @@ void main() {
     expect(repository.getProductsCalls, 2);
   });
 
+  test('concurrent dashboard lists share one in-flight fetch', () async {
+    final gate = Completer<void>();
+    final repository = _GatedProductRepository([
+      _expiringIn('soon', 1),
+      _expiringIn('gone', -2),
+    ], gate);
+    final service = makeService(repository);
+
+    final expired = service.getExpired('user-1');
+    final upcoming = service.getExpiringSoon('user-1');
+    gate.complete();
+
+    expect((await expired).map((p) => p.id), ['gone']);
+    expect((await upcoming).map((p) => p.id), ['soon']);
+    expect(repository.getProductsCalls, 1);
+  });
+
   test(
     'in-flight fetch does not write stale data after invalidation',
     () async {

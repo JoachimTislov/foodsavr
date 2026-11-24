@@ -23,6 +23,12 @@ class ExpiringItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    // An upcoming card whose last entry has since expired (the list was
+    // loaded before midnight) shows the expired status, not "fresh".
+    final expired =
+        this.expired ||
+        (product.daysUntilFirstExpiry(expired: false) == null &&
+            product.daysUntilFirstExpiry(expired: true) != null);
     final timeColor = expired ? colorScheme.error : colorScheme.tertiary;
     final statusText = switch (product.daysUntilFirstExpiry(expired: expired)) {
       null => ProductStatus.fresh.getMessage(),

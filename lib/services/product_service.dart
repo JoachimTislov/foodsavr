@@ -19,6 +19,7 @@ class ProductService {
 
   final Map<String, (DateTime, List<Product>)> _productsCache = {};
   final Map<String, int> _fetchSequence = {};
+  final Map<String, Future<List<Product>>> _pendingFetches = {};
   int _cacheGeneration = 0;
 
   ProductService(
@@ -30,6 +31,7 @@ class ProductService {
 
   void _invalidateCache() {
     _productsCache.clear();
+    _pendingFetches.clear();
     _cacheGeneration++;
   }
 
@@ -211,6 +213,27 @@ class ProductService {
       }
       _productsCache.remove(userId);
     }
+    if (!forceRefresh) {
+      // Concurrent callers (the dashboard loads its expired and expiring-soon
+      // lists together) share one repository query.
+      final pending = _pendingFetches[userId];
+      if (pending != null) {
+        _logger.i('Joining in-flight product fetch for user: $userId');
+        return List.of(await pending);
+      }
+    }
+    final fetch = _fetchProducts(userId);
+    _pendingFetches[userId] = fetch;
+    try {
+      return List.of(await fetch);
+    } finally {
+      if (identical(_pendingFetches[userId], fetch)) {
+        _pendingFetches.remove(userId);
+      }
+    }
+  }
+
+  Future<List<Product>> _fetchProducts(String userId) async {
     final sequence = (_fetchSequence[userId] ?? 0) + 1;
     _fetchSequence[userId] = sequence;
     _logger.i('Fetching products for user: $userId');
