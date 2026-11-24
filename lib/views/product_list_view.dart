@@ -8,6 +8,7 @@ import '../controllers/product_list_controller.dart';
 import '../widgets/inventory/list_query_controls.dart';
 import '../models/product_model.dart';
 import '../service_locator.dart';
+import '../services/barcode_scanner_service.dart';
 import '../services/collection_service.dart';
 import '../services/product_service.dart';
 import '../widgets/product/product_card_compact.dart';
@@ -161,8 +162,18 @@ class _ProductListViewState extends State<ProductListView> {
                 await _reloadProductsAfterMutation();
               }
             },
-            icon: const Icon(Icons.qr_code_scanner),
-            label: Text('product.scanBarcode'.tr()),
+            // Without a camera (web, desktop) the flow opens manual entry, so
+            // the button must not promise a scanner.
+            icon: Icon(
+              BarcodeScannerService.supportsCameraScanning
+                  ? Icons.qr_code_scanner
+                  : Icons.add,
+            ),
+            label: Text(
+              BarcodeScannerService.supportsCameraScanning
+                  ? 'product.scanBarcode'.tr()
+                  : 'product.add'.tr(),
+            ),
           ),
         ],
       ),
