@@ -22,17 +22,23 @@ class ExpiredItemsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        // Wrap so the title, badge and "View all" stack instead of
+        // overflowing at narrow widths or large text scales.
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.error_outline, color: colorScheme.error, size: 20),
                 const SizedBox(width: 8),
-                Text(
-                  'dashboard.expired'.tr(),
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+                Flexible(
+                  child: Text(
+                    'dashboard.expired'.tr(),
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -44,7 +50,7 @@ class ExpiredItemsSection extends StatelessWidget {
                   excludeSemantics: true,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
-                    height: 24,
+                    constraints: const BoxConstraints(minHeight: 24),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: colorScheme.errorContainer,

@@ -107,11 +107,13 @@ void main() {
     WidgetTester tester, {
     ThemeMode? mode,
     Locale locale = const Locale('en'),
+    double width = 400,
+    double textScale = 0.3,
   }) async {
-    tester.view.physicalSize = const Size(400, 1600);
+    tester.view.physicalSize = Size(width, 1600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    tester.platformDispatcher.textScaleFactorTestValue = 0.3;
+    tester.platformDispatcher.textScaleFactorTestValue = textScale;
     addTearDown(tester.platformDispatcher.clearAllTestValues);
     await tester.pumpWidget(
       EasyLocalization(
@@ -226,6 +228,19 @@ void main() {
       expect(find.text(daysLabel), findsOneWidget);
     });
   }
+
+  testWidgets('long expiry labels wrap at narrow widths and 2x text', (
+    tester,
+  ) async {
+    when(
+      () => products.getExpired('user'),
+    ).thenAnswer((_) async => [_expiringIn('ancient', -1000)]);
+
+    await pump(tester, width: 320, textScale: 2);
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Expired 1000 days ago'), findsOneWidget);
+  });
 
   testWidgets('hides the expired section when nothing has expired', (
     tester,
