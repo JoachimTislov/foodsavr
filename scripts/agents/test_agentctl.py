@@ -767,6 +767,17 @@ class AgentctlTest(unittest.TestCase):
         self.assertEqual(vibe_command.count("--prompt"), 1)
         self.assertEqual(copilot_command.count("--prompt"), 1)
 
+    def test_claude_prompt_is_sent_on_stdin(self) -> None:
+        # Deep-review prompts inline the PR diff and exceed Linux's 128 KiB per-argument limit.
+        module = load_agentctl_module()
+        manifest = json.loads((ROOT / ".agents/runners/providers.json").read_text())["providers"]
+        prompt = "x" * 200_000
+        for filesystem in ("read-only", "workspace-write"):
+            spec = module.effective_spec(manifest["claude"], {"filesystem": filesystem})
+            command, stdin = module.provider_command("claude", spec, prompt)
+            self.assertEqual(stdin, prompt)
+            self.assertNotIn(prompt, command)
+
     def test_router_plan_has_a_local_policy_safe_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             result = self.run_cli("router", "plan", str(WORKFLOW), database=Path(directory) / "db", check=False)

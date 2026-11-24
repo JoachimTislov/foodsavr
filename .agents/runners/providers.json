@@ -36,7 +36,7 @@
     "claude": {
       "command": "claude",
       "headless": ["-p", "--output-format", "json", "--permission-mode", "plan", "--permission-prompts", "none"],
-      "prompt_mode": "argument",
+      "prompt_mode": "stdin",
       "model_flag": "--model",
       "default_model": "claude-sonnet-5-5",
       "models": {
