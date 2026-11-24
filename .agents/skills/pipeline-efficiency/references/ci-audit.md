@@ -7,13 +7,16 @@ Measure recent GitHub Actions runs to classify every failure, cancellation, and 
 Fetch recent workflow runs (paginate across the full integration window, e.g. last 24-48h or since a session start timestamp):
 
 ```sh
-python3 - <<'PY'
+python3 - "$CUTOFF" <<'PY'
 import json, subprocess
 from collections import Counter, defaultdict
 from datetime import datetime
 
-REPO = "JoachimTislov/foodsavr"
-CUTOFF = "2026-11-23T17:00:00Z"  # set to window start
+import sys
+# usage: python3 - <cutoff ISO-8601 UTC, e.g. 2026-11-23T17:00:00Z>
+CUTOFF = sys.argv[1]  # window start
+REPO = json.loads(subprocess.check_output(
+    ["gh", "repo", "view", "--json", "nameWithOwner"], text=True))["nameWithOwner"]
 
 runs = []
 page = 0
@@ -49,6 +52,8 @@ for wf, counts in sorted(by_wf.items(), key=lambda x: -sum(x[1].values())):
           f"min(ok/fail/canc)={d['success']/60:5.1f}/{d['failure']/60:5.1f}/{d['cancelled']/60:4.1f}")
 PY
 ```
+
+Set `CUTOFF` (for example `CUTOFF=2026-11-23T17:00:00Z`) before running.
 
 ## 2. Classify root causes
 
