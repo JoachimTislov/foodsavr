@@ -2,14 +2,14 @@ import 'dart:convert';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';
-import 'package:foodsavr/services/secure_storage_service.dart';
+import 'package:foodsavr/features/third_party_integration/services/store_credentials.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/retry.dart';
 import 'package:logger/logger.dart';
 
 base class Client {
   final Logger logger;
-  final SecureStorage storage;
+  final StoreCredentials credentials;
   final http.Client client;
   final String baseUrl;
   final Provider provider;
@@ -17,7 +17,7 @@ base class Client {
 
   Client(
     this.logger,
-    this.storage,
+    this.credentials,
     http.Client client, {
     required this.provider,
     this.requestHeaders = const {},
@@ -28,24 +28,29 @@ base class Client {
     client.close();
   }
 
-  Future<(Map<String, String>, bool)> _getHeadersWithAuthorization() async {
-    final accessToken = await storage.read(provider, Key.access_token);
-    if (accessToken == null) {
-      return (requestHeaders, false);
-    }
-    requestHeaders['Authorization'] = accessToken;
-    return (requestHeaders, true);
-  }
+  Future<http.Response> _get(Uri uri, String accessToken) => client.get(
+    uri,
+    headers: {...requestHeaders, 'Authorization': accessToken},
+  );
 
   /// env is the key for value - endpoint
+  ///
+  /// Refreshes the access token once on HTTP 401 and retries; throws
+  /// [StoreReconnectRequired] when the store still rejects it.
   Future<dynamic> fetch(String env, [String suffix = '']) async {
     final endpoint = dotenv.get(env);
-    final (headers, authorized) = await _getHeadersWithAuthorization();
-    if (!authorized) return {};
-    final response = await client.get(
-      Uri.parse('$baseUrl$endpoint$suffix'),
-      headers: headers,
-    );
+    final accessToken = await credentials.accessToken(provider);
+    if (accessToken == null) return {};
+    final uri = Uri.parse('$baseUrl$endpoint$suffix');
+    var response = await _get(uri, accessToken);
+    if (response.statusCode == 401) {
+      final refreshed = await credentials.refresh(
+        provider,
+        rejected: accessToken,
+      );
+      response = await _get(uri, refreshed);
+      if (response.statusCode == 401) throw const StoreReconnectRequired();
+    }
     return jsonDecode(utf8.decode(response.bodyBytes));
   }
 }

@@ -1,0 +1,1 @@
+{"commits": ["423cee0bd621e8683557837c032be6a48b1e29ca"], "harness": "claude-code", "issues": ["#330"], "provider": "anthropic", "prs": [], "session_id": "claude-code:ccb34065-7c65-493d-b5a6-2ea68f49f961", "sources": [], "started_at": "2026-11-24T22:54:17+00:00", "status": "active", "stream": "sessions", "summary": "L1 #330 store connections"}

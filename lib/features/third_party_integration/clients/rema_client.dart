@@ -8,7 +8,7 @@ import 'package:foodsavr/models/product_model.dart';
 import 'base_client.dart';
 
 final class RemaClient extends Client {
-  RemaClient(super.logger, super.storage, super.client)
+  RemaClient(super.logger, super.credentials, super.client)
     : super(
         provider: Provider.rema,
         requestHeaders: {

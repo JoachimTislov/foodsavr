@@ -257,9 +257,23 @@
 			"actions": {
 				"connect": "Connect",
 				"connecting": "Connecting to",
-				"disconnect": "Disconnect"
+				"disconnect": "Disconnect",
+				"reconnect": "Reconnect"
 			},
-			"title": "Grocery integrations"
+			"title": "Grocery integrations",
+			"status": {
+				"connected": "Connected",
+				"notConnected": "Not connected",
+				"reconnectRequired": "Sign-in expired",
+				"unavailable": "Temporarily unavailable"
+			},
+			"reconnectHint": "Your {provider} sign-in has expired or was revoked. Reconnect to keep it working.",
+			"unavailableHint": "{provider} could not be reached. Your connection is kept; try again later.",
+			"noConnections": "No grocery integrations are available on this device.",
+			"disconnectDialog": {
+				"title": "Disconnect {provider}?",
+				"description": "FoodSavr stops using your {provider} account. You can reconnect at any time. Your lists and products stay as they are."
+			}
 		},
 		"app_installed": "App Installed",
 		"app_version": "App Version",

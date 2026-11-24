@@ -32,6 +32,26 @@ class OAuthController extends ChangeNotifier {
     if (provider != null) _oauthService.cancelAuthorization(provider);
   }
 
+  /// Revokes and clears [provider]'s tokens, then reloads the list.
+  Future<void> disconnect(Provider provider) async {
+    if (activeProvider != null) return;
+
+    activeProvider = provider;
+    notifyListeners();
+    try {
+      await _oauthService.disconnect(provider);
+    } catch (error, stack) {
+      _logger.e(
+        'Failed to disconnect grocery provider',
+        error: error,
+        stackTrace: stack,
+      );
+    } finally {
+      activeProvider = null;
+      await loadConnections();
+    }
+  }
+
   Future<void> connect(Provider provider) async {
     if (activeProvider != null) return;
 

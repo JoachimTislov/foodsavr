@@ -4,14 +4,13 @@ import 'dart:convert';
 import 'package:foodsavr/features/third_party_integration/interfaces/i_oauth_service.dart';
 import 'package:foodsavr/features/third_party_integration/models/connection_model.dart';
 import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';
-import 'package:foodsavr/features/third_party_integration/models/oauth_token_model.dart';
 import 'package:foodsavr/features/third_party_integration/oauth_util.dart';
+import 'package:foodsavr/features/third_party_integration/services/store_credentials.dart';
+import 'package:foodsavr/services/secure_storage_service.dart';
 import 'package:http/http.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-
-import '../../../services/secure_storage_service.dart';
 
 @LazySingleton(as: IOAuthService)
 class OAuthService implements IOAuthService {
@@ -65,7 +64,16 @@ class OAuthService implements IOAuthService {
           ),
         );
 
-  OAuthService(this._logger, this._secureStorage);
+  OAuthService(
+    this._logger,
+    this._secureStorage, {
+    StoreCredentials? credentials,
+  }) : _injectedCredentials = credentials;
+
+  final StoreCredentials? _injectedCredentials;
+  late final StoreCredentials _credentials =
+      _injectedCredentials ??
+      StoreCredentials(_secureStorage, Client(), _logger);
 
   Future<void> _fetchToken(
     Provider provider,
@@ -84,6 +92,7 @@ class OAuthService implements IOAuthService {
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     final accessToken = data['access_token'];
     final refreshToken = data['refresh_token'];
+    final idToken = data['id_token'];
     if (accessToken is! String ||
         accessToken.isEmpty ||
         refreshToken is! String ||
@@ -91,21 +100,19 @@ class OAuthService implements IOAuthService {
       throw const OAuthAuthorizationException();
     }
 
-    await save(
+    final DateTime? expiration;
+    try {
+      expiration = StoreCredentials.expiration(data['expires_in']);
+    } on FormatException {
+      throw const OAuthAuthorizationException();
+    }
+    await _credentials.save(
       provider,
       accessToken: accessToken,
       refreshToken: refreshToken,
-      accessTokenExpiration: _expiration(data['expires_in']),
+      idToken: idToken is String ? idToken : null,
+      accessTokenExpiration: expiration,
     );
-  }
-
-  DateTime? _expiration(Object? value) {
-    if (value == null) return null;
-    final seconds = int.tryParse(value.toString());
-    if (seconds == null || seconds < 0) {
-      throw const OAuthAuthorizationException();
-    }
-    return DateTime.now().toUtc().add(Duration(seconds: seconds));
   }
 
   @override
@@ -146,9 +153,10 @@ class OAuthService implements IOAuthService {
   @override
   Future<List<Connection>> getConnections() async {
     if (WebViewPlatform.instance == null) return [];
-    var connections = <Connection>[];
+    final connections = <Connection>[];
     for (final provider in Provider.values) {
       if (!provider.isSupported()) continue;
+      final issue = await _issue(provider);
       connections.add(
         Connection(
           provider: provider,
@@ -156,53 +164,41 @@ class OAuthService implements IOAuthService {
           refreshToken: await _secureStorage.read(provider, Key.refresh_token),
           idToken: await _secureStorage.read(provider, Key.id_token),
           accessTokenExpiration: await expiresAt(provider),
+          issue: issue,
         ),
       );
     }
     return connections;
   }
 
-  Future<OAuthToken?> readOAuthToken(Provider provider) async {
+  /// Renews an expiring token so the list reflects whether the connection
+  /// still works.
+  Future<ConnectionIssue?> _issue(Provider provider) async {
     try {
-      final [access, refresh, id, exp] = await Future.wait([
-        _secureStorage.read(provider, Key.access_token),
-        _secureStorage.read(provider, Key.refresh_token),
-        _secureStorage.read(provider, Key.id_token),
-        _secureStorage.read(provider, Key.expires_at),
-      ]);
-      if (access == null || refresh == null || id == null || exp == null) {
-        return null;
-      }
-      return OAuthToken(access: access, refresh: refresh, id: id, exp: exp);
-    } catch (_) {
-      _logger.e('Failed to read OAuthToken for ${provider.name}');
-      return null;
+      await _credentials.accessToken(provider);
+    } on StoreReconnectRequired {
+      return ConnectionIssue.reconnectRequired;
+    } on StoreTemporarilyUnavailable {
+      return ConnectionIssue.temporarilyUnavailable;
+    } catch (error, stack) {
+      _logger.w(
+        'Could not renew store access: ${provider.name}',
+        error: error,
+        stackTrace: stack,
+      );
+      return ConnectionIssue.temporarilyUnavailable;
     }
+    return await _credentials.reconnectRequired(provider)
+        ? ConnectionIssue.reconnectRequired
+        : null;
   }
 
-  Future<void> save(
-    Provider provider, {
-    required String accessToken,
-    required String refreshToken,
-    String? idToken,
-    DateTime? accessTokenExpiration,
-  }) async {
-    await Future.wait([
-      _secureStorage.write(provider, Key.access_token, accessToken),
-      _secureStorage.write(provider, Key.refresh_token, refreshToken),
-      _secureStorage.write(provider, Key.id_token, idToken),
-      _secureStorage.write(
-        provider,
-        Key.expires_at,
-        accessTokenExpiration?.toIso8601String(),
-      ),
-    ]);
-  }
+  @override
+  Future<void> disconnect(Provider provider) => _credentials.revoke(provider);
 
   Future<DateTime?> expiresAt(Provider provider) async {
-    dynamic expiresAt = await _secureStorage.read(provider, Key.expires_at);
-    if (expiresAt != null) return DateTime.tryParse(expiresAt);
-    return expiresAt;
+    final expiresAt = await _secureStorage.read(provider, Key.expires_at);
+    return expiresAt == null ? null : DateTime.tryParse(expiresAt);
   }
 
   Future<void> saveUserProfile(
@@ -219,49 +215,5 @@ class OAuthService implements IOAuthService {
       return null;
     }
     return jsonDecode(rawProfile) as Map<String, dynamic>;
-  }
-
-  Future<void> refreshToken(Provider provider) async {
-    final util = OAuthUtil(provider);
-    final connections = await getConnections();
-    final connection = connections.firstWhere((c) => c.provider == provider);
-    final refreshToken = connection.refreshToken;
-
-    if (refreshToken == null) {
-      _logger.w('No refresh token found for $provider. Cannot refresh.');
-      return;
-    }
-
-    final body = {
-      ...util.baseParams,
-      'grant_type': 'refresh_token',
-      'refresh_token': refreshToken,
-    };
-
-    final response = await post(
-      Uri.parse(util.env('TOKEN_URL')),
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: body,
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final newAccessToken = data['access_token'];
-      if (newAccessToken != null) {
-        _logger.i('[SUCCESS]: refreshed accessToken for $provider');
-        await save(
-          provider,
-          accessToken: newAccessToken,
-          refreshToken: data['refresh_token'] ?? refreshToken,
-          idToken: data['id_token'],
-          accessTokenExpiration: _expiration(data['expires_in']),
-        );
-      } else {
-        throw Exception('Refreshed access token is null');
-      }
-    } else {
-      _logger.e('Failed to refresh token: ${response.statusCode}');
-      throw Exception('Failed to refresh token: ${response.statusCode}');
-    }
   }
 }

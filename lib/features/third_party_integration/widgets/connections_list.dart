@@ -1,16 +1,19 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:foodsavr/constants/material3_config.dart';
 import 'package:foodsavr/injection.dart';
 import 'package:go_router/go_router.dart';
-import 'package:vector_graphics/vector_graphics.dart';
 
 import '../oauth_controller.dart';
+import 'connection_tile.dart';
+import 'disconnect_confirmation.dart';
 
 class OAuthConnectionsList extends StatelessWidget {
-  final OAuthController controller = getIt<OAuthController>();
+  final OAuthController controller;
 
-  OAuthConnectionsList({super.key}) {
-    controller.loadConnections();
+  OAuthConnectionsList({super.key, OAuthController? controller})
+    : controller = controller ?? getIt<OAuthController>() {
+    this.controller.loadConnections();
   }
 
   @override
@@ -19,95 +22,80 @@ class OAuthConnectionsList extends StatelessWidget {
       listenable: controller,
       builder: (context, _) {
         final connections = controller.connections;
-        if (connections.isEmpty) {
-          return const SizedBox.shrink();
-        }
-
-        final colorScheme = Theme.of(context).colorScheme;
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
+        final divider = Divider(
+          height: 1,
+          indent: Material3Config.spacing16,
+          endIndent: Material3Config.spacing16,
+          color: colorScheme.outlineVariant.withValues(alpha: 0.1),
+        );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'settings.integrations.title'.tr().toUpperCase(),
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              style: theme.textTheme.labelSmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.2,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: Material3Config.spacing8),
             Material(
               color: colorScheme.surfaceContainer,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(
+                  Material3Config.radiusLarge,
+                ),
                 side: BorderSide(
                   color: colorScheme.outlineVariant.withValues(alpha: 0.1),
                 ),
               ),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (int i = 0; i < connections.length; i++) ...[
-                    if (i > 0)
-                      Divider(
-                        height: 1,
-                        indent: 16,
-                        endIndent: 16,
-                        color: colorScheme.outlineVariant.withValues(
-                          alpha: 0.1,
+                  if (connections.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(Material3Config.spacing16),
+                      child: Text(
+                        'settings.integrations.noConnections'.tr(),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
-                    ListTile(
-                      leading: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: ColoredBox(
-                          color: Colors.white,
-                          child: VectorGraphic(
-                            loader: AssetBytesLoader(
-                              connections[i].provider.logoPath(),
-                            ),
-                            height: 40,
-                            width: 40,
-                            placeholderBuilder: (context) => const SizedBox(
-                              height: 40,
-                              width: 40,
-                              child: Icon(
-                                Icons.image_not_supported_outlined,
-                                size: 20,
-                              ),
-                            ),
-                          ),
-                        ),
+                    ),
+                  for (final (i, connection) in connections.indexed) ...[
+                    if (i > 0) divider,
+                    ConnectionTile(
+                      connection: connection,
+                      busy: controller.activeProvider == connection.provider,
+                      onConnect: () => context.go(
+                        '/settings/web-view?provider=${connection.provider.name}',
                       ),
-                      title: Text(connections[i].provider.toString()),
-                      trailing: connections[i].isAvailable
-                          ? TextButton(
-                              onPressed:
-                                  controller.activeProvider ==
-                                      connections[i].provider
-                                  ? null
-                                  : (connections[i].isConnected
-                                        ? null
-                                        : () => context.go(
-                                            '/settings/web-view?provider=${connections[i].provider.name}',
-                                          )),
-                              child: Text(
-                                connections[i].isConnected
-                                    ? 'settings.integrations.actions.disconnect'
-                                          .tr()
-                                    : 'settings.integrations.actions.connect'
-                                          .tr(),
-                              ),
-                            )
-                          : null,
+                      onDisconnect: () async {
+                        final provider = connection.provider;
+                        if (await DisconnectConfirmation.show(
+                          context,
+                          provider,
+                        )) {
+                          await controller.disconnect(provider);
+                        }
+                      },
                     ),
                   ],
                   if (controller.connectionFailed)
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      padding: const EdgeInsets.fromLTRB(
+                        Material3Config.spacing16,
+                        0,
+                        Material3Config.spacing16,
+                        Material3Config.spacing16,
+                      ),
                       child: Text(
                         'settings.integrations.connectionFailed'.tr(),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        style: theme.textTheme.bodySmall?.copyWith(
                           color: colorScheme.error,
                         ),
                       ),
