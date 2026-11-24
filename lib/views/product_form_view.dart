@@ -99,6 +99,10 @@ class _ProductFormContentState extends State<_ProductFormContent> {
   /// touched the expiry list.
   ExpiryEntry? _suggested;
 
+  /// Set once the user removes an expiry; later category changes must not
+  /// re-add a suggestion the user deleted.
+  bool _expiriesEdited = false;
+
   /// Product created by an earlier attempt whose collection assignment
   /// failed; a retry only repeats the assignment.
   Product? _created;
@@ -265,6 +269,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
                   onAdd: _addExpiry,
                   onScan: _scanExpiry,
                   onRemove: (idx) => setState(() {
+                    _expiriesEdited = true;
                     if (identical(_expiries[idx], _suggested)) {
                       _suggested = null;
                     }
@@ -314,7 +319,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
   void _onCategoryChanged(String? category) {
     setState(() {
       _selectedCategory = category;
-      if (_isEditing) return;
+      if (_isEditing || _expiriesEdited) return;
       final untouched =
           _expiries.isEmpty ||
           (_expiries.length == 1 && identical(_expiries.first, _suggested));
