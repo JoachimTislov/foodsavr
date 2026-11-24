@@ -1,0 +1,1 @@
+{"event": "Reproduced the Web smoke failure on the legacy profile hash URL. Updated the test to use the profile path and the CI server to serve app routes.", "prs": ["#421"], "session_id": "codex:01a20a6e-a961-7820-a9e7-b103a506c170", "stream": "ledger", "timestamp": "2026-11-24T06:54:30+00:00"}
