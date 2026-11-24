@@ -1,0 +1,1 @@
+{"commits": ["2e60b8e64de6fb21496c6cbacc32fbd42a4fb112"], "event": "Rebased PR #422 onto origin/develop, refined setup wizard release channels and zero-arg defaults, and extracted reusable Identity Toolkit Facebook provider script", "prs": ["#422"], "session_id": "antigravity:6813c034-c8b4-4e7a-a099-d5a578edcbcb", "stream": "ledger", "timestamp": "2026-11-24T06:35:20+00:00"}
