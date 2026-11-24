@@ -137,10 +137,13 @@ Future<void> main(List<String> argv) async {
   } on ArgumentError catch (e) {
     _die('--env ${e.message}', 64);
   }
-  if (channel != null &&
-      d.environment.channels.isNotEmpty &&
-      !d.environment.channels.containsKey(channel)) {
-    _die('environment $envName does not deploy channel $channel', 64);
+  final served = d.environment.servedChannels.toList();
+  if (channel != null && !served.contains(channel)) {
+    _die(
+      'environment $envName does not deploy channel $channel '
+      '(it deploys: ${served.isEmpty ? 'none' : served.join(', ')})',
+      64,
+    );
   }
 
   switch (cmd.name) {

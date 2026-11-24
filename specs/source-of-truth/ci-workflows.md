@@ -29,7 +29,9 @@ their jobs stop with a named missing-secret error before attempting a publish.
 channel deploys live to the environment that declares it, `develop`, `daily` and `weekly` to their
 own sites in the `test` project (GitHub Environment `test`) and `stable` to `production`.
 `workflow_dispatch` takes inputs `environment` (default `auto`: the environment deploying the branch
-for live, `staging`, else `test`, for previews) and `channel` (default: the branch). It builds the web
+for live, `staging`, else `test`, for previews) and `channel` (default: the branch). A live dispatch
+whose channel the selected environment does not deploy fails with an error listing the valid
+environment and channel pairs; `make deploy-web` refuses the same. It builds the web
 app with the remote-backend app flavor (`--dart-define=FLAVOR=production`; web builds cannot pass
 `--flavor`) and `--dart-define=DEPLOY_ENVIRONMENT=<environment>`, which selects that environment's
 Firebase options, and deploys to its Firebase project, web app and site. All deployments are

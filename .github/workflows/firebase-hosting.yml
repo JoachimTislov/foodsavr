@@ -149,10 +149,12 @@ jobs:
             fi
             [ "$code" = 3 ] && skip "No environment in deploy/instance.yaml deploys channel $channel."
             [ "$code" = 0 ] || exit "$code"
-          else
-            # An explicit environment: its site for this channel, else its default site.
-            dart run bin/levels.dart env --env "$env_name" --channel "$channel" --format github > "$out" 2>/dev/null ||
-              dart run bin/levels.dart env --env "$env_name" --format github > "$out"
+          elif ! dart run bin/levels.dart env --env "$env_name" --channel "$channel" --format github > "$out" 2> "$RUNNER_TEMP/levels.err"; then
+            # A live deploy goes only to a channel the selected environment deploys.
+            valid="$(dart run bin/levels.dart environments --json |
+              jq -r '[.[] | select(.emulator | not) | select(.channels | length > 0) | "environment \(.name) with channel \(.channels | join("|"))"] | join("; ")')"
+            echo "::error::$(cat "$RUNNER_TEMP/levels.err") Nothing was deployed. Valid live deploys: ${valid:-none}."
+            exit 1
           fi
           env_name="$(sed -n 's/^FLAVOR=//p' "$out")"
           channel="$(sed -n 's/^CHANNEL=//p' "$out")"

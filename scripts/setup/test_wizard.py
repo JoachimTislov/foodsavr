@@ -254,16 +254,90 @@ class WizardTest(TestCase):
                 "GCP_TELEMETRY_SERVICE_ACCOUNT", "RECAPTCHA_ENTERPRISE_SITE_KEY",
             )
         }
-        with patch.object(wizard, "terraform_step", return_value=True) as step, \
-                patch.object(instance, "cloud_authenticated", return_value=True), \
-                patch.object(instance, "terraform_state", return_value=True):
-            instance.state["tools"] = {"terraform": True}
-            self.assertTrue(instance.firebase_infrastructure())
-        calls = [(c.args[0], c.args[2]["ENV"], c.args[2]["SETUP_GCP_OUTPUTS_READY"]) for c in step.call_args_list]
+        calls, _ = self.run_infrastructure(instance, committed="foodsavr-prod", local="foodsavr-prod")
         self.assertEqual(calls, [
             ("Firebase configuration (test)", "test", "1"),
             ("Firebase configuration", "production", "0"),
         ])
+
+    def run_infrastructure(self, instance, committed, local):
+        instance.env["MANIFEST"] = str(wizard.ROOT / "deploy/instance.yaml")
+        instance.state["tools"] = {"terraform": True}
+        out = StringIO()
+        with patch.object(wizard, "terraform_step", return_value=True) as step, \
+                patch.object(wizard, "committed_project", return_value=committed) as committed_mock, \
+                patch.object(wizard, "firebase_identity", return_value=(local, "1:9:web:9")), \
+                patch.object(instance, "cloud_authenticated", return_value=True), \
+                patch.object(instance, "terraform_state", return_value=True), \
+                redirect_stdout(out):
+            self.assertTrue(instance.firebase_infrastructure())
+        if committed_mock.called:
+            self.assertEqual(committed_mock.call_args.args[1:3], ("origin/develop", "production"))
+        return [(c.args[0], c.args[2]["ENV"], c.args[2]["SETUP_GCP_OUTPUTS_READY"]) for c in step.call_args_list], (
+            out.getvalue()
+        )
+
+    def test_production_is_not_applied_in_the_run_that_created_it(self):
+        instance = self.setup_instance()
+        instance.environments = [{"name": "test"}, {"name": "production", "provisioned": True}]
+        instance.production_created = True
+        calls, output = self.run_infrastructure(instance, committed="foodsavr-prod", local="foodsavr-prod")
+        self.assertEqual([env for _, env, _ in calls], ["test"])
+        self.assertIn("this run created the production project", output)
+        self.assertIn("verify the legal texts and account deletion, then run make setup again", output)
+
+    def test_production_is_applied_only_when_merged_on_the_integration_branch(self):
+        for committed in ("", "other-prod"):
+            with self.subTest(committed=committed):
+                instance = self.setup_instance()
+                instance.environments = [{"name": "test"}, {"name": "production", "provisioned": True}]
+                calls, output = self.run_infrastructure(instance, committed=committed, local="foodsavr-prod")
+                self.assertEqual([env for _, env, _ in calls], ["test"])
+                self.assertIn("production project foodsavr-prod is not merged on origin/develop", output)
+
+    def test_creating_production_prints_the_next_steps(self):
+        instance = self.setup_instance()
+        instance.environments = [{"name": "test"}, {"name": "production", "provisioned": False}]
+        instance.env["MANIFEST"] = "/tmp/instance.yaml"
+        out = StringIO()
+        with patch.object(wizard.shutil, "which", return_value="/usr/bin/firebase"), \
+                patch.object(wizard, "load_instance_local", return_value={}), \
+                patch.object(wizard, "save_instance_local"), \
+                patch("builtins.input", return_value="foodsavr-prod"), \
+                patch.object(wizard, "firebase_project_exists", return_value=True), \
+                patch.object(wizard, "firebase_web_app", return_value="1:9:web:9"), \
+                patch.object(wizard, "default_site_exists", return_value=True), \
+                patch.object(wizard, "write_production_identity", return_value=True), \
+                patch.object(wizard, "manifest_environments", return_value=[]), \
+                patch.object(wizard, "firebase_identity", return_value=("foodsavr-prod", "1:9:web:9")), \
+                redirect_stdout(out):
+            self.assertTrue(instance.production_project())
+        self.assertTrue(instance.production_created)
+        for step in ("open a PR", "verify the legal texts and account deletion", "Run make setup again"):
+            self.assertIn(step, out.getvalue())
+
+    def test_committed_project_reads_the_manifest_from_the_ref(self):
+        env = {"GITHUB_REPOSITORY": "owner/repo"}
+        self.assertIsNone(wizard.committed_project("/elsewhere/instance.yaml", "origin/develop", "production", env))
+        manifest = str(wizard.ROOT / "deploy/instance.yaml")
+        missing = Mock(returncode=128, stdout="")
+        with patch.object(wizard, "run", return_value=0), patch.object(wizard.subprocess, "run", return_value=missing):
+            self.assertEqual(wizard.committed_project(manifest, "origin/develop", "production", env), "")
+        shown = Mock(returncode=0, stdout="committed: manifest\n")
+        seen = {}
+
+        def identity(values):
+            seen["text"] = Path(values["MANIFEST"]).read_text(encoding="utf-8")
+            seen["env"] = values["ENV"]
+            return "foodsavr-prod", "1:9:web:9"
+
+        with patch.object(wizard, "run", return_value=0) as fetch, \
+                patch.object(wizard.subprocess, "run", return_value=shown) as show, \
+                patch.object(wizard, "firebase_identity", side_effect=identity):
+            self.assertEqual(wizard.committed_project(manifest, "origin/develop", "production", env), "foodsavr-prod")
+        fetch.assert_called_once_with("git", "fetch", "--quiet", "origin", "develop", quiet=True)
+        self.assertEqual(show.call_args.args[0], ["git", "show", "origin/develop:deploy/instance.yaml"])
+        self.assertEqual(seen, {"text": "committed: manifest\n", "env": "production"})
 
     def test_wizard_has_no_menu_paths_or_merge_gate_token(self):
         source = (Path(wizard.__file__)).read_text(encoding="utf-8")

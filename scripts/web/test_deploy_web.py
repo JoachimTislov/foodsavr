@@ -18,6 +18,9 @@ import hosting_storage_guard as guard  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 
 
+CHANNELS = {"test": ["develop", "daily", "weekly"], "production": ["stable"], "staging": []}
+
+
 class PureTest(unittest.TestCase):
     def test_channel_name_is_sanitized_and_unique_per_branch(self):
         name = dw.channel_name("Feat/Human_Entry")
@@ -177,7 +180,7 @@ class DeployTest(unittest.TestCase):
     def test_local_live_blaze_provisions_flutter_then_cleans_maps_before_hosting(self):
         with patch.dict(os.environ, {"PATH": "/usr/bin", "FIREBASE_PLAN": "blaze"}, clear=True), \
                 patch.multiple(dw, **{name: DEFAULT for name in (
-                    "pinned_flutter_dir", "manifest_env", "default_channel", "check_firebase_login", "actions_variable",
+                    "pinned_flutter_dir", "manifest_env", "environment_channels", "check_firebase_login", "actions_variable",
                     "preserved", "cmd_build", "cmd_sourcemaps", "cmd_guard", "cmd_deploy",
                 )}) as mocks:
             order = Mock()
@@ -190,7 +193,7 @@ class DeployTest(unittest.TestCase):
                 self.assertEqual((env_name, channel), ("production", "stable"))
                 return {"PROJECT_ID": "selected", "WEB_APP_ID": "web-id"}
 
-            mocks["default_channel"].return_value = "stable"
+            mocks["environment_channels"].return_value = {"production": ["stable"]}
 
             mocks["manifest_env"].side_effect = manifest_env
             mocks["preserved"].return_value = MagicMock()
@@ -222,14 +225,31 @@ class DeployTest(unittest.TestCase):
     def test_local_channel_comes_from_the_flag_then_the_environment(self):
         namespace = Mock(env="test", channel="", target="live", branch="b", expires="4h", web_env_file="")
         with patch.dict(os.environ, {"CHANNEL": "daily"}), \
-                patch.object(dw, "default_channel") as default, \
+                patch.object(dw, "environment_channels", return_value=CHANNELS), \
                 patch.object(dw, "manifest_env", return_value={
                     "PROJECT_ID": "p", "WEB_APP_ID": "w", "SITE_ID": "p-daily", "CHANNEL": "daily", "VAR_SUFFIX": "_TEST",
                 }) as manifest:
             settings, suffix = dw.local_settings(namespace)
         manifest.assert_called_once_with("test", "daily")
-        default.assert_not_called()
         self.assertEqual((settings["SITE_ID"], settings["CHANNEL"], suffix), ("p-daily", "daily", "_TEST"))
+
+    def test_live_deploy_refuses_a_channel_the_environment_does_not_deploy(self):
+        with patch.object(dw, "environment_channels", return_value=CHANNELS):
+            for env_name, channel in (("test", "stable"), ("production", "develop"), ("staging", "")):
+                with self.subTest(env=env_name, channel=channel):
+                    with self.assertRaises(SystemExit) as raised:
+                        dw.select_channel(env_name, channel, "live")
+                    message = str(raised.exception)
+                    self.assertIn("does not deploy channel", message)
+                    self.assertIn("ENV=test CHANNEL=develop|daily|weekly; ENV=production CHANNEL=stable", message)
+            self.assertEqual(dw.select_channel("test", "", "live"), "develop")
+            self.assertEqual(dw.select_channel("production", "stable", "live"), "stable")
+
+    def test_previews_keep_the_requested_channel_without_checking(self):
+        with patch.object(dw, "environment_channels") as channels:
+            self.assertEqual(dw.select_channel("staging", "", "preview"), "")
+            self.assertEqual(dw.select_channel("test", "daily", "preview"), "daily")
+        channels.assert_not_called()
 
     def test_unprovisioned_environment_is_refused(self):
         done = subprocess.CompletedProcess([], 0, "PROVISIONED='false'\nFLAVOR='production'\n", "")
@@ -297,6 +317,15 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("branches: [develop, daily, weekly, stable]", text)
         self.assertIn('levels.dart env --channel "$channel"', text)
         self.assertIn("PROVISIONED=false", text)
+
+    def test_explicit_environment_never_falls_back_to_its_default_site(self):
+        text = (ROOT / ".github/workflows/firebase-hosting.yml").read_text()
+        explicit = text[text.index('elif ! dart run bin/levels.dart env --env "$env_name" --channel "$channel"'):]
+        explicit = explicit[:explicit.index("\n          fi\n")]
+        self.assertIn("::error::", explicit)
+        self.assertIn("Valid live deploys", explicit)
+        self.assertIn("exit 1", explicit)
+        self.assertNotIn('--env "$env_name" --format github', explicit)
 
 if __name__ == "__main__":
     unittest.main()

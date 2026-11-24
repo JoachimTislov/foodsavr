@@ -15,7 +15,8 @@ Manual bypass:
         above with your own `firebase login`, CI's pinned Flutter and the
         manifest in deploy/instance.yaml; the channel picks the environment's
         Hosting site (default: its first channel; CHANNEL in the environment
-        also works, e.g. `make deploy-web ENV=test CHANNEL=daily`). Actions
+        also works, e.g. `make deploy-web ENV=test CHANNEL=daily`). A live
+        deploy refuses a channel the environment does not deploy. Actions
         variables are read with `gh variable get` when not set in the
         environment.
 
@@ -306,19 +307,36 @@ def manifest_env(env_name: str, channel: str = "") -> dict[str, str]:
     return values
 
 
-def default_channel(env_name: str) -> str:
-    """First release channel the environment deploys, or empty (its default site)."""
+def environment_channels() -> dict[str, list[str]]:
+    """Release channels each cloud environment deploys, from deploy/instance.yaml."""
     deploy = ROOT / "packages/foodsavr_deploy"
     out = subprocess.run(["dart", "run", "bin/levels.dart", "environments", "--json"],
                          cwd=deploy, capture_output=True, text=True)
     if out.returncode != 0:
-        return ""
+        fail(f"cannot list environments in deploy/instance.yaml: {out.stderr.strip()}")
     try:
         environments = json.loads(out.stdout)
     except ValueError:
-        return ""
-    channels = next((e.get("channels") or [] for e in environments if e.get("name") == env_name), [])
-    return channels[0] if channels else ""
+        fail("cannot list environments in deploy/instance.yaml")
+    return {e["name"]: list(e.get("channels") or []) for e in environments if not e.get("emulator")}
+
+
+def valid_combinations(channels: dict[str, list[str]]) -> str:
+    return "; ".join(f"ENV={name} CHANNEL={'|'.join(served)}" for name, served in channels.items() if served) or "none"
+
+
+def select_channel(env_name: str, requested: str, target: str) -> str:
+    """Channel whose site to deploy. Live deploys need a channel the environment
+    deploys (default: its first); previews use the requested channel or the default site."""
+    if target != "live":
+        return requested
+    channels = environment_channels()
+    served = channels.get(env_name, [])
+    channel = requested or (served[0] if served else "")
+    if channel not in served:
+        fail(f"environment '{env_name}' does not deploy channel '{channel or '(none)'}'; "
+             f"valid live deploys: {valid_combinations(channels)}")
+    return channel
 
 
 def actions_variable(name: str) -> str:
@@ -365,7 +383,7 @@ def preserved(paths: tuple[str, ...]):
 
 def local_settings(args: argparse.Namespace) -> tuple[dict[str, str], str]:
     """Deploy settings from the manifest, and the Actions variable suffix of the environment."""
-    channel = args.channel or os.environ.get("CHANNEL", "") or default_channel(args.env)
+    channel = select_channel(args.env, args.channel or os.environ.get("CHANNEL", ""), args.target)
     values = manifest_env(args.env, channel)
     settings = {
         "PROJECT_ID": values["PROJECT_ID"],
@@ -431,7 +449,7 @@ def main(argv: list[str] | None = None) -> int:
     local = sub.add_parser("local", help="manual bypass: build and deploy with your own logins")
     local.add_argument("--env", required=True, help="environment in deploy/instance.yaml")
     local.add_argument("--channel", default="",
-                       help="release channel whose Hosting site to deploy (default: CHANNEL or the first channel)")
+                       help="release channel whose Hosting site to deploy (live default: CHANNEL or the first channel)")
     local.add_argument("--target", choices=TARGETS, default="live")
     local.add_argument("--expires", default="4h", help="preview lifetime, e.g. 4h, 1d, 2w")
     local.add_argument("--branch", default="", help="branch naming the preview channel (default: current)")
