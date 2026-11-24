@@ -252,6 +252,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+          # Gradle dependency cache: uncached runs hit Maven Central 429 rate limits.
+          cache: gradle
       - name: Set up Flutter app
         uses: ./.github/actions/setup-flutter-app
         with:

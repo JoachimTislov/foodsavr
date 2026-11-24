@@ -41,6 +41,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
 
       - name: Set up Flutter app
         uses: ./.github/actions/setup-flutter-app
