@@ -4,7 +4,9 @@ set -euo pipefail
 
 # An emulator that drops offline makes adb print "waiting for device" and block
 # until the job's 60-minute timeout; bound every adb call so the run fails fast.
-adb() { timeout "${ADB_TIMEOUT_SECONDS:-120}" command adb "$@"; }
+# timeout(1) needs an executable path, not the `command` builtin.
+adb_bin=$(type -P adb)
+adb() { timeout "${ADB_TIMEOUT_SECONDS:-120}" "$adb_bin" "$@"; }
 
 mkdir -p artifacts/android-visuals
 recording_pid=''
