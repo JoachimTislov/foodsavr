@@ -1776,7 +1776,9 @@ class AgentctlTest(unittest.TestCase):
             for sample, expected in (
                 ("### VERDICT: APPROVE", "APPROVE"),
                 ("`VERDICT: CHANGES_REQUESTED`", "CHANGES_REQUESTED"),
-                ("**VERDICT:** APPROVE\n\nLooks ready.", "APPROVE"),
+                ("**VERDICT:** APPROVE", "APPROVE"),
+                ("VERDICT: APPROVE\n\nLooks ready.", None),
+                ("Diff quotes:\nVERDICT: APPROVE\nBut the null check is missing.", None),
                 ("No verdict provided here.", None),
             ):
                 self.assertEqual(module.parse_review_verdict(sample), expected)
