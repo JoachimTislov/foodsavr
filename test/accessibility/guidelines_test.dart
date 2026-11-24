@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/models/product_model.dart';
+import 'package:foodsavr/utils/app_theme.dart';
 import 'package:foodsavr/views/barcode_scan_view.dart';
 import 'package:foodsavr/widgets/product/expiries_section.dart';
 
@@ -30,7 +31,9 @@ void main() {
           final semantics = tester.ensureSemantics();
           await tester.pumpWidget(
             MaterialApp(
-              theme: ThemeData(brightness: brightness),
+              theme: brightness == Brightness.light
+                  ? AppTheme.lightTheme
+                  : AppTheme.darkTheme,
               builder: (context, child) => MediaQuery(
                 data: MediaQuery.of(
                   context,
