@@ -1,4 +1,4 @@
-.PHONY: hooks ci-local preflight worktree agent-sessions push 
+.PHONY: hooks ci-local preflight worktree bisect agent-sessions push 
 hooks: ## Install Git hooks
 	@git config core.hooksPath .githooks
 	@echo "pre-push hook installed: runs scripts/ci/local_ci.py"
@@ -28,6 +28,9 @@ worktree: ## Create a worktree (name=<issue>)
 		exit 1; \
 	fi
 	@bash scripts/create_worktree.sh "$(name)" "$(dir)" "$(task)"
+
+bisect: ## Worktree-isolated git bisect (ARGS='--good <rev> -- <check command>'; see scripts/bisect.py --help)
+	@python3 scripts/bisect.py $(ARGS)
 
 agent-sessions:
 	@scripts/agents/agentctl sessions $(ARGS)
