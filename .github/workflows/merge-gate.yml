@@ -32,7 +32,7 @@ jobs:
     if: >-
       (github.event_name == 'pull_request_target' &&
        !github.event.pull_request.head.repo.fork &&
-       ((github.event.action == 'labeled' && github.event.label.name == 'merge/auto') ||
+       ((github.event.action == 'labeled' && (github.event.label.name == 'merge/auto' || github.event.label.name == 'merge/priority')) ||
         github.event.action == 'ready_for_review' ||
         (github.event.action == 'opened' && !github.event.pull_request.draft))) ||
       (github.event_name == 'workflow_run' &&
@@ -116,4 +116,5 @@ jobs:
           GH_TOKEN: ${{ steps.gate-app.outputs.token || secrets.MERGE_GATE_TOKEN }}
           RUNS_TOKEN: ${{ github.token }}
           AGENT_APP_SLUG: ${{ vars.AGENT_APP_SLUG }}
+          MERGE_GATE_FREEZE: ${{ vars.MERGE_GATE_FREEZE }}
         run: python3 scripts/github/merge_gate.py --repo "${{ github.repository }}" --apply

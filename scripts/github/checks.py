@@ -6,9 +6,10 @@ from datetime import datetime
 from typing import Any
 
 QUEUE_CHECK = "Detect changed areas"
+REVIEW_WORKFLOW = "Agent review"
 IGNORED_WORKFLOWS = {
     "Merge gate",
-    "Agent review",
+    REVIEW_WORKFLOW,
     "Synchronize GitHub labels",
     "Promote develop to main",
     "Promote release channels",
@@ -110,8 +111,8 @@ def rollup_state(contexts: list[dict[str, Any]]) -> str | None:
 TRUSTED_CHECK_APPS = {"github-actions"}
 
 
-def _is_trusted_queue_check(context: dict[str, Any]) -> bool:
-    if context.get("__typename") != "CheckRun" or context.get("name") != QUEUE_CHECK:
+def _is_trusted_actions_check(context: dict[str, Any]) -> bool:
+    if context.get("__typename") != "CheckRun":
         return False
     app = (context.get("checkSuite") or {}).get("app")
     if isinstance(app, dict):
@@ -121,9 +122,22 @@ def _is_trusted_queue_check(context: dict[str, Any]) -> bool:
     return True
 
 
+def _is_trusted_queue_check(context: dict[str, Any]) -> bool:
+    return _is_trusted_actions_check(context) and context.get("name") == QUEUE_CHECK
+
+
 def queue_check_state(contexts: list[dict[str, Any]]) -> tuple[bool, bool]:
     """Return (completed_success, running) for the merge-queue Validation entrypoint."""
     runs = effective_runs([c for c in contexts if _is_trusted_queue_check(c)])
     ok = any(c.get("status") == "COMPLETED" and c.get("conclusion") == "SUCCESS" for c in runs)
     running = any(c.get("status") != "COMPLETED" for c in runs)
     return ok, running
+
+
+def review_check_running(contexts: list[dict[str, Any]]) -> bool:
+    """Return True when a trusted Agent review workflow check run is active on this head."""
+    runs = effective_runs([
+        c for c in contexts
+        if _is_trusted_actions_check(c) and _workflow_name(c) == REVIEW_WORKFLOW
+    ])
+    return any(c.get("status") != "COMPLETED" for c in runs)

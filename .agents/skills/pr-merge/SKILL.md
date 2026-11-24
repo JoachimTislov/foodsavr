@@ -99,6 +99,27 @@ rebases for them yourself. To take one back, remove the label. Use this skill
 for PRs outside the gate: triage, one-way doors, stacks, and owner-scoped
 merges. Read the gate's latest run summary when assessing the queue.
 
+### Integration freeze and priority preemption
+
+- **Freeze modes**: an open issue labeled `merge/freeze` (or repository
+  variable `MERGE_GATE_FREEZE=batch`) places the gate in `batch` freeze,
+  pausing normal `merge/auto` PRs and Dependabot auto opt-in while keeping
+  their `merge/auto` labels intact. `MERGE_GATE_FREEZE=all` pauses all gate
+  mutations including priority PRs. Never strip `merge/auto` from paused batch
+  PRs merely to hold them during a freeze.
+- **Priority preemption**: PRs labeled `merge/priority` + `merge/auto` run
+  ahead of normal `merge/auto` PRs and are allowed through during a `batch`
+  freeze. Priority PRs that are `risk/security` still require human merge
+  (never bypassed by the gate).
+- **Pre-landing freeze**: if the freeze-aware gate is not yet on `develop`,
+  disable `merge-gate.yml` (`gh workflow disable merge-gate.yml`) in addition
+  to opening the `merge/freeze` issue, then re-enable `merge-gate.yml` once
+  the gate update lands.
+- **Thaw**: remove `merge/freeze` from the coordinating issue (and clear
+  `MERGE_GATE_FREEZE` if set) once preempting PRs are merged; paused batch
+  PRs resume automatically in their planned queue order.
+
+
 ## Dependabot PR updates
 
 To update a Dependabot PR, post `@dependabot rebase` in a PR comment, then

@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from checks import FAILED, IGNORED_WORKFLOWS, QUEUE_CHECK, queue_check_state, rollup_state  # noqa: E402
+from checks import FAILED, IGNORED_WORKFLOWS, QUEUE_CHECK, queue_check_state, review_check_running, rollup_state  # noqa: E402
 try:
     from scripts.github import pr_review
 except ImportError:
@@ -35,6 +35,9 @@ except ImportError:
         _spec.loader.exec_module(pr_review)
 
 LABEL = "merge/auto"
+PRIORITY_LABEL = "merge/priority"
+FREEZE_LABEL = "merge/freeze"
+FREEZE_MODES = frozenset({"none", "batch", "all"})
 LABEL_COLOR = "0e8a16"
 LABEL_DESCRIPTION = "Finalized two-way-door PR; the merge gate integrates it"
 BASE = "develop"
@@ -61,6 +64,16 @@ QUEUE_START_GRACE = timedelta(minutes=10)
 REBASE_WAIT = timedelta(minutes=30)
 ONE_WAY = re.compile(r"\*\*Door:\*\*\s*one-way", re.IGNORECASE)
 BUMP = re.compile(r"\bfrom v?(\d+)\.(\d+)(?:\.(\d+))?\S* to v?(\d+)\.(\d+)(?:\.(\d+))?", re.IGNORECASE)
+
+FREEZE_ISSUES_QUERY = """
+query($owner: String!, $name: String!, $label: String!) {
+  repository(owner: $owner, name: $name) {
+    issues(states: OPEN, labels: [$label], first: 10) {
+      nodes { number title }
+    }
+  }
+}
+"""
 
 QUERY = """
 query($owner: String!, $name: String!, $cursor: String) {
@@ -138,6 +151,7 @@ class PR:
     labeled_at: datetime | None = None
     queue_ok: bool = False
     queue_running: bool = False
+    review_running: bool = False
     rebase_requested: datetime | None = None
     rebase_refused: bool = False
     additions: int = 0
@@ -157,6 +171,10 @@ class PR:
     @property
     def dependabot(self) -> bool:
         return self.bot and normalize_bot(self.author) == DEPENDABOT
+
+    @property
+    def priority(self) -> bool:
+        return PRIORITY_LABEL in self.labels
 
 
 @dataclass
@@ -214,6 +232,7 @@ def from_node(node: dict[str, Any]) -> PR:
     contexts = ((commit.get("statusCheckRollup") or {}).get("contexts") or {}).get("nodes", [])
     rollup = rollup_state(contexts)
     queue_ok, queue_running = queue_check_state(contexts)
+    review_running = review_check_running(contexts)
     head_time = parse_time(commit["committedDate"]) if commit.get("committedDate") else datetime.now(timezone.utc)
     timeline = node["timelineItems"]["nodes"]
     labeled_times = [
@@ -290,6 +309,7 @@ def from_node(node: dict[str, Any]) -> PR:
         labeled_at=max(labeled_times) if labeled_times else None,
         queue_ok=queue_ok,
         queue_running=queue_running,
+        review_running=review_running,
         rebase_requested=max(requested) if requested else None,
         rebase_refused=bool(refused and requested and max(refused) >= max(requested)),
         additions=int(node.get("additions") or 0),
@@ -331,13 +351,12 @@ def classify_for_gate(
     )
 
 
-def blocker(
+def structural_blocker(
     pr: PR,
     owner: str = "",
     trusted_bots: frozenset[str] = DEFAULT_TRUSTED_BOTS,
-    history: list[dict[str, Any]] | None = None,
 ) -> str | None:
-    """Return why an opted-in PR needs its author or reviewer, or None."""
+    """Return hard non-review blockers for an opted-in PR, or None."""
     if pr.draft:
         return "draft"
     if pr.fork:
@@ -363,10 +382,19 @@ def blocker(
         return "Dependabot refused to rebase (branch edited); owner decides on @dependabot recreate"
     if pr.rollup == "FAILURE":
         return "a check failed on the head commit"
+    return None
 
+
+def review_blocker(
+    pr: PR,
+    owner: str = "",
+    trusted_bots: frozenset[str] = DEFAULT_TRUSTED_BOTS,
+    history: list[dict[str, Any]] | None = None,
+) -> str | None:
+    """Return missing/insufficient review attestation reason, or None."""
     effective_history = history if history is not None else pr_review.load_history()
     classification = classify_for_gate(pr, owner=owner, trusted_bots=trusted_bots, history=effective_history)
-    ok, review_blocker = pr_review.evaluate_review_attestation(
+    ok, reason = pr_review.evaluate_review_attestation(
         pr_number=pr.number,
         head_sha=pr.head,
         required_tier=classification.required_tier,
@@ -380,9 +408,51 @@ def blocker(
         trusted_bots=trusted_bots,
         current_patch_id=pr.patch_id,
     )
-    if not ok:
-        return review_blocker
-    return None
+    return None if ok else reason
+
+
+def blocker(
+    pr: PR,
+    owner: str = "",
+    trusted_bots: frozenset[str] = DEFAULT_TRUSTED_BOTS,
+    history: list[dict[str, Any]] | None = None,
+) -> str | None:
+    """Return why an opted-in PR needs its author or reviewer, or None."""
+    hard = structural_blocker(pr, owner=owner, trusted_bots=trusted_bots)
+    if hard:
+        return hard
+    return review_blocker(pr, owner=owner, trusted_bots=trusted_bots, history=history)
+
+
+def resolve_freeze_mode(
+    env_value: str | None = None,
+    freeze_issues: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
+) -> tuple[str, str]:
+    """Resolve effective integration freeze mode ('none', 'batch', or 'all') and human-readable reason.
+
+    ``MERGE_GATE_FREEZE=all|true`` freezes every PR; ``batch`` freezes normal ``merge/auto`` PRs
+    while allowing ``merge/priority`` PRs through. When the variable is unset/none, any open
+    issue labeled ``merge/freeze`` activates ``batch`` freeze. Unknown non-empty values fail closed
+    to ``all``.
+    """
+    raw = (env_value or "").strip().lower()
+    issue_refs = [f"#{i['number']}" for i in freeze_issues if isinstance(i, dict) and i.get("number")]
+    issue_suffix = f" ({', '.join(issue_refs)})" if issue_refs else ""
+
+    if raw in {"all", "true", "1", "yes"}:
+        return "all", f"MERGE_GATE_FREEZE={raw}{issue_suffix}"
+    if raw == "batch":
+        return "batch", f"MERGE_GATE_FREEZE=batch{issue_suffix}"
+    if raw in {"", "none", "false", "0", "no"}:
+        if issue_refs:
+            return "batch", f"open {FREEZE_LABEL} issue(s): {', '.join(issue_refs)}"
+        return "none", ""
+    return "all", f"unknown MERGE_GATE_FREEZE={raw!r}; failing closed to all"
+
+
+def _queue_rank(pr: PR) -> tuple[int, int]:
+    """Order priority PRs before normal PRs, oldest-first within each tier."""
+    return (0 if pr.priority else 1, pr.number)
 
 
 def plan(
@@ -391,13 +461,18 @@ def plan(
     owner: str = "",
     trusted_bots: frozenset[str] = DEFAULT_TRUSTED_BOTS,
     history: list[dict[str, Any]] | None = None,
+    freeze_mode: str = "none",
+    freeze_reason: str = "",
 ) -> Plan:
     """Choose the next safe step for the queue. Pure; see ADR 0006."""
+    if freeze_mode not in FREEZE_MODES:
+        raise ValueError(f"unknown freeze_mode: {freeze_mode!r}")
     actions: list[tuple[str, PR]] = []
     report: list[tuple[int, str, str]] = []
     queue: list[PR] = []
+    review_in_flight: list[PR] = []
     effective_history = history if history is not None else pr_review.load_history()
-    for pr in sorted(prs, key=lambda p: p.number):
+    for pr in sorted(prs, key=_queue_rank):
         if LABEL not in pr.labels:
             if (
                 pr.dependabot
@@ -406,8 +481,14 @@ def plan(
                 and is_trusted_author(pr, owner=owner, trusted_bots=trusted_bots)
                 and bump_kind(pr.title) in {"patch", "minor"}
             ):
-                actions.append(("label", pr))
-                report.append((pr.number, "opt-in", f"Dependabot {bump_kind(pr.title)} bump"))
+                if freeze_mode != "none":
+                    detail = f"integration freeze ({freeze_mode}): Dependabot auto opt-in paused"
+                    if freeze_reason:
+                        detail = f"{detail} ({freeze_reason})"
+                    report.append((pr.number, "frozen", detail))
+                else:
+                    actions.append(("label", pr))
+                    report.append((pr.number, "opt-in", f"Dependabot {bump_kind(pr.title)} bump"))
             elif not pr.draft:
                 if not is_trusted_author(pr, owner=owner, trusted_bots=trusted_bots):
                     report.append((pr.number, "untrusted", "author is not trusted for auto-merge"))
@@ -418,9 +499,27 @@ def plan(
                 else:
                     report.append((pr.number, "awaiting opt-in", "ready for review; add merge/auto to integrate"))
             continue
-        reason = blocker(pr, owner=owner, trusted_bots=trusted_bots, history=effective_history)
-        if reason:
-            report.append((pr.number, "blocked", reason))
+
+        if freeze_mode == "all":
+            detail = f"integration freeze (all): {freeze_reason}" if freeze_reason else "integration freeze (all)"
+            report.append((pr.number, "frozen", detail))
+            continue
+        if freeze_mode == "batch" and not pr.priority:
+            base_detail = f"integration freeze (batch): {freeze_reason}" if freeze_reason else "integration freeze (batch)"
+            report.append((pr.number, "frozen", f"{base_detail}; add {PRIORITY_LABEL} to preempt"))
+            continue
+
+        hard = structural_blocker(pr, owner=owner, trusted_bots=trusted_bots)
+        if hard:
+            report.append((pr.number, "blocked", hard))
+            continue
+        rev = review_blocker(pr, owner=owner, trusted_bots=trusted_bots, history=effective_history)
+        if rev:
+            if pr.review_running and now - pr.head_time < STALL_AFTER:
+                review_in_flight.append(pr)
+                report.append((pr.number, "in flight", f"Agent review running ({rev})"))
+            else:
+                report.append((pr.number, "blocked", rev))
             continue
         queue.append(pr)
 
@@ -429,9 +528,9 @@ def plan(
         p for p in queue
         if p.merge_state in {"CLEAN", "HAS_HOOKS", "UNSTABLE"} and p.rollup == "SUCCESS" and p.queue_ok
     ]
-    # A merge moves main and forces every other PR to restart its checks. Hold
-    # ready PRs while an up-to-date PR is still validating, so slow checks (for
-    # example a Dependabot PR's smoke tests) finish instead of being reset.
+    # A merge moves develop and forces other in-scope PRs to restart checks. Hold
+    # an in-scope ready PR only behind higher-priority / older up-to-date PRs that
+    # are still validating, so priority or older ready PRs are never blocked by newer ones.
     validating = [
         p for p in queue
         if p.merge_state in {"CLEAN", "HAS_HOOKS", "UNSTABLE", "BLOCKED"}
@@ -439,12 +538,18 @@ def plan(
     ]
     # Out-of-scope merges (docs, agent files) leave running checks valid: the
     # rebased head reuses them (scripts/ci/already_tested.sh), so only in-scope PRs wait.
-    free = [p for p in ready if not (validating and p.moves_scope)]
+    def _blocking_validating(p: PR) -> list[PR]:
+        if not p.moves_scope:
+            return []
+        return [v for v in validating if _queue_rank(v) < _queue_rank(p)]
+
+    free = [p for p in ready if not _blocking_validating(p)]
     if ready and not free:
         for pr in validating:
             report.append((pr.number, "in flight", "checks running; in-scope merges are held"))
         for pr in ready:
-            report.append((pr.number, "queued", f"held until #{validating[0].number} finishes checks"))
+            holder = _blocking_validating(pr)[0]
+            report.append((pr.number, "queued", f"held until #{holder.number} finishes checks"))
         return Plan(actions, report)
     ready = free
     if ready:
@@ -456,7 +561,7 @@ def plan(
                 report.append((other.number, "queued", "waits for the merge in progress"))
         return Plan(actions, report)
 
-    in_flight: list[PR] = []
+    in_flight: list[PR] = list(review_in_flight)
     behind: list[PR] = []
     for pr in queue:
         activity_at = max(pr.head_time, pr.labeled_at) if pr.labeled_at else pr.head_time
@@ -523,6 +628,18 @@ class GitHub:
             if not page["pageInfo"]["hasNextPage"]:
                 return [from_node(node) for node in nodes]
             cursor = page["pageInfo"]["endCursor"]
+
+    def freeze_issues(self) -> list[dict[str, Any]]:
+        data = json.loads(
+            self.run(
+                "api", "graphql",
+                "-f", f"query={FREEZE_ISSUES_QUERY}",
+                "-F", f"owner={self.owner}",
+                "-F", f"name={self.name}",
+                "-F", f"label={FREEZE_LABEL}",
+            )
+        )
+        return list((data["data"]["repository"]["issues"] or {}).get("nodes") or [])
 
     def populate_patch_ids(self, prs: list[PR]) -> None:
         """Compute current patch_id for opted-in PRs that may carry over a prior review."""
@@ -606,8 +723,17 @@ def serialize(repo: str) -> bool:
     return True
 
 
-def summarize(rows: list[tuple[int, str, str]], done: list[str]) -> str:
-    lines = ["## Merge gate", "", "| PR | State | Detail |", "|---|---|---|"]
+def summarize(
+    rows: list[tuple[int, str, str]],
+    done: list[str],
+    freeze_mode: str = "none",
+    freeze_reason: str = "",
+) -> str:
+    lines = ["## Merge gate", ""]
+    if freeze_mode != "none":
+        reason_text = f" ({freeze_reason})" if freeze_reason else ""
+        lines += [f"**Integration freeze active:** `{freeze_mode}`{reason_text}", ""]
+    lines += ["| PR | State | Detail |", "|---|---|---|"]
     lines += [f"| #{n} | {state} | {detail} |" for n, state, detail in rows] or ["| — | idle | no opted-in PRs |"]
     if done:
         lines += ["", *[f"- {line}" for line in done]]
@@ -619,6 +745,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY"))
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--max-merges", type=int, default=5)
+    parser.add_argument("--freeze", default=os.environ.get("MERGE_GATE_FREEZE", ""),
+                        help="Freeze mode override: none, batch, or all (defaults to MERGE_GATE_FREEZE env)")
     parser.add_argument("--trusted-bot", action="append", default=[],
                         help="Additional bot login or App slug trusted for auto-merge")
     args = parser.parse_args(argv)
@@ -631,6 +759,8 @@ def main(argv: list[str] | None = None) -> int:
     trusted_bots = trusted_bot_set(args.trusted_bot)
     done: list[str] = []
     rows: list[tuple[int, str, str]] = []
+    freeze_mode = "none"
+    freeze_reason = ""
     merges = 0
     status = 0
     for _ in range(args.max_merges * 2 + 2):
@@ -640,8 +770,17 @@ def main(argv: list[str] | None = None) -> int:
                 break
             time.sleep(10)
             prs = gh.prs()
+        freeze_issues = gh.freeze_issues()
+        freeze_mode, freeze_reason = resolve_freeze_mode(args.freeze, freeze_issues)
         gh.populate_patch_ids(prs)
-        result = plan(prs, datetime.now(timezone.utc), owner=gh.owner, trusted_bots=trusted_bots)
+        result = plan(
+            prs,
+            datetime.now(timezone.utc),
+            owner=gh.owner,
+            trusted_bots=trusted_bots,
+            freeze_mode=freeze_mode,
+            freeze_reason=freeze_reason,
+        )
         rows = result.report
         merged = False
         for action, pr in result.actions:
@@ -655,7 +794,7 @@ def main(argv: list[str] | None = None) -> int:
         merges += merged
         if status or not (merged and args.apply) or merges >= args.max_merges:
             break
-    text = summarize(rows, done)
+    text = summarize(rows, done, freeze_mode=freeze_mode, freeze_reason=freeze_reason)
     print(text)
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:

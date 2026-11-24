@@ -574,6 +574,84 @@ class PatchEquivalentMergeGateTest(unittest.TestCase):
         self.assertEqual(actions([p_missing], owner="owner"), [])
 
 
+class FreezePriorityAndRaceTest(unittest.TestCase):
+    def test_running_agent_review_prevents_concurrent_rebase_of_behind_pr(self):
+        reviewing = pr(1, state="CLEAN", rollup="SUCCESS", reviews=[], review_running=True)
+        behind = pr(2, state="BEHIND")
+        result = gate.plan([reviewing, behind], NOW, owner="owner")
+        self.assertEqual(result.actions, [])
+        states = {n: s for n, s, _ in result.report}
+        self.assertEqual(states[1], "in flight")
+
+        # Once stalled past STALL_AFTER, it no longer blocks the behind PR
+        stalled_review = pr(
+            1, state="CLEAN", rollup="SUCCESS", reviews=[], review_running=True,
+            head_time=NOW - timedelta(hours=2),
+        )
+        self.assertEqual(actions([stalled_review, behind], owner="owner"), [("update", 2)])
+
+        # A hard structural blocker (e.g. FAILURE rollup) stays blocked even while review_running=True
+        failed_review = pr(1, state="CLEAN", rollup="FAILURE", reviews=[], review_running=True)
+        self.assertEqual(actions([failed_review, behind], owner="owner"), [("update", 2)])
+
+    def test_older_or_priority_ready_pr_not_held_behind_newer_validating_pr(self):
+        older_ready = pr(1, files=["lib/a.dart"])
+        newer_validating = pr(2, state="BLOCKED", rollup="PENDING", files=["lib/b.dart"])
+        self.assertEqual(actions([older_ready, newer_validating], owner="owner"), [("merge", 1)])
+
+        # Priority PR #10 jumps ahead of normal validating PR #1
+        prio_ready = pr(10, labels=(gate.LABEL, gate.PRIORITY_LABEL), files=["lib/p.dart"])
+        normal_validating = pr(1, state="BLOCKED", rollup="PENDING", files=["lib/a.dart"])
+        self.assertEqual(actions([prio_ready, normal_validating], owner="owner"), [("merge", 10)])
+
+        # Normal PR #10 IS held behind priority validating PR #20
+        prio_validating = pr(20, labels=(gate.LABEL, gate.PRIORITY_LABEL), state="BLOCKED", rollup="PENDING", files=["lib/p.dart"])
+        normal_ready = pr(10, files=["lib/a.dart"])
+        self.assertEqual(actions([prio_validating, normal_ready], owner="owner"), [])
+
+    def test_resolve_freeze_mode_variants_and_fail_closed(self):
+        self.assertEqual(gate.resolve_freeze_mode("", []), ("none", ""))
+        self.assertEqual(gate.resolve_freeze_mode("none", []), ("none", ""))
+        mode, reason = gate.resolve_freeze_mode("", [{"number": 455, "title": "Epic"}])
+        self.assertEqual(mode, "batch")
+        self.assertIn("#455", reason)
+        self.assertEqual(gate.resolve_freeze_mode("batch", [])[0], "batch")
+        self.assertEqual(gate.resolve_freeze_mode("all", [])[0], "all")
+        self.assertEqual(gate.resolve_freeze_mode("true", [])[0], "all")
+        # Unknown values fail closed to all
+        self.assertEqual(gate.resolve_freeze_mode("weird-value", [])[0], "all")
+
+    def test_freeze_batch_and_all_preserve_normal_prs_and_allow_priority_under_batch(self):
+        normal = pr(1, files=["docs/a.md"])
+        prio = pr(5, labels=(gate.LABEL, gate.PRIORITY_LABEL), files=["docs/b.md"])
+        dep = pr(
+            6,
+            labels=(),
+            author="dependabot[bot]",
+            bot=True,
+            title="bump pkg from 1.0.0 to 1.0.1",
+            reviews=[],
+        )
+
+        # Under batch freeze: priority PR merges, normal PR & Dependabot opt-in are frozen
+        res_batch = gate.plan([normal, prio, dep], NOW, owner="owner", freeze_mode="batch", freeze_reason="epic #455")
+        self.assertEqual([(a, p.number) for a, p in res_batch.actions], [("merge", 5)])
+        by_pr = {n: (s, d) for n, s, d in res_batch.report}
+        self.assertEqual(by_pr[1][0], "frozen")
+        self.assertEqual(by_pr[6][0], "frozen")
+
+        # Under all freeze: nothing merges or labels, all reported frozen
+        res_all = gate.plan([normal, prio, dep], NOW, owner="owner", freeze_mode="all", freeze_reason="emergency")
+        self.assertEqual(res_all.actions, [])
+        by_pr_all = {n: s for n, s, _ in res_all.report}
+        self.assertEqual(by_pr_all, {5: "frozen", 1: "frozen", 6: "frozen"})
+
+        # Unfrozen: priority PR still integrates before older normal PR
+        res_open = gate.plan([normal, prio], NOW, owner="owner", freeze_mode="none")
+        self.assertEqual([(a, p.number) for a, p in res_open.actions], [("merge", 5)])
+
+
 if __name__ == "__main__":
     unittest.main()
+
 

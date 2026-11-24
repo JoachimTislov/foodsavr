@@ -70,3 +70,13 @@ Each implementing agent gets the lane brief from [references/queue-issue.md](ref
 ## 8. Feed back
 
 When the batch's lanes are merged or carried over, comment a retro on the queue issue: actual rebase conflicts (file, lanes), stack pain, duplicated hunks, and lanes that left their footprint. Update [references/hot-files.md](references/hot-files.md) with new hot files and conventions in the next queue PR, close the queue issue, and log `queue: batch N closed`.
+
+## 9. Integration freeze and priority preemption
+
+When an urgent fix (for example CI/integration infrastructure, release unblockers, or security fixes) must land ahead of an active batch without cancelling or overwriting the active or next batch plan:
+
+1. **Freeze without stripping batch state**: label the coordinating epic or freeze issue with `merge/freeze` (or set repository variable `MERGE_GATE_FREEZE=batch` for batch-only pause, or `MERGE_GATE_FREEZE=all` for a total halt). Never remove `merge/auto` from paused batch PRs and never overwrite the open `queue:batch` issue or planned next-batch lanes.
+2. **Preempt cleanly**: label the preempting PR(s) with `merge/priority` (alongside `merge/auto` when gate-managed). Under `batch` freeze, the merge gate freezes normal `merge/auto` PRs and Dependabot auto opt-in while integrating `merge/priority` PRs in priority order, preserving all paused PRs untouched.
+3. **Respect active sibling footprints**: snapshot open PR diffs and hot-file hunk ranges first (step 1) so the preempting work avoids overlapping regions with active sibling PRs (including threads temporarily paused on provider quota limits). Record the active freeze and preemption as a comment on the open `queue:batch` issue and log it via `agentctl log`.
+4. **Thaw atomically**: once the preempting work lands on `develop`, remove `merge/freeze` from the coordinating issue (and clear `MERGE_GATE_FREEZE` if set). Paused batch PRs retain `merge/auto` and resume automatically on the next merge-gate reconciliation without manual re-labeling.
+

@@ -5,30 +5,120 @@
 # when the PR was up to date, and fast-forward promotions preserve the SHA.
 # Pull request synchronize events (typically a rebase onto a moved base) also skip
 # when the previous head has a green run of the workflow and the tree diff old head
-# -> new head touches nothing in the workflow's scope (the pathspecs).
-# Usage: already_tested.sh [--push-only-reuse] <workflow-file.yml> [pathspec...]   (needs GH_TOKEN)
+# -> new head touches nothing in the workflow's scope (the pathspecs). When
+# --target <name>:<p1,p2,...> flags are given, each target also emits
+# skip_<name>=true|false so unrelated target changes (e.g. a web-only merge on
+# develop) reuse green android/integration/rules runs from the previous head.
+# Usage: already_tested.sh [--push-only-reuse] [--require-job <regex>]
+#        [--target <name>:<csv_paths>]... <workflow-file.yml> [pathspec...]   (needs GH_TOKEN)
 set -euo pipefail
 out="${GITHUB_OUTPUT:-/dev/stdout}"
-skip() { echo "skip=$1" >> "$out"; echo "already_tested: skip=$1 ($2)" >&2; exit 0; }
 
 push_only_reuse=false
-if [ "${1:-}" = "--push-only-reuse" ]; then
-  push_only_reuse=true
-  shift
-fi
+require_job_re=""
+targets=()
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --push-only-reuse)
+      push_only_reuse=true
+      shift
+      ;;
+    --require-job)
+      require_job_re="${2:?--require-job requires a regex}"
+      shift 2
+      ;;
+    --target)
+      targets+=("${2:?--target requires name:path1,path2}")
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+emit_all_targets() {
+  local val="$1"
+  local spec name
+  for spec in "${targets[@]}"; do
+    name="${spec%%:*}"
+    echo "skip_${name}=${val}" >> "$out"
+  done
+}
+
+skip() {
+  local val="$1"
+  local msg="$2"
+  local emit_targets="${3:-yes}"
+  echo "skip=${val}" >> "$out"
+  if [ "$emit_targets" != "no" ] && [ "${#targets[@]}" -gt 0 ]; then
+    emit_all_targets "$val"
+  fi
+  echo "already_tested: skip=${val} (${msg})" >&2
+  exit 0
+}
 
 repo="${GITHUB_REPOSITORY:?}"
+
+has_green_pr_run() {
+  local commit_sha="$1"
+  local run_ids
+  run_ids=$(gh run list --repo "$repo" --workflow "$wf" --commit "$commit_sha" --event pull_request --status success --json databaseId --jq '.[].databaseId' 2>/dev/null || true)
+  [ -n "$run_ids" ] || return 1
+  if [ -z "$require_job_re" ]; then
+    return 0
+  fi
+  local run_id matched
+  for run_id in $run_ids; do
+    matched=$(gh api "repos/$repo/actions/runs/$run_id/jobs" 2>/dev/null \
+      | jq --arg re "$require_job_re" '[.jobs[] | select(.conclusion == "success" and (.name | test($re; "i")))] | length' 2>/dev/null || echo 0)
+    if [ "${matched:-0}" -gt 0 ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ]; then
   wf="$1"; shift
   [ "$(jq -r .action "$GITHUB_EVENT_PATH")" = "synchronize" ] || skip false "not a synchronize event"
-  [ "$#" -gt 0 ] || skip false "no scope pathspecs given"
+  if [ "$#" -eq 0 ] && [ "${#targets[@]}" -eq 0 ]; then
+    skip false "no scope pathspecs given"
+  fi
   before=$(jq -r .before "$GITHUB_EVENT_PATH"); new=$(jq -r .pull_request.head.sha "$GITHUB_EVENT_PATH")
   git fetch --no-tags --depth=1 origin "$before" "$new" 2>/dev/null || skip false "cannot fetch previous head"
-  ok=$(gh run list --repo "$repo" --workflow "$wf" --commit "$before" --event pull_request --status success --json databaseId --jq length)
-  [ "${ok:-0}" -gt 0 ] || skip false "no green $wf run on previous head $before"
-  touched=$(git diff --name-only "$before" "$new" -- "$@") || skip false "diff failed"
-  [ -z "$touched" ] || skip false "changes since previous head are in scope"
-  skip true "previous head $before green; nothing in scope changed"
+  has_green_pr_run "$before" || skip false "no qualifying green $wf run on previous head $before"
+  if [ "$#" -gt 0 ]; then
+    touched=$(git diff --name-only "$before" "$new" -- "$@") || skip false "diff failed"
+    if [ -z "$touched" ]; then
+      skip true "previous head $before green; nothing in scope changed"
+    fi
+  fi
+  if [ "${#targets[@]}" -gt 0 ]; then
+    reused=()
+    rerun=()
+    target_lines=()
+    for spec in "${targets[@]}"; do
+      name="${spec%%:*}"
+      csv="${spec#*:}"
+      IFS=',' read -r -a target_paths <<< "$csv"
+      t_touched=$(git diff --name-only "$before" "$new" -- "${target_paths[@]}") || skip false "target diff failed for $name"
+      if [ -z "$t_touched" ]; then
+        target_lines+=("skip_${name}=true")
+        reused+=("$name")
+      else
+        target_lines+=("skip_${name}=false")
+        rerun+=("$name")
+      fi
+    done
+    printf '%s\n' "${target_lines[@]}" >> "$out"
+    skip false "previous head $before green; reused=[${reused[*]:-none}] rerun=[${rerun[*]:-none}]" no
+  fi
+  skip false "changes since previous head are in scope"
 fi
 [ "${GITHUB_EVENT_NAME:-}" = "push" ] || skip false "not a push"
 wf="$1"; shift

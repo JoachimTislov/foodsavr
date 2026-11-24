@@ -82,11 +82,21 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: ${{ (github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]') && 0 || 1 }}
-      - name: Skip if merged tree already validated on the PR
+      - name: Skip if merged tree or unchanged target already validated
         id: tested
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/ci/already_tested.sh --push-only-reuse validation.yml lib packages web assets android integration_test test_driver test/e2e pubspec.yaml pubspec.lock
+        run: |
+          scripts/ci/already_tested.sh --push-only-reuse \
+            --require-job 'Validation status \(result\)' \
+            --target 'web:lib,packages,web,assets,pubspec.yaml,pubspec.lock,test/e2e' \
+            --target 'android:lib,packages,android,assets,.github/workflows/release-gated.yml,.github/workflows/build-android.yml,scripts/ci/android_smoke.sh,scripts/ci/write_android_test_config.sh,pubspec.yaml,pubspec.lock' \
+            --target 'integration:integration_test,test_driver,lib,packages,assets,pubspec.yaml,pubspec.lock' \
+            --target 'rules:firestore-rules,firestore.rules' \
+            validation.yml lib packages web assets android integration_test test_driver test/e2e \
+            .github/workflows/release-gated.yml .github/workflows/build-android.yml \
+            scripts/ci/android_smoke.sh scripts/ci/write_android_test_config.sh \
+            firestore-rules firestore.rules pubspec.yaml pubspec.lock
       - name: Path filters
         uses: dorny/paths-filter@v3
         id: filter
@@ -139,6 +149,10 @@ jobs:
         id: decide
         env:
           SKIP: ${{ steps.tested.outputs.skip }}
+          SKIP_WEB: ${{ steps.tested.outputs.skip_web }}
+          SKIP_ANDROID: ${{ steps.tested.outputs.skip_android }}
+          SKIP_INTEGRATION: ${{ steps.tested.outputs.skip_integration }}
+          SKIP_RULES: ${{ steps.tested.outputs.skip_rules }}
           EVENT_NAME: ${{ github.event_name }}
           FILTER_WEB: ${{ steps.filter.outputs.web }}
           FILTER_ANDROID: ${{ steps.filter.outputs.android }}
@@ -160,15 +174,16 @@ jobs:
             rules=true
           elif [ "$SKIP" != "true" ]; then
             # PRs and pushes get the same smoke and E2E coverage; on PRs dep_impact.py
-            # may narrow it to the platforms the change can affect.
-            if [ "$FILTER_WEB" = "true" ] && [ "$DEP_WEB" != "false" ]; then
+            # may narrow it to the platforms the change can affect, and already_tested.sh
+            # reuses green per-target runs when a synchronize left that target untouched.
+            if [ "$SKIP_WEB" != "true" ] && [ "$FILTER_WEB" = "true" ] && [ "$DEP_WEB" != "false" ]; then
               web=true
               web_e2e=true
             fi
-            [ "$FILTER_ANDROID" = "true" ] && [ "$DEP_ANDROID" != "false" ] && android=true
-            [ "$FILTER_INTEGRATION" = "true" ] && [ "$DEP_ANDROID" != "false" ] && integration=true
+            [ "$SKIP_ANDROID" != "true" ] && [ "$FILTER_ANDROID" = "true" ] && [ "$DEP_ANDROID" != "false" ] && android=true
+            [ "$SKIP_INTEGRATION" != "true" ] && [ "$FILTER_INTEGRATION" = "true" ] && [ "$DEP_ANDROID" != "false" ] && integration=true
+            [ "$SKIP_RULES" != "true" ] && [ "$FILTER_RULES" = "true" ] && rules=true
           fi
-          [ "$FILTER_RULES" = "true" ] && rules=true
           {
             echo "web=$web"
             echo "web_e2e=$web_e2e"
