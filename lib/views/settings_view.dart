@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logger/logger.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:watch_it/watch_it.dart';
 
 import '../constants/public_routes.dart';
@@ -16,6 +17,7 @@ import '../services/collection_service.dart';
 import '../utils/collection_types.dart';
 import '../utils/theme_notifier.dart';
 import '../features/third_party_integration/widgets/connections_list.dart';
+import '../widgets/common/adaptive_sheet.dart';
 import '../widgets/common/pwa_install_banner.dart';
 
 class SettingsView extends StatefulWidget {
@@ -27,14 +29,29 @@ class SettingsView extends StatefulWidget {
 
 class _SettingsViewState extends State<SettingsView> {
   late final IAuthService _authService;
+  late final ThemeNotifier _themeNotifier;
   PwaInstallController? _pwaInstallController;
+  String? _version;
 
   @override
   void initState() {
     super.initState();
+    _themeNotifier = getIt<ThemeNotifier>();
+    _loadVersion();
     _authService = getIt<IAuthService>();
     if (getIt.isRegistered<PwaInstallController>()) {
       _pwaInstallController = getIt<PwaInstallController>();
+    }
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() => _version = '${info.version} (${info.buildNumber})');
+      }
+    } catch (e) {
+      getIt<Logger>().w('Failed to read the app version: $e');
     }
   }
 
@@ -97,17 +114,20 @@ class _SettingsViewState extends State<SettingsView> {
             _SettingsSection(
               title: 'settings.appearance'.tr(),
               children: [
-                _SettingsTile(
-                  icon: Icons.dark_mode_outlined,
-                  title: 'settings.theme_mode'.tr(),
-                  trailing: Text(
-                    'settings.themes.system'.tr(),
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.primary,
-                      fontWeight: FontWeight.bold,
+                ListenableBuilder(
+                  listenable: _themeNotifier,
+                  builder: (context, _) => _SettingsTile(
+                    icon: Icons.dark_mode_outlined,
+                    title: 'settings.theme_mode'.tr(),
+                    trailing: Text(
+                      _themeLabel(_themeNotifier.themeMode),
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
+                    onTap: () => _showThemeSelector(context),
                   ),
-                  onTap: () => _showThemeSelector(context),
                 ),
                 _SettingsTile(
                   icon: Icons.language_outlined,
@@ -171,7 +191,7 @@ class _SettingsViewState extends State<SettingsView> {
                     _SettingsTile(
                       icon: Icons.info_outline,
                       title: 'settings.app_version'.tr(),
-                      trailing: Text('generated.100_42'.tr()),
+                      trailing: _version == null ? null : Text(_version!),
                       onTap: null,
                     ),
                   ],
@@ -184,41 +204,39 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
+  static String _themeLabel(ThemeMode mode) => switch (mode) {
+    ThemeMode.system => 'settings.themes.system'.tr(),
+    ThemeMode.light => 'settings.themes.light'.tr(),
+    ThemeMode.dark => 'settings.themes.dark'.tr(),
+  };
+
   void _showThemeSelector(BuildContext context) {
-    final themeNotifier = getIt<ThemeNotifier>();
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => SafeArea(
-        child: Column(
+    AdaptiveSheet.show<void>(
+      context,
+      builder: (context) => ListenableBuilder(
+        listenable: _themeNotifier,
+        builder: (context, _) => Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: const Icon(Icons.brightness_auto),
-              title: Text('settings.themes.system'.tr()),
-              onTap: () {
-                themeNotifier.setTheme(ThemeMode.system);
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.light_mode),
-              title: Text('settings.themes.light'.tr()),
-              onTap: () {
-                themeNotifier.setTheme(ThemeMode.light);
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.dark_mode),
-              title: Text('settings.themes.dark'.tr()),
-              onTap: () {
-                themeNotifier.setTheme(ThemeMode.dark);
-                Navigator.pop(context);
-              },
-            ),
+            for (final (mode, icon) in const [
+              (ThemeMode.system, Icons.brightness_auto),
+              (ThemeMode.light, Icons.light_mode),
+              (ThemeMode.dark, Icons.dark_mode),
+            ])
+              ListTile(
+                leading: Icon(icon),
+                title: Text(_themeLabel(mode)),
+                trailing: _themeNotifier.themeMode == mode
+                    ? Icon(
+                        Icons.check,
+                        color: Theme.of(context).colorScheme.primary,
+                      )
+                    : null,
+                onTap: () {
+                  _themeNotifier.setTheme(mode);
+                  Navigator.pop(context);
+                },
+              ),
           ],
         ),
       ),
@@ -226,37 +244,29 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   void _showLanguageSelector(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+    AdaptiveSheet.show<void>(
+      context,
+      builder: (sheetContext) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final (code, label) in [
+            ('en', 'settings.languages.en'.tr()),
+            ('nb', 'settings.languages.nb'.tr()),
+          ])
             ListTile(
-              title: Text('settings.languages.en'.tr()),
-              trailing: context.locale.languageCode == 'en'
-                  ? const Icon(Icons.check, color: Colors.blue)
+              title: Text(label),
+              trailing: context.locale.languageCode == code
+                  ? Icon(
+                      Icons.check,
+                      color: Theme.of(sheetContext).colorScheme.primary,
+                    )
                   : null,
               onTap: () {
-                context.setLocale(const Locale('en'));
-                Navigator.pop(context);
+                context.setLocale(Locale(code));
+                Navigator.pop(sheetContext);
               },
             ),
-            ListTile(
-              title: Text('settings.languages.nb'.tr()),
-              trailing: context.locale.languageCode == 'nb'
-                  ? const Icon(Icons.check, color: Colors.blue)
-                  : null,
-              onTap: () {
-                context.setLocale(const Locale('nb'));
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }

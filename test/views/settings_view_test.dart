@@ -21,6 +21,7 @@ import 'package:foodsavr/features/third_party_integration/oauth_controller.dart'
 import 'package:foodsavr/utils/theme_notifier.dart';
 import 'package:foodsavr/views/settings_view.dart';
 import 'package:logger/logger.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
@@ -117,6 +118,13 @@ void main() async {
     late PreferencesController preferencesController;
 
     setUp(() async {
+      PackageInfo.setMockInitialValues(
+        appName: 'foodsavr',
+        packageName: 'app.foodsavr',
+        version: '2.3.4',
+        buildNumber: '56',
+        buildSignature: '',
+      );
       await getIt.reset();
       SharedPreferences.setMockInitialValues({});
       await EasyLocalization.ensureInitialized();
@@ -351,8 +359,10 @@ void main() async {
         await tester.tap(find.text('Dark'));
         await tester.pumpAndSettle();
 
-        // Modal should close (one 'System' remains in the tile)
-        expect(find.text('System'), findsOneWidget);
+        // Modal closes and the Theme row shows the chosen mode
+        expect(find.text('System'), findsNothing);
+        expect(find.text('Dark'), findsOneWidget);
+        expect(getIt<ThemeNotifier>().themeMode, ThemeMode.dark);
       });
     });
 
@@ -415,7 +425,7 @@ void main() async {
 
         // Should display app version
         expect(find.text('App Version'), findsOneWidget);
-        expect(find.text('1.0.0 (42)'), findsOneWidget);
+        expect(find.text('2.3.4 (56)'), findsOneWidget);
       });
     });
 
