@@ -25,6 +25,7 @@ class CollectionRepository implements ICollectionRepository {
     Transaction transaction,
     String userId,
     Iterable<String> productIds,
+    Set<String> verifiedProducts,
   ) async {
     for (final id in productIds.toSet()) {
       Map<String, dynamic>? data;
@@ -39,19 +40,56 @@ class CollectionRepository implements ICollectionRepository {
       if (data == null ||
           data['userId'] != userId ||
           data['isGlobal'] == true) {
-        return StateError('Product $id is unavailable. Reload and try again.');
+        return _unavailableProduct(id);
       }
+      verifiedProducts.add(id);
     }
     return null;
   }
 
+  StateError _unavailableProduct(String id) =>
+      StateError('Product $id is unavailable. Reload and try again.');
+
   Future<void> _writeMembership(
-    Future<StateError?> Function(Transaction) write,
+    Future<StateError?> Function(Transaction, Set<String>) write,
   ) async {
-    // Keep domain errors outside the SDK callback so FlutterFire Web preserves
-    // their type and message across the JavaScript boundary.
-    final error = await _firestore.runTransaction(write);
+    final verifiedProducts = <String>{};
+    var readyToCommit = false;
+    StateError? error;
+    try {
+      // Return validation errors through the callback to preserve their Dart
+      // type on FlutterFire Web.
+      error = await _firestore.runTransaction((transaction) async {
+        verifiedProducts.clear();
+        readyToCommit = false;
+        final validationError = await write(transaction, verifiedProducts);
+        readyToCommit = validationError == null;
+        return validationError;
+      });
+    } on FirebaseException catch (e) {
+      if (!readyToCommit || e.code != 'permission-denied') rethrow;
+      // A product can disappear after its transaction read. A server get
+      // distinguishes that race from a denied collection write.
+      for (final id in verifiedProducts) {
+        if (await _isProductMissingOrUnreadable(id)) {
+          throw _unavailableProduct(id);
+        }
+      }
+      rethrow;
+    }
     if (error != null) throw error;
+  }
+
+  Future<bool> _isProductMissingOrUnreadable(String id) async {
+    try {
+      final snapshot = await _firestore
+          .collection('products')
+          .doc(id)
+          .get(const GetOptions(source: Source.server));
+      return !snapshot.exists;
+    } on FirebaseException catch (e) {
+      return e.code == 'permission-denied';
+    }
   }
 
   @override
@@ -66,11 +104,12 @@ class CollectionRepository implements ICollectionRepository {
       await docRef.set(savedCollection.toJson());
       return savedCollection;
     }
-    await _writeMembership((transaction) async {
+    await _writeMembership((transaction, verifiedProducts) async {
       final error = await _validateOwnedProducts(
         transaction,
         savedCollection.userId,
         savedCollection.productIds,
+        verifiedProducts,
       );
       if (error != null) return error;
       await afterMembershipRead?.call();
@@ -93,14 +132,13 @@ class CollectionRepository implements ICollectionRepository {
     bool metadataOnly = false,
   }) async {
     final docRef = _firestore.collection(_collectionName).doc(collection.id);
-    await _writeMembership((transaction) async {
+    if (metadataOnly) {
+      await docRef.update(collection.toJson()..remove('productIds'));
+      return;
+    }
+    await _writeMembership((transaction, verifiedProducts) async {
       final current = await transaction.get(docRef);
       if (!current.exists) return StateError('The collection is unavailable.');
-      if (metadataOnly) {
-        final metadata = collection.toJson()..remove('productIds');
-        transaction.update(docRef, metadata);
-        return null;
-      }
       // Only IDs this write introduces must resolve; legacy IDs may remain.
       final existing = List<String>.from(
         current.data()?['productIds'] as List? ?? const [],
@@ -109,6 +147,7 @@ class CollectionRepository implements ICollectionRepository {
         transaction,
         collection.userId,
         collection.productIds.toSet().difference(existing),
+        verifiedProducts,
       );
       if (error != null) return error;
       await afterMembershipRead?.call();
@@ -163,7 +202,7 @@ class CollectionRepository implements ICollectionRepository {
   Future<void> addProducts(String collectionId, List<String> productIds) async {
     if (productIds.isEmpty) return;
     final docRef = _firestore.collection(_collectionName).doc(collectionId);
-    await _writeMembership((transaction) async {
+    await _writeMembership((transaction, verifiedProducts) async {
       final collection = await transaction.get(docRef);
       final userId = collection.data()?['userId'];
       if (userId is! String) {
@@ -173,6 +212,7 @@ class CollectionRepository implements ICollectionRepository {
         transaction,
         userId,
         productIds,
+        verifiedProducts,
       );
       if (error != null) return error;
       await afterMembershipRead?.call();
@@ -211,12 +251,13 @@ class CollectionRepository implements ICollectionRepository {
         ),
     ];
     if (collections.any((collection) => collection.productIds.isNotEmpty)) {
-      await _writeMembership((transaction) async {
+      await _writeMembership((transaction, verifiedProducts) async {
         for (final collection in collections) {
           final error = await _validateOwnedProducts(
             transaction,
             collection.userId,
             collection.productIds,
+            verifiedProducts,
           );
           if (error != null) return error;
         }

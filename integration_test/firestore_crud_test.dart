@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/models/product_model.dart';
@@ -26,6 +26,7 @@ void main() {
 void registerFirestoreCrudTests() {
   _registerDeletionTests();
   group('firestore CRUD integration', () {
+    late String owner;
     late String productId;
     late String collectionId;
     late FirebaseFirestore firestore;
@@ -33,7 +34,8 @@ void registerFirestoreCrudTests() {
     late CollectionRepository collectionRepository;
 
     setUpAll(() async {
-      await ensureEmulatorInitialized();
+      await signInEmulatorOwner();
+      owner = FirebaseAuth.instance.currentUser!.uid;
       final runId = DateTime.now().millisecondsSinceEpoch;
       productId = 'it-crud-1-$runId';
       collectionId = 'it-col-1-$runId';
@@ -43,8 +45,8 @@ void registerFirestoreCrudTests() {
     });
 
     tearDown(() async {
-      await firestore.collection('products').doc(productId).delete();
-      await firestore.collection('collections').doc(collectionId).delete();
+      await deleteEmulatorFixture('products/$productId');
+      await deleteEmulatorFixture('collections/$collectionId');
     });
 
     testWidgets('Product CRUD round-trip', (tester) async {
@@ -53,7 +55,7 @@ void registerFirestoreCrudTests() {
         id: productId,
         name: 'Integration Test Milk',
         description: 'Created by firestore_crud_test',
-        userId: 'it-user',
+        userId: owner,
         expiries: [ExpiryEntry(quantity: 2, expirationDate: expiry)],
         category: 'dairy',
         registryType: 'personal',
@@ -71,11 +73,11 @@ void registerFirestoreCrudTests() {
       final refetched = await repository.get(productId);
       expect(refetched!.name, 'Integration Test Milk V2');
 
-      final personal = await repository.getPersonalProducts('it-user');
+      final personal = await repository.getPersonalProducts(owner);
       expect(personal.any((p) => p.id == productId), isTrue);
 
       await repository.delete(productId);
-      expect(await repository.get(productId), isNull);
+      expect(await emulatorDocumentExists('products/$productId'), isFalse);
     });
 
     testWidgets('Collection CRUD round-trip', (tester) async {
@@ -83,7 +85,7 @@ void registerFirestoreCrudTests() {
         id: collectionId,
         name: 'Integration Test Collection',
         productIds: const [],
-        userId: 'it-user',
+        userId: owner,
         type: CollectionType.inventory,
       );
 
@@ -98,7 +100,10 @@ void registerFirestoreCrudTests() {
       expect(refetched!.name, 'Test Collection V2');
 
       await collectionRepository.delete(collectionId);
-      expect(await collectionRepository.get(collectionId), isNull);
+      expect(
+        await emulatorDocumentExists('collections/$collectionId'),
+        isFalse,
+      );
     });
   });
 }
@@ -118,23 +123,26 @@ void _registerDeletionTests() {
     late Collection shoppingList;
     late Collection foreign;
     late Collection fresh;
-    late FirebaseApp remoteApp;
+    late CollectionRepository foreignCollections;
+    late FirebaseFirestore foreignFirestore;
     late FirebaseFirestore remote;
     const missingId = 'legacy-missing';
 
     setUpAll(() async {
-      await ensureEmulatorInitialized();
-      remoteApp = await Firebase.initializeApp(
-        name: 'deletion-remote',
-        options: emulatorTestOptions,
+      final credentials = await signInEmulatorOwner();
+      remote = await signedInEmulatorClient(
+        'deletion-remote',
+        credentials: credentials,
       );
-      remote = FirebaseFirestore.instanceFor(app: remoteApp);
-      remote.useFirestoreEmulator(emulatorHost, firestoreEmulatorPort);
+      foreignFirestore = await signedInEmulatorClient('deletion-foreign');
+      foreignCollections = CollectionRepository(foreignFirestore);
     });
 
     tearDownAll(() async {
-      await remote.terminate();
-      await remoteApp.delete();
+      for (final client in [remote, foreignFirestore]) {
+        await client.terminate();
+        await client.app.delete();
+      }
     });
 
     setUp(() async {
@@ -154,7 +162,7 @@ void _registerDeletionTests() {
         ShelfLifeService(),
         logger,
       );
-      owner = 'it-owner-${DateTime.now().microsecondsSinceEpoch}';
+      owner = FirebaseAuth.instance.currentUser!.uid;
       member = await products.addProduct(
         Product(id: '', name: 'Milk', description: '', userId: owner),
       );
@@ -195,10 +203,12 @@ void _registerDeletionTests() {
         id: 'foreign-$owner',
         name: 'Other owner',
         productIds: [member.id],
-        userId: 'foreign-$owner',
+        userId: FirebaseAuth.instanceFor(
+          app: foreignFirestore.app,
+        ).currentUser!.uid,
       );
-      // Seed a legacy foreign reference outside membership validation.
-      await firestore
+      // The foreign owner seeds a legacy reference outside client validation.
+      await foreignFirestore
           .collection('collections')
           .doc(foreign.id)
           .set(foreign.toJson());
@@ -210,9 +220,9 @@ void _registerDeletionTests() {
     tearDown(() async {
       await Future.wait([
         for (final product in [member, kept])
-          firestore.collection('products').doc(product.id).delete(),
+          deleteEmulatorFixture('products/${product.id}'),
         for (final collection in [source, target, shoppingList, foreign, fresh])
-          collections.delete(collection.id),
+          deleteEmulatorFixture('collections/${collection.id}'),
       ]);
       collections.afterMembershipRead = null;
       productRepository.afterDiscovery = null;
@@ -221,6 +231,7 @@ void _registerDeletionTests() {
     testWidgets('offline collection loads tolerate an incomplete cache', (
       tester,
     ) async {
+      await collections.getMemberProducts(owner);
       final uncached = await ProductRepository(
         remote,
       ).add(Product(id: '', name: 'Tea', description: '', userId: owner));
@@ -311,7 +322,10 @@ void _registerDeletionTests() {
             await firestore.enableNetwork();
           }
           await deletion;
-          expect(await ProductRepository(remote).get(member.id), isNull);
+          expect(
+            await emulatorDocumentExists('products/${member.id}'),
+            isFalse,
+          );
           expect(
             (await CollectionRepository(remote).get(target.id))!.productIds,
             [kept.id],
@@ -321,7 +335,10 @@ void _registerDeletionTests() {
           ]);
           expect((await collections.get(shoppingList.id))!.productIds, isEmpty);
           if (removeDiscoveredCollection) {
-            expect(await collections.get(fresh.id), isNull);
+            expect(
+              await emulatorDocumentExists('collections/${fresh.id}'),
+              isFalse,
+            );
           }
         },
       );
@@ -355,11 +372,13 @@ void _registerDeletionTests() {
     testWidgets('product delete prunes all owner memberships', (tester) async {
       await products.deleteProduct(member.id);
 
-      expect(await products.getProductById(member.id), isNull);
+      expect(await emulatorDocumentExists('products/${member.id}'), isFalse);
       expect((await collections.get(source.id))!.productIds, [missingId]);
       expect((await collections.get(target.id))!.productIds, [kept.id]);
       expect((await collections.get(shoppingList.id))!.productIds, isEmpty);
-      expect((await collections.get(foreign.id))!.productIds, [member.id]);
+      expect((await foreignCollections.get(foreign.id))!.productIds, [
+        member.id,
+      ]);
     });
 
     testWidgets('move keeps the products and removes the source', (
@@ -368,7 +387,7 @@ void _registerDeletionTests() {
       await collections.removeProduct(target.id, member.id);
       await products.deleteCollection(source, destinationId: target.id);
 
-      expect(await collections.get(source.id), isNull);
+      expect(await emulatorDocumentExists('collections/${source.id}'), isFalse);
       expect((await collections.get(target.id))!.productIds, [
         kept.id,
         member.id,
@@ -380,7 +399,13 @@ void _registerDeletionTests() {
     testWidgets('invalid move destinations leave the source intact', (
       tester,
     ) async {
-      for (final id in [foreign.id, shoppingList.id, 'removed-$owner']) {
+      await foreignCollections.removeProduct(foreign.id, member.id);
+      await collections.removeProduct(shoppingList.id, member.id);
+      final foreignBefore = await foreignCollections.get(foreign.id);
+      final shoppingBefore = await collections.get(shoppingList.id);
+      final missingDestination = 'removed-$owner';
+
+      for (final id in [foreign.id, shoppingList.id, missingDestination]) {
         await expectLater(
           products.deleteCollection(source, destinationId: id),
           throwsA(anything),
@@ -388,22 +413,57 @@ void _registerDeletionTests() {
         expect(await collections.get(source.id), source);
       }
       expect(await products.getProductById(member.id), isNotNull);
+      expect(await foreignCollections.get(foreign.id), foreignBefore);
+      expect(await collections.get(shoppingList.id), shoppingBefore);
+      expect(
+        await emulatorDocumentExists('collections/$missingDestination'),
+        isFalse,
+      );
     });
 
     testWidgets(
-      'delete collection and products prunes other owner memberships',
+      'shopping list deletion preserves products and inventory membership',
       (tester) async {
-        expect(await products.getProducts(owner), hasLength(2));
-        await products.deleteCollection(source);
+        await products.deleteCollection(shoppingList);
 
-        expect(await collections.get(source.id), isNull);
-        expect(await products.getProductById(member.id), isNull);
-        expect((await products.getProducts(owner)).map((p) => p.id), [kept.id]);
-        expect((await collections.get(target.id))!.productIds, [kept.id]);
-        expect((await collections.get(shoppingList.id))!.productIds, isEmpty);
-        expect((await collections.get(foreign.id))!.productIds, [member.id]);
+        expect(
+          await emulatorDocumentExists('collections/${shoppingList.id}'),
+          isFalse,
+        );
+        expect(await products.getProductById(member.id), isNotNull);
+        expect(await collections.get(target.id), target);
+        expect(await collections.get(source.id), source);
       },
     );
+
+    testWidgets('inventory-only deletion preserves its products', (
+      tester,
+    ) async {
+      await collections.addProduct(source.id, kept.id);
+      await collections.removeProduct(target.id, kept.id);
+      await collectionService.deleteCollectionOnly(source.id);
+
+      expect(await emulatorDocumentExists('collections/${source.id}'), isFalse);
+      expect(await products.getProductById(kept.id), isNotNull);
+      expect(await products.getProductById(member.id), isNotNull);
+    });
+
+    testWidgets('inventory delete with items deletes only unshared products', (
+      tester,
+    ) async {
+      await collections.addProduct(source.id, kept.id);
+      await collections.removeProduct(target.id, kept.id);
+      final inventoryBefore = await collections.get(target.id);
+
+      await products.deleteCollection((await collections.get(source.id))!);
+
+      expect(await emulatorDocumentExists('collections/${source.id}'), isFalse);
+      expect(await emulatorDocumentExists('products/${kept.id}'), isFalse);
+      expect(await products.getProductById(member.id), isNotNull);
+      expect(await collections.get(target.id), inventoryBefore);
+      expect(await collections.get(shoppingList.id), shoppingList);
+      expect(await foreignCollections.get(foreign.id), foreign);
+    });
 
     testWidgets('product delete removes a membership added after discovery', (
       tester,
@@ -413,25 +473,42 @@ void _registerDeletionTests() {
 
       await products.deleteProduct(member.id);
 
-      expect(await products.getProductById(member.id), isNull);
+      expect(await emulatorDocumentExists('products/${member.id}'), isFalse);
       expect((await collections.get(fresh.id))!.productIds, isEmpty);
-      expect((await collections.get(foreign.id))!.productIds, [member.id]);
+      expect((await foreignCollections.get(foreign.id))!.productIds, [
+        member.id,
+      ]);
     });
 
     testWidgets(
-      'collection and products delete removes a membership added after '
-      'discovery',
+      'inventory delete keeps a product added to another collection after discovery',
       (tester) async {
+        await collections.removeProduct(target.id, member.id);
+        await collections.removeProduct(shoppingList.id, member.id);
         productRepository.afterDiscovery = () =>
             collections.addProduct(fresh.id, member.id);
 
         await products.deleteCollection(source);
 
-        expect(await products.getProductById(member.id), isNull);
-        expect((await collections.get(fresh.id))!.productIds, isEmpty);
-        expect((await collections.get(target.id))!.productIds, [kept.id]);
+        expect(await products.getProductById(member.id), isNotNull);
+        expect((await collections.get(fresh.id))!.productIds, [member.id]);
       },
     );
+
+    testWidgets('inventory delete skips a sibling deleted after discovery', (
+      tester,
+    ) async {
+      await collections.removeProduct(target.id, member.id);
+      await collections.removeProduct(shoppingList.id, member.id);
+      await collections.addProduct(fresh.id, member.id);
+      productRepository.afterDiscovery = () => collections.delete(fresh.id);
+
+      await products.deleteCollection(source);
+
+      expect(await emulatorDocumentExists('collections/${source.id}'), isFalse);
+      expect(await emulatorDocumentExists('collections/${fresh.id}'), isFalse);
+      expect(await emulatorDocumentExists('products/${member.id}'), isFalse);
+    });
 
     testWidgets('a collection created after discovery is repaired on read', (
       tester,
@@ -460,12 +537,14 @@ void _registerDeletionTests() {
     testWidgets('bulk deletion tolerates a product deleted after discovery', (
       tester,
     ) async {
+      await collections.removeProduct(target.id, member.id);
+      await collections.removeProduct(shoppingList.id, member.id);
       productRepository.afterDiscovery = () =>
           firestore.collection('products').doc(member.id).delete();
 
       await products.deleteCollection(source);
 
-      expect(await collections.get(source.id), isNull);
+      expect(await emulatorDocumentExists('collections/${source.id}'), isFalse);
       expect((await collections.get(target.id))!.productIds, [kept.id]);
     });
 
@@ -476,8 +555,8 @@ void _registerDeletionTests() {
 
       await products.deleteProduct(member.id);
 
-      expect(await products.getProductById(member.id), isNull);
-      expect(await collections.get(fresh.id), isNull);
+      expect(await emulatorDocumentExists('products/${member.id}'), isFalse);
+      expect(await emulatorDocumentExists('collections/${fresh.id}'), isFalse);
     });
 
     testWidgets('move fails and keeps the source when a product vanished', (
@@ -503,7 +582,7 @@ void _registerDeletionTests() {
 
       await expectLater(
         collections.addProduct(fresh.id, kept.id),
-        throwsStateError,
+        _throwsUnavailableProduct(kept.id),
       );
 
       expect((await collections.get(fresh.id))!.productIds, isEmpty);
@@ -520,7 +599,7 @@ void _registerDeletionTests() {
           firestore.collection('products').doc(kept.id).delete();
       await expectLater(
         collections.addProducts(fresh.id, [kept.id, member.id]),
-        throwsStateError,
+        _throwsUnavailableProduct(kept.id),
       );
 
       expect((await collections.get(fresh.id))!.productIds, isEmpty);
@@ -536,7 +615,7 @@ void _registerDeletionTests() {
         userId: owner,
       );
       await expectLater(collections.add(draft), throwsStateError);
-      expect(await collections.get(draft.id), isNull);
+      expect(await emulatorDocumentExists('collections/${draft.id}'), isFalse);
 
       await expectLater(
         collections.update(fresh.copyWith(productIds: ['never-existed'])),
@@ -555,9 +634,9 @@ void _registerDeletionTests() {
           firestore.collection('products').doc(member.id).delete();
       await expectLater(
         collections.add(draft.copyWith(productIds: [member.id])),
-        throwsStateError,
+        _throwsUnavailableProduct(member.id),
       );
-      expect(await collections.get(draft.id), isNull);
+      expect(await emulatorDocumentExists('collections/${draft.id}'), isFalse);
 
       collections.afterMembershipRead = () =>
           firestore.collection('products').doc(kept.id).delete();
@@ -571,6 +650,32 @@ void _registerDeletionTests() {
         throwsStateError,
       );
       expect(await collections.get(source.id), savedTarget);
+    });
+
+    testWidgets('denied collection write preserves permission-denied', (
+      tester,
+    ) async {
+      final invalid = fresh.copyWith(
+        id: 'invalid-name-$owner',
+        name: 'a' * 201,
+        productIds: [member.id],
+      );
+
+      await expectLater(
+        collections.add(invalid),
+        throwsA(
+          isA<FirebaseException>().having(
+            (error) => error.code,
+            'code',
+            'permission-denied',
+          ),
+        ),
+      );
+      expect(
+        await emulatorDocumentExists('collections/${invalid.id}'),
+        isFalse,
+      );
+      expect(await products.getProductById(member.id), isNotNull);
     });
 
     testWidgets(
@@ -588,8 +693,14 @@ void _registerDeletionTests() {
           collections.addCollectionsInBatch([valid, invalid]),
           throwsStateError,
         );
-        expect(await collections.get(valid.id), isNull);
-        expect(await collections.get(invalid.id), isNull);
+        expect(
+          await emulatorDocumentExists('collections/${valid.id}'),
+          isFalse,
+        );
+        expect(
+          await emulatorDocumentExists('collections/${invalid.id}'),
+          isFalse,
+        );
       },
     );
 
@@ -609,3 +720,11 @@ void _registerDeletionTests() {
     );
   });
 }
+
+Matcher _throwsUnavailableProduct(String id) => throwsA(
+  isA<StateError>().having(
+    (error) => error.message,
+    'message',
+    'Product $id is unavailable. Reload and try again.',
+  ),
+);

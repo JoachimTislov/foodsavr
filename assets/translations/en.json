@@ -66,8 +66,8 @@
 	},
 	"collection": {
 		"deleteTitle": "Delete {name}?",
-		"deleteWithDestination": "Move its products to another inventory or delete them from all inventories and shopping lists.",
-		"deleteWithoutDestination": "Deleting this collection also deletes its products from all inventories and shopping lists.",
+		"deleteUnsharedProductsExplanation": "Deleting with items removes only products that appear in no other collection.",
+		"deleteOnly": "Delete collection only",
 		"moveDestination": "Destination inventory",
 		"moveAndDelete": "Move products and delete collection",
 		"deleteWithProducts": "Delete collection and products",

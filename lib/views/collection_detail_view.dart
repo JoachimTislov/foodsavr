@@ -92,10 +92,9 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         _currentCollection.id,
       );
       if (source == null) throw StateError('The collection is unavailable.');
-      final (collection, products) = await _collectionService.loadContents(
-        source,
-      );
-      final inventories = products.isEmpty
+      final inventories =
+          source.type == CollectionType.shoppingList ||
+              source.productIds.isEmpty
           ? const <Collection>[]
           : await _collectionService.getCollectionsForUser(
               source.userId,
@@ -104,17 +103,21 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       if (!mounted) return;
       final choice = await DeleteCollectionSheet.show(
         context,
-        collection: collection,
-        productCount: products.length,
+        collection: source,
+        productCount: source.productIds.length,
         destinations: inventories
             .where((item) => item.id != source.id)
             .toList(),
       );
       if (choice == null || !mounted) return;
-      await _productService.deleteCollection(
-        source,
-        destinationId: choice.destinationId,
-      );
+      if (choice.deleteProducts || choice.destinationId != null) {
+        await _productService.deleteCollection(
+          source,
+          destinationId: choice.destinationId,
+        );
+      } else {
+        await _collectionService.deleteCollectionOnly(source.id);
+      }
       if (!mounted) return;
       final onChanged = widget.onChanged;
       if (onChanged == null) {

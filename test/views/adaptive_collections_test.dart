@@ -163,12 +163,13 @@ void main() {
 
   testWidgets('deleting the only inventory keeps the tab open', (tester) async {
     final collections = getIt<CollectionService>();
-    final products = getIt<ProductService>();
     var deleted = false;
     when(
       () => collections.getCollectionsForUser('user'),
     ).thenAnswer((_) async => deleted ? [] : [_pantry]);
-    when(() => products.deleteCollection(_pantry)).thenAnswer((_) async {
+    when(() => collections.deleteCollectionOnly(_pantry.id)).thenAnswer((
+      _,
+    ) async {
       deleted = true;
     });
 

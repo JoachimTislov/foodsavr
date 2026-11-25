@@ -161,6 +161,15 @@ class CollectionService {
     }
   }
 
+  Future<void> deleteCollectionOnly(String id) async {
+    try {
+      await _collectionRepository.delete(id);
+    } catch (e) {
+      _logger.e('Error deleting collection: ${e.runtimeType}');
+      rethrow;
+    }
+  }
+
   /// Resolve the members in collection order. Dangling IDs are dropped from
   /// the result and removed from the collection on a best-effort basis.
   Future<(Collection, List<Product>)> loadContents(
