@@ -170,6 +170,23 @@ if [ "$backend" = gcs ]; then
     gcloud "${account_args[@]}" storage buckets update "$bucket" --versioning
   fi
   backend_args=("-backend-config=bucket=$TF_STATE_BUCKET" "-backend-config=prefix=$TF_STATE_PREFIX")
+  # Same guard as for local state: a project renamed from production keeps its
+  # remote state under the old `firebase` prefix until it is copied.
+  if [ "$bucket_exists" = true ] && [ "$env_name" != production ] && [ "$TF_STATE_PREFIX" != firebase ]; then
+    if ! gcloud "${account_args[@]}" storage ls "$bucket/$TF_STATE_PREFIX/" >/dev/null 2>"$work/prefix.error"; then
+      if ! grep -qi 'matched no objects' "$work/prefix.error"; then
+        echo "Cannot inspect remote state under $bucket/$TF_STATE_PREFIX; refusing to start from empty state." >&2
+        cat "$work/prefix.error" >&2
+        exit 1
+      fi
+      if gcloud "${account_args[@]}" storage ls "$bucket/firebase/default.tfstate" >/dev/null 2>&1; then
+        echo "Remote Terraform state of $PROJECT_ID is still under its production prefix: $bucket/firebase." >&2
+        echo "Copy it to the $env_name prefix first, so the apply does not start from empty state:" >&2
+        echo "  gcloud storage cp $bucket/firebase/default.tfstate $bucket/$TF_STATE_PREFIX/default.tfstate" >&2
+        exit 1
+      fi
+    fi
+  fi
 else
   echo "Using local Terraform state: $state_path. Keep a private backup." >&2
 fi
