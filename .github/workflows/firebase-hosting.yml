@@ -37,7 +37,8 @@ name: Firebase Hosting
 #   RECAPTCHA_ENTERPRISE_SITE_KEY   optional; App Check web site key (public)
 #   ANDROID_APK_URL                 optional; /android redirects here
 # Secrets:
-#   WEB_ENV_B64                     optional; assets/.env (served publicly)
+#   WEB_ENV_B64                     optional; Base64 assets/.env (served publicly)
+#                                  See assets/.env.example and scripts/secrets/registry.toml.
 
 on:
   push:
