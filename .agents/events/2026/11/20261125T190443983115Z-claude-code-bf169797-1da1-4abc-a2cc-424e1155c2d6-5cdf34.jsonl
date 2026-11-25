@@ -1,0 +1,1 @@
+{"commits": ["c5d1424e6b47512c100326827d70125e933913f2"], "event": "Committed option A offline membership fallback for #481 (verify with 2 s deadline, queue arrayUnion on unavailable/deadline); real-rules firestore_crud_test passed; make check green", "session_id": "claude-code:bf169797-1da1-4abc-a2cc-424e1155c2d6", "stream": "ledger", "timestamp": "2026-11-25T19:04:43+00:00"}
