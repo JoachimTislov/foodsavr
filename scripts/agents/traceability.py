@@ -479,7 +479,12 @@ def classify(root: Path, ref: str, sessions: list[dict[str, Any]]) -> tuple[str,
     if re.fullmatch(r"#\d+", value):
         return "number", value[1:]
     if re.fullmatch(r"\d+", value):
-        return ("run", value) if len(value) >= 8 else ("number", value)
+        if len(value) < 8:
+            return "number", value
+        # An abbreviated SHA can be all digits; a commit in this repository wins over a run ID.
+        if run_git(root, "rev-parse", "--verify", "--quiet", f"{value}^{{commit}}"):
+            return "commit", value
+        return "run", value
     located = re.fullmatch(r"(.+):(\d+)", value)
     if located and (root / located.group(1)).is_file():
         return "line", value

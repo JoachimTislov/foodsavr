@@ -14,6 +14,8 @@ Integration depended on agents cooperating: the pr-merge skill can order and mer
 
 The `merge/auto` label means: the task's acceptance is met, review feedback is addressed, the PR is a two-way door (PR template **Door**), and the author hands the branch to the merge gate. Removing the label is the hold. Dependabot patch/minor bumps are opted in automatically unless the label was removed before; major bumps need an explicit opt-in.
 
+Amendment (2026-11-25): `merge/auto` is also the trigger for the full `Validation` run. Human-merge PRs (`risk/security`, security paths, one-way doors) therefore carry it once finalized too. The gate still refuses to merge or update them, and the human rebases and merges.
+
 Auto-merging and Dependabot auto-opt-in apply **only to trusted authors** on same-repository branches: non-fork PRs opened by `OWNER`, `MEMBER`, or `COLLABORATOR` humans, or allowlisted bots (`dependabot[bot]`, `github-actions[bot]`, and configured `AGENT_APP_SLUG`). Fork PRs, external contributors (`NONE`, `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`), and unallowlisted bots are always blocked even if `merge/auto` is applied.
 
 ### The merge gate owns integration of opted-in PRs
