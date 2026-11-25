@@ -1,0 +1,1 @@
+{"commits": ["48ddb16541b7a11efe8d0bc45fb35ecc1408142c"], "harness": "claude-code", "issues": ["#445"], "provider": "anthropic", "prs": ["#474"], "session_id": "claude-code:bfbab766-a43a-4bec-b765-c2de1f92fd2b", "sources": [], "started_at": "2026-11-25T18:46:58+00:00", "status": "active", "stream": "sessions", "summary": "#474 blocker fixes"}
