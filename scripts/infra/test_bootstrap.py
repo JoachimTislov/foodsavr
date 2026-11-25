@@ -246,6 +246,17 @@ class BackendTests(unittest.TestCase):
         config = (self.root / 'config.log').read_text()
         self.assertIn('gcp-demo-proj-test', config)
 
+    def test_fallback_to_test_does_not_inherit_production_optional_values(self):
+        prod = json.loads(self.env['FAKE_CONFIG'])
+        test = {k: v for k, v in prod.items() if k != 'GH_ENVIRONMENT'}
+        test.update({'INFRA_OWNER': 'test', 'TF_STATE_PREFIX': 'firebase-test'})
+        prod['PROVISIONED'] = 'false'
+        result = self.run_plan(ENV='', FAKE_CONFIG=json.dumps(prod), FAKE_TEST_CONFIG=json.dumps(test))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        config = (self.root / 'config.log').read_text()
+        self.assertIn('github_environment = "test"', config)
+        self.assertNotIn('github_environment = "production"', config)
+
     def test_explicit_unprovisioned_production_refuses_before_authentication(self):
         prod = {**json.loads(self.env['FAKE_CONFIG']), 'PROVISIONED': 'false'}
         result = self.run_plan(ENV='production', FAKE_CONFIG=json.dumps(prod))
