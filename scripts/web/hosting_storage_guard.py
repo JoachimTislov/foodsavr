@@ -132,7 +132,11 @@ def main():
             if version["status"] != "FINALIZED":
                 continue
             name = scoped_name(version, f"{path}/")
-            size = int(str(version["versionBytes"]), 10)
+            # ProtoJSON omits zero-valued fields, so an absent versionBytes is 0.
+            try:
+                size = int(str(version.get("versionBytes", "0")), 10)
+            except ValueError:
+                incomplete(path)
             if size < 0 or name in versions:
                 incomplete(path)
             versions[name] = size

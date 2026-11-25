@@ -67,6 +67,24 @@ class HostingStorageGuardTest(unittest.TestCase):
         ]})
         self.assertEqual(self.run_guard("preview", pages, 3), ["sites/selected/channels/old"])
 
+    def test_finalized_version_without_bytes_counts_as_zero(self):
+        # ProtoJSON omits versionBytes when it is 0; the guard must match an explicit 0.
+        explicit = self.pages({"versions": [
+            {"name": "sites/sibling/versions/two", "status": "FINALIZED", "versionBytes": str(8 * guard.GB)},
+            {"name": "sites/sibling/versions/empty", "status": "FINALIZED", "versionBytes": "0"},
+        ]})
+        omitted = self.pages({"versions": [
+            {"name": "sites/sibling/versions/two", "status": "FINALIZED", "versionBytes": str(8 * guard.GB)},
+            {"name": "sites/sibling/versions/empty", "status": "FINALIZED"},
+        ]})
+        self.assertEqual(self.run_guard("preview", omitted, 3), self.run_guard("preview", explicit, 3))
+
+    def test_non_integer_version_bytes_blocks_cleanup(self):
+        pages = self.pages({"versions": [
+            {"name": "sites/sibling/versions/two", "status": "FINALIZED", "versionBytes": "8GB"},
+        ]})
+        self.assertEqual(self.run_guard("preview", pages, 2), [])
+
     def test_live_cleanup_preserves_latest_three_versions_and_sibling_site(self):
         pages = self.pages({"versions": [
             {"name": "sites/sibling/versions/other", "status": "FINALIZED", "versionBytes": str(9 * guard.GB)},
