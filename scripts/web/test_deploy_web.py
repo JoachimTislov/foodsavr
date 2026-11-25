@@ -90,9 +90,19 @@ class HostingStorageGuardTest(unittest.TestCase):
         self.assertEqual(self.run_guard("preview", pages, 2), [])
 
     def test_missing_or_failed_continuation_blocks_cleanup(self):
-        for response, exit_code in [({}, 2), (SystemExit(2), 2)]:
-            with self.subTest(response=response):
-                self.assertEqual(self.run_guard("preview", self.pages(response), exit_code), [])
+        self.assertEqual(self.run_guard("preview", self.pages(SystemExit(2)), 2), [])
+
+    def test_omitted_resource_list_is_an_empty_page(self):
+        # ProtoJSON omits empty repeated fields, including on intermediate and terminal pages.
+        responses = {"?pageSize=100": {"nextPageToken": "more"},
+                     "?pageSize=100&pageToken=more": {"rows": [{"name": "a"}]},
+                     "?pageSize=100&pageToken=last": {}}
+        responses["?pageSize=100&pageToken=more"]["nextPageToken"] = "last"
+        with patch.object(guard, "call", side_effect=lambda m, path, params="": responses[params]):
+            self.assertEqual(guard.list_all("p", "rows"), [{"name": "a"}])
+
+    def test_error_body_on_continuation_blocks_cleanup(self):
+        self.assertEqual(self.run_guard("preview", self.pages({"error": {}}), 2), [])
 
 
 class PureTest(unittest.TestCase):

@@ -31,14 +31,14 @@ levels() {
 # Keep production as the default once provisioned. Otherwise use test.
 levels validate >&2
 # PROJECT_ID, REGION, TF_STATE_*, VAR_SUFFIX, EMULATOR, INFRA_OWNER, GITHUB_REPOSITORY, GH_ENVIRONMENT, ...
-values="$(levels env --format dotenv)"
-eval "$values"
-if [ -z "${ENV:-}" ] && [ "$PROVISIONED" = false ]; then
+# Peek at provisioning in a subshell so production values never leak into the
+# environment finally selected (optional keys such as GH_ENVIRONMENT).
+if [ -z "${ENV:-}" ] && [ "$(eval "$(levels env --format dotenv)"; printf %s "$PROVISIONED")" = false ]; then
   env_name=test
   echo "Production is unprovisioned; using test." >&2
-  values="$(levels env --format dotenv)"
-  eval "$values"
 fi
+values="$(levels env --format dotenv)"
+eval "$values"
 if [ "$PROVISIONED" = false ]; then
   echo "Environment $env_name is not provisioned; use make setup to provision it first." >&2
   exit 1

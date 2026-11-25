@@ -197,7 +197,7 @@ class HostingStorageScaler implements Scaler {
         final status = version['status'] as String;
         if (status != 'FINALIZED') continue;
         final name = version['name'] as String;
-        final size = int.parse('${version['versionBytes']}', radix: 10);
+        final size = int.parse('${version['versionBytes'] ?? 0}', radix: 10);
         if (!name.startsWith(prefix) || size < 0 || !names.add(name)) {
           throw FormatException('Invalid Hosting version inventory', name);
         }
@@ -220,13 +220,9 @@ class HostingStorageScaler implements Scaler {
       final next = body.containsKey('nextPageToken')
           ? body['nextPageToken'] as String
           : '';
-      // An empty first response can represent a list with no resources.
-      final rows = body.containsKey(key)
-          ? body[key] as List
-          : (page == null && next.isEmpty ? const [] : null);
-      if (rows == null ||
-          body.containsKey('error') ||
-          (next.isNotEmpty && !seen.add(next))) {
+      // ProtoJSON omits empty repeated fields, so an absent list is empty.
+      final rows = body.containsKey(key) ? body[key] as List : const [];
+      if (body.containsKey('error') || (next.isNotEmpty && !seen.add(next))) {
         throw StateError('Incomplete Hosting inventory for $path');
       }
       for (final row in rows) {

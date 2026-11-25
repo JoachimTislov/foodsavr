@@ -47,6 +47,13 @@ resource "github_repository_environment_deployment_policy" "test_branches" {
   branch_pattern = "**/*"
 }
 
+# "**/*" requires a slash, so top-level branches (develop, daily, weekly) need their own policy.
+resource "github_repository_environment_deployment_policy" "test_top_level_branches" {
+  repository     = data.github_repository.this.name
+  environment    = github_repository_environment.env["test"].environment
+  branch_pattern = "*"
+}
+
 resource "github_actions_variable" "release_topology" {
   repository    = data.github_repository.this.name
   variable_name = "RELEASE_TOPOLOGY"

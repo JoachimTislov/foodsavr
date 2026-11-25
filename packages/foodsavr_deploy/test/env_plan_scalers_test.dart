@@ -259,7 +259,30 @@ void main() {
     );
 
     test(
-      'hosting storage fails on missing or unreadable sibling pages',
+      'hosting storage treats omitted lists and versionBytes as empty',
+      () async {
+        final client = MockClient((req) async {
+          final page = req.url.queryParameters['pageToken'];
+          final body = switch (req.url.path) {
+            '/v1beta1/projects/p-prod/sites' => projectSites(page),
+            '/v1beta1/sites/p-prod/versions' => {
+              'versions': [
+                {'name': 'sites/p-prod/versions/zero', 'status': 'FINALIZED'},
+              ],
+            },
+            '/v1beta1/sites/sibling/versions' =>
+              page == null ? {'nextPageToken': 'more'} : <String, Object>{},
+            _ => throw StateError('Unexpected request: ${req.url}'),
+          };
+          return http.Response(jsonEncode(body), 200);
+        });
+        final api = GoogleApi('p-prod', client: client, token: 'tok');
+        expect(await HostingStorageScaler(api).read(trigger, d), 0.0);
+      },
+    );
+
+    test(
+      'hosting storage fails on error or unreadable sibling pages',
       () async {
         for (final status in [200, 403]) {
           final client = MockClient((req) async {
@@ -269,7 +292,9 @@ void main() {
               return http.Response(jsonEncode(projectSites(page)), 200);
             }
             if (path == '/v1beta1/sites/sibling/versions') {
-              if (page == 'more') return http.Response('{}', status);
+              if (page == 'more') {
+                return http.Response('{"error":{}}', status);
+              }
               return http.Response(
                 '{"versions":[],"nextPageToken":"more"}',
                 200,

@@ -76,7 +76,7 @@ def list_all(path, key):
         if not isinstance(res, dict) or "error" in res:
             incomplete(path)
         page = res.get("nextPageToken", "")
-        rows = res.get(key, [] if not seen_tokens and not page else None)
+        rows = res.get(key, [])
         if not isinstance(rows, list) or not isinstance(page, str) or page in seen_tokens:
             incomplete(path)
         items.extend(rows)
