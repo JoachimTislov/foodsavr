@@ -49,7 +49,7 @@ variable "hosting_sites" {
   type        = list(string)
   default     = []
   validation {
-    condition     = alltrue([for s in var.hosting_sites : can(regex("^[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$", s))])
+    condition     = alltrue([for s in var.hosting_sites : can(regex("^[a-z0-9][a-z0-9-]{4,28}[a-z0-9]$", s))])
     error_message = "hosting_sites must be valid Hosting site ids."
   }
 }

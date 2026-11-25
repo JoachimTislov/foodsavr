@@ -1,0 +1,1 @@
+{"commits": ["04abff12b7967941d58850d17befb95c292c24ae"], "harness": "codex", "issues": ["#459"], "provider": "openai", "prs": ["#487"], "session_id": "codex:01a21289-b826-7472-ac56-805fc4daf849", "sources": [], "started_at": "2026-11-25T11:56:48+00:00", "status": "active", "stream": "sessions", "summary": "Update Hosting site ID boundaries and file follow-up issues"}

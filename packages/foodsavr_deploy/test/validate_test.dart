@@ -107,24 +107,23 @@ void main() {
     });
 
     test('default and channel sites share Hosting label bounds', () {
-      for (final site in [
-        'a',
-        '1',
-        'a-b',
-        'x' * 30,
-        '',
-        'x' * 31,
-        'a-',
-        '-a',
-        'a_b',
-        'a\n',
+      for (final (site, valid) in [
+        ('x' * 5, false),
+        ('x' * 6, true),
+        ('x' * 30, true),
+        ('x' * 31, false),
+        ('', false),
+        ('abcde-', false),
+        ('-abcde', false),
+        ('abc_de', false),
+        ('abcdef\n', false),
       ]) {
         final m = baseManifest();
         final prod = m['environments']['production'];
         prod['channels'] = {'stable': site};
         prod['firebase']['siteId'] = site;
         final errors = errorsOf(m);
-        if (['a', '1', 'a-b', 'x' * 30].contains(site)) {
+        if (valid) {
           expect(errors, isEmpty, reason: site);
         } else {
           expect(errors, hasError('Firebase site'), reason: site);
