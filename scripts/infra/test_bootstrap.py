@@ -97,6 +97,9 @@ elif name == 'gcloud':
         print('{"bindings":[]}')
     elif args[:2] == ['storage', 'ls']:
         url = args[-1]
+        if url in os.environ.get('FAKE_STATE_ERRORS', '').split(','):
+            print('ERROR: 403 PERMISSION_DENIED', file=sys.stderr)
+            sys.exit(1)
         objects = [o for o in os.environ.get('FAKE_STATE_OBJECTS', '').split(',') if o and o.startswith(url)]
         if not objects:
             print('ERROR: One or more URLs matched no objects.', file=sys.stderr)
@@ -261,7 +264,15 @@ class BackendTests(unittest.TestCase):
         self.assertIn('still under its production prefix', result.stderr)
         self.assertIn('gs://demo-proj-tfstate/firebase-test/default.tfstate', result.stderr)
         self.assertNotIn('"init"', (self.root / 'calls.jsonl').read_text() if (self.root / 'calls.jsonl').exists() else '')
+        old = 'gs://demo-proj-tfstate/firebase/default.tfstate'
         moved = 'gs://demo-proj-tfstate/firebase-test/default.tfstate'
+        # Another object under the new prefix does not count as moved state.
+        result = self.run_plan(FAKE_STATE_OBJECTS=f'{old},gs://demo-proj-tfstate/firebase-test/other.tflock', **run)
+        self.assertIn('still under its production prefix', result.stderr)
+        # A failed lookup of the old state refuses instead of reading as absent.
+        result = self.run_plan(FAKE_STATE_ERRORS=old, **run)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Cannot inspect remote state', result.stderr)
         result = self.run_plan(FAKE_STATE_OBJECTS=moved, **run)
         self.assertEqual(result.returncode, 0, result.stderr)
 
