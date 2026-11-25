@@ -1,0 +1,1 @@
+{"commits": [], "harness": "claude-code", "issues": ["#346"], "provider": "anthropic", "prs": ["#481"], "session_id": "claude-code:4eb6a698-7831-4e7e-80d8-eabf36716d3a", "sources": [], "started_at": "2026-11-25T07:31:54+00:00", "status": "active", "stream": "sessions", "summary": "Implement #346 delete integrity advisor contract on PR #481"}

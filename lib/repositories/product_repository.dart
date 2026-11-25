@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 
 import '../models/collection_model.dart';
@@ -10,6 +11,11 @@ import '../interfaces/i_product_repository.dart';
 class ProductRepository implements IProductRepository {
   final FirebaseFirestore _firestore;
   final String _collectionName = 'products';
+
+  /// Runs between discovery and the atomic commit of a delete, so tests can
+  /// interleave a membership write.
+  @visibleForTesting
+  Future<void> Function()? afterDiscovery;
 
   ProductRepository(this._firestore);
 
@@ -52,28 +58,63 @@ class ProductRepository implements IProductRepository {
     if (!snapshot.exists) return;
 
     final product = Product.fromJson(snapshot.data()!);
-    final batch = _firestore.batch();
-    if (!product.isGlobal) {
-      for (final collection in await _ownerCollections(product.userId)) {
-        if (_productIds(collection).contains(id)) {
-          batch.update(collection.reference, {
-            'productIds': FieldValue.arrayRemove([id]),
-          });
-        }
+    // Discovery happens outside the transaction; the commit below is atomic.
+    // A collection created after discovery, or written by a legacy client, is
+    // repaired on read (see CollectionService.loadContents).
+    final collections = product.isGlobal
+        ? const <DocumentReference<Map<String, dynamic>>>[]
+        : await _ownerCollectionRefs(product.userId);
+    await afterDiscovery?.call();
+    await _firestore.runTransaction((transaction) async {
+      final current = await transaction.get(reference);
+      final live = await _existing(transaction, collections);
+      if (!current.exists) return;
+      for (final collection in live) {
+        transaction.update(collection, {
+          'productIds': FieldValue.arrayRemove([id]),
+        });
       }
-    }
-    batch.delete(reference);
-    await batch.commit();
+      transaction.delete(reference);
+    });
   }
 
-  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _ownerCollections(
+  Future<List<DocumentReference<Map<String, dynamic>>>> _ownerCollectionRefs(
     String userId,
   ) async {
     final snapshot = await _firestore
         .collection('collections')
         .where('userId', isEqualTo: userId)
         .get(const GetOptions(source: Source.server));
-    return snapshot.docs;
+    return [for (final doc in snapshot.docs) doc.reference];
+  }
+
+  /// Keeps the discovered collections that still exist, so a collection
+  /// deleted after discovery cannot fail the commit. This reads existence
+  /// only; the removals themselves never depend on earlier membership.
+  Future<List<DocumentReference<Map<String, dynamic>>>> _existing(
+    Transaction transaction,
+    Iterable<DocumentReference<Map<String, dynamic>>> references,
+  ) async {
+    final snapshots = [
+      for (final reference in references) await transaction.get(reference),
+    ];
+    return [
+      for (final snapshot in snapshots)
+        if (snapshot.exists) snapshot.reference,
+    ];
+  }
+
+  /// Owner rules deny reading a missing product, so denial means absent.
+  Future<bool> _productExists(
+    Transaction transaction,
+    DocumentReference<Map<String, dynamic>> reference,
+  ) async {
+    try {
+      return (await transaction.get(reference)).exists;
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') return false;
+      rethrow;
+    }
   }
 
   List<String> _productIds(DocumentSnapshot<Map<String, dynamic>> snapshot) =>
@@ -98,9 +139,13 @@ class ProductRepository implements IProductRepository {
       for (final doc in products.docs)
         if (doc.data()['isGlobal'] != true) doc.id: doc.reference,
     };
-    final otherCollections = destinationId == null
-        ? await _ownerCollections(source.userId)
-        : const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    final others = destinationId == null
+        ? [
+            for (final reference in await _ownerCollectionRefs(source.userId))
+              if (reference.id != source.id) reference,
+          ]
+        : const <DocumentReference<Map<String, dynamic>>>[];
+    await afterDiscovery?.call();
 
     await _firestore.runTransaction((transaction) async {
       final currentSource = await transaction.get(sourceRef);
@@ -127,21 +172,24 @@ class ProductRepository implements IProductRepository {
                 CollectionType.inventory.name) {
           throw StateError('The destination inventory is unavailable.');
         }
+        // Products deleted after the query must not enter the destination.
+        for (final id in resolvedIds) {
+          if (!await _productExists(transaction, ownedProducts[id]!)) {
+            throw StateError('A product was deleted. Reload and try again.');
+          }
+        }
         if (resolvedIds.isNotEmpty) {
           transaction.update(targetRef, {
             'productIds': FieldValue.arrayUnion(resolvedIds),
           });
         }
       } else {
-        final deletedIds = resolvedIds.toSet();
-        for (final collection in otherCollections) {
-          if (collection.id == source.id) continue;
-          final removed = _productIds(collection).where(deletedIds.contains);
-          if (removed.isNotEmpty) {
-            transaction.update(collection.reference, {
-              'productIds': FieldValue.arrayRemove(removed.toList()),
-            });
-          }
+        final live = await _existing(transaction, others);
+        for (final collection in live) {
+          if (resolvedIds.isEmpty) break;
+          transaction.update(collection, {
+            'productIds': FieldValue.arrayRemove(resolvedIds),
+          });
         }
         for (final id in resolvedIds) {
           transaction.delete(ownedProducts[id]!);

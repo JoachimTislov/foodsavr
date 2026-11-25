@@ -1,0 +1,1 @@
+{"event": "Implemented #346 advisor contract: read-side repair, unconditional arrayRemove deletes, transactional membership validation", "issues": ["#346"], "prs": ["#481"], "session_id": "claude-code:4eb6a698-7831-4e7e-80d8-eabf36716d3a", "stream": "ledger", "timestamp": "2026-11-25T07:33:30+00:00"}

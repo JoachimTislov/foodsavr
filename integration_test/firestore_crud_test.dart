@@ -107,6 +107,7 @@ void _registerDeletionTests() {
     late FirebaseFirestore firestore;
     late CollectionRepository collections;
     late CollectionService collectionService;
+    late ProductRepository productRepository;
     late ProductService products;
     late String owner;
     late Product member;
@@ -115,12 +116,13 @@ void _registerDeletionTests() {
     late Collection target;
     late Collection shoppingList;
     late Collection foreign;
+    late Collection fresh;
     const missingId = 'legacy-missing';
 
     setUp(() async {
       await ensureEmulatorInitialized();
       firestore = FirebaseFirestore.instance;
-      final productRepository = ProductRepository(firestore);
+      productRepository = ProductRepository(firestore);
       collections = CollectionRepository(firestore);
       final logger = Logger(level: Level.off);
       collectionService = CollectionService(
@@ -145,10 +147,15 @@ void _registerDeletionTests() {
         Collection(
           id: '',
           name: 'Fridge',
-          productIds: [member.id, missingId],
+          productIds: [member.id],
           userId: owner,
         ),
       );
+      // A legacy writer left an ID without a product.
+      await firestore.collection('collections').doc(source.id).update({
+        'productIds': FieldValue.arrayUnion([missingId]),
+      });
+      source = source.copyWith(productIds: [member.id, missingId]);
       target = await collections.add(
         Collection(
           id: '',
@@ -174,15 +181,20 @@ void _registerDeletionTests() {
           userId: 'foreign-$owner',
         ),
       );
+      fresh = await collections.add(
+        Collection(id: '', name: 'Fresh', productIds: const [], userId: owner),
+      );
     });
 
     tearDown(() async {
       await Future.wait([
         for (final product in [member, kept])
           firestore.collection('products').doc(product.id).delete(),
-        for (final collection in [source, target, shoppingList, foreign])
+        for (final collection in [source, target, shoppingList, foreign, fresh])
           collections.delete(collection.id),
       ]);
+      collections.afterMembershipRead = null;
+      productRepository.afterDiscovery = null;
     });
 
     testWidgets('product delete prunes all owner memberships', (tester) async {
@@ -237,6 +249,117 @@ void _registerDeletionTests() {
         expect((await collections.get(foreign.id))!.productIds, [member.id]);
       },
     );
+
+    testWidgets('product delete removes a membership added after discovery', (
+      tester,
+    ) async {
+      productRepository.afterDiscovery = () =>
+          collections.addProduct(fresh.id, member.id);
+
+      await products.deleteProduct(member.id);
+
+      expect(await products.getProductById(member.id), isNull);
+      expect((await collections.get(fresh.id))!.productIds, isEmpty);
+      expect((await collections.get(foreign.id))!.productIds, [member.id]);
+    });
+
+    testWidgets(
+      'collection and products delete removes a membership added after '
+      'discovery',
+      (tester) async {
+        productRepository.afterDiscovery = () =>
+            collections.addProduct(fresh.id, member.id);
+
+        await products.deleteCollection(source);
+
+        expect(await products.getProductById(member.id), isNull);
+        expect((await collections.get(fresh.id))!.productIds, isEmpty);
+        expect((await collections.get(target.id))!.productIds, [kept.id]);
+      },
+    );
+
+    testWidgets('a collection deleted after discovery does not fail deletes', (
+      tester,
+    ) async {
+      productRepository.afterDiscovery = () => collections.delete(fresh.id);
+
+      await products.deleteProduct(member.id);
+
+      expect(await products.getProductById(member.id), isNull);
+      expect(await collections.get(fresh.id), isNull);
+    });
+
+    testWidgets('move fails and keeps the source when a product vanished', (
+      tester,
+    ) async {
+      productRepository.afterDiscovery = () =>
+          firestore.collection('products').doc(member.id).delete();
+
+      await expectLater(
+        products.deleteCollection(source, destinationId: fresh.id),
+        throwsStateError,
+      );
+
+      expect(await collections.get(source.id), source);
+      expect((await collections.get(fresh.id))!.productIds, isEmpty);
+    });
+
+    testWidgets('single add rejects a product deleted mid-transaction', (
+      tester,
+    ) async {
+      collections.afterMembershipRead = () =>
+          firestore.collection('products').doc(kept.id).delete();
+
+      await expectLater(
+        collections.addProduct(fresh.id, kept.id),
+        throwsStateError,
+      );
+
+      expect((await collections.get(fresh.id))!.productIds, isEmpty);
+    });
+
+    testWidgets('bulk add writes nothing when one product is missing', (
+      tester,
+    ) async {
+      await expectLater(
+        collections.addProducts(fresh.id, [kept.id, 'never-existed']),
+        throwsStateError,
+      );
+      collections.afterMembershipRead = () =>
+          firestore.collection('products').doc(kept.id).delete();
+      await expectLater(
+        collections.addProducts(fresh.id, [kept.id, member.id]),
+        throwsStateError,
+      );
+
+      expect((await collections.get(fresh.id))!.productIds, isEmpty);
+    });
+
+    testWidgets('populated create and update validate introduced products', (
+      tester,
+    ) async {
+      final draft = Collection(
+        id: 'it-draft-$owner',
+        name: 'Draft',
+        productIds: [kept.id, 'never-existed'],
+        userId: owner,
+      );
+      await expectLater(collections.add(draft), throwsStateError);
+      expect(await collections.get(draft.id), isNull);
+
+      await expectLater(
+        collections.update(fresh.copyWith(productIds: ['never-existed'])),
+        throwsStateError,
+      );
+      expect((await collections.get(fresh.id))!.productIds, isEmpty);
+
+      // Legacy IDs already present stay writable, so renames keep working.
+      await collections.update(source.copyWith(name: 'Renamed'));
+      expect((await collections.get(source.id))!.name, 'Renamed');
+
+      await collections.update(fresh.copyWith(productIds: [kept.id]));
+      expect((await collections.get(fresh.id))!.productIds, [kept.id]);
+    });
 
     testWidgets(
       'legacy dangling membership is excluded from counts and repaired',
