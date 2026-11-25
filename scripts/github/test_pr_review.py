@@ -735,6 +735,36 @@ class AttestationAndHistoryStoreTest(unittest.TestCase):
             )
             self.assertFalse(json.loads((state / "pr-55.json").read_text())["diff_truncated"])
 
+    def test_stage_pr_context_omits_added_event_logs_from_the_diff_cap(self):
+        event = ".agents/events/2026/11/20261125T000000000000Z-codex-a-000000.jsonl"
+        cls = pr_review.classify_pr(
+            number=56, title="fix: x", author="owner", author_association="OWNER",
+            head_sha="abc1234", files=[event, "lib/a.dart", ".agents/events/old.jsonl"],
+            additions=10, deletions=0,
+        )
+        added_event = (f"diff --git a/{event} b/{event}\nnew file mode 100644\nindex 0000000..1111111\n"
+                       f"--- /dev/null\n+++ b/{event}\n@@ -0,0 +1 @@\n+" + "x" * pr_review.MAX_INLINE_DIFF_CHARS + "\n")
+        edited_event = ("diff --git a/.agents/events/old.jsonl b/.agents/events/old.jsonl\n"
+                        "index 1111111..2222222 100644\n--- a/.agents/events/old.jsonl\n"
+                        "+++ b/.agents/events/old.jsonl\n@@ -1 +1 @@\n-old\n+tampered\n")
+        code = ("diff --git a/lib/a.dart b/lib/a.dart\nindex 1111111..2222222 100644\n"
+                "--- a/lib/a.dart\n+++ b/lib/a.dart\n@@ -1 +1 @@\n-a\n+b\n")
+        diff = added_event + edited_event + code
+        kept, omitted = pr_review.omit_added_event_logs(diff)
+        self.assertEqual((kept, omitted), (edited_event + code, [event]))
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp)
+            pr_review.stage_pr_context(pr_meta={"title": "fix: x", "body": "short"},
+                                       classification=cls, diff_text=diff, state_dir=state)
+            payload = json.loads((state / "pr-56.json").read_text())
+            markdown = (state / "pr-56.md").read_text()
+        self.assertFalse(payload["diff_truncated"])
+        self.assertEqual(payload["patch_id"], pr_review.compute_patch_id(diff))
+        self.assertIn("+tampered", markdown)
+        self.assertIn("+b", markdown)
+        self.assertNotIn(f"`{event}`", markdown)
+        self.assertIn("1 added agent event log(s)", markdown)
+
     def test_stage_pr_context_writes_snapshots_and_valid_workflow(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
