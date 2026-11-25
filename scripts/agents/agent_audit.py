@@ -263,8 +263,10 @@ def apply_model(snapshot, result, payload):
 
 
 def repeated_findings(snapshot):
-    return [entry for entry in snapshot["findings"]
-            if snapshot["statuses"].get(entry["id"]) in {"unchanged", "regressed"}]
+    # A deferred snapshot carries no metrics, findings or statuses.
+    statuses = snapshot.get("statuses") or {}
+    return [entry for entry in snapshot.get("findings") or []
+            if statuses.get(entry["id"]) in {"unchanged", "regressed"}]
 
 
 def gh_api(endpoint, *, pages=False, method="GET", data=None):
@@ -364,7 +366,11 @@ def count_behind(merge, candidates):
                  for event in pr["timeline"]):
             continue
         head = pr["head"]["sha"]
-        if is_ancestor(base, head) and is_ancestor(tip, head) is False:
+        contains_base, contains_tip = is_ancestor(base, head), is_ancestor(tip, head)
+        # An unresolvable head makes the count unknown, never zero.
+        if contains_base is None or contains_tip is None:
+            return None
+        if contains_base and not contains_tip:
             count += 1
     return count
 
@@ -383,7 +389,7 @@ def collect_details(repo, data, start, end):
     runs = list({run["id"]: run for run in runs}.values())
     data["runs"] = runs
     rebases = Counter()
-    held = 0
+    held = set()
     logs_forbidden = False
     for run in runs:
         gate = run["path"].split("@")[0] == ".github/workflows/merge-gate.yml"
@@ -415,12 +421,13 @@ def collect_details(repo, data, start, end):
                 re.search(r"maven.*\b429\b|\b429\b.*maven", evidence, re.I))
             if gate and evidence:
                 actions = re.findall(r"#(\d+): update — ([^\r\n]+)", evidence)
-                held += len(set(re.findall(
-                    r"\|\s*#(\d+)\s*\|\s*held\s*\|\s*merge/auto was removed", evidence)))
+                # A PR held through many gate runs is one removal, not one per run.
+                held.update(re.findall(
+                    r"\|\s*#(\d+)\s*\|\s*held\s*\|\s*merge/auto was removed", evidence))
                 for number, outcome in actions:
                     if not outcome.startswith("failed") and "rebas" in outcome.lower():
                         rebases[int(number)] += 1
-    data["held"] = held
+    data["held"] = len(held)
     for pr in data["merged"] + data["open"]:
         number = pr["number"]
         pr["timeline"] = pages(repo, f"issues/{number}/timeline")
@@ -434,8 +441,10 @@ def collect_details(repo, data, start, end):
             actor = details.get("merged_by")
             pr["merge_bot"] = actor["type"] == "Bot" if actor else None
             pr["commits"] = details["commits"]
+    # Scheduled runs have no GITHUB_BASE_REF. Fetch every head that shares a merged PR's base.
+    bases = {pr["base"]["ref"] for pr in data["merged"]}
     for pr in data["merged"] + data["open"]:
-        if pr["base"]["ref"] == os.environ.get("GITHUB_BASE_REF", "develop"):
+        if pr["base"]["ref"] in bases:
             ref = f"refs/pull/{pr['number']}/head"
             subprocess.run(["git", "fetch", "--no-tags", "--quiet", "origin", ref],
                            capture_output=True, check=False)
@@ -507,6 +516,27 @@ def provider_wrappers(directory):
         path.chmod(0o700)
 
 
+def routed_result(stdout):
+    """Read the router result. Malformed output leaves the deterministic report."""
+    try:
+        result = json.loads(stdout)
+        status = result["status"]
+    except (json.JSONDecodeError, TypeError, KeyError):
+        return {"status": "unavailable"}, {}
+    if not isinstance(status, str):
+        return {"status": "unavailable"}, {}
+    if status != "succeeded":
+        return result, {}
+    try:
+        attempt = result["steps"][0]["attempts"][-1]
+        artifact = json.loads(Path(attempt["artifact"]).read_text())
+        response = artifact["review_output"].strip()
+        payload = json.loads(re.sub(r"^\x60\x60\x60(?:json)?\s*|\s*\x60\x60\x60$", "", response))
+    except (json.JSONDecodeError, OSError, TypeError, KeyError, IndexError, AttributeError):
+        return result | {"status": "invalid-output"}, {}
+    return result, payload
+
+
 def model(path):
     snapshot = json.loads(path.read_text())
     if snapshot.get("already_published") or snapshot["status"] == "deferred":
@@ -541,15 +571,7 @@ def model(path):
                     ["scripts/agents/agentctl", "workflow", "run", str(WORKFLOW), "--execute"],
                     stdin=subprocess.DEVNULL, capture_output=True, text=True, env=env, check=False,
                 )
-            result = json.loads(routed.stdout)
-            if result["status"] == "succeeded":
-                attempt = result["steps"][0]["attempts"][-1]
-                artifact = json.loads(Path(attempt["artifact"]).read_text())
-                response = artifact["review_output"].strip()
-                try:
-                    payload = json.loads(re.sub(r"^\x60\x60\x60(?:json)?\s*|\s*\x60\x60\x60$", "", response))
-                except json.JSONDecodeError:
-                    result["status"] = "invalid-output"
+            result, payload = routed_result(routed.stdout)
         finally:
             WORKFLOW.write_text(original)
     if result.get("resets_at"):
