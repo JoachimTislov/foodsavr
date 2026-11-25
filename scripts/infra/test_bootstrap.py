@@ -232,6 +232,17 @@ class BackendTests(unittest.TestCase):
         self.assertIn(str(self.expected_gcp_state()), result.stderr)
         self.assertFalse((self.root / 'config.log').exists())
 
+    def test_renamed_environment_refuses_to_start_from_empty_state(self):
+        renamed = self.expected_gcp_state()
+        renamed.parent.mkdir(parents=True)
+        renamed.write_text('{}')
+        config = {**json.loads(self.env['FAKE_CONFIG']), 'INFRA_OWNER': 'test', 'GH_ENVIRONMENT': 'test'}
+        result = self.run_plan(ENV='test', GH_ENVIRONMENT='test', FAKE_CONFIG=json.dumps(config))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('still stored under its production name', result.stderr)
+        self.assertIn('gcp-demo-proj-test', result.stderr)
+        self.assertFalse((self.root / 'config.log').exists())
+
     def test_existing_bucket_preserves_remote_state(self):
         result = self.run_plan(FAKE_BUCKET='exists')
         self.assertEqual(result.returncode, 0, result.stderr)

@@ -142,7 +142,7 @@ jobs:
           elif [ "$env_name" = auto ]; then
             code=0
             dart run bin/levels.dart env --channel "$channel" --format github > "$out" || code=$?
-            if [ "$code" = 3 ] && [ "$RELEASE_TOPOLOGY" = single ] && [ "$BRANCH" = develop ]; then
+            if [ "$code" = 3 ] && [ "$RELEASE_TOPOLOGY" = single ] && [ "$BRANCH" = develop ] && [ "$channel" = develop ]; then
               # Single topology (ADR 0008): develop is the production deployment branch.
               env_name=production code=0
               dart run bin/levels.dart env --env production --format github > "$out" || code=$?

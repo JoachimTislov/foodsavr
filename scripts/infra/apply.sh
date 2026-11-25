@@ -98,6 +98,18 @@ if [ -f "$legacy_state_path" ]; then
   exit 1
 fi
 
+# This project's state from before it was renamed to a non-production
+# environment (for example the test project, #454) must not be left behind.
+if [ "$env_name" != production ] && [ ! -f "$state_path" ]; then
+  renamed_state_path="$(python3 "$root/scripts/infra/bootstrap_support.py" state-path "$repo_slug" "gcp-$PROJECT_ID-production")"
+  if [ -f "$renamed_state_path" ]; then
+    echo "Terraform state of $PROJECT_ID is still stored under its production name: $renamed_state_path." >&2
+    echo "Move it to the $env_name name first (make setup does this), so the apply does not start from empty state:" >&2
+    echo "  mkdir -p \"$state_dir\" && mv \"$renamed_state_path\" \"$state_path\"" >&2
+    exit 1
+  fi
+fi
+
 bucket="gs://$TF_STATE_BUCKET"
 bucket_exists=false
 billing_fallback=false
