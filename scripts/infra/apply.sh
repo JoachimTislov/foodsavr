@@ -4,7 +4,7 @@
 # publish the outputs as GitHub Actions variables. Re-run after any change under
 # infra/terraform/gcp or to the manifest.
 #
-#   [ENV=production] [MANIFEST=deploy/instance.yaml] [GCLOUD_ACCOUNT=you@example.com] \
+#   [ENV=<environment>] [MANIFEST=deploy/instance.yaml] [GCLOUD_ACCOUNT=you@example.com] \
 #   [BILLING_ACCOUNT=XXXXXX-XXXXXX-XXXXXX] [RELEASE_TOPOLOGY=full-channels] \
 #   [PLAN_OUT=/path/to/gcp.tfplan] scripts/infra/apply.sh [plan]
 #
@@ -28,9 +28,21 @@ levels() {
     dart run bin/levels.dart "$@" --manifest "$manifest" --env "$env_name")
 }
 
+# Keep production as the default once provisioned. Otherwise use test.
 levels validate >&2
 # PROJECT_ID, REGION, TF_STATE_*, VAR_SUFFIX, EMULATOR, INFRA_OWNER, GITHUB_REPOSITORY, GH_ENVIRONMENT, ...
-eval "$(levels env --format dotenv)"
+values="$(levels env --format dotenv)"
+eval "$values"
+if [ -z "${ENV:-}" ] && [ "$PROVISIONED" = false ]; then
+  env_name=test
+  echo "Production is unprovisioned; using test." >&2
+  values="$(levels env --format dotenv)"
+  eval "$values"
+fi
+if [ "$PROVISIONED" = false ]; then
+  echo "Environment $env_name is not provisioned; use make setup to provision it first." >&2
+  exit 1
+fi
 if [ -n "$target_repo" ] && [ "$target_repo" != "$GITHUB_REPOSITORY" ]; then
   echo "Choose a deployment manifest for $target_repo before configuring Firebase." >&2
   exit 1
@@ -55,9 +67,19 @@ printf 'github_environment = "%s"\n' "$gh_env" >>"$tfvars"
 topology="${RELEASE_TOPOLOGY:-full-channels}"
 branches="$(python3 "$root/scripts/setup/setupctl.py" topology "$topology")"
 integration_branch="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])[0])' "$branches")"
-deploy_branch="${DEPLOY_BRANCH:-$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])[-1])' "$branches")}"
-printf 'release_topology = "%s"\ndeploy_branch = "%s"\ntelemetry_branch = "%s"\n' \
-  "$topology" "$deploy_branch" "$integration_branch" >>"$tfvars"
+manifest_branches="$(sed -n 's/^deploy_branches = //p' "$tfvars")"
+if [ -n "$manifest_branches" ]; then
+  if [ -n "${DEPLOY_BRANCH:-}" ]; then
+    echo "DEPLOY_BRANCH conflicts with manifest deploy_branches for $env_name." >&2
+    exit 1
+  fi
+  deploy_branch="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])[0])' "$manifest_branches")"
+else
+  deploy_branch="${DEPLOY_BRANCH:-$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])[-1])' "$branches")}"
+  printf 'deploy_branch = "%s"\n' "$deploy_branch" >>"$tfvars"
+fi
+printf 'release_topology = "%s"\ntelemetry_branch = "%s"\n' \
+  "$topology" "$integration_branch" >>"$tfvars"
 [ -n "${ALLOW_PREVIEW_REFS:-}" ] && printf 'allow_preview_refs = %s\n' "$ALLOW_PREVIEW_REFS" >>"$tfvars"
 
 account_args=()

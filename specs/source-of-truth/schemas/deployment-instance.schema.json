@@ -48,6 +48,11 @@
       },
       "additionalProperties": false
     },
+    "hostingSiteId": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$",
+      "description": "Lowercase Firebase Hosting hostname label, 1 to 30 characters."
+    },
     "firebase": {
       "type": "object",
       "required": ["projectId", "webAppId"],
@@ -55,8 +60,10 @@
         "projectId": { "type": "string" },
         "webAppId": { "type": "string" },
         "webApiKeyId": { "type": "string" },
-        "siteId": { "type": "string", "description": "Defaults to projectId." }
+        "siteId": { "$ref": "#/$defs/hostingSiteId", "description": "Defaults to projectId." }
       },
+      "if": { "not": { "required": ["siteId"] } },
+      "then": { "properties": { "projectId": { "$ref": "#/$defs/hostingSiteId" } } },
       "additionalProperties": false
     },
     "level": {
@@ -164,7 +171,7 @@
           "type": "object",
           "propertyNames": { "pattern": "^[a-z0-9][a-z0-9-]*$" },
           "additionalProperties": {
-            "anyOf": [{ "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }, { "type": "null" }]
+            "anyOf": [{ "$ref": "#/$defs/hostingSiteId" }, { "type": "null" }]
           },
           "description": "Release channels (branches, ADR 0007) this environment deploys, each mapped to its Hosting site (null: firebase.siteId). A channel deploys to one environment; production serves stable when it declares none."
         },

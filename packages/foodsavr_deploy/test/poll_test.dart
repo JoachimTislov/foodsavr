@@ -36,6 +36,20 @@ void main() {
     return out;
   }
 
+  test('unprovisioned environments leave poll state untouched', () async {
+    final manifest = baseManifest();
+    manifest['environments']['production']['provisioned'] = false;
+    manifest['environments']['production'].remove('firebase');
+    final d = Deployment.of(load(manifest), 'production');
+    final state = PollState(level: 'previous');
+    final result = await poll(d, state, {'file': _Failing()});
+    expect(result.action, 'hold');
+    expect(result.reasons, ['unprovisioned environment: not polled']);
+    expect(result.readings, isEmpty);
+    expect(state.level, 'previous');
+    expect(state.triggers, isEmpty);
+  });
+
   test('bandOf maps ratios to bands', () {
     final t = prod.triggers.first; // warn .7, promote .9, demote .3
     expect(bandOf(t, 0.95), Band.promote);

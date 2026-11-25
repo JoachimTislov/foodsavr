@@ -162,7 +162,10 @@ Future<void> main(List<String> argv) async {
       );
     case 'poll':
       final statePath = cmd.option('state');
-      final stateFile = statePath == null ? null : File(statePath);
+      final provisioned = d.environment.provisioned;
+      final stateFile = statePath == null || !provisioned
+          ? null
+          : File(statePath);
       final state = stateFile != null && stateFile.existsSync()
           ? PollState.fromJson(
               (jsonDecode(stateFile.readAsStringSync()) as Map)
@@ -171,7 +174,9 @@ Future<void> main(List<String> argv) async {
           : PollState();
       final metrics = cmd.option('metrics');
       final Map<String, Scaler> scalers;
-      if (metrics != null) {
+      if (!provisioned) {
+        scalers = {};
+      } else if (metrics != null) {
         final file = FileScaler.load(metrics);
         // Dry run: every trigger reads from the metrics file.
         scalers = {for (final t in scalerTypes) t: file};

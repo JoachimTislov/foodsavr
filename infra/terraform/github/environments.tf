@@ -13,7 +13,7 @@ locals {
 }
 
 resource "github_repository_environment" "env" {
-  for_each    = toset(var.environments)
+  for_each    = setunion(toset(var.environments), ["test"])
   repository  = data.github_repository.this.name
   environment = each.key
 
@@ -25,7 +25,7 @@ resource "github_repository_environment" "env" {
   }
 
   dynamic "deployment_branch_policy" {
-    for_each = each.key == "production" ? [1] : []
+    for_each = contains(["production", "test"], each.key) ? [1] : []
     content {
       protected_branches     = false
       custom_branch_policies = true
@@ -38,6 +38,13 @@ resource "github_repository_environment_deployment_policy" "production_release" 
   repository     = data.github_repository.this.name
   environment    = github_repository_environment.env["production"].environment
   branch_pattern = local.live_deploy_branch
+}
+
+# Test accepts branch-based previews, including feature branches with slashes.
+resource "github_repository_environment_deployment_policy" "test_branches" {
+  repository     = data.github_repository.this.name
+  environment    = github_repository_environment.env["test"].environment
+  branch_pattern = "**/*"
 }
 
 resource "github_actions_variable" "release_topology" {

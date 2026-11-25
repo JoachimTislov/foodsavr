@@ -21,6 +21,80 @@ ROOT = Path(__file__).resolve().parents[2]
 CHANNELS = {"test": ["develop", "daily", "weekly"], "production": ["stable"], "staging": []}
 
 
+class HostingStorageGuardTest(unittest.TestCase):
+    def run_guard(self, target, responses, expected_exit):
+        def api(method, path, params=""):
+            if method == "DELETE":
+                return {}
+            response = responses[path, params]
+            if isinstance(response, Exception):
+                raise response
+            return response
+
+        with patch.dict(os.environ, {"PROJECT_ID": "demo-project", "SITE_ID": "selected"}, clear=True), \
+                patch.object(sys, "argv", ["guard", target, "1"]), \
+                patch.object(guard, "token", return_value="test-token"), \
+                patch.object(guard, "call", side_effect=api) as request, \
+                redirect_stdout(StringIO()), self.assertRaises(SystemExit) as error:
+            guard.main()
+        self.assertEqual(error.exception.code, expected_exit)
+        return [args[1] for args in (entry.args for entry in request.call_args_list) if args[0] == "DELETE"]
+
+    def pages(self, sibling_page):
+        page = "?pageSize=100"
+        return {
+            ("projects/demo-project/sites", page): {
+                "sites": [{"name": "projects/123/sites/selected"}], "nextPageToken": "p+/=",
+            },
+            ("projects/demo-project/sites", page + "&pageToken=p%2B%2F%3D"): {
+                "sites": [{"name": "projects/123/sites/sibling"}],
+            },
+            ("sites/selected/versions", page): {"versions": [
+                {"name": "sites/selected/versions/one", "status": "FINALIZED", "versionBytes": str(guard.GB)},
+            ]},
+            ("sites/sibling/versions", page): {"versions": [], "nextPageToken": "more"},
+            ("sites/sibling/versions", page + "&pageToken=more"): sibling_page,
+            ("sites/selected/channels/live/releases", page): {},
+            ("sites/selected/channels", page): {"channels": [{"name": "sites/selected/channels/old"}]},
+            ("sites/selected/channels/old/releases", page): {
+                "releases": [{"version": {"name": "sites/selected/versions/one"}}],
+            },
+        }
+
+    def test_sibling_storage_blocks_preview_and_only_selected_site_is_cleaned(self):
+        pages = self.pages({"versions": [
+            {"name": "sites/sibling/versions/two", "status": "FINALIZED", "versionBytes": str(8 * guard.GB)},
+        ]})
+        self.assertEqual(self.run_guard("preview", pages, 3), ["sites/selected/channels/old"])
+
+    def test_live_cleanup_preserves_latest_three_versions_and_sibling_site(self):
+        pages = self.pages({"versions": [
+            {"name": "sites/sibling/versions/other", "status": "FINALIZED", "versionBytes": str(9 * guard.GB)},
+        ]})
+        names = [f"sites/selected/versions/{n}" for n in range(4)]
+        query = "?pageSize=100"
+        pages["sites/selected/versions", query] = {"versions": [
+            {"name": name, "status": "FINALIZED", "versionBytes": str(guard.GB)} for name in names
+        ]}
+        pages["sites/selected/channels/live/releases", query] = {
+            "releases": [{"version": {"name": name}} for name in names],
+        }
+        pages["sites/selected/channels", query] = {}
+        self.assertEqual(self.run_guard("live", pages, 2), [names[-1]])
+
+    def test_foreign_channel_name_in_selected_inventory_blocks_cleanup(self):
+        pages = self.pages({"versions": []})
+        pages["sites/selected/channels", "?pageSize=100"] = {
+            "channels": [{"name": "sites/sibling/channels/old"}],
+        }
+        self.assertEqual(self.run_guard("preview", pages, 2), [])
+
+    def test_missing_or_failed_continuation_blocks_cleanup(self):
+        for response, exit_code in [({}, 2), (SystemExit(2), 2)]:
+            with self.subTest(response=response):
+                self.assertEqual(self.run_guard("preview", self.pages(response), exit_code), [])
+
+
 class PureTest(unittest.TestCase):
     def test_channel_name_is_sanitized_and_unique_per_branch(self):
         name = dw.channel_name("Feat/Human_Entry")
@@ -245,11 +319,13 @@ class DeployTest(unittest.TestCase):
             self.assertEqual(dw.select_channel("test", "", "live"), "develop")
             self.assertEqual(dw.select_channel("production", "stable", "live"), "stable")
 
-    def test_previews_keep_the_requested_channel_without_checking(self):
-        with patch.object(dw, "environment_channels") as channels:
+    def test_previews_validate_explicit_channel_and_default_to_base_site(self):
+        with patch.object(dw, "environment_channels", return_value=CHANNELS) as channels:
             self.assertEqual(dw.select_channel("staging", "", "preview"), "")
+            channels.assert_not_called()
             self.assertEqual(dw.select_channel("test", "daily", "preview"), "daily")
-        channels.assert_not_called()
+            with self.assertRaises(SystemExit):
+                dw.select_channel("test", "stable", "preview")
 
     def test_unprovisioned_environment_is_refused(self):
         done = subprocess.CompletedProcess([], 0, "PROVISIONED='false'\nFLAVOR='production'\n", "")

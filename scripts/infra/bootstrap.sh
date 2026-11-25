@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One command to bootstrap your own FoodSavr instance on Firebase (free web).
 #
-#   [MANIFEST=deploy/instance.yaml] [ENV=production] scripts/infra/bootstrap.sh [plan]
+#   [MANIFEST=deploy/instance.yaml] [ENV=<environment>] scripts/infra/bootstrap.sh [plan]
 #
 # Start from deploy/examples/firebase-free-web.yaml. Checks prerequisites,
 # lists the steps only a human can do, validates the manifest, then runs
@@ -10,7 +10,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 export MANIFEST="${MANIFEST:-$root/deploy/instance.yaml}"
-export ENV="${ENV:-production}"
+env_description="${ENV:-production if provisioned, otherwise test}"
 
 missing=0
 need() {
@@ -37,7 +37,7 @@ Human-only steps (once per environment):
      (and gh auth login to publish Actions variables).
 
 EOF
-read -r -p "Done? Validate and apply environment '$ENV' now [y/N] " ok
+read -r -p "Done? Validate and apply environment ($env_description) now [y/N] " ok
 [ "$ok" = y ] || [ "$ok" = Y ] || exit 0
 
 exec "$root/scripts/infra/apply.sh" "$@"
