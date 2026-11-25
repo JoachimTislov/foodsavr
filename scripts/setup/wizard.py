@@ -118,7 +118,8 @@ def primary_environment(environments, requested=""):
     return "test" if "test" in names else "production"
 
 
-def firebase_identity(env):
+def levels_env(env):
+    """`levels env` values of `env["ENV"]` in `env["MANIFEST"]`, or None."""
     try:
         result = subprocess.run(
             ["dart", "run", "bin/levels.dart", "env", "--manifest", env["MANIFEST"],
@@ -126,17 +127,25 @@ def firebase_identity(env):
             cwd=ROOT / "packages/foodsavr_deploy", capture_output=True, text=True, timeout=60,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return "", ""
+        return None
+    if result.returncode:
+        return None
     try:
-        values = {
+        return {
             key: shlex.split(value)[0] for line in result.stdout.splitlines() if "=" in line
             for key, value in [line.split("=", 1)]
         }
     except (IndexError, ValueError):
+        return None
+
+
+def firebase_identity(env, values=None):
+    values = levels_env(env) if values is None else values
+    if values is None:
         return "", ""
     project = values.get("PROJECT_ID", "")
     repo = values.get("GITHUB_REPOSITORY", "")
-    if result.returncode or not re.fullmatch(r"[a-z0-9][a-z0-9-]+", project):
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]+", project):
         return "", ""
     if repo.casefold() != env["GITHUB_REPOSITORY"].casefold():
         return "", ""
@@ -202,7 +211,11 @@ def committed_project(manifest, ref, environment, env):
     with TemporaryDirectory(prefix="foodsavr-manifest-") as directory:
         path = Path(directory) / "instance.yaml"
         path.write_text(shown.stdout, encoding="utf-8")
-        return firebase_identity({**env, "MANIFEST": str(path), "ENV": environment})[0]
+        committed_env = {**env, "MANIFEST": str(path), "ENV": environment}
+        values = levels_env(committed_env)
+        if values is None or values.get("PROVISIONED", "true") != "true":
+            return ""
+        return firebase_identity(committed_env, values)[0]
 
 
 def firebase_json(*args):
@@ -725,7 +738,9 @@ class Setup:
         primary = self.env.get("ENV", "production")
         if not self.terraform_state(primary):
             return False
-        names = [primary]
+        # Every production apply passes the merged-manifest gate, also when
+        # production is the selected environment.
+        names = [] if primary == "production" and not self.production_apply_allowed() else [primary]
         if primary != "production" and self.production_apply_allowed():
             names.append("production")
         return all(self.environment_infrastructure(name, available) for name in names)
@@ -850,10 +865,17 @@ class Setup:
         # lib/firebase_options.dart is tracked in git (#426); this step only
         # repairs it when it no longer matches the manifest's project and web app.
         path = ROOT / "lib/firebase_options.dart"
-        url = f"https://console.firebase.google.com/project/{self.project}/settings/general"
+        # The tracked default options target the default environment (test when
+        # declared), even when setup runs with ENV=production.
+        default = primary_environment(self.environments)
+        project, web_app = (
+            (self.project, self.web_app) if default == self.env.get("ENV")
+            else firebase_identity({**self.env, "ENV": default})
+        )
+        url = f"https://console.firebase.google.com/project/{project}/settings/general"
 
         def ready():
-            return bool(fingerprint(path, self.project, self.web_app))
+            return bool(project and web_app and fingerprint(path, project, web_app))
 
         def repair():
             if not confirm("Regenerate lib/firebase_options.dart from Firebase?"):
@@ -862,7 +884,7 @@ class Setup:
                 print("Install the Firebase CLI at https://firebase.google.com/docs/cli.")
                 return False
             try:
-                regenerate(path, self.project, self.web_app)
+                regenerate(path, project, web_app)
             except ValueError as error:
                 if "Sign in to the Firebase CLI" not in str(error):
                     print(str(error), file=sys.stderr)
@@ -870,7 +892,7 @@ class Setup:
                 if not confirm("Sign in to Firebase in your browser?") or run("firebase", "login", "--reauth"):
                     return False
                 try:
-                    regenerate(path, self.project, self.web_app)
+                    regenerate(path, project, web_app)
                 except ValueError as retry_error:
                     print(str(retry_error), file=sys.stderr)
                     return False

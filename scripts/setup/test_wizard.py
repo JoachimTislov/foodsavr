@@ -326,18 +326,55 @@ class WizardTest(TestCase):
         shown = Mock(returncode=0, stdout="committed: manifest\n")
         seen = {}
 
-        def identity(values):
+        def levels(values):
             seen["text"] = Path(values["MANIFEST"]).read_text(encoding="utf-8")
             seen["env"] = values["ENV"]
-            return "foodsavr-prod", "1:9:web:9"
+            return {"PROVISIONED": "true"}
 
         with patch.object(wizard, "run", return_value=0) as fetch, \
                 patch.object(wizard.subprocess, "run", return_value=shown) as show, \
-                patch.object(wizard, "firebase_identity", side_effect=identity):
+                patch.object(wizard, "levels_env", side_effect=levels), \
+                patch.object(wizard, "firebase_identity", return_value=("foodsavr-prod", "1:9:web:9")):
             self.assertEqual(wizard.committed_project(manifest, "origin/develop", "production", env), "foodsavr-prod")
         fetch.assert_called_once_with("git", "fetch", "--quiet", "origin", "develop", quiet=True)
         self.assertEqual(show.call_args.args[0], ["git", "show", "origin/develop:deploy/instance.yaml"])
         self.assertEqual(seen, {"text": "committed: manifest\n", "env": "production"})
+
+    def test_committed_project_is_empty_when_the_ref_does_not_provision_it(self):
+        env = {"GITHUB_REPOSITORY": "owner/repo"}
+        manifest = str(wizard.ROOT / "deploy/instance.yaml")
+        shown = Mock(returncode=0, stdout="committed: manifest\n")
+        with patch.object(wizard, "run", return_value=0), \
+                patch.object(wizard.subprocess, "run", return_value=shown), \
+                patch.object(wizard, "levels_env", return_value={"PROVISIONED": "false", "PROJECT_ID": "foodsavr-prod"}), \
+                patch.object(wizard, "firebase_identity", return_value=("foodsavr-prod", "1:9:web:9")):
+            self.assertEqual(wizard.committed_project(manifest, "origin/develop", "production", env), "")
+
+    def test_selected_production_is_applied_only_when_merged(self):
+        instance = self.setup_instance()
+        instance.env = {"ENV": "production"}
+        instance.environments = [{"name": "test"}, {"name": "production", "provisioned": True}]
+        calls, output = self.run_infrastructure(instance, committed="", local="foodsavr-prod")
+        self.assertEqual(calls, [])
+        self.assertIn("is not merged on origin/develop", output)
+        instance = self.setup_instance()
+        instance.env = {"ENV": "production"}
+        instance.environments = [{"name": "test"}, {"name": "production", "provisioned": True}]
+        calls, _ = self.run_infrastructure(instance, committed="foodsavr-prod", local="foodsavr-prod")
+        self.assertEqual([env for _, env, _ in calls], ["production"])
+
+    def test_default_options_keep_the_test_identity_when_production_is_selected(self):
+        instance = self.setup_instance()
+        instance.env = {"ENV": "production"}
+        instance.project, instance.web_app = "foodsavr-prod", "1:9:web:prod"
+        instance.environments = [{"name": "test"}, {"name": "production"}]
+        seen = []
+        with patch.object(wizard, "firebase_identity", return_value=("demo-proj", "1:9:web:test")) as identity, \
+                patch.object(wizard, "fingerprint", side_effect=lambda path, project, app: seen.append((project, app)) or True), \
+                patch.object(instance, "step", return_value=True):
+            self.assertTrue(instance.firebase_app_config())
+        self.assertEqual(identity.call_args.args[0]["ENV"], "test")
+        self.assertEqual(seen, [("demo-proj", "1:9:web:test")])
 
     def test_wizard_has_no_menu_paths_or_merge_gate_token(self):
         source = (Path(wizard.__file__)).read_text(encoding="utf-8")
