@@ -482,6 +482,12 @@ class EventPolicyTest(unittest.TestCase):
             with patch.object(setupctl, "_run", return_value=_cp(code=1, err="HTTP 404")):
                 with self.assertRaises(RuntimeError):
                     setupctl.apply_event_policy(repo="alice/foodsavr")
+            idless = {k: v for k, v in _policy_json(enforcement="evaluate").items() if k != "id"}
+            with patch.object(setupctl, "_run", return_value=_cp(json.dumps([idless]))):
+                with patch.object(setupctl.subprocess, "run") as mock_write:
+                    with self.assertRaises(RuntimeError):
+                        setupctl.apply_event_policy(repo="alice/foodsavr")
+                mock_write.assert_not_called()
             with patch.object(setupctl, "_run", return_value=_cp("[]")):
                 with patch.object(setupctl.subprocess, "run") as mock_write:
                     res = setupctl.apply_event_policy(repo="alice/foodsavr", dry_run=True)

@@ -875,6 +875,8 @@ def apply_event_policy(
         return {"repo": repo, "state": current["state"], "already_applied": current["state"] == "match", "dry_run": dry_run}
 
     base = f"repos/{repo}/actions/policies"
+    if current["state"] == "mismatch" and current["policy_id"] is None:
+        raise RuntimeError(f"Actions policy {EVENT_POLICY_NAME!r} on {repo} has no id; update it under Settings -> Actions -> Policies.")
     method, path = ("POST", base) if current["state"] == "missing" else ("PUT", f"{base}/{current['policy_id']}")
     proc = subprocess.run(
         ["gh", "api", "-X", method, path, "--input", "-"],
