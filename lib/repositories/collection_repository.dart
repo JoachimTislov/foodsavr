@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:developer' as developer;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
@@ -12,6 +15,9 @@ import '../interfaces/i_collection_repository.dart';
 class CollectionRepository implements ICollectionRepository {
   final FirebaseFirestore _firestore;
   final String _collectionName = 'collections';
+  static const _membershipTimeout = Duration(seconds: 2);
+  static const _queueAcknowledgementTimeout = Duration(milliseconds: 500);
+  static const _offlineCodes = {'unavailable', 'deadline-exceeded'};
 
   /// Runs after membership products were read and before the commit, so tests
   /// can interleave a delete with the transaction.
@@ -50,28 +56,61 @@ class CollectionRepository implements ICollectionRepository {
   StateError _unavailableProduct(String id) =>
       StateError('Product $id is unavailable. Reload and try again.');
 
+  /// Verifies products and writes membership in one transaction. With
+  /// [queue], an unreachable server or a transaction slower than
+  /// [_membershipTimeout] falls back to [queue], the queued write that works
+  /// offline. Permission and validation errors never fall back.
   Future<void> _writeMembership(
-    Future<StateError?> Function(Transaction, Set<String>) write,
-  ) async {
+    Future<StateError?> Function(Transaction, Set<String>, VoidCallback)
+    write, {
+    Future<void> Function()? queue,
+  }) async {
     final verifiedProducts = <String>{};
     var readyToCommit = false;
+    var expired = false;
+    // Stops an attempt that outlived the deadline from staging its writes.
+    void checkDeadline() {
+      if (expired) throw TimeoutException('Membership transaction expired.');
+    }
+
     StateError? error;
     try {
       // Return validation errors through the callback to preserve their Dart
       // type on FlutterFire Web.
-      error = await _firestore.runTransaction((transaction) async {
-        verifiedProducts.clear();
-        readyToCommit = false;
-        final validationError = await write(transaction, verifiedProducts);
-        readyToCommit = validationError == null;
-        return validationError;
-      });
+      var transaction = _firestore.runTransaction(
+        (transaction) async {
+          checkDeadline();
+          verifiedProducts.clear();
+          readyToCommit = false;
+          final validationError = await write(
+            transaction,
+            verifiedProducts,
+            checkDeadline,
+          );
+          readyToCommit = validationError == null;
+          return validationError;
+        },
+        timeout: queue == null
+            ? const Duration(seconds: 30)
+            : _membershipTimeout,
+      );
+      if (queue != null) transaction = transaction.timeout(_membershipTimeout);
+      error = await transaction;
+    } on TimeoutException {
+      if (queue == null) rethrow;
+      expired = true;
+      return queue();
     } on FirebaseException catch (e) {
+      // Native platforms report the transaction timeout as deadline-exceeded.
+      if (queue != null && _offlineCodes.contains(e.code)) {
+        expired = true;
+        return queue();
+      }
       if (!readyToCommit || e.code != 'permission-denied') rethrow;
       // A product can disappear after its transaction read. A server get
       // distinguishes that race from a denied collection write.
       for (final id in verifiedProducts) {
-        if (await _isProductMissingOrUnreadable(id)) {
+        if (await isProductMissingOrUnreadable(id)) {
           throw _unavailableProduct(id);
         }
       }
@@ -80,13 +119,42 @@ class CollectionRepository implements ICollectionRepository {
     if (error != null) throw error;
   }
 
-  Future<bool> _isProductMissingOrUnreadable(String id) async {
+  /// Issues the unverified arrayUnion [write] that Firestore queues offline.
+  /// It returns once the server acknowledges it, or after
+  /// [_queueAcknowledgementTimeout] while the write stays queued.
+  ///
+  /// A queued add can leave a dangling ID when it races a delete or names a
+  /// foreign product; server reads hide and repair such references. A write
+  /// the server rejects later is rolled back in the local cache and never
+  /// replayed.
+  Future<void> _queueMembership(Future<void> Function() write) async {
+    final acknowledged = Future.sync(write);
+    unawaited(
+      acknowledged.then<void>(
+        (_) {},
+        onError: (Object error) => developer.log(
+          'Queued collection write failed: ${error.runtimeType}',
+          name: 'CollectionRepository',
+        ),
+      ),
+    );
+    try {
+      await acknowledged.timeout(_queueAcknowledgementTimeout);
+    } on TimeoutException {
+      // Offline: Firestore syncs the queued write after reconnecting.
+    }
+  }
+
+  @override
+  Future<bool> isProductMissingOrUnreadable(String id) async {
     try {
       final snapshot = await _firestore
           .collection('products')
           .doc(id)
           .get(const GetOptions(source: Source.server));
-      return !snapshot.exists;
+      return !snapshot.exists &&
+          !snapshot.metadata.isFromCache &&
+          !snapshot.metadata.hasPendingWrites;
     } on FirebaseException catch (e) {
       return e.code == 'permission-denied';
     }
@@ -104,18 +172,27 @@ class CollectionRepository implements ICollectionRepository {
       await docRef.set(savedCollection.toJson());
       return savedCollection;
     }
-    await _writeMembership((transaction, verifiedProducts) async {
-      final error = await _validateOwnedProducts(
-        transaction,
-        savedCollection.userId,
-        savedCollection.productIds,
-        verifiedProducts,
-      );
-      if (error != null) return error;
-      await afterMembershipRead?.call();
-      transaction.set(docRef, savedCollection.toJson());
-      return null;
-    });
+    await _writeMembership(
+      (transaction, verifiedProducts, checkDeadline) async {
+        final error = await _validateOwnedProducts(
+          transaction,
+          savedCollection.userId,
+          savedCollection.productIds,
+          verifiedProducts,
+        );
+        if (error != null) return error;
+        await afterMembershipRead?.call();
+        checkDeadline();
+        transaction.set(docRef, savedCollection.toJson());
+        return null;
+      },
+      queue: () => _queueMembership(
+        () => docRef.set({
+          ...savedCollection.toJson(),
+          'productIds': FieldValue.arrayUnion(savedCollection.productIds),
+        }, SetOptions(merge: true)),
+      ),
+    );
     return savedCollection;
   }
 
@@ -136,7 +213,11 @@ class CollectionRepository implements ICollectionRepository {
       await docRef.update(collection.toJson()..remove('productIds'));
       return;
     }
-    await _writeMembership((transaction, verifiedProducts) async {
+    await _writeMembership((
+      transaction,
+      verifiedProducts,
+      checkDeadline,
+    ) async {
       final current = await transaction.get(docRef);
       if (!current.exists) return StateError('The collection is unavailable.');
       // Only IDs this write introduces must resolve; legacy IDs may remain.
@@ -151,6 +232,7 @@ class CollectionRepository implements ICollectionRepository {
       );
       if (error != null) return error;
       await afterMembershipRead?.call();
+      checkDeadline();
       transaction.update(docRef, collection.toJson());
       return null;
     });
@@ -202,7 +284,12 @@ class CollectionRepository implements ICollectionRepository {
   Future<void> addProducts(String collectionId, List<String> productIds) async {
     if (productIds.isEmpty) return;
     final docRef = _firestore.collection(_collectionName).doc(collectionId);
-    await _writeMembership((transaction, verifiedProducts) async {
+    final membership = {'productIds': FieldValue.arrayUnion(productIds)};
+    await _writeMembership((
+      transaction,
+      verifiedProducts,
+      checkDeadline,
+    ) async {
       final collection = await transaction.get(docRef);
       final userId = collection.data()?['userId'];
       if (userId is! String) {
@@ -216,11 +303,10 @@ class CollectionRepository implements ICollectionRepository {
       );
       if (error != null) return error;
       await afterMembershipRead?.call();
-      transaction.update(docRef, {
-        'productIds': FieldValue.arrayUnion(productIds),
-      });
+      checkDeadline();
+      transaction.update(docRef, membership);
       return null;
-    });
+    }, queue: () => _queueMembership(() => docRef.update(membership)));
   }
 
   @override
@@ -251,25 +337,37 @@ class CollectionRepository implements ICollectionRepository {
         ),
     ];
     if (collections.any((collection) => collection.productIds.isNotEmpty)) {
-      await _writeMembership((transaction, verifiedProducts) async {
-        for (final collection in collections) {
-          final error = await _validateOwnedProducts(
-            transaction,
-            collection.userId,
-            collection.productIds,
-            verifiedProducts,
-          );
-          if (error != null) return error;
-        }
-        await afterMembershipRead?.call();
-        for (final (:reference, :collection) in writes) {
-          transaction.set(
-            reference,
-            collection.copyWith(id: reference.id).toJson(),
-          );
-        }
-        return null;
-      });
+      await _writeMembership(
+        (transaction, verifiedProducts, checkDeadline) async {
+          for (final collection in collections) {
+            final error = await _validateOwnedProducts(
+              transaction,
+              collection.userId,
+              collection.productIds,
+              verifiedProducts,
+            );
+            if (error != null) return error;
+          }
+          await afterMembershipRead?.call();
+          checkDeadline();
+          for (final (:reference, :collection) in writes) {
+            transaction.set(
+              reference,
+              collection.copyWith(id: reference.id).toJson(),
+            );
+          }
+          return null;
+        },
+        queue: () => _queueMembership(() {
+          final batch = _firestore.batch();
+          for (final (:reference, :collection) in writes) {
+            final data = collection.copyWith(id: reference.id).toJson();
+            data['productIds'] = FieldValue.arrayUnion(collection.productIds);
+            batch.set(reference, data, SetOptions(merge: true));
+          }
+          return batch.commit();
+        }),
+      );
       return;
     }
 
