@@ -10,6 +10,7 @@ import re
 import subprocess
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -132,13 +133,22 @@ def apply_labels(repo: str, number: int, current: set[str], desired: set[str], c
                 pass
         _LABELS_ENSURED = True
     add = sorted(desired - current)
-    stale = stale_labels(current, config)
-    remove = sorted(stale - desired)
-    final_labels = sorted((current - stale) | desired)
-    subprocess.run(
-        ["gh", "api", f"repos/{repo}/issues/{number}/labels", "-X", "PUT", "--input", "-"],
-        input=json.dumps({"labels": final_labels}), text=True, cwd=ROOT, capture_output=True, check=True,
-    )
+    remove = sorted(stale_labels(current, config) - desired)
+    # Write only the difference. Replacing the whole set from the snapshot read
+    # earlier would drop labels added meanwhile, such as a concurrent merge/auto.
+    if add:
+        subprocess.run(
+            ["gh", "api", f"repos/{repo}/issues/{number}/labels", "-X", "POST", "--input", "-"],
+            input=json.dumps({"labels": add}), text=True, cwd=ROOT, capture_output=True, check=True,
+        )
+    for label in remove:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{repo}/issues/{number}/labels/{quote(label, safe='')}", "-X", "DELETE"],
+            text=True, cwd=ROOT, capture_output=True, check=False,
+        )
+        # A label already removed by someone else is fine; anything else is a real failure.
+        if result.returncode and "404" not in (result.stderr or ""):
+            raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
     return {"added": add, "removed": remove}
 
 
