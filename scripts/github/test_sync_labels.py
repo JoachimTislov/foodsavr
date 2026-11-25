@@ -44,6 +44,12 @@ class LabelRulesTest(unittest.TestCase):
         self.assertNotIn("area/web", labels)
         self.assertFalse(any(label.startswith("status/") for label in labels))
 
+    def test_pr_keeps_a_manual_risk_label_without_a_matching_path(self):
+        pull = {"number": 4, "title": "Add setup step", "is_pull_request": True, "labels": [{"name": "risk/security"}]}
+        labels = self.module.classify(pull, ["scripts/setup/setupctl.py"], [], [], self.config)
+        self.assertIn("risk/security", labels)
+        self.assertNotIn("risk/security", self.module.classify({**pull, "labels": []}, ["scripts/setup/setupctl.py"], [], [], self.config))
+
     def test_agent_log_files_do_not_count_toward_area_agents(self):
         pull = {"number": 3, "title": "Add recipe screen", "is_pull_request": True, "labels": []}
         logs = [

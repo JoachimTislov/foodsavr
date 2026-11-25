@@ -94,6 +94,10 @@ def classify(item: dict[str, Any], files: list[str], checks: list[dict[str, Any]
     for rule in config.get("risk_rules", []):
         if any(matches(path, rule["patterns"]) for path in files):
             labels.add(rule["label"])
+    configured_labels = {label["name"] for label in config.get("labels", [])}
+    # Risk labels only ratchet up: a manually added risk/* label keeps a PR on
+    # the human-merge path even when no changed path matches a risk rule.
+    labels.update(label for label in existing_labels & configured_labels if label.startswith("risk/"))
     if item.get("is_pull_request"):
         conclusions = {check.get("conclusion") for check in checks if check.get("status") == "completed"}
         pending = any(check.get("status") != "completed" for check in checks)
@@ -102,11 +106,7 @@ def classify(item: dict[str, Any], files: list[str], checks: list[dict[str, Any]
         elif pending:
             labels.add("status/ci-pending")
     else:
-        configured_labels = {label["name"] for label in config.get("labels", [])}
-        labels.update(
-            label for label in existing_labels & configured_labels
-            if label.startswith(("area/", "risk/"))
-        )
+        labels.update(label for label in existing_labels & configured_labels if label.startswith("area/"))
     return labels
 
 
