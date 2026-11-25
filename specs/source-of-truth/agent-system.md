@@ -36,6 +36,7 @@ Workflows live in `.agents/workflows/` and are validated against `.agents/workfl
 - `repository-health.json` — read-only repository audit (used in CI dry-run validation).
 - `implement-issue.json` — isolated worktree patch generation (`filesystem: workspace-write`, `network: none`, `git: read-only`, `github: none`) under `.agents/policies/agent-implement.json`.
 - `integrate-pr.json` — read-only assessment of a readied PR's author trust, door risk, check rollup, and review blockers prior to `merge/auto` opt-in.
+- `agent-audit.json` — read-only ranking of the nightly audit's aggregate metrics into findings (see Nightly agent-system audit).
 
 Common operator commands:
 
@@ -127,7 +128,7 @@ The audit window starts at the previous completed audit's cutoff. The first atte
 
 ### Metrics
 
-The collector measures PR flow and owner-wait labels, review outcomes and redispatches, CI outcomes and Maven 429 evidence, session activity, quota exhaustion, delivery and missing commit trailers. The first completed audit establishes the baseline. Later audits report numeric deltas and classify prior findings as resolved, improving, unchanged, or regressed.
+The collector measures PR flow and owner-wait labels, review outcomes and redispatches, CI outcomes and Maven 429 evidence, session activity, quota exhaustion, delivery and missing commit trailers. The first completed audit establishes the baseline. Later audits report numeric deltas and classify prior findings as resolved, improving, unchanged, regressed, or not observed (the metric is absent from the window).
 
 The behind count uses known PR heads and the merge predecessor. Later force pushes can make a historical head unavailable. The collector includes CI runs created from one day before the window when they complete inside the window. It uses merge-gate evidence when readable and uses `merge/auto` removal events as a proxy otherwise. CI log availability is reported alongside matching signatures.
 
