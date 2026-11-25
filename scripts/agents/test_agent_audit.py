@@ -211,6 +211,23 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(saved["findings"], [])
         self.assertEqual(audit.routed_result('{"status": "succeeded", "steps": []}')[0]["status"], "invalid-output")
 
+    def test_job_log_allows_escape_sequences_and_falls_back_on_older_gh(self):
+        calls = []
+
+        def gh(args, **kwargs):
+            calls.append(args)
+            if "--allow-escape-sequences" in args:
+                return subprocess.CompletedProcess(args, 1, "", "unknown flag: --allow-escape-sequences")
+            return subprocess.CompletedProcess(args, 0, "\x1b[36mlog\x1b[0m", "")
+
+        with patch.object(audit.subprocess, "run", side_effect=gh):
+            self.assertEqual(audit.job_log("example/repo", 7), ("\x1b[36mlog\x1b[0m", False))
+        self.assertEqual(calls[0][:3], ["gh", "api", "--allow-escape-sequences"])
+        self.assertEqual(len(calls), 2)
+        forbidden = subprocess.CompletedProcess([], 1, "", "HTTP 403: Resource not accessible")
+        with patch.object(audit.subprocess, "run", return_value=forbidden):
+            self.assertEqual(audit.job_log("example/repo", 7), ("", True))
+
 
 if __name__ == "__main__":
     unittest.main()
