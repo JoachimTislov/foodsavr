@@ -1,6 +1,10 @@
 """Nightly audit behavior through collection, comparison, and publishing."""
 
 from datetime import datetime, timezone
+import json
+from pathlib import Path
+import subprocess
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -148,6 +152,62 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(len(issues), 2)
         self.assertEqual(sum(endpoint.endswith("/issues/3") and method == "PATCH"
                              for endpoint, method, data in writes), 1)
+
+
+    @patch.dict("os.environ", {"GITHUB_REPOSITORY": "example/repo"})
+    def test_deferred_snapshot_publishes_a_deferred_comment_only(self):
+        deferred = {"run_id": "200", "start": "2026-11-24T00:00:00+00:00",
+                    "end": "2026-11-25T00:00:00+00:00", "sessions": 3, "merged": 1,
+                    "status": "deferred", "previous_run_id": None}
+        tracking = {"number": 2, "node_id": "track", "user": {"login": audit.BOT},
+                    "body": "<!-- agent-audit:tracking -->\nNightly results"}
+        writes = []
+
+        def github(endpoint, *, method, data):
+            writes.append((endpoint, method, data))
+            if endpoint == "graphql":
+                return {"data": {"repository": {"pinnedIssues": {"nodes": [{"issue": {"id": "track"}}]}}}}
+            return None
+
+        with patch.object(audit, "pages", side_effect=lambda repo, suffix, **kwargs: [tracking] if suffix == "issues" else []), \
+                patch.object(audit, "gh_api", side_effect=github), patch.object(audit, "fetch_history"), \
+                patch.object(audit, "rows", return_value=[]):
+            audit.publish(deferred)
+        posts = [(endpoint, data) for endpoint, method, data in writes if method == "POST" and endpoint != "graphql"]
+        self.assertEqual([endpoint for endpoint, _ in posts], ["repos/example/repo/issues/2/comments"])
+        self.assertIn("Audit deferred", posts[0][1]["body"])
+
+    def test_unresolvable_head_makes_sent_behind_unknown(self):
+        merge = {"number": 1, "merge_commit_sha": "tip", "commits": 1, "base": {"ref": "develop"},
+                 "merged_at": "2026-11-24T02:00:00Z"}
+        candidate = {"number": 2, "base": {"ref": "develop"}, "created_at": "2026-11-24T01:00:00Z",
+                     "head": {"sha": "missing"}, "timeline": []}
+        with patch.object(audit, "git", return_value="base\n"), \
+                patch.object(audit, "is_ancestor", return_value=None):
+            self.assertIsNone(audit.count_behind(merge, [merge, candidate]))
+        with patch.object(audit, "git", return_value="base\n"), \
+                patch.object(audit, "is_ancestor", side_effect=lambda ancestor, head: ancestor == "base"):
+            self.assertEqual(audit.count_behind(merge, [merge, candidate]), 1)
+
+    def test_malformed_router_output_keeps_the_deterministic_report(self):
+        metrics = {METRIC: .9}
+        workflow = json.loads(audit.WORKFLOW.read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            workflow_path = Path(directory) / "workflow.json"
+            workflow_path.write_text(json.dumps(workflow))
+            snapshot_path = Path(directory) / "audit.json"
+            snapshot_path.write_text(json.dumps(snapshot(metrics) | {"findings": [], "model": {}}))
+            crashed = subprocess.CompletedProcess([], 1, stdout="provider crashed\n", stderr="")
+            with patch.object(audit, "WORKFLOW", workflow_path), \
+                    patch.object(audit.shutil, "which", side_effect=lambda name: "/bin/true" if name == "codex" else None), \
+                    patch.object(audit.subprocess, "run", return_value=crashed):
+                audit.model(snapshot_path)
+            saved = json.loads(snapshot_path.read_text())
+            self.assertEqual(json.loads(workflow_path.read_text()), workflow)
+        self.assertEqual(saved["model"]["status"], "unavailable")
+        self.assertEqual(saved["metrics"], metrics)
+        self.assertEqual(saved["findings"], [])
+        self.assertEqual(audit.routed_result('{"status": "succeeded", "steps": []}')[0]["status"], "invalid-output")
 
 
 if __name__ == "__main__":

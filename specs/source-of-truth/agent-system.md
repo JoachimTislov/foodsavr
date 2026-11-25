@@ -137,7 +137,7 @@ The [audit workflow definition](../../.agents/workflows/agent-audit.json) routes
 
 ### Outputs
 
-The publisher posts the report on the pinned **Agent system audit log** issue. Findings that recur in consecutive completed audits and are unchanged or worse open or update one planner issue per primary metric. The collector holds read-only contents permission. The publisher uses issue write access and writes only the audit history ref with its contents permission.
+The publisher posts the report on the pinned **Agent system audit log** issue. Findings that recur in consecutive completed audits and are unchanged or worse open or update one planner issue per primary metric. The collector holds read-only contents, actions, issues and pull-request permissions. The publisher uses issue write access and writes only the audit history ref with its contents permission.
 
 ### History
 
