@@ -153,7 +153,8 @@ class CollectionService {
     }
   }
 
-  /// Resolve the members in collection order and prune legacy dangling IDs.
+  /// Resolve the members in collection order. Dangling IDs are dropped from
+  /// the result and removed from the collection on a best-effort basis.
   Future<(Collection, List<Product>)> loadContents(
     Collection collection,
   ) async {
@@ -165,10 +166,7 @@ class CollectionService {
     final products = [
       for (final id in collection.productIds.toSet()) ?byId[id],
     ];
-    await _collectionRepository.removeProducts(
-      collection.id,
-      collection.productIds.toSet().difference(byId.keys.toSet()),
-    );
+    await _repairDangling(collection, byId.keys.toSet());
     return (
       collection.copyWith(productIds: products.map((p) => p.id).toList()),
       products,
@@ -184,10 +182,31 @@ class CollectionService {
     }
     final members = await _collectionRepository.getMemberProducts(userId);
     final ids = members.map((product) => product.id).toSet();
+    for (final collection in collections) {
+      await _repairDangling(collection, ids);
+    }
     return {
       for (final collection in collections)
         collection.id: collection.productIds.toSet().intersection(ids).length,
     };
+  }
+
+  /// Removes exactly the IDs of [collection] missing from [resolvedIds] with a
+  /// single write. A failed repair is logged and never fails the read.
+  Future<void> _repairDangling(
+    Collection collection,
+    Set<String> resolvedIds,
+  ) async {
+    final missing = collection.productIds.toSet().difference(resolvedIds);
+    if (missing.isEmpty) return;
+    try {
+      await _collectionRepository.removeProducts(collection.id, missing);
+    } catch (e) {
+      _logger.e(
+        'Could not repair ${missing.length} dangling IDs in '
+        'collection ${collection.id}: ${e.runtimeType}',
+      );
+    }
   }
 
   /// Fill gaps in a user's initial collections without replacing existing types.
