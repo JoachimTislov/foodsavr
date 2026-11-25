@@ -26,6 +26,7 @@ class _CollectionListViewState extends State<CollectionListView> {
   late final CollectionListController _controller;
   Collection? _selected;
   Map<String, int> _productCounts = {};
+  int _fetchGeneration = 0;
 
   @override
   void initState() {
@@ -42,14 +43,15 @@ class _CollectionListViewState extends State<CollectionListView> {
 
   // similar to collection detail view
   Future<void> _fetchCollections() async {
-    var userId = getIt<IAuthService>().getUserId();
+    final generation = ++_fetchGeneration;
+    final userId = getIt<IAuthService>().getUserId();
     if (userId == null) {
       _controller.clear();
       return;
     }
     final all = await _collectionService.getCollectionsForUser(userId);
     final counts = await _collectionService.resolveCounts(userId, all);
-    if (!mounted) return;
+    if (!mounted || generation != _fetchGeneration) return;
     _productCounts = counts;
     _controller.loadCollections(all, widget.typeFilter);
   }
@@ -152,7 +154,7 @@ class _CollectionListViewState extends State<CollectionListView> {
                     final collection = _controller.collections[index];
                     return CollectionCard(
                       collection: collection,
-                      productCount: _productCounts[collection.id]!,
+                      productCount: _productCounts[collection.id] ?? 0,
                       onTap: () => _navigateToCollectionDetail(collection),
                     );
                   },

@@ -105,20 +105,22 @@ class ProductRepository implements IProductRepository {
     return [for (final doc in snapshot.docs) doc.reference];
   }
 
-  /// Keeps the discovered collections that still exist, so a collection
-  /// deleted after discovery cannot fail the commit. This reads existence
-  /// only; the removals themselves never depend on earlier membership.
-  Future<List<DocumentReference<Map<String, dynamic>>>> _existing(
+  /// Resolves memberships from the current versions of discovered siblings.
+  Future<Set<String>> _siblingProductIds(
     Transaction transaction,
     Iterable<DocumentReference<Map<String, dynamic>>> references,
   ) async {
-    final snapshots = [
-      for (final reference in references) await transaction.get(reference),
-    ];
-    return [
-      for (final snapshot in snapshots)
-        if (snapshot.exists) snapshot.reference,
-    ];
+    final ids = <String>{};
+    for (final reference in references) {
+      try {
+        ids.addAll(_productIds(await transaction.get(reference)));
+      } on FirebaseException catch (e) {
+        // The owner query established access at discovery. The read rules
+        // deny a document get if that sibling has since been deleted.
+        if (e.code != 'permission-denied') rethrow;
+      }
+    }
+    return ids;
   }
 
   /// A missing or inaccessible product cannot be moved or deleted.
@@ -150,6 +152,13 @@ class ProductRepository implements IProductRepository {
 
     final collections = _firestore.collection('collections');
     final sourceRef = collections.doc(source.id);
+    if (source.type == CollectionType.shoppingList) {
+      if (destinationId != null) {
+        throw ArgumentError('Shopping list products cannot be moved.');
+      }
+      await sourceRef.delete();
+      return;
+    }
     final products = await _firestore
         .collection(_collectionName)
         .where('userId', isEqualTo: source.userId)
@@ -176,6 +185,9 @@ class ProductRepository implements IProductRepository {
         return StateError('The source collection is unavailable.');
       }
 
+      if (currentSource.data()?['type'] == CollectionType.shoppingList.name) {
+        return StateError('The source is no longer an inventory.');
+      }
       final ids = _productIds(currentSource).toSet();
       final resolvedIds = ids.where(ownedProducts.containsKey).toList();
       // The owner query happened before this transaction. If a new member
@@ -211,22 +223,17 @@ class ProductRepository implements IProductRepository {
           });
         }
       } else {
-        final live = await _existing(transaction, others);
+        final sharedIds = await _siblingProductIds(transaction, others);
         final deletable = [
           for (final id in resolvedIds)
-            if (await _isOwnedProduct(
-              transaction,
-              ownedProducts[id]!,
-              source.userId,
-            ))
+            if (!sharedIds.contains(id) &&
+                await _isOwnedProduct(
+                  transaction,
+                  ownedProducts[id]!,
+                  source.userId,
+                ))
               id,
         ];
-        for (final collection in live) {
-          if (resolvedIds.isEmpty) break;
-          transaction.update(collection, {
-            'productIds': FieldValue.arrayRemove(resolvedIds),
-          });
-        }
         for (final id in deletable) {
           transaction.delete(ownedProducts[id]!);
         }

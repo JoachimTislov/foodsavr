@@ -66,8 +66,8 @@
 	},
 	"collection": {
 		"deleteTitle": "Vil du slette {name}?",
-		"deleteWithDestination": "Flytt produktene til et annet varelager eller slett dem fra alle varelagre og handlelister.",
-		"deleteWithoutDestination": "Når du sletter samlingen, slettes også produktene fra alle varelagre og handlelister.",
+		"deleteUnsharedProductsExplanation": "Sletting med produkter fjerner bare produkter som ikke finnes i andre samlinger.",
+		"deleteOnly": "Slett bare samlingen",
 		"moveDestination": "Flytt til varelager",
 		"moveAndDelete": "Flytt produktene og slett samlingen",
 		"deleteWithProducts": "Slett samlingen og produktene",

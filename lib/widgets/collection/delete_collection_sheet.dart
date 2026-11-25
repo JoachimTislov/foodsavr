@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/collection_model.dart';
+import '../../utils/collection_types.dart';
 import '../common/adaptive_sheet.dart';
 
 class DeleteCollectionSheet extends StatefulWidget {
@@ -39,7 +40,9 @@ class _DeleteCollectionSheetState extends State<DeleteCollectionSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasProducts = widget.productCount > 0;
+    final canDeleteProducts =
+        widget.collection.type == CollectionType.inventory &&
+        widget.productCount > 0;
     return SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -51,15 +54,11 @@ class _DeleteCollectionSheetState extends State<DeleteCollectionSheet> {
             ),
             style: theme.textTheme.headlineSmall,
           ),
-          if (hasProducts) ...[
+          if (canDeleteProducts) ...[
             const SizedBox(height: 12),
-            Text(
-              widget.destinations.isEmpty
-                  ? 'collection.deleteWithoutDestination'.tr()
-                  : 'collection.deleteWithDestination'.tr(),
-            ),
+            Text('collection.deleteUnsharedProductsExplanation'.tr()),
           ],
-          if (widget.destinations.isNotEmpty) ...[
+          if (canDeleteProducts && widget.destinations.isNotEmpty) ...[
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               isExpanded: true,
@@ -89,15 +88,24 @@ class _DeleteCollectionSheetState extends State<DeleteCollectionSheet> {
             ),
           ],
           const SizedBox(height: 8),
+          if (canDeleteProducts) ...[
+            OutlinedButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(const DeleteCollectionChoice()),
+              child: Text('collection.deleteOnly'.tr()),
+            ),
+            const SizedBox(height: 8),
+          ],
           FilledButton(
-            onPressed: () =>
-                Navigator.of(context).pop(const DeleteCollectionChoice()),
+            onPressed: () => Navigator.of(
+              context,
+            ).pop(DeleteCollectionChoice(deleteProducts: canDeleteProducts)),
             style: FilledButton.styleFrom(
               backgroundColor: theme.colorScheme.error,
               foregroundColor: theme.colorScheme.onError,
             ),
             child: Text(
-              hasProducts
+              canDeleteProducts
                   ? 'collection.deleteWithProducts'.tr()
                   : 'common.delete'.tr(),
             ),
@@ -115,5 +123,10 @@ class _DeleteCollectionSheetState extends State<DeleteCollectionSheet> {
 class DeleteCollectionChoice {
   final String? destinationId;
 
-  const DeleteCollectionChoice({this.destinationId});
+  final bool deleteProducts;
+
+  const DeleteCollectionChoice({
+    this.destinationId,
+    this.deleteProducts = false,
+  });
 }
