@@ -851,6 +851,18 @@ def read_event_policy(repo: str, *, root: Path = ROOT) -> dict[str, Any]:
     found = next((i for i in items if isinstance(i, dict) and i.get("name") == EVENT_POLICY_NAME), None)
     if found is None:
         return {"state": "missing", "policy_id": None, "detail": f"policy {EVENT_POLICY_NAME!r} not configured"}
+    if found.get("id") is not None:
+        # The list endpoint returns summaries without `conditions`/`rules`; compare the full policy.
+        detail_proc = _run(["gh", "api", f"repos/{repo}/actions/policies/{found['id']}"], cwd=root)
+        if detail_proc.returncode != 0:
+            return {"state": "unavailable", "policy_id": found["id"], "detail": detail_proc.stderr.strip() or "Actions policy detail unavailable"}
+        try:
+            detail = json.loads(detail_proc.stdout)
+        except ValueError:
+            return {"state": "unavailable", "policy_id": found["id"], "detail": "unparseable Actions policy detail response"}
+        if not isinstance(detail, dict):
+            return {"state": "unavailable", "policy_id": found["id"], "detail": "unexpected Actions policy detail response"}
+        found = {**found, **detail}
     if not _policy_matches(found):
         return {"state": "mismatch", "policy_id": found.get("id"), "detail": f"policy {EVENT_POLICY_NAME!r} differs from the recorded posture"}
     return {"state": "match", "policy_id": found.get("id"), "detail": f"policy {EVENT_POLICY_NAME!r} matches"}
@@ -959,14 +971,17 @@ def verify_profile(
             "RELEASE_GATE_APP_ID + RELEASE_GATE_APP_PRIVATE_KEY",
             f"scripts/human/github/create-agent-app.sh --role release-gate --repo {gh.get('target_repo') or '<owner>/<repo>'}",
         )
-        event_policy = gh.get("event_policy")
-        if event_policy is not None:
-            add(
-                "actions-event-policy",
-                event_policy.get("state") == "match",
-                f"pull_request_target allowed only for {', '.join(EVENT_POLICY_WORKFLOWS)}: {event_policy.get('detail')}",
-                "make setup-event-policy (owner: Settings -> Actions -> Policies)",
-            )
+        # Never omit this check: an unprobed policy (offline, non-admin) must not read as ready.
+        event_policy = gh.get("event_policy") or {
+            "state": "unavailable",
+            "detail": "not probed (needs online gh access with admin on the repository)",
+        }
+        add(
+            "actions-event-policy",
+            event_policy.get("state") == "match",
+            f"pull_request_target allowed only for {', '.join(EVENT_POLICY_WORKFLOWS)}: {event_policy.get('detail')}",
+            "make setup-event-policy (owner: Settings -> Actions -> Policies)",
+        )
         add(
             "harness-auth",
             any(name in secrets_present for name in HARNESS_AUTH_SECRETS),
