@@ -428,13 +428,16 @@ class EventPolicyTest(unittest.TestCase):
     def test_read_states(self):
         res, paths = self._read(*_listing(_policy_json()))
         self.assertEqual(res["state"], "match")
-        self.assertEqual(paths, ["repos/alice/foodsavr/actions/policies?per_page=100", "repos/alice/foodsavr/actions/policies/7"])
+        self.assertEqual(paths, ["repos/alice/foodsavr/actions/policies?per_page=100&has_parents=false", "repos/alice/foodsavr/actions/policies/7"])
         # The named policy on a later page is still found (slurped pages, list or object shaped).
         other = {"id": 3, "name": "other", "enforcement": "active"}
         for pages in ([[other], [_policy_summary()]], [{"policies": [other]}, {"policies": [_policy_summary()]}]):
             with self.subTest(pages=pages):
                 self.assertEqual(self._read(_cp(json.dumps(pages)), _cp(json.dumps(_policy_json())))[0]["state"], "match")
         self.assertEqual(self._read(_cp("[]"))[0]["state"], "missing")
+        actor_rule = {"type": "restrict_actions_actors", "parameters": {"allowed_actors": ["alice"]}}
+        extra = _policy_json(rules=[*setupctl.desired_event_policy()["rules"], actor_rule])
+        self.assertEqual(self._read(*_listing(extra))[0]["state"], "mismatch")
         wrong = _policy_json(conditions={"workflow_path": {"include": ["~ALL"], "exclude": []}})
         self.assertEqual(self._read(*_listing(wrong))[0]["state"], "mismatch")
         self.assertEqual(self._read(_cp(code=1, err="HTTP 404"))[0]["state"], "unavailable")
