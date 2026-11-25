@@ -1,0 +1,1 @@
+{"event": "Verified make check and the headless Chrome Firestore CRUD suite, including offline replay and concurrent membership edits.", "issues": ["#346"], "prs": ["#481"], "session_id": "t3:01a21288-d277-7b20-a06e-1ec14de2d7a7", "stream": "ledger", "timestamp": "2026-11-25T11:56:28+00:00"}

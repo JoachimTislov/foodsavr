@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_collection_repository.dart';
 import 'package:foodsavr/interfaces/i_validator.dart';
@@ -30,9 +32,12 @@ void main() {
       _MockValidator(),
       Logger(level: Level.off),
     );
-    when(
-      () => repository.getMemberProducts('u1'),
-    ).thenAnswer((_) async => [product('a'), product('b'), product('x')]);
+    when(() => repository.getMemberProducts('u1')).thenAnswer(
+      (_) async => (
+        products: [product('a'), product('b'), product('x')],
+        authoritative: true,
+      ),
+    );
     when(
       () => repository.removeProducts(any(), any()),
     ).thenAnswer((_) async {});
@@ -64,6 +69,21 @@ void main() {
     expect(removed.toSet(), {'ghost', 'ghost-2'});
   });
 
+  test(
+    'incomplete cache supplies counts and contents without repair',
+    () async {
+      when(() => repository.getMemberProducts('u1')).thenAnswer(
+        (_) async => (products: [product('a')], authoritative: false),
+      );
+
+      final (loaded, visible) = await service.loadContents(collection);
+      expect(loaded.productIds, ['a']);
+      expect(visible.map((product) => product.id), ['a']);
+      expect(await service.resolveCounts('u1', [collection]), {'c1': 1});
+      verifyNever(() => repository.removeProducts(any(), any()));
+    },
+  );
+
   test('a clean collection triggers no repair write', () async {
     const clean = Collection(
       id: 'c2',
@@ -75,6 +95,19 @@ void main() {
     await service.resolveCounts('u1', [clean]);
 
     verifyNever(() => repository.removeProducts(any(), any()));
+  });
+
+  test('a queued repair does not delay a read', () async {
+    final acknowledgement = Completer<void>();
+    addTearDown(acknowledgement.complete);
+    when(
+      () => repository.removeProducts(any(), any()),
+    ).thenAnswer((_) => acknowledgement.future);
+
+    final (_, visible) = await service.loadContents(collection);
+    expect(visible.map((product) => product.id), ['a', 'b']);
+    expect(await service.resolveCounts('u1', [collection]), {'c1': 2});
+    expect(acknowledgement.isCompleted, isFalse);
   });
 
   test('a failed repair never fails the read', () async {
