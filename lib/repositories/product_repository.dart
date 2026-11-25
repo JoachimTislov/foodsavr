@@ -52,39 +52,56 @@ class ProductRepository implements IProductRepository {
   @override
   Future<void> delete(String id) async {
     final reference = _firestore.collection(_collectionName).doc(id);
-    final snapshot = await reference.get(
-      const GetOptions(source: Source.server),
-    );
+    final snapshot = await reference.get();
     if (!snapshot.exists) return;
 
     final product = Product.fromJson(snapshot.data()!);
-    // Discovery happens outside the transaction; the commit below is atomic.
+    // Discovery can use the local cache. The batch queues offline and its
+    // Future completes on server acknowledgement.
     // A collection created after discovery, or written by a legacy client, is
     // repaired on read (see CollectionService.loadContents).
     final collections = product.isGlobal
         ? const <DocumentReference<Map<String, dynamic>>>[]
-        : await _ownerCollectionRefs(product.userId);
+        : await _ownerCollectionRefs(product.userId, serverOnly: false);
     await afterDiscovery?.call();
-    await _firestore.runTransaction((transaction) async {
-      final current = await transaction.get(reference);
-      final live = await _existing(transaction, collections);
-      if (!current.exists) return;
-      for (final collection in live) {
-        transaction.update(collection, {
-          'productIds': FieldValue.arrayRemove([id]),
-        });
+    try {
+      await _commitProductDelete(reference, collections);
+    } on FirebaseException catch (e) {
+      // An update against a collection removed since discovery can reject
+      // the entire queued batch. Retry only after confirming that a discovered
+      // collection is gone. Firestore itself retries transient failures.
+      if (collections.isEmpty ||
+          (e.code != 'not-found' && e.code != 'permission-denied')) {
+        rethrow;
       }
-      transaction.delete(reference);
-    });
+      final current = await _ownerCollectionRefs(product.userId);
+      if (collections.every(current.contains)) rethrow;
+      await _commitProductDelete(reference, current);
+    }
+  }
+
+  Future<void> _commitProductDelete(
+    DocumentReference<Map<String, dynamic>> product,
+    List<DocumentReference<Map<String, dynamic>>> collections,
+  ) {
+    final batch = _firestore.batch();
+    for (final collection in collections) {
+      batch.update(collection, {
+        'productIds': FieldValue.arrayRemove([product.id]),
+      });
+    }
+    batch.delete(product);
+    return batch.commit();
   }
 
   Future<List<DocumentReference<Map<String, dynamic>>>> _ownerCollectionRefs(
-    String userId,
-  ) async {
+    String userId, {
+    bool serverOnly = true,
+  }) async {
     final snapshot = await _firestore
         .collection('collections')
         .where('userId', isEqualTo: userId)
-        .get(const GetOptions(source: Source.server));
+        .get(serverOnly ? const GetOptions(source: Source.server) : null);
     return [for (final doc in snapshot.docs) doc.reference];
   }
 
@@ -104,13 +121,15 @@ class ProductRepository implements IProductRepository {
     ];
   }
 
-  /// Owner rules deny reading a missing product, so denial means absent.
-  Future<bool> _productExists(
+  /// A missing or inaccessible product cannot be moved or deleted.
+  Future<bool> _isOwnedProduct(
     Transaction transaction,
     DocumentReference<Map<String, dynamic>> reference,
+    String owner,
   ) async {
     try {
-      return (await transaction.get(reference)).exists;
+      final data = (await transaction.get(reference)).data();
+      return data?['userId'] == owner && data?['isGlobal'] != true;
     } on FirebaseException catch (e) {
       if (e.code == 'permission-denied') return false;
       rethrow;
@@ -147,10 +166,14 @@ class ProductRepository implements IProductRepository {
         : const <DocumentReference<Map<String, dynamic>>>[];
     await afterDiscovery?.call();
 
-    await _firestore.runTransaction((transaction) async {
+    // Return validation errors through the transaction so the Dart type and
+    // message survive FlutterFire Web's JavaScript boundary.
+    final error = await _firestore.runTransaction<StateError?>((
+      transaction,
+    ) async {
       final currentSource = await transaction.get(sourceRef);
       if (currentSource.data()?['userId'] != source.userId) {
-        throw StateError('The source collection is unavailable.');
+        return StateError('The source collection is unavailable.');
       }
 
       final ids = _productIds(currentSource).toSet();
@@ -158,7 +181,7 @@ class ProductRepository implements IProductRepository {
       // The owner query happened before this transaction. If a new member
       // appeared meanwhile, retry the operation with a fresh product query.
       if (ids.difference(source.productIds.toSet()).isNotEmpty) {
-        throw StateError(
+        return StateError(
           'Collection membership changed. Reload and try again.',
         );
       }
@@ -170,12 +193,16 @@ class ProductRepository implements IProductRepository {
         if (data?['userId'] != source.userId ||
             (data?['type'] ?? CollectionType.inventory.name) !=
                 CollectionType.inventory.name) {
-          throw StateError('The destination inventory is unavailable.');
+          return StateError('The destination inventory is unavailable.');
         }
         // Products deleted after the query must not enter the destination.
         for (final id in resolvedIds) {
-          if (!await _productExists(transaction, ownedProducts[id]!)) {
-            throw StateError('A product was deleted. Reload and try again.');
+          if (!await _isOwnedProduct(
+            transaction,
+            ownedProducts[id]!,
+            source.userId,
+          )) {
+            return StateError('A product was deleted. Reload and try again.');
           }
         }
         if (resolvedIds.isNotEmpty) {
@@ -185,18 +212,29 @@ class ProductRepository implements IProductRepository {
         }
       } else {
         final live = await _existing(transaction, others);
+        final deletable = [
+          for (final id in resolvedIds)
+            if (await _isOwnedProduct(
+              transaction,
+              ownedProducts[id]!,
+              source.userId,
+            ))
+              id,
+        ];
         for (final collection in live) {
           if (resolvedIds.isEmpty) break;
           transaction.update(collection, {
             'productIds': FieldValue.arrayRemove(resolvedIds),
           });
         }
-        for (final id in resolvedIds) {
+        for (final id in deletable) {
           transaction.delete(ownedProducts[id]!);
         }
       }
       transaction.delete(sourceRef);
+      return null;
     });
+    if (error != null) throw error;
   }
 
   @override

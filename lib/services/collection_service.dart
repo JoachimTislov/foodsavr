@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
@@ -137,7 +139,10 @@ class CollectionService {
     }
   }
 
-  Future<void> updateCollection(Collection collection) async {
+  Future<void> updateCollection(
+    Collection collection, {
+    bool metadataOnly = false,
+  }) async {
     _logger.i('Updating collection: ${collection.name}');
     final validationResult = _collectionValidator.validate(collection);
     if (!validationResult.isValid) {
@@ -145,7 +150,10 @@ class CollectionService {
       throw FormatException(validationResult.errors.first.message);
     }
     try {
-      await _collectionRepository.update(collection);
+      await _collectionRepository.update(
+        collection,
+        metadataOnly: metadataOnly,
+      );
       _logger.i('Successfully updated collection');
     } catch (e) {
       _logger.e('Error updating collection: $e');
@@ -159,17 +167,16 @@ class CollectionService {
     Collection collection,
   ) async {
     if (collection.productIds.isEmpty) return (collection, <Product>[]);
-    final members = await _collectionRepository.getMemberProducts(
-      collection.userId,
-    );
-    final byId = {for (final member in members) member.id: member};
-    final products = [
-      for (final id in collection.productIds.toSet()) ?byId[id],
-    ];
-    await _repairDangling(collection, byId.keys.toSet());
+    final (:products, :authoritative) = await _collectionRepository
+        .getMemberProducts(collection.userId);
+    final byId = {for (final member in products) member.id: member};
+    final visible = [for (final id in collection.productIds.toSet()) ?byId[id]];
+    if (authoritative) {
+      unawaited(_repairDangling(collection, byId.keys.toSet()));
+    }
     return (
-      collection.copyWith(productIds: products.map((p) => p.id).toList()),
-      products,
+      collection.copyWith(productIds: visible.map((p) => p.id).toList()),
+      visible,
     );
   }
 
@@ -180,10 +187,13 @@ class CollectionService {
     if (collections.every((collection) => collection.productIds.isEmpty)) {
       return {for (final collection in collections) collection.id: 0};
     }
-    final members = await _collectionRepository.getMemberProducts(userId);
-    final ids = members.map((product) => product.id).toSet();
-    for (final collection in collections) {
-      await _repairDangling(collection, ids);
+    final (:products, :authoritative) = await _collectionRepository
+        .getMemberProducts(userId);
+    final ids = products.map((product) => product.id).toSet();
+    if (authoritative) {
+      for (final collection in collections) {
+        unawaited(_repairDangling(collection, ids));
+      }
     }
     return {
       for (final collection in collections)

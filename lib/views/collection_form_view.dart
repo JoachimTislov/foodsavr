@@ -100,13 +100,16 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet> {
         description: null,
         userId: _userId,
         type: widget.type,
-        productIds: widget.collection?.productIds ?? [],
+        productIds: const [],
       );
 
       if (widget.collection == null) {
         await _collectionService.addCollection(collection);
       } else {
-        await _collectionService.updateCollection(collection);
+        await _collectionService.updateCollection(
+          collection,
+          metadataOnly: true,
+        );
       }
 
       if (mounted) {

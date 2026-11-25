@@ -20,9 +20,8 @@ class CollectionRepository implements ICollectionRepository {
 
   CollectionRepository(this._firestore);
 
-  /// Reads every referenced product inside [transaction]. A missing, global,
-  /// or foreign product aborts the transaction before any membership write.
-  Future<void> _requireOwnedProducts(
+  /// Returns a validation error before any membership write is staged.
+  Future<StateError?> _validateOwnedProducts(
     Transaction transaction,
     String userId,
     Iterable<String> productIds,
@@ -40,9 +39,19 @@ class CollectionRepository implements ICollectionRepository {
       if (data == null ||
           data['userId'] != userId ||
           data['isGlobal'] == true) {
-        throw StateError('Product $id is unavailable. Reload and try again.');
+        return StateError('Product $id is unavailable. Reload and try again.');
       }
     }
+    return null;
+  }
+
+  Future<void> _writeMembership(
+    Future<StateError?> Function(Transaction) write,
+  ) async {
+    // Keep domain errors outside the SDK callback so FlutterFire Web preserves
+    // their type and message across the JavaScript boundary.
+    final error = await _firestore.runTransaction(write);
+    if (error != null) throw error;
   }
 
   @override
@@ -57,14 +66,16 @@ class CollectionRepository implements ICollectionRepository {
       await docRef.set(savedCollection.toJson());
       return savedCollection;
     }
-    await _firestore.runTransaction((transaction) async {
-      await _requireOwnedProducts(
+    await _writeMembership((transaction) async {
+      final error = await _validateOwnedProducts(
         transaction,
         savedCollection.userId,
         savedCollection.productIds,
       );
+      if (error != null) return error;
       await afterMembershipRead?.call();
       transaction.set(docRef, savedCollection.toJson());
+      return null;
     });
     return savedCollection;
   }
@@ -77,22 +88,32 @@ class CollectionRepository implements ICollectionRepository {
   }
 
   @override
-  Future<void> update(Collection collection) async {
+  Future<void> update(
+    Collection collection, {
+    bool metadataOnly = false,
+  }) async {
     final docRef = _firestore.collection(_collectionName).doc(collection.id);
-    await _firestore.runTransaction((transaction) async {
+    await _writeMembership((transaction) async {
       final current = await transaction.get(docRef);
-      if (!current.exists) throw StateError('The collection is unavailable.');
+      if (!current.exists) return StateError('The collection is unavailable.');
+      if (metadataOnly) {
+        final metadata = collection.toJson()..remove('productIds');
+        transaction.update(docRef, metadata);
+        return null;
+      }
       // Only IDs this write introduces must resolve; legacy IDs may remain.
       final existing = List<String>.from(
         current.data()?['productIds'] as List? ?? const [],
       ).toSet();
-      await _requireOwnedProducts(
+      final error = await _validateOwnedProducts(
         transaction,
         collection.userId,
         collection.productIds.toSet().difference(existing),
       );
+      if (error != null) return error;
       await afterMembershipRead?.call();
       transaction.update(docRef, collection.toJson());
+      return null;
     });
   }
 
@@ -116,16 +137,22 @@ class CollectionRepository implements ICollectionRepository {
   }
 
   @override
-  Future<List<Product>> getMemberProducts(String userId) async {
+  Future<({List<Product> products, bool authoritative})> getMemberProducts(
+    String userId,
+  ) async {
     // A direct get of a missing document cannot satisfy the owner read rule.
     final snapshot = await _firestore
         .collection('products')
         .where('userId', isEqualTo: userId)
-        .get(const GetOptions(source: Source.server));
-    return snapshot.docs
-        .map((doc) => Product.fromJson(doc.data()))
-        .where((product) => !product.isGlobal)
-        .toList();
+        .get();
+    return (
+      products: snapshot.docs
+          .map((doc) => Product.fromJson(doc.data()))
+          .where((product) => !product.isGlobal)
+          .toList(),
+      authoritative:
+          !snapshot.metadata.isFromCache && !snapshot.metadata.hasPendingWrites,
+    );
   }
 
   @override
@@ -136,15 +163,23 @@ class CollectionRepository implements ICollectionRepository {
   Future<void> addProducts(String collectionId, List<String> productIds) async {
     if (productIds.isEmpty) return;
     final docRef = _firestore.collection(_collectionName).doc(collectionId);
-    await _firestore.runTransaction((transaction) async {
+    await _writeMembership((transaction) async {
       final collection = await transaction.get(docRef);
       final userId = collection.data()?['userId'];
-      if (userId is! String) throw StateError('The collection is unavailable.');
-      await _requireOwnedProducts(transaction, userId, productIds);
+      if (userId is! String) {
+        return StateError('The collection is unavailable.');
+      }
+      final error = await _validateOwnedProducts(
+        transaction,
+        userId,
+        productIds,
+      );
+      if (error != null) return error;
       await afterMembershipRead?.call();
       transaction.update(docRef, {
         'productIds': FieldValue.arrayUnion(productIds),
       });
+      return null;
     });
   }
 
@@ -166,15 +201,40 @@ class CollectionRepository implements ICollectionRepository {
 
   @override
   Future<void> addCollectionsInBatch(List<Collection> collections) async {
+    final writes = [
+      for (final collection in collections)
+        (
+          reference: _firestore
+              .collection(_collectionName)
+              .doc(collection.id.isEmpty ? null : collection.id),
+          collection: collection,
+        ),
+    ];
+    if (collections.any((collection) => collection.productIds.isNotEmpty)) {
+      await _writeMembership((transaction) async {
+        for (final collection in collections) {
+          final error = await _validateOwnedProducts(
+            transaction,
+            collection.userId,
+            collection.productIds,
+          );
+          if (error != null) return error;
+        }
+        await afterMembershipRead?.call();
+        for (final (:reference, :collection) in writes) {
+          transaction.set(
+            reference,
+            collection.copyWith(id: reference.id).toJson(),
+          );
+        }
+        return null;
+      });
+      return;
+    }
+
     final batch = _firestore.batch();
-    for (var collection in collections) {
-      final docRef = collection.id.isEmpty
-          ? _firestore.collection(_collectionName).doc()
-          : _firestore.collection(_collectionName).doc(collection.id);
-      final savedCollection = collection.id.isEmpty
-          ? collection.copyWith(id: docRef.id)
-          : collection;
-      batch.set(docRef, savedCollection.toJson());
+    for (final (:reference, :collection) in writes) {
+      batch.set(reference, collection.copyWith(id: reference.id).toJson());
     }
     await batch.commit();
   }

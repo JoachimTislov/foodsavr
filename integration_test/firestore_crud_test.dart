@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/models/product_model.dart';
@@ -117,7 +118,24 @@ void _registerDeletionTests() {
     late Collection shoppingList;
     late Collection foreign;
     late Collection fresh;
+    late FirebaseApp remoteApp;
+    late FirebaseFirestore remote;
     const missingId = 'legacy-missing';
+
+    setUpAll(() async {
+      await ensureEmulatorInitialized();
+      remoteApp = await Firebase.initializeApp(
+        name: 'deletion-remote',
+        options: emulatorTestOptions,
+      );
+      remote = FirebaseFirestore.instanceFor(app: remoteApp);
+      remote.useFirestoreEmulator(emulatorHost, firestoreEmulatorPort);
+    });
+
+    tearDownAll(() async {
+      await remote.terminate();
+      await remoteApp.delete();
+    });
 
     setUp(() async {
       await ensureEmulatorInitialized();
@@ -173,14 +191,17 @@ void _registerDeletionTests() {
           type: CollectionType.shoppingList,
         ),
       );
-      foreign = await collections.add(
-        Collection(
-          id: '',
-          name: 'Other owner',
-          productIds: [member.id],
-          userId: 'foreign-$owner',
-        ),
+      foreign = Collection(
+        id: 'foreign-$owner',
+        name: 'Other owner',
+        productIds: [member.id],
+        userId: 'foreign-$owner',
       );
+      // Seed a legacy foreign reference outside membership validation.
+      await firestore
+          .collection('collections')
+          .doc(foreign.id)
+          .set(foreign.toJson());
       fresh = await collections.add(
         Collection(id: '', name: 'Fresh', productIds: const [], userId: owner),
       );
@@ -196,6 +217,140 @@ void _registerDeletionTests() {
       collections.afterMembershipRead = null;
       productRepository.afterDiscovery = null;
     });
+
+    testWidgets('offline collection loads tolerate an incomplete cache', (
+      tester,
+    ) async {
+      final uncached = await ProductRepository(
+        remote,
+      ).add(Product(id: '', name: 'Tea', description: '', userId: owner));
+      addTearDown(
+        () => remote.collection('products').doc(uncached.id).delete(),
+      );
+      await CollectionRepository(remote).addProduct(source.id, uncached.id);
+      final listedOnline = await collectionService.getCollectionsForUser(owner);
+      final cached = listedOnline.singleWhere((item) => item.id == source.id);
+      expect(cached.productIds, [member.id, missingId, uncached.id]);
+
+      await firestore.disableNetwork();
+      try {
+        final listed = await collectionService.getCollectionsForUser(owner);
+        expect(listed, contains(cached));
+        expect(await collectionService.resolveCounts(owner, [cached]), {
+          source.id: 1,
+        });
+        final (loaded, visible) = await collectionService.loadContents(cached);
+        expect(loaded.productIds, [member.id]);
+        expect(visible.map((p) => p.id), [member.id]);
+        expect(
+          (await collections.get(source.id))!.productIds,
+          cached.productIds,
+        );
+      } finally {
+        await firestore.enableNetwork();
+      }
+      await firestore.waitForPendingWrites();
+      expect((await collections.get(source.id))!.productIds, cached.productIds);
+      final (_, visible) = await collectionService.loadContents(cached);
+      expect(visible.map((p) => p.id), [member.id, uncached.id]);
+      await firestore.waitForPendingWrites();
+      expect((await collections.get(source.id))!.productIds, [
+        member.id,
+        uncached.id,
+      ]);
+    });
+
+    for (final removeDiscoveredCollection in [false, true]) {
+      testWidgets(
+        removeDiscoveredCollection
+            ? 'queued delete recovers when a discovered collection disappears'
+            : 'single delete queues one atomic offline write before acknowledgement',
+        (tester) async {
+          expect(await products.getProducts(owner), hasLength(2));
+          await collectionService.getCollectionsForUser(owner);
+          await firestore.disableNetwork();
+          final collectionRef = firestore
+              .collection('collections')
+              .doc(target.id);
+          final productRef = firestore.collection('products').doc(member.id);
+          var acknowledged = false;
+          late Future<void> deletion;
+          try {
+            final localRemoval = collectionRef
+                .snapshots(includeMetadataChanges: true)
+                .firstWhere(
+                  (snapshot) =>
+                      snapshot.metadata.hasPendingWrites &&
+                      !(snapshot.data()!['productIds'] as List).contains(
+                        member.id,
+                      ),
+                );
+            deletion = products.deleteProduct(member.id).then((_) {
+              acknowledged = true;
+            });
+            await Future.any([
+              localRemoval.then<void>((_) {}),
+              deletion,
+            ]).timeout(const Duration(seconds: 10));
+            expect(acknowledged, isFalse);
+            expect(
+              (await productRef.get(
+                const GetOptions(source: Source.cache),
+              )).exists,
+              isFalse,
+            );
+            expect(await ProductRepository(remote).get(member.id), isNotNull);
+            expect(
+              (await CollectionRepository(remote).get(target.id))!.productIds,
+              [kept.id, member.id],
+            );
+            if (removeDiscoveredCollection) {
+              await CollectionRepository(remote).delete(fresh.id);
+            }
+          } finally {
+            await firestore.enableNetwork();
+          }
+          await deletion;
+          expect(await ProductRepository(remote).get(member.id), isNull);
+          expect(
+            (await CollectionRepository(remote).get(target.id))!.productIds,
+            [kept.id],
+          );
+          expect((await products.getProducts(owner)).map((p) => p.id), [
+            kept.id,
+          ]);
+          expect((await collections.get(shoppingList.id))!.productIds, isEmpty);
+          if (removeDiscoveredCollection) {
+            expect(await collections.get(fresh.id), isNull);
+          }
+        },
+      );
+    }
+
+    testWidgets(
+      'metadata edits preserve concurrent membership adds and removals',
+      (tester) async {
+        final opening = (await collections.get(fresh.id))!;
+        await collections.addProduct(fresh.id, member.id);
+        await collectionService.updateCollection(
+          opening.copyWith(name: 'After add'),
+          metadataOnly: true,
+        );
+        final renamed = (await collections.get(fresh.id))!;
+        expect(renamed.name, 'After add');
+        expect(renamed.productIds, [member.id]);
+
+        await collections.removeProduct(fresh.id, member.id);
+        await firestore.collection('products').doc(member.id).delete();
+        await collectionService.updateCollection(
+          renamed.copyWith(name: 'After removal'),
+          metadataOnly: true,
+        );
+        final renamedAgain = (await collections.get(fresh.id))!;
+        expect(renamedAgain.name, 'After removal');
+        expect(renamedAgain.productIds, isEmpty);
+      },
+    );
 
     testWidgets('product delete prunes all owner memberships', (tester) async {
       await products.deleteProduct(member.id);
@@ -278,6 +433,42 @@ void _registerDeletionTests() {
       },
     );
 
+    testWidgets('a collection created after discovery is repaired on read', (
+      tester,
+    ) async {
+      late Collection added;
+      productRepository.afterDiscovery = () async {
+        added = await collections.add(
+          fresh.copyWith(id: '', productIds: [member.id, kept.id]),
+        );
+        addTearDown(() => collections.delete(added.id));
+      };
+
+      await products.deleteProduct(member.id);
+
+      expect((await collections.get(added.id))!.productIds, [
+        member.id,
+        kept.id,
+      ]);
+      final (loaded, visible) = await collectionService.loadContents(added);
+      expect(visible.map((product) => product.id), [kept.id]);
+      expect(loaded.productIds, [kept.id]);
+      await firestore.waitForPendingWrites();
+      expect((await collections.get(added.id))!.productIds, [kept.id]);
+    });
+
+    testWidgets('bulk deletion tolerates a product deleted after discovery', (
+      tester,
+    ) async {
+      productRepository.afterDiscovery = () =>
+          firestore.collection('products').doc(member.id).delete();
+
+      await products.deleteCollection(source);
+
+      expect(await collections.get(source.id), isNull);
+      expect((await collections.get(target.id))!.productIds, [kept.id]);
+    });
+
     testWidgets('a collection deleted after discovery does not fail deletes', (
       tester,
     ) async {
@@ -359,7 +550,48 @@ void _registerDeletionTests() {
 
       await collections.update(fresh.copyWith(productIds: [kept.id]));
       expect((await collections.get(fresh.id))!.productIds, [kept.id]);
+
+      collections.afterMembershipRead = () =>
+          firestore.collection('products').doc(member.id).delete();
+      await expectLater(
+        collections.add(draft.copyWith(productIds: [member.id])),
+        throwsStateError,
+      );
+      expect(await collections.get(draft.id), isNull);
+
+      collections.afterMembershipRead = () =>
+          firestore.collection('products').doc(kept.id).delete();
+      final savedTarget = (await collections.get(source.id))!;
+      await expectLater(
+        collections.update(
+          savedTarget.copyWith(
+            productIds: [...savedTarget.productIds, kept.id],
+          ),
+        ),
+        throwsStateError,
+      );
+      expect(await collections.get(source.id), savedTarget);
     });
+
+    testWidgets(
+      'populated collection batch rejects missing products atomically',
+      (tester) async {
+        final valid = fresh.copyWith(
+          id: 'new-valid-$owner',
+          productIds: [kept.id],
+        );
+        final invalid = fresh.copyWith(
+          id: 'new-invalid-$owner',
+          productIds: ['never-existed'],
+        );
+        await expectLater(
+          collections.addCollectionsInBatch([valid, invalid]),
+          throwsStateError,
+        );
+        expect(await collections.get(valid.id), isNull);
+        expect(await collections.get(invalid.id), isNull);
+      },
+    );
 
     testWidgets(
       'legacy dangling membership is excluded from counts and repaired',
@@ -371,6 +603,7 @@ void _registerDeletionTests() {
 
         expect(visible.map((p) => p.id), [member.id]);
         expect(cleaned.productIds, [member.id]);
+        await firestore.waitForPendingWrites();
         expect((await collections.get(source.id))!.productIds, [member.id]);
       },
     );

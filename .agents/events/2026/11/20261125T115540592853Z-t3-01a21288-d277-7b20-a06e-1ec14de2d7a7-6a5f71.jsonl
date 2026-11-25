@@ -1,0 +1,1 @@
+{"event": "Restored cached collection reads and queued product deletion. Added authoritative repair gating, transactional membership validation, and metadata-only collection edits. Integration held by parent.", "issues": ["#346"], "prs": ["#481"], "session_id": "t3:01a21288-d277-7b20-a06e-1ec14de2d7a7", "stream": "ledger", "timestamp": "2026-11-25T11:55:40+00:00"}

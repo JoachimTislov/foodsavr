@@ -1,0 +1,1 @@
+{"commits": [], "harness": "t3", "issues": ["#346"], "provider": "codex", "prs": ["#481"], "session_id": "t3:01a21288-d277-7b20-a06e-1ec14de2d7a7", "sources": [], "started_at": "2026-11-25T11:48:44+00:00", "status": "active", "stream": "sessions", "summary": "Restore offline deletion integrity"}

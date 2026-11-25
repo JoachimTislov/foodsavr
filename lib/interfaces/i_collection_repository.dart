@@ -10,7 +10,15 @@ abstract class ICollectionRepository extends IRepository<Collection, String> {
     String userId, {
     bool serverOnly = false,
   });
-  Future<List<Product>> getMemberProducts(String userId);
+
+  /// Metadata-only edits preserve the membership read in the transaction.
+  @override
+  Future<void> update(Collection collection, {bool metadataOnly = false});
+
+  /// Cached results can be displayed. Only authoritative results permit repair.
+  Future<({List<Product> products, bool authoritative})> getMemberProducts(
+    String userId,
+  );
   Future<void> removeProducts(String collectionId, Iterable<String> productIds);
   Future<void> addProduct(String collectionId, String productId);
   Future<void> addProducts(String collectionId, List<String> productIds);
