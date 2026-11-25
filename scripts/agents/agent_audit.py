@@ -379,6 +379,18 @@ def count_behind(merge, candidates):
     return count
 
 
+def job_log(repo, job_id):
+    """Return a job's log text and whether log access is forbidden."""
+    endpoint = api_path(repo, f"actions/jobs/{job_id}/logs")
+    # Job logs carry ANSI colour codes, which recent gh refuses to print without this flag.
+    logs = subprocess.run(["gh", "api", "--allow-escape-sequences", endpoint],
+                          stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    if logs.returncode and "unknown flag" in logs.stderr:
+        logs = subprocess.run(["gh", "api", endpoint],
+                              stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    return ("" if logs.returncode else logs.stdout), "HTTP 403" in logs.stderr
+
+
 def collect_details(repo, data, start, end):
     runs = []
     # GitHub filters by creation date. Include a one-day overlap for in-flight runs.
@@ -408,11 +420,7 @@ def collect_details(repo, data, start, end):
                 continue
             evidence = ""
             if not logs_forbidden:
-                logs = subprocess.run(["gh", "api", api_path(repo, f"actions/jobs/{job['id']}/logs")],
-                                      stdin=subprocess.DEVNULL, capture_output=True, text=True)
-                logs_forbidden = "HTTP 403" in logs.stderr
-                if not logs.returncode:
-                    evidence = logs.stdout
+                evidence, logs_forbidden = job_log(repo, job["id"])
             if not evidence:
                 run["log_unavailable"] = True
             if not evidence and not gate:
