@@ -105,16 +105,29 @@ class Bisect:
             self.say(result.stderr.rstrip())
         result.check_returncode()
 
-    def inject_probes(self) -> list[Path]:
-        placed = []
+    def inject_probes(self, placed: list) -> None:
+        """Copy probes in; `placed` gets (target, original bytes, mode) as each lands."""
         for spec in self.args.probe:
             src, _, dest = spec.partition(":")
             src_path = Path(src).expanduser().resolve()
             target = self.wt / (dest or src_path.name)
             target.parent.mkdir(parents=True, exist_ok=True)
+            original = None
+            if target.is_file() and not target.is_symlink():
+                original = (target.read_bytes(), target.stat().st_mode)
+            placed.append((target, original))
             shutil.copy2(src_path, target)
-            placed.append(target)
-        return placed
+
+    @staticmethod
+    def restore_probes(placed: list) -> None:
+        """Put back any tracked file a probe overwrote; remove the rest."""
+        for target, original in placed:
+            if original is None:
+                target.unlink(missing_ok=True)
+            else:
+                target.unlink(missing_ok=True)
+                target.write_bytes(original[0])
+                target.chmod(original[1])
 
     def refresh_deps(self) -> bool:
         pubspecs = [self.wt / n for n in ("pubspec.yaml", "pubspec.lock")]
@@ -127,7 +140,11 @@ class Bisect:
             out = run([sys.executable, str(ROOT / "scripts/ci/local_ci.py"), "--flutter-bin"], self.repo, check=False)
             self.flutter = out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else "flutter"
         self.say("pubspec changed: refreshing dependencies")
-        res = run([self.flutter, "pub", "get"], self.wt, check=False)
+        try:
+            res = run([self.flutter, "pub", "get"], self.wt, check=False)
+        except OSError as exc:
+            self.say(f"cannot run {self.flutter} pub get ({exc}): skipping commit")
+            return False
         if res.returncode != 0:
             self.say(f"flutter pub get failed (exit {res.returncode}): skipping commit")
             output = res.stderr.strip() or res.stdout.strip()
@@ -170,9 +187,9 @@ class Bisect:
         """Test the commit currently checked out in the worktree."""
         self.clean()
         linked: list[Path] = []
-        placed: list[Path] = []
+        placed: list = []
         try:
-            placed = self.inject_probes()
+            self.inject_probes(placed)
             self.link_local_files(linked)
             if not self.refresh_deps():
                 return SKIP
@@ -185,8 +202,7 @@ class Bisect:
                 return self.prompt()
             return verdict_for(self.shell(self.args.command_str, self.args.timeout))
         finally:
-            for p in placed:
-                p.unlink(missing_ok=True)
+            self.restore_probes(placed)
             # A later checkout may track a path we linked for this step.
             for path in reversed(linked):
                 if path.is_symlink():
