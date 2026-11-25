@@ -1,0 +1,1 @@
+{"event": "Implemented project-wide Hosting quota accounting, selected-site cleanup, and deployment setup follow-ups. Verified Hosting labels against the Firebase Hosting REST create method, Firebase multisite documentation, and RFC 1034/1123.", "issues": ["#459"], "session_id": "codex:t3-20897a60-a5380e59b908f0e3", "stream": "ledger", "timestamp": "2026-11-25T11:54:51+00:00"}

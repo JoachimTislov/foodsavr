@@ -14,9 +14,10 @@ Manual bypass:
   local --env ENV [--channel CHANNEL] [--target live|preview]   run all of the
         above with your own `firebase login`, CI's pinned Flutter and the
         manifest in deploy/instance.yaml; the channel picks the environment's
-        Hosting site (default: its first channel; CHANNEL in the environment
-        also works, e.g. `make deploy-web ENV=test CHANNEL=daily`). A live
-        deploy refuses a channel the environment does not deploy. Actions
+        Hosting site (the first release site for live and the default site
+        for previews when omitted). CHANNEL in the environment also works,
+        e.g. `make deploy-web ENV=test CHANNEL=daily`. An explicit channel
+        must belong to the selected environment. Actions
         variables are read with `gh variable get` when not set in the
         environment.
 
@@ -327,15 +328,15 @@ def valid_combinations(channels: dict[str, list[str]]) -> str:
 
 def select_channel(env_name: str, requested: str, target: str) -> str:
     """Channel whose site to deploy. Live deploys need a channel the environment
-    deploys (default: its first); previews use the requested channel or the default site."""
-    if target != "live":
-        return requested
+    deploys (default: its first); previews without a channel use the default site."""
+    if target == "preview" and not requested:
+        return ""
     channels = environment_channels()
     served = channels.get(env_name, [])
     channel = requested or (served[0] if served else "")
     if channel not in served:
         fail(f"environment '{env_name}' does not deploy channel '{channel or '(none)'}'; "
-             f"valid live deploys: {valid_combinations(channels)}")
+             f"valid {target} deploys: {valid_combinations(channels)}")
     return channel
 
 

@@ -204,21 +204,87 @@ void main() {
       expect(await FirestoreDailyOpsScaler(api).read(trigger, d), 320);
     });
 
-    test('hosting storage sums FINALIZED versions in GiB', () async {
-      final client = MockClient(
-        (req) async => http.Response(
-          jsonEncode({
-            'versions': [
-              {'status': 'FINALIZED', 'versionBytes': '${1 << 30}'},
-              {'status': 'DELETED', 'versionBytes': '${5 << 30}'},
+    Map<String, Object> projectSites(String? page) => page == null
+        ? {
+            'sites': [
+              {'name': 'projects/123/sites/p-prod'},
             ],
-          }),
-          200,
-        ),
-      );
-      final api = GoogleApi('p-prod', client: client, token: 'tok');
-      expect(await HostingStorageScaler(api).read(trigger, d), 1.0);
-    });
+            'nextPageToken': 'sites+/=',
+          }
+        : {
+            'sites': [
+              {'name': 'projects/123/sites/sibling'},
+            ],
+          };
+
+    test(
+      'hosting storage sums finalized versions across all pages and sites',
+      () async {
+        final client = MockClient((req) async {
+          final page = req.url.queryParameters['pageToken'];
+          final body = switch (req.url.path) {
+            '/v1beta1/projects/p-prod/sites' => projectSites(page),
+            '/v1beta1/sites/p-prod/versions' => {
+              'versions': [
+                {
+                  'name': 'sites/p-prod/versions/one',
+                  'status': 'FINALIZED',
+                  'versionBytes': '${1 << 30}',
+                },
+                {'status': 'DELETED', 'versionBytes': '${5 << 30}'},
+              ],
+            },
+            '/v1beta1/sites/sibling/versions' =>
+              page == null
+                  ? {'versions': [], 'nextPageToken': 'more'}
+                  : {
+                      'versions': [
+                        {
+                          'name': 'sites/sibling/versions/two',
+                          'status': 'FINALIZED',
+                          'versionBytes': '${8 << 30}',
+                        },
+                      ],
+                    },
+            _ => throw StateError('Unexpected request: ${req.url}'),
+          };
+          if (req.url.path.endsWith('/sites') && page != null) {
+            expect(page, 'sites+/=');
+          }
+          return http.Response(jsonEncode(body), 200);
+        });
+        final api = GoogleApi('p-prod', client: client, token: 'tok');
+        expect(await HostingStorageScaler(api).read(trigger, d), 9.0);
+      },
+    );
+
+    test(
+      'hosting storage fails on missing or unreadable sibling pages',
+      () async {
+        for (final status in [200, 403]) {
+          final client = MockClient((req) async {
+            final page = req.url.queryParameters['pageToken'];
+            final path = req.url.path;
+            if (path.endsWith('/sites')) {
+              return http.Response(jsonEncode(projectSites(page)), 200);
+            }
+            if (path == '/v1beta1/sites/sibling/versions') {
+              if (page == 'more') return http.Response('{}', status);
+              return http.Response(
+                '{"versions":[],"nextPageToken":"more"}',
+                200,
+              );
+            }
+            return http.Response('{}', 200);
+          });
+          final api = GoogleApi('p-prod', client: client, token: 'tok');
+          await expectLater(
+            HostingStorageScaler(api).read(trigger, d),
+            throwsA(isA<StateError>()),
+          );
+        }
+      },
+    );
 
     test('HTTP errors throw (poller falls back to hold)', () async {
       final client = MockClient((req) async => http.Response('no', 403));

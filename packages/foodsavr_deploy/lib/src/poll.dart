@@ -171,6 +171,16 @@ Future<PollResult> poll(
   Map<String, Scaler> scalers, {
   DateTime? now,
 }) async {
+  if (!i.environment.provisioned) {
+    return PollResult(
+      action: 'hold',
+      environment: i.flavor,
+      level: i.currentLevel,
+      reasons: ['unprovisioned environment: not polled'],
+      readings: [],
+      state: state,
+    );
+  }
   final at = (now ?? DateTime.now()).toUtc();
   final level = i.current;
   final b = i.behavior;

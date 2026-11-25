@@ -74,9 +74,14 @@ if name == 'dart':
     if args[0] == 'pub': sys.exit(0)
     if args[2] == 'env':
         if args[args.index('--format') + 1] == 'dotenv':
-            for key, value in json.loads(os.environ['FAKE_CONFIG']).items(): print(f"{key}='{value}'")
+            config = json.loads(os.environ['FAKE_CONFIG'])
+            if args[args.index('--env') + 1] == 'test' and 'FAKE_TEST_CONFIG' in os.environ:
+                config = json.loads(os.environ['FAKE_TEST_CONFIG'])
+            for key, value in config.items(): print(f"{key}='{value}'")
         else:
             print('project_id = "demo-proj"\\nweb_api_key_id = "key-id"')
+            if 'FAKE_DEPLOY_BRANCHES' in os.environ:
+                print('deploy_branches = ' + os.environ['FAKE_DEPLOY_BRANCHES'])
 elif name == 'gcloud':
     if 'print-access-token' in args: print('test-token')
     elif args[:2] == ['billing', 'projects']:
@@ -184,7 +189,7 @@ class BackendTests(unittest.TestCase):
         for name in ['dart', 'gcloud', 'terraform', 'gh']:
             (self.root / 'bin' / name).symlink_to(tool)
         config = {
-            'EMULATOR': 'false', 'INFRA_OWNER': 'production',
+            'EMULATOR': 'false', 'INFRA_OWNER': 'production', 'PROVISIONED': 'true',
             'GITHUB_REPOSITORY': 'alice/foodsavr', 'GH_ENVIRONMENT': 'production',
             'PROJECT_ID': 'demo-proj', 'WEB_APP_ID': 'app-id',
             'WEB_API_KEY_ID': 'key-id', 'REGION': 'europe-north1',
@@ -231,6 +236,33 @@ class BackendTests(unittest.TestCase):
         calls = (self.root / 'calls.jsonl').read_text()
         self.assertNotIn('"create"', calls)
         self.assertNotIn('"update"', calls)
+
+    def test_default_falls_back_to_test_when_production_is_unprovisioned(self):
+        prod = json.loads(self.env['FAKE_CONFIG'])
+        test = {**prod, 'INFRA_OWNER': 'test', 'GH_ENVIRONMENT': 'test', 'TF_STATE_PREFIX': 'firebase-test'}
+        prod['PROVISIONED'] = 'false'
+        result = self.run_plan(ENV='', FAKE_CONFIG=json.dumps(prod), FAKE_TEST_CONFIG=json.dumps(test))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        config = (self.root / 'config.log').read_text()
+        self.assertIn('gcp-demo-proj-test', config)
+
+    def test_explicit_unprovisioned_production_refuses_before_authentication(self):
+        prod = {**json.loads(self.env['FAKE_CONFIG']), 'PROVISIONED': 'false'}
+        result = self.run_plan(ENV='production', FAKE_CONFIG=json.dumps(prod))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Environment production is not provisioned', result.stderr)
+        self.assertNotIn('"gcloud"', (self.root / 'calls.jsonl').read_text())
+
+    def test_manifest_deploy_branches_own_the_terraform_branch_selection(self):
+        branches = '["develop", "daily"]'
+        conflict = self.run_plan(DEPLOY_BRANCH='stable', FAKE_DEPLOY_BRANCHES=branches)
+        self.assertNotEqual(conflict.returncode, 0)
+        self.assertIn('DEPLOY_BRANCH conflicts with manifest deploy_branches', conflict.stderr)
+        result = self.run_plan(FAKE_DEPLOY_BRANCHES=branches)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        config = (self.root / 'config.log').read_text()
+        self.assertIn('deploy_branches = ' + branches, config)
+        self.assertNotIn('\ndeploy_branch =', config)
 
     def test_legacy_worktree_state_blocks_silently_starting_empty_xdg_state(self):
         legacy = self.root / '.deployment-state/demo-proj/production/terraform.tfstate'

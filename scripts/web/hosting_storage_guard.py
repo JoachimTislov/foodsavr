@@ -6,7 +6,8 @@ env:   PROJECT_ID, SITE_ID (defaults to PROJECT_ID), ACCESS_TOKEN
        (else `gcloud auth print-access-token`), KEEP_CHANNEL (preview
        channel being deployed; never deleted).
 
-Storage = sum of versionBytes of FINALIZED versions (conservative).
+Storage = sum of versionBytes of FINALIZED versions across the project.
+Cleanup is confined to the selected site.
 - Build over BUILD_WARN (5 GB): warning + job summary.
 - Over SOFT_LIMIT (8 GB, incl. the new build): delete preview channels,
   oldest first. A preview that still does not fit is skipped (exit 3), so
@@ -17,10 +18,12 @@ Storage = sum of versionBytes of FINALIZED versions (conservative).
 
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.error
 import urllib.request
+from urllib.parse import urlencode
 
 GB = 1024**3
 SOFT_LIMIT = 8 * GB
@@ -55,24 +58,44 @@ def call(method, path, params=""):
         headers={"Authorization": f"Bearer {TOKEN}", "x-goog-user-project": os.environ["PROJECT_ID"]},
     )
     try:
-        with urllib.request.urlopen(req) as res:
+        with urllib.request.urlopen(req, timeout=30) as res:
             body = res.read()
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
             sys.exit(f"::error::Hosting storage check denied ({e.code}). "
                      "Use valid Google Cloud credentials with access to the selected Firebase project.")
         sys.exit(f"::error::{method} {path} -> {e.code}: {e.read().decode()[:500]}")
-    return json.loads(body) if body else {}
+    return json.loads(body) if method == "GET" else None
 
 
 def list_all(path, key):
-    items, page = [], ""
+    items, seen_tokens = [], set()
+    params = {"pageSize": 100}
     while True:
-        res = call("GET", path, f"?pageSize=100{'&pageToken=' + page if page else ''}")
-        items += res.get(key, [])
-        page = res.get("nextPageToken")
+        res = call("GET", path, "?" + urlencode(params))
+        if not isinstance(res, dict) or "error" in res:
+            incomplete(path)
+        page = res.get("nextPageToken", "")
+        rows = res.get(key, [] if not seen_tokens and not page else None)
+        if not isinstance(rows, list) or not isinstance(page, str) or page in seen_tokens:
+            incomplete(path)
+        items.extend(rows)
         if not page:
             return items
+        seen_tokens.add(page)
+        params["pageToken"] = page
+
+
+def incomplete(path):
+    print(f"::error::Incomplete Hosting inventory for {path}.")
+    sys.exit(2)
+
+
+def scoped_name(row, prefix):
+    name = row["name"]
+    if not re.fullmatch(re.escape(prefix) + r"[a-zA-Z0-9_-]+", name):
+        incomplete(prefix)
+    return name
 
 
 def gb(n):
@@ -91,12 +114,31 @@ def main():
     keep_channel = os.environ.get("KEEP_CHANNEL", "")
     TOKEN = token()
 
-    sizes = {
-        v["name"]: int(v.get("versionBytes", 0))
-        for v in list_all(f"{site}/versions", "versions")
-        if v.get("status") == "FINALIZED"
-    }
-    used = sum(sizes.values())
+    sites = set()
+    for row in list_all(f"projects/{project}/sites", "sites"):
+        match = re.fullmatch(r"projects/[a-zA-Z0-9_-]+/(sites/[a-z0-9-]+)", row["name"])
+        if not match:
+            incomplete(f"projects/{project}/sites")
+        sites.add(match[1])
+    if site not in sites:
+        incomplete(f"projects/{project}/{site}")
+
+    sizes = {}
+    used = 0
+    for project_site in sorted(sites):
+        path = f"{project_site}/versions"
+        versions = {}
+        for version in list_all(path, "versions"):
+            if version["status"] != "FINALIZED":
+                continue
+            name = scoped_name(version, f"{path}/")
+            size = int(str(version["versionBytes"]), 10)
+            if size < 0 or name in versions:
+                incomplete(path)
+            versions[name] = size
+        used += sum(versions.values())
+        if project_site == site:
+            sizes = versions
 
     # Live versions, newest release first; the latest KEEP_LIVE are protected.
     live_versions = []
@@ -107,8 +149,11 @@ def main():
     protected = set(live_versions[:KEEP_LIVE])
     live_set = set(live_versions)
 
+    channels = list_all(f"{site}/channels", "channels")
+    for channel in channels:
+        scoped_name(channel, f"{site}/channels/")
     previews = sorted(
-        (c for c in list_all(f"{site}/channels", "channels") if not c["name"].endswith("/channels/live")),
+        (c for c in channels if c["name"] != f"{site}/channels/live"),
         key=lambda c: c.get("updateTime", ""),
     )
 
@@ -163,7 +208,7 @@ def main():
     for name in reversed(live_versions):
         if used + new_bytes <= HARD_LIMIT:
             break
-        if name in protected or name not in sizes:
+        if name in protected or name not in sizes or refs.get(name, 0) > 0:
             continue
         act(f"Deleting old live version {name.rsplit('/', 1)[1]} ({gb(sizes[name])})", "DELETE", name)
         used -= sizes.pop(name)

@@ -157,8 +157,8 @@ class FirestoreDailyOpsScaler implements Scaler {
   }
 }
 
-/// Hosting storage in GiB: sum of FINALIZED version sizes (same measure as
-/// scripts/web/hosting_storage_guard.py).
+/// Hosting storage in GiB across all sites in the project, using FINALIZED
+/// version sizes as in scripts/web/hosting_storage_guard.py.
 class HostingStorageScaler implements Scaler {
   HostingStorageScaler(this.api);
 
@@ -169,26 +169,71 @@ class HostingStorageScaler implements Scaler {
 
   @override
   Future<double> read(Trigger t, Deployment i) async {
-    final site = i.firebase?.siteId ?? api.project;
+    final projectPath = '/v1beta1/projects/${api.project}/sites';
+    final sites = <String>{};
+    await for (final site in _list(projectPath, 'sites')) {
+      final name = site['name'] as String;
+      final match = RegExp(
+        r'^projects/[a-zA-Z0-9_-]+/(sites/[a-z0-9-]+)$',
+      ).firstMatch(name);
+      if (match == null || match.end != name.length) {
+        throw FormatException('Invalid Hosting site name', name);
+      }
+      sites.add(match[1]!);
+    }
+    final selected = i.firebase?.siteId ?? api.project;
+    if (!sites.contains('sites/$selected')) {
+      throw StateError('Hosting inventory is missing site $selected');
+    }
+
     var bytes = 0;
+    for (final site in sites) {
+      final names = <String>{};
+      final prefix = '$site/versions/';
+      await for (final version in _list(
+        '/v1beta1/$site/versions',
+        'versions',
+      )) {
+        final status = version['status'] as String;
+        if (status != 'FINALIZED') continue;
+        final name = version['name'] as String;
+        final size = int.parse('${version['versionBytes']}', radix: 10);
+        if (!name.startsWith(prefix) || size < 0 || !names.add(name)) {
+          throw FormatException('Invalid Hosting version inventory', name);
+        }
+        bytes += size;
+      }
+    }
+    return bytes / (1024 * 1024 * 1024);
+  }
+
+  Stream<Map<String, Object?>> _list(String path, String key) async* {
     String? page;
+    final seen = <String>{};
     do {
       final body = await api.get(
-        Uri.https(
-          'firebasehosting.googleapis.com',
-          '/v1beta1/sites/$site/versions',
-          {'pageSize': '100', 'pageToken': ?page},
-        ),
+        Uri.https('firebasehosting.googleapis.com', path, {
+          'pageSize': '100',
+          'pageToken': ?page,
+        }),
       );
-      for (final v in (body['versions'] as List?) ?? const []) {
-        final m = v as Map;
-        if (m['status'] == 'FINALIZED') {
-          bytes += int.tryParse('${m['versionBytes'] ?? 0}') ?? 0;
-        }
+      final next = body.containsKey('nextPageToken')
+          ? body['nextPageToken'] as String
+          : '';
+      // An empty first response can represent a list with no resources.
+      final rows = body.containsKey(key)
+          ? body[key] as List
+          : (page == null && next.isEmpty ? const [] : null);
+      if (rows == null ||
+          body.containsKey('error') ||
+          (next.isNotEmpty && !seen.add(next))) {
+        throw StateError('Incomplete Hosting inventory for $path');
       }
-      page = body['nextPageToken'] as String?;
-    } while (page != null && page.isNotEmpty);
-    return bytes / (1024 * 1024 * 1024);
+      for (final row in rows) {
+        yield (row as Map).cast<String, Object?>();
+      }
+      page = next;
+    } while (page.isNotEmpty);
   }
 }
 

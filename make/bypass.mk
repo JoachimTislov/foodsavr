@@ -56,9 +56,9 @@ promote:
 # own `firebase login` (firebase-hosting.yml runs the same scripts/web/deploy_web.py).
 # WEB_ACCESS_CODE can be supplied in the environment to gate the web build.
 # assets/.env is served publicly: WEB_ENV_FILE=<path> copies a file there, default empty.
-# Usage: make deploy-web ENV=<env> [TARGET=live|preview] [EXPIRES=4h] [WEB_ENV_FILE=<path>] [YES=1] [PLAN=1]
+# Usage: make deploy-web ENV=<env> [CHANNEL=<channel>] [TARGET=live|preview] [EXPIRES=4h] [WEB_ENV_FILE=<path>] [YES=1] [PLAN=1]
 deploy-web:
-	@test -n "$(ENV)" || { echo "Usage: make deploy-web ENV=<environment> [TARGET=live|preview] [EXPIRES=4h] [WEB_ENV_FILE=<path>] [YES=1] [PLAN=1]" >&2; exit 1; }
+	@test -n "$(ENV)" || { echo "Usage: make deploy-web ENV=<environment> [CHANNEL=<channel>] [TARGET=live|preview] [EXPIRES=4h] [WEB_ENV_FILE=<path>] [YES=1] [PLAN=1]" >&2; exit 1; }
 	@python3 scripts/web/deploy_web.py local --env "$(ENV)" --target "$(or $(TARGET),live)" \
 		$(if $(EXPIRES),--expires "$(EXPIRES)") $(if $(WEB_ENV_FILE),--web-env-file "$(WEB_ENV_FILE)") \
 		$(if $(YES),--yes) $(if $(PLAN),--plan)

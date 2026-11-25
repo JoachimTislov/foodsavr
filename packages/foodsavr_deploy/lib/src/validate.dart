@@ -190,11 +190,17 @@ void _environment(DeploymentInstance i, Environment env, ValidationReport r) {
   if (env.emulator && !env.provisioned) {
     err('$p: emulator environments have nothing to provision');
   }
+  final siteId = RegExp(r'^[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$');
+  bool validSite(String site) => siteId.firstMatch(site)?.end == site.length;
+  final defaultSite = env.firebase?.siteId;
+  if (defaultSite != null && !validSite(defaultSite)) {
+    err('$p: Firebase site $defaultSite is not a Hosting site id');
+  }
   final name = RegExp(r'^[a-z0-9][a-z0-9-]*$');
   for (final e in env.channels.entries) {
     if (!name.hasMatch(e.key)) err('$p: channel ${e.key} is not a branch name');
     final site = e.value;
-    if (site != null && !name.hasMatch(site)) {
+    if (site != null && !validSite(site)) {
       err('$p: channel ${e.key} site $site is not a Hosting site id');
     }
     if (env.emulator) err('$p: emulator environments deploy no channels');

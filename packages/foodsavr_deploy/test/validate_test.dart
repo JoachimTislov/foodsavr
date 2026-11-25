@@ -106,6 +106,33 @@ void main() {
       expect(errorsOf(m), hasError('expected a Hosting site id or null'));
     });
 
+    test('default and channel sites share Hosting label bounds', () {
+      for (final site in [
+        'a',
+        '1',
+        'a-b',
+        'x' * 30,
+        '',
+        'x' * 31,
+        'a-',
+        '-a',
+        'a_b',
+        'a\n',
+      ]) {
+        final m = baseManifest();
+        final prod = m['environments']['production'];
+        prod['channels'] = {'stable': site};
+        prod['firebase']['siteId'] = site;
+        final errors = errorsOf(m);
+        if (['a', '1', 'a-b', 'x' * 30].contains(site)) {
+          expect(errors, isEmpty, reason: site);
+        } else {
+          expect(errors, hasError('Firebase site'), reason: site);
+          expect(errors, hasError('channel stable site'), reason: site);
+        }
+      }
+    });
+
     test('emulator environments deploy no channels', () {
       final m = baseManifest();
       m['environments']['development']['channels'] = {'develop': null};
