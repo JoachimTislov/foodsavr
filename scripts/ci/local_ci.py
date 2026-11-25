@@ -125,7 +125,10 @@ GROUPS: dict[str, Group] = {
     ),
     "infra": Group(
         paths=["scripts/infra/**", "deploy/**", "packages/foodsavr_deploy/**",
-               "infra/terraform/**", ".github/workflows/deployment-level.yml"],
+               "infra/terraform/**", ".github/workflows/deployment-level.yml",
+               # test_bootstrap.py runs these scripts from a copied fixture tree.
+               "scripts/setup/setupctl.py", "scripts/github/promote_release.py",
+               "scripts/github/release_topology.py", "scripts/github/checks.py"],
         commands=[
             ["python3", "-m", "unittest", "discover", "-s", "scripts/infra", "-p", "test_*.py"],
         ],
