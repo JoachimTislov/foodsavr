@@ -170,6 +170,7 @@ class PlanAndVerifyTest(unittest.TestCase):
             secret_names=["AGENT_APP_PRIVATE_KEY", "RELEASE_GATE_APP_PRIVATE_KEY", "CODEX_AUTH_JSON_B64"],
             local_ok=True,
         )
+        probe["github"]["event_policy"] = {"state": "match", "policy_id": 7, "detail": "matches"}
         self.assertTrue(setupctl.verify_profile(probe, profile="local-dev")["ready"])
         self.assertTrue(setupctl.verify_profile(probe, profile="fork-agents")["ready"])
         self.assertTrue(setupctl.verify_profile(probe, profile="full-cloud")["ready"])
@@ -403,22 +404,42 @@ def _policy_json(**over):
     return setupctl.desired_event_policy() | {"id": 7} | over
 
 
+def _policy_summary(**over):
+    # The list endpoint returns summaries without `conditions` or `rules`.
+    return {"id": 7, "name": setupctl.EVENT_POLICY_NAME, "enforcement": "active"} | over
+
+
+def _listing(policy):
+    """`_run` side effect: summary list first, then the per-ID detail."""
+    summary = _policy_summary(**{k: v for k, v in policy.items() if k in ("id", "enforcement")})
+    return [_cp(json.dumps([summary])), _cp(json.dumps(policy))]
+
+
 def _cp(out="", code=0, err=""):
     return subprocess.CompletedProcess([], code, out, err)
 
 
 class EventPolicyTest(unittest.TestCase):
-    def _read(self, proc):
-        with patch.object(setupctl, "_run", return_value=proc):
-            return setupctl.read_event_policy("alice/foodsavr")
+    def _read(self, *procs):
+        with patch.object(setupctl, "_run", side_effect=list(procs)) as mock_run:
+            result = setupctl.read_event_policy("alice/foodsavr")
+        return result, [c.args[0][-1] for c in mock_run.call_args_list]
 
     def test_read_states(self):
-        self.assertEqual(self._read(_cp(json.dumps([_policy_json()])))["state"], "match")
-        self.assertEqual(self._read(_cp("[]"))["state"], "missing")
+        res, paths = self._read(*_listing(_policy_json()))
+        self.assertEqual(res["state"], "match")
+        self.assertEqual(paths, ["repos/alice/foodsavr/actions/policies", "repos/alice/foodsavr/actions/policies/7"])
+        self.assertEqual(self._read(_cp("[]"))[0]["state"], "missing")
         wrong = _policy_json(conditions={"workflow_path": {"include": ["~ALL"], "exclude": []}})
-        self.assertEqual(self._read(_cp(json.dumps([wrong])))["state"], "mismatch")
-        self.assertEqual(self._read(_cp(code=1, err="HTTP 404"))["state"], "unavailable")
-        self.assertEqual(self._read(_cp("not json"))["state"], "unavailable")
+        self.assertEqual(self._read(*_listing(wrong))[0]["state"], "mismatch")
+        self.assertEqual(self._read(_cp(code=1, err="HTTP 404"))[0]["state"], "unavailable")
+        self.assertEqual(self._read(_cp("not json"))[0]["state"], "unavailable")
+        summary = _cp(json.dumps([_policy_summary()]))
+        self.assertEqual(self._read(summary, _cp(code=1, err="HTTP 403"))[0]["state"], "unavailable")
+        self.assertEqual(self._read(summary, _cp("not json"))[0]["state"], "unavailable")
+        # A summary alone (no id to fetch the detail) never reads as a match.
+        idless = {k: v for k, v in _policy_summary().items() if k != "id"}
+        self.assertEqual(self._read(_cp(json.dumps([idless])))[0]["state"], "mismatch")
 
     def test_verify_reports_match_mismatch_and_unavailable(self):
         for state, ok in (("match", True), ("mismatch", False), ("missing", False), ("unavailable", False)):
@@ -429,6 +450,13 @@ class EventPolicyTest(unittest.TestCase):
                 self.assertEqual(checks["actions-event-policy"]["ok"], ok)
                 if not ok:
                     self.assertIn("make setup-event-policy", checks["actions-event-policy"]["remediation"])
+
+    def test_verify_fails_when_policy_was_not_probed(self):
+        probe = _sample_probe(repo="alice/foodsavr", login="alice", is_admin=False, local_ok=True)
+        probe["github"]["event_policy"] = None
+        checks = {c["name"]: c for c in setupctl.verify_profile(probe, profile="fork-agents")["checks"]}
+        self.assertFalse(checks["actions-event-policy"]["ok"])
+        self.assertIn("not probed", checks["actions-event-policy"]["detail"])
 
     def test_plan_lists_owner_action_until_matched(self):
         probe = _sample_probe(repo="alice/foodsavr", login="alice", is_admin=True, local_ok=True)
@@ -461,17 +489,17 @@ class EventPolicyTest(unittest.TestCase):
             with self.assertRaises(PermissionError):
                 setupctl.apply_event_policy(repo="alice/foodsavr")
         with patch.dict(os.environ, clean, clear=True):
-            with patch.object(setupctl, "_run", return_value=_cp(json.dumps([_policy_json()]))):
+            with patch.object(setupctl, "_run", side_effect=_listing(_policy_json())):
                 with patch.object(setupctl.subprocess, "run") as mock_write:
                     res = setupctl.apply_event_policy(repo="alice/foodsavr")
                 mock_write.assert_not_called()
             self.assertTrue(res["already_applied"])
 
             for listing, method, path in (
-                ("[]", "POST", "repos/alice/foodsavr/actions/policies"),
-                (json.dumps([_policy_json(enforcement="evaluate")]), "PUT", "repos/alice/foodsavr/actions/policies/7"),
+                ([_cp("[]")], "POST", "repos/alice/foodsavr/actions/policies"),
+                (_listing(_policy_json(enforcement="evaluate")), "PUT", "repos/alice/foodsavr/actions/policies/7"),
             ):
-                with patch.object(setupctl, "_run", return_value=_cp(listing)):
+                with patch.object(setupctl, "_run", side_effect=listing):
                     with patch.object(setupctl.subprocess, "run", return_value=_cp()) as mock_write:
                         res = setupctl.apply_event_policy(repo="alice/foodsavr")
                 argv = mock_write.call_args.args[0]
