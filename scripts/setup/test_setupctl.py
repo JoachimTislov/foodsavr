@@ -423,12 +423,17 @@ class EventPolicyTest(unittest.TestCase):
     def _read(self, *procs):
         with patch.object(setupctl, "_run", side_effect=list(procs)) as mock_run:
             result = setupctl.read_event_policy("alice/foodsavr")
-        return result, [c.args[0][-1] for c in mock_run.call_args_list]
+        return result, [c.args[0][2] for c in mock_run.call_args_list]
 
     def test_read_states(self):
         res, paths = self._read(*_listing(_policy_json()))
         self.assertEqual(res["state"], "match")
-        self.assertEqual(paths, ["repos/alice/foodsavr/actions/policies", "repos/alice/foodsavr/actions/policies/7"])
+        self.assertEqual(paths, ["repos/alice/foodsavr/actions/policies?per_page=100", "repos/alice/foodsavr/actions/policies/7"])
+        # The named policy on a later page is still found (slurped pages, list or object shaped).
+        other = {"id": 3, "name": "other", "enforcement": "active"}
+        for pages in ([[other], [_policy_summary()]], [{"policies": [other]}, {"policies": [_policy_summary()]}]):
+            with self.subTest(pages=pages):
+                self.assertEqual(self._read(_cp(json.dumps(pages)), _cp(json.dumps(_policy_json())))[0]["state"], "match")
         self.assertEqual(self._read(_cp("[]"))[0]["state"], "missing")
         wrong = _policy_json(conditions={"workflow_path": {"include": ["~ALL"], "exclude": []}})
         self.assertEqual(self._read(*_listing(wrong))[0]["state"], "mismatch")
@@ -449,7 +454,7 @@ class EventPolicyTest(unittest.TestCase):
                 checks = {c["name"]: c for c in setupctl.verify_profile(probe, profile="fork-agents")["checks"]}
                 self.assertEqual(checks["actions-event-policy"]["ok"], ok)
                 if not ok:
-                    self.assertIn("make setup-event-policy", checks["actions-event-policy"]["remediation"])
+                    self.assertIn("make setup-event-policy REPO=alice/foodsavr", checks["actions-event-policy"]["remediation"])
 
     def test_verify_fails_when_policy_was_not_probed(self):
         probe = _sample_probe(repo="alice/foodsavr", login="alice", is_admin=False, local_ok=True)
@@ -462,7 +467,8 @@ class EventPolicyTest(unittest.TestCase):
         probe = _sample_probe(repo="alice/foodsavr", login="alice", is_admin=True, local_ok=True)
         probe["github"]["event_policy"] = {"state": "missing"}
         plan = setupctl.build_plan(probe, profile="fork-agents", topology="single")
-        self.assertIn("apply-event-policy", [a["id"] for a in plan["human_actions"]])
+        action = next(a for a in plan["human_actions"] if a["id"] == "apply-event-policy")
+        self.assertEqual(action["command"], "make setup-event-policy REPO=alice/foodsavr")
         probe["github"]["event_policy"] = {"state": "match"}
         plan = setupctl.build_plan(probe, profile="fork-agents", topology="single")
         self.assertNotIn("apply-event-policy", [a["id"] for a in plan["human_actions"]])
