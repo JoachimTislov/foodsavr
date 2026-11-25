@@ -151,9 +151,6 @@
 		"name": "Name",
 		"noMatches": "No matching products"
 	},
-	"generated": {
-		"100_42": "1.0.0 (42)"
-	},
 	"product": {
 		"add": "Add Product",
 		"addWithoutBarcode": "Add without barcode",

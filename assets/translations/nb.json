@@ -151,9 +151,6 @@
 		"name": "Navn",
 		"noMatches": "Ingen produkter samsvarer"
 	},
-	"generated": {
-		"100_42": "1.0.0 (42)"
-	},
 	"product": {
 		"add": "Legg til produkt",
 		"addWithoutBarcode": "Legg til uten strekkode",
