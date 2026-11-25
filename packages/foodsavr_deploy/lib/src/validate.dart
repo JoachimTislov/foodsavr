@@ -190,7 +190,7 @@ void _environment(DeploymentInstance i, Environment env, ValidationReport r) {
   if (env.emulator && !env.provisioned) {
     err('$p: emulator environments have nothing to provision');
   }
-  final siteId = RegExp(r'^[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$');
+  final siteId = RegExp(r'^[a-z0-9][a-z0-9-]{4,28}[a-z0-9]$');
   bool validSite(String site) => siteId.firstMatch(site)?.end == site.length;
   final defaultSite = env.firebase?.siteId;
   if (defaultSite != null && !validSite(defaultSite)) {
