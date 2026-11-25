@@ -1,0 +1,1 @@
+{"commits": ["46a509a4fd1e85cc8bf56224af8e9df8ca621bf1"], "harness": "claude-code", "issues": ["#339"], "provider": "anthropic", "prs": ["#479"], "session_id": "claude-code:97ac7757-3fa3-4ba3-bc2c-71f79415db4c", "sources": [], "started_at": "2026-11-25T02:27:59+00:00", "status": "active", "stream": "sessions", "summary": "L3 #339 settings theme and version"}
