@@ -65,6 +65,13 @@
 		}
 	},
 	"collection": {
+		"deleteTitle": "Delete {name}?",
+		"deleteWithDestination": "Move its products to another inventory or delete them from all inventories and shopping lists.",
+		"deleteWithoutDestination": "Deleting this collection also deletes its products from all inventories and shopping lists.",
+		"moveDestination": "Destination inventory",
+		"moveAndDelete": "Move products and delete collection",
+		"deleteWithProducts": "Delete collection and products",
+		"deleteError": "Could not delete the collection. Refresh and try again.",
 		"add_inventory": "Add Inventory",
 		"add_shopping_list": "Add Shopping List",
 		"create_inventory": "Create Inventory",

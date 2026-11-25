@@ -1,0 +1,1 @@
+{"event": "Implemented owner-scoped product deletion, atomic collection moves and deletes, resolved counts, and dangling membership repair. Added cache race and emulator coverage.", "issues": ["#346"], "session_id": "t3:5d6a235a-25b1d420319c82f2", "stream": "ledger", "timestamp": "2026-11-25T06:12:07+00:00"}

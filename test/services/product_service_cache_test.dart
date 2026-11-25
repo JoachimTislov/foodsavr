@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_product_repository.dart';
+import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/models/product_model.dart';
 import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/utils/shelf_life.dart';
@@ -19,6 +20,7 @@ class _FakeProduct extends Fake implements Product {}
 class _GatedProductRepository implements IProductRepository {
   final List<Product> _products;
   final Completer<void> _gate;
+  final deleteGate = Completer<void>();
   int getProductsCalls = 0;
 
   _GatedProductRepository(this._products, this._gate);
@@ -27,7 +29,14 @@ class _GatedProductRepository implements IProductRepository {
   Future<Product> add(Product entity) async => entity;
 
   @override
-  Future<void> delete(String id) async {}
+  Future<void> deleteCollection(Collection source, {String? destinationId}) =>
+      delete(source.productIds.single);
+
+  @override
+  Future<void> delete(String id) async {
+    await deleteGate.future;
+    _products.removeWhere((product) => product.id == id);
+  }
 
   @override
   Future<Product?> get(String id) async => null;
@@ -41,8 +50,9 @@ class _GatedProductRepository implements IProductRepository {
   @override
   Future<List<Product>> getProducts(String userId) async {
     getProductsCalls++;
-    await _gate.future;
-    return _products;
+    final snapshot = List<Product>.of(_products);
+    if (getProductsCalls == 1) await _gate.future;
+    return snapshot;
   }
 
   @override
@@ -57,6 +67,10 @@ class _CountingProductRepository implements IProductRepository {
 
   @override
   Future<Product> add(Product entity) async => entity;
+
+  @override
+  Future<void> deleteCollection(Collection source, {String? destinationId}) =>
+      throw UnimplementedError();
 
   @override
   Future<void> delete(String id) async {}
@@ -197,22 +211,46 @@ void main() {
     expect(repository.getProductsCalls, 1);
   });
 
-  test(
-    'in-flight fetch does not write stale data after invalidation',
-    () async {
-      final gate = Completer<void>();
-      final repository = _GatedProductRepository([_product('p1')], gate);
-      final service = makeService(repository);
+  for (final deleteCollection in [false, true]) {
+    for (final fetchCompletesFirst in [true, false]) {
+      test(
+        '${deleteCollection ? 'collection' : 'product'} delete invalidates '
+        'a read started during its write (fetch first: $fetchCompletesFirst)',
+        () async {
+          final gate = Completer<void>();
+          final repository = _GatedProductRepository([_product('p1')], gate);
+          final service = makeService(repository);
 
-      final first = service.getProducts('user-1');
-      await service.deleteProduct('p1');
-      gate.complete();
-      await first;
+          final deletion = deleteCollection
+              ? service.deleteCollection(
+                  const Collection(
+                    id: 'c1',
+                    name: 'Inventory',
+                    productIds: ['p1'],
+                    userId: 'user-1',
+                  ),
+                )
+              : service.deleteProduct('p1');
+          final stale = service.getProducts('user-1');
+          if (fetchCompletesFirst) {
+            gate.complete();
+            expect((await stale).map((p) => p.id), ['p1']);
+          }
+          repository.deleteGate.complete();
+          await deletion;
 
-      await service.getProducts('user-1');
-      expect(repository.getProductsCalls, 2);
-    },
-  );
+          final fresh = service.getProducts('user-1');
+          expect(repository.getProductsCalls, 2);
+          expect(await fresh, isEmpty);
+          if (!fetchCompletesFirst) {
+            gate.complete();
+            expect(await stale, isEmpty);
+          }
+          expect(await service.getProducts('user-1'), isEmpty);
+        },
+      );
+    }
+  }
 }
 
 Product _expiringIn(String id, int days) {

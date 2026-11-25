@@ -7,13 +7,13 @@ import '../../models/collection_model.dart';
 class CollectionCard extends StatelessWidget {
   final Collection collection;
   final VoidCallback? onTap;
-  final int? productCount;
+  final int productCount;
 
   const CollectionCard({
     super.key,
     required this.collection,
     this.onTap,
-    this.productCount,
+    required this.productCount,
   });
 
   @override
@@ -105,11 +105,7 @@ class CollectionCard extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           'collection.items_count'.tr(
-                            namedArgs: {
-                              'count':
-                                  (productCount ?? collection.productIds.length)
-                                      .toString(),
-                            },
+                            namedArgs: {'count': productCount.toString()},
                           ),
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: colorScheme.onSurfaceVariant,

@@ -4,12 +4,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/controllers/preferences_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/models/collection_model.dart';
+import 'package:foodsavr/models/product_model.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/utils/collection_types.dart';
 import 'package:foodsavr/views/collection_detail_view.dart';
 import 'package:foodsavr/views/collection_list_view.dart';
+import 'package:foodsavr/views/dynamic_collection_view.dart';
+import 'package:foodsavr/widgets/collection/delete_collection_sheet.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -59,6 +62,15 @@ void main() {
     when(() => collections.getCollection(any())).thenAnswer(
       (i) async => i.positionalArguments.first == 'c1' ? _pantry : _fridge,
     );
+    when(
+      () => collections.resolveCounts('user', any()),
+    ).thenAnswer((_) async => {'c1': 0, 'c2': 0});
+    when(
+      () => collections.loadContents(_pantry),
+    ).thenAnswer((_) async => (_pantry, <Product>[]));
+    when(
+      () => collections.loadContents(_fridge),
+    ).thenAnswer((_) async => (_fridge, <Product>[]));
     getIt
       ..registerSingleton<IAuthService>(auth)
       ..registerSingleton<CollectionService>(collections)
@@ -122,5 +134,42 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Pantry'), findsNWidgets(2));
     expect(find.text('Fridge'), findsOneWidget);
+  });
+
+  testWidgets('deleting the only inventory keeps the tab open', (tester) async {
+    final collections = getIt<CollectionService>();
+    final products = getIt<ProductService>();
+    var deleted = false;
+    when(
+      () => collections.getCollectionsForUser('user'),
+    ).thenAnswer((_) async => deleted ? [] : [_pantry]);
+    when(() => products.deleteCollection(_pantry)).thenAnswer((_) async {
+      deleted = true;
+    });
+
+    await tester.pumpWidget(
+      EasyLocalization(
+        supportedLocales: const [Locale('en')],
+        path: 'assets/translations',
+        child: const MaterialApp(
+          home: DynamicCollectionView(type: CollectionType.inventory),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(DeleteCollectionSheet),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(deleted, isTrue);
+    expect(find.byType(DynamicCollectionView), findsOneWidget);
+    expect(find.byType(CollectionDetailView), findsNothing);
+    expect(find.byType(CollectionListView), findsOneWidget);
   });
 }

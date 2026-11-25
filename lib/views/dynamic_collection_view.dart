@@ -68,7 +68,13 @@ class _DynamicCollectionViewState extends State<DynamicCollectionView> {
         } else {
           final collections = snapshot.data ?? [];
           if (collections.length == 1) {
-            return CollectionDetailView(collection: collections.first);
+            return CollectionDetailView(
+              key: ValueKey(collections.first.id),
+              collection: collections.first,
+              onChanged: (collection) {
+                if (collection == null) refresh();
+              },
+            );
           } else {
             return CollectionListView(typeFilter: widget.type);
           }

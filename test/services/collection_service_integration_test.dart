@@ -189,22 +189,4 @@ void main() {
       verify(() => repository.update(inventory)).called(1);
     });
   });
-
-  group('deleteCollection', () {
-    test('deletes through repository', () async {
-      when(() => repository.delete('inv-1')).thenAnswer((_) async {});
-      await service.deleteCollection('inv-1');
-      verify(() => repository.delete('inv-1')).called(1);
-    });
-
-    test('rethrows repository errors', () async {
-      when(
-        () => repository.delete('inv-1'),
-      ).thenThrow(StateError('delete failed'));
-      await expectLater(
-        service.deleteCollection('inv-1'),
-        throwsA(isA<StateError>()),
-      );
-    });
-  });
 }

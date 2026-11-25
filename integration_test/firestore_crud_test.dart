@@ -5,6 +5,12 @@ import 'package:foodsavr/models/product_model.dart';
 import 'package:foodsavr/repositories/collection_repository.dart';
 import 'package:foodsavr/repositories/product_repository.dart';
 import 'package:foodsavr/utils/collection_types.dart';
+import 'package:foodsavr/services/collection_service.dart';
+import 'package:foodsavr/services/product_service.dart';
+import 'package:foodsavr/utils/shelf_life.dart';
+import 'package:foodsavr/validation/validators/collection_model_validator.dart';
+import 'package:foodsavr/validation/validators/product_model_validator.dart';
+import 'package:logger/logger.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'test_harness.dart';
@@ -17,6 +23,7 @@ void main() {
 }
 
 void registerFirestoreCrudTests() {
+  _registerDeletionTests();
   group('firestore CRUD integration', () {
     late String productId;
     late String collectionId;
@@ -92,5 +99,157 @@ void registerFirestoreCrudTests() {
       await collectionRepository.delete(collectionId);
       expect(await collectionRepository.get(collectionId), isNull);
     });
+  });
+}
+
+void _registerDeletionTests() {
+  group('collection deletion integrity', () {
+    late FirebaseFirestore firestore;
+    late CollectionRepository collections;
+    late CollectionService collectionService;
+    late ProductService products;
+    late String owner;
+    late Product member;
+    late Product kept;
+    late Collection source;
+    late Collection target;
+    late Collection shoppingList;
+    late Collection foreign;
+    const missingId = 'legacy-missing';
+
+    setUp(() async {
+      await ensureEmulatorInitialized();
+      firestore = FirebaseFirestore.instance;
+      final productRepository = ProductRepository(firestore);
+      collections = CollectionRepository(firestore);
+      final logger = Logger(level: Level.off);
+      collectionService = CollectionService(
+        collections,
+        CollectionModelValidator(),
+        logger,
+      );
+      products = ProductService(
+        productRepository,
+        ProductModelValidator(),
+        ShelfLifeService(),
+        logger,
+      );
+      owner = 'it-owner-${DateTime.now().microsecondsSinceEpoch}';
+      member = await products.addProduct(
+        Product(id: '', name: 'Milk', description: '', userId: owner),
+      );
+      kept = await products.addProduct(
+        Product(id: '', name: 'Oats', description: '', userId: owner),
+      );
+      source = await collections.add(
+        Collection(
+          id: '',
+          name: 'Fridge',
+          productIds: [member.id, missingId],
+          userId: owner,
+        ),
+      );
+      target = await collections.add(
+        Collection(
+          id: '',
+          name: 'Pantry',
+          productIds: [kept.id, member.id],
+          userId: owner,
+        ),
+      );
+      shoppingList = await collections.add(
+        Collection(
+          id: '',
+          name: 'Shopping',
+          productIds: [member.id],
+          userId: owner,
+          type: CollectionType.shoppingList,
+        ),
+      );
+      foreign = await collections.add(
+        Collection(
+          id: '',
+          name: 'Other owner',
+          productIds: [member.id],
+          userId: 'foreign-$owner',
+        ),
+      );
+    });
+
+    tearDown(() async {
+      await Future.wait([
+        for (final product in [member, kept])
+          firestore.collection('products').doc(product.id).delete(),
+        for (final collection in [source, target, shoppingList, foreign])
+          collections.delete(collection.id),
+      ]);
+    });
+
+    testWidgets('product delete prunes all owner memberships', (tester) async {
+      await products.deleteProduct(member.id);
+
+      expect(await products.getProductById(member.id), isNull);
+      expect((await collections.get(source.id))!.productIds, [missingId]);
+      expect((await collections.get(target.id))!.productIds, [kept.id]);
+      expect((await collections.get(shoppingList.id))!.productIds, isEmpty);
+      expect((await collections.get(foreign.id))!.productIds, [member.id]);
+    });
+
+    testWidgets('move keeps the products and removes the source', (
+      tester,
+    ) async {
+      await collections.removeProduct(target.id, member.id);
+      await products.deleteCollection(source, destinationId: target.id);
+
+      expect(await collections.get(source.id), isNull);
+      expect((await collections.get(target.id))!.productIds, [
+        kept.id,
+        member.id,
+      ]);
+      expect(await products.getProductById(member.id), isNotNull);
+      expect((await collections.get(shoppingList.id))!.productIds, [member.id]);
+    });
+
+    testWidgets('invalid move destinations leave the source intact', (
+      tester,
+    ) async {
+      for (final id in [foreign.id, shoppingList.id, 'removed-$owner']) {
+        await expectLater(
+          products.deleteCollection(source, destinationId: id),
+          throwsA(anything),
+        );
+        expect(await collections.get(source.id), source);
+      }
+      expect(await products.getProductById(member.id), isNotNull);
+    });
+
+    testWidgets(
+      'delete collection and products prunes other owner memberships',
+      (tester) async {
+        expect(await products.getProducts(owner), hasLength(2));
+        await products.deleteCollection(source);
+
+        expect(await collections.get(source.id), isNull);
+        expect(await products.getProductById(member.id), isNull);
+        expect((await products.getProducts(owner)).map((p) => p.id), [kept.id]);
+        expect((await collections.get(target.id))!.productIds, [kept.id]);
+        expect((await collections.get(shoppingList.id))!.productIds, isEmpty);
+        expect((await collections.get(foreign.id))!.productIds, [member.id]);
+      },
+    );
+
+    testWidgets(
+      'legacy dangling membership is excluded from counts and repaired',
+      (tester) async {
+        expect(await collectionService.resolveCounts(owner, [source]), {
+          source.id: 1,
+        });
+        final (cleaned, visible) = await collectionService.loadContents(source);
+
+        expect(visible.map((p) => p.id), [member.id]);
+        expect(cleaned.productIds, [member.id]);
+        expect((await collections.get(source.id))!.productIds, [member.id]);
+      },
+    );
   });
 }

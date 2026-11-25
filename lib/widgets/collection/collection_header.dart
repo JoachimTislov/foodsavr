@@ -7,6 +7,7 @@ import '../../models/collection_model.dart';
 /// Header widget for collection detail view
 class CollectionHeader extends StatelessWidget {
   final Collection collection;
+  final int productCount;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback? onBack;
@@ -14,6 +15,7 @@ class CollectionHeader extends StatelessWidget {
   const CollectionHeader({
     super.key,
     required this.collection,
+    required this.productCount,
     this.onEdit,
     this.onDelete,
     this.onBack,
@@ -89,37 +91,34 @@ class CollectionHeader extends StatelessWidget {
               ),
             ],
           ),
-          if (collection.productIds.isNotEmpty)
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: colorScheme.surface.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.inventory_2_outlined,
-                    size: 18,
+          Container(
+            margin: const EdgeInsets.only(top: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: colorScheme.surface.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.inventory_2_outlined,
+                  size: 18,
+                  color: colorScheme.primary,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'collection.items_count'.tr(
+                    namedArgs: {'count': productCount.toString()},
+                  ),
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
                     color: colorScheme.primary,
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'collection.items_count'.tr(
-                      namedArgs: {
-                        'count': collection.productIds.length.toString(),
-                      },
-                    ),
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: colorScheme.primary,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
+          ),
         ],
       ),
     );

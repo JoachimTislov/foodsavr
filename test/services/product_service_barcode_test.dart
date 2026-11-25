@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_product_repository.dart';
+import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/models/product_model.dart';
 import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/utils/shelf_life.dart';
@@ -27,6 +28,10 @@ class _FakeProductRepository implements IProductRepository {
     addedProduct = entity;
     return entity;
   }
+
+  @override
+  Future<void> deleteCollection(Collection source, {String? destinationId}) =>
+      throw UnimplementedError();
 
   @override
   Future<void> delete(String id) async {

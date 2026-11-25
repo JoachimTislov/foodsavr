@@ -1,0 +1,1 @@
+{"commits": [], "harness": "t3", "issues": ["#346"], "provider": "openai", "prs": [], "session_id": "t3:5d6a235a-25b1d420319c82f2", "sources": [], "started_at": "2026-11-25T06:05:18+00:00", "status": "active", "stream": "sessions", "summary": "Implement delete integrity"}

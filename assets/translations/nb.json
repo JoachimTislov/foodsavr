@@ -65,6 +65,13 @@
 		}
 	},
 	"collection": {
+		"deleteTitle": "Vil du slette {name}?",
+		"deleteWithDestination": "Flytt produktene til et annet varelager eller slett dem fra alle varelagre og handlelister.",
+		"deleteWithoutDestination": "Når du sletter samlingen, slettes også produktene fra alle varelagre og handlelister.",
+		"moveDestination": "Flytt til varelager",
+		"moveAndDelete": "Flytt produktene og slett samlingen",
+		"deleteWithProducts": "Slett samlingen og produktene",
+		"deleteError": "Kunne ikke slette samlingen. Oppdater og prøv igjen.",
 		"add_inventory": "Legg til lager",
 		"add_shopping_list": "Legg til handleliste",
 		"create_inventory": "Opprett beholdning",
