@@ -11,6 +11,7 @@ import '../service_locator.dart';
 import '../services/product_service.dart';
 import '../services/collection_service.dart';
 import '../widgets/collection/collection_header.dart';
+import '../widgets/collection/delete_collection_sheet.dart';
 import '../widgets/common/content_constraint.dart';
 import '../widgets/common/retry_scaffold.dart';
 import '../widgets/common/empty_state_widget.dart';
@@ -43,6 +44,7 @@ class CollectionDetailView extends StatefulWidget {
 
 class _CollectionDetailViewState extends State<CollectionDetailView> {
   List<Product> _products = [];
+  bool _deleting = false;
   late final ProductService _productService;
   late final CollectionService _collectionService;
   late Collection _currentCollection;
@@ -67,83 +69,66 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     super.dispose();
   }
 
-  Future<void> _fetchProducts() async {
-    final productIds = _currentCollection.productIds;
-    if (productIds.isEmpty) {
-      if (mounted) setState(() => _products = []);
-      return;
-    }
-
-    final results = await Future.wait(
-      productIds.map((id) => _productService.getProductById(id)),
-    );
-    final products = results.whereType<Product>().toList();
-
-    if (mounted) {
-      setState(() {
-        _products = products;
-      });
-    }
-  }
-
   Future<void> _refreshCollectionAndProducts() async {
     await _query.restore();
     final updated = await _collectionService.getCollection(
       _currentCollection.id,
     );
-    if (updated != null && mounted) {
-      setState(() {
-        _currentCollection = updated;
-      });
-    }
-    await _fetchProducts();
+    if (updated == null) throw StateError('The collection is unavailable.');
+    final (collection, products) = await _collectionService.loadContents(
+      updated,
+    );
+    if (!mounted) return;
+    setState(() {
+      _currentCollection = collection;
+      _products = products;
+    });
   }
 
   Future<void> _deleteCollection() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('common.delete'.tr()),
-        content: Text(
-          'product.deleteConfirmMessage'.tr(
-            namedArgs: {'name': _currentCollection.name},
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text('common.cancel'.tr()),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text('common.delete'.tr()),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && mounted) {
-      try {
-        await _collectionService.deleteCollection(_currentCollection.id);
-        if (mounted) {
-          final onChanged = widget.onChanged;
-          if (onChanged == null) {
-            Navigator.of(context).pop(true);
-          } else {
-            onChanged(null);
-          }
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
-        }
+    setState(() => _deleting = true);
+    try {
+      final source = await _collectionService.getCollection(
+        _currentCollection.id,
+      );
+      if (source == null) throw StateError('The collection is unavailable.');
+      final (collection, products) = await _collectionService.loadContents(
+        source,
+      );
+      final inventories = products.isEmpty
+          ? const <Collection>[]
+          : await _collectionService.getCollectionsForUser(
+              source.userId,
+              type: CollectionType.inventory,
+            );
+      if (!mounted) return;
+      final choice = await DeleteCollectionSheet.show(
+        context,
+        collection: collection,
+        productCount: products.length,
+        destinations: inventories
+            .where((item) => item.id != source.id)
+            .toList(),
+      );
+      if (choice == null || !mounted) return;
+      await _productService.deleteCollection(
+        source,
+        destinationId: choice.destinationId,
+      );
+      if (!mounted) return;
+      final onChanged = widget.onChanged;
+      if (onChanged == null) {
+        Navigator.of(context).pop(true);
+      } else {
+        onChanged(null);
       }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('collection.deleteError'.tr())));
+    } finally {
+      if (mounted) setState(() => _deleting = false);
     }
   }
 
@@ -197,6 +182,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
             SliverToBoxAdapter(
               child: CollectionHeader(
                 collection: _currentCollection,
+                productCount: products.length,
                 onBack:
                     widget.onChanged == null && Navigator.of(context).canPop()
                     ? () => Navigator.of(context).pop()
@@ -212,7 +198,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
                     if (mounted) widget.onChanged?.call(_currentCollection);
                   }
                 },
-                onDelete: () => _deleteCollection(),
+                onDelete: _deleting ? null : _deleteCollection,
               ),
             ),
             SliverToBoxAdapter(
@@ -277,6 +263,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     );
     if (result == true && mounted) {
       await _refreshCollectionAndProducts();
+      if (mounted) widget.onChanged?.call(_currentCollection);
     }
   }
 }

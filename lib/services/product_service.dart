@@ -4,6 +4,7 @@ import 'package:openfoodfacts/openfoodfacts.dart' as off;
 import 'package:foodsavr/interfaces/i_validator.dart';
 
 import '../constants/preferences_config.dart';
+import '../models/collection_model.dart';
 import '../models/product_model.dart';
 import '../interfaces/i_product_repository.dart';
 import '../utils/shelf_life.dart';
@@ -399,6 +400,22 @@ class ProductService {
       _logger.i('Successfully deleted product: $id');
     } catch (e) {
       _logger.e('Error deleting product: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteCollection(
+    Collection source, {
+    String? destinationId,
+  }) async {
+    try {
+      await _productRepository.deleteCollection(
+        source,
+        destinationId: destinationId,
+      );
+      _invalidateCache();
+    } catch (e) {
+      _logger.e('Error deleting collection: ${e.runtimeType}');
       rethrow;
     }
   }

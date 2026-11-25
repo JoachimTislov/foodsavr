@@ -1,4 +1,5 @@
 import 'package:foodsavr/interfaces/i_product_repository.dart';
+import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/models/product_model.dart';
 
 /// In-memory repository that mirrors the Firestore repository id strategy:
@@ -41,6 +42,10 @@ class FakeProductRepository implements IProductRepository {
     }
     return null;
   }
+
+  @override
+  Future<void> deleteCollection(Collection source, {String? destinationId}) =>
+      throw UnimplementedError();
 
   @override
   Future<void> delete(String id) async =>

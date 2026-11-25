@@ -25,6 +25,7 @@ class _CollectionListViewState extends State<CollectionListView> {
   late final CollectionService _collectionService;
   late final CollectionListController _controller;
   Collection? _selected;
+  Map<String, int> _productCounts = {};
 
   @override
   void initState() {
@@ -47,6 +48,9 @@ class _CollectionListViewState extends State<CollectionListView> {
       return;
     }
     final all = await _collectionService.getCollectionsForUser(userId);
+    final counts = await _collectionService.resolveCounts(userId, all);
+    if (!mounted) return;
+    _productCounts = counts;
     _controller.loadCollections(all, widget.typeFilter);
   }
 
@@ -131,6 +135,7 @@ class _CollectionListViewState extends State<CollectionListView> {
                     final collection = _controller.collections[index];
                     return CollectionCard(
                       collection: collection,
+                      productCount: _productCounts[collection.id]!,
                       onTap: () => _navigateToCollectionDetail(collection),
                     );
                   },
@@ -162,16 +167,17 @@ class _CollectionListViewState extends State<CollectionListView> {
     _fetchCollections();
   }
 
-  void _navigateToCollectionDetail(Collection collection) {
+  Future<void> _navigateToCollectionDetail(Collection collection) async {
     if (MasterDetailLayout.isSplit(context)) {
       setState(() => _selected = collection);
       return;
     }
-    Navigator.of(context).push(
+    await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (context) => CollectionDetailView(collection: collection),
       ),
     );
+    if (mounted) await _fetchCollections();
   }
 }
 

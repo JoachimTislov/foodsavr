@@ -1,4 +1,5 @@
 import '../models/collection_model.dart';
+import '../models/product_model.dart';
 import 'i_repository.dart';
 
 /// Abstract interface for collection data access operations.
@@ -9,6 +10,8 @@ abstract class ICollectionRepository extends IRepository<Collection, String> {
     String userId, {
     bool serverOnly = false,
   });
+  Future<List<Product>> getMemberProducts(String userId);
+  Future<void> removeProducts(String collectionId, Iterable<String> productIds);
   Future<void> addProduct(String collectionId, String productId);
   Future<void> addProducts(String collectionId, List<String> productIds);
   Future<void> removeProduct(String collectionId, String productId);

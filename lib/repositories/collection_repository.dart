@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:injectable/injectable.dart';
 
 import '../models/collection_model.dart';
+import '../models/product_model.dart';
 import '../interfaces/i_collection_repository.dart';
 
 /// Firestore implementation of ICollectionRepository.
@@ -60,6 +61,19 @@ class CollectionRepository implements ICollectionRepository {
   }
 
   @override
+  Future<List<Product>> getMemberProducts(String userId) async {
+    // A direct get of a missing document cannot satisfy the owner read rule.
+    final snapshot = await _firestore
+        .collection('products')
+        .where('userId', isEqualTo: userId)
+        .get(const GetOptions(source: Source.server));
+    return snapshot.docs
+        .map((doc) => Product.fromJson(doc.data()))
+        .where((product) => !product.isGlobal)
+        .toList();
+  }
+
+  @override
   Future<void> addProduct(String collectionId, String productId) async {
     final docRef = _firestore.collection(_collectionName).doc(collectionId);
     await docRef.update({
@@ -75,10 +89,18 @@ class CollectionRepository implements ICollectionRepository {
   }
 
   @override
-  Future<void> removeProduct(String collectionId, String productId) async {
+  Future<void> removeProduct(String collectionId, String productId) =>
+      removeProducts(collectionId, [productId]);
+
+  @override
+  Future<void> removeProducts(
+    String collectionId,
+    Iterable<String> productIds,
+  ) async {
+    if (productIds.isEmpty) return;
     final docRef = _firestore.collection(_collectionName).doc(collectionId);
     await docRef.update({
-      'productIds': FieldValue.arrayRemove([productId]),
+      'productIds': FieldValue.arrayRemove(productIds.toList()),
     });
   }
 

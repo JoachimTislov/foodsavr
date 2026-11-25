@@ -4,6 +4,7 @@ import 'package:logger/logger.dart';
 import 'package:foodsavr/interfaces/i_validator.dart';
 
 import '../models/collection_model.dart';
+import '../models/product_model.dart';
 import '../interfaces/i_collection_repository.dart';
 import '../utils/collection_types.dart';
 
@@ -152,15 +153,41 @@ class CollectionService {
     }
   }
 
-  Future<void> deleteCollection(String id) async {
-    _logger.i('Deleting collection: $id');
-    try {
-      await _collectionRepository.delete(id);
-      _logger.i('Successfully deleted collection');
-    } catch (e) {
-      _logger.e('Error deleting collection: $e');
-      rethrow;
+  /// Resolve the members in collection order and prune legacy dangling IDs.
+  Future<(Collection, List<Product>)> loadContents(
+    Collection collection,
+  ) async {
+    if (collection.productIds.isEmpty) return (collection, <Product>[]);
+    final members = await _collectionRepository.getMemberProducts(
+      collection.userId,
+    );
+    final byId = {for (final member in members) member.id: member};
+    final products = [
+      for (final id in collection.productIds.toSet()) ?byId[id],
+    ];
+    await _collectionRepository.removeProducts(
+      collection.id,
+      collection.productIds.toSet().difference(byId.keys.toSet()),
+    );
+    return (
+      collection.copyWith(productIds: products.map((p) => p.id).toList()),
+      products,
+    );
+  }
+
+  Future<Map<String, int>> resolveCounts(
+    String userId,
+    List<Collection> collections,
+  ) async {
+    if (collections.every((collection) => collection.productIds.isEmpty)) {
+      return {for (final collection in collections) collection.id: 0};
     }
+    final members = await _collectionRepository.getMemberProducts(userId);
+    final ids = members.map((product) => product.id).toSet();
+    return {
+      for (final collection in collections)
+        collection.id: collection.productIds.toSet().intersection(ids).length,
+    };
   }
 
   /// Fill gaps in a user's initial collections without replacing existing types.
