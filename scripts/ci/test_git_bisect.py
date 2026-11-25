@@ -103,6 +103,20 @@ class BisectRepo(unittest.TestCase):
             self.assertTrue(report["skipped"])
         self.assert_clean()
 
+    def test_relinks_local_config_at_commits_that_do_not_ignore_it(self):
+        commit(self.repo, {".gitignore": ".env\n"}, "ignore local config")
+        (self.repo / ".env").write_text("local config")
+
+        proc, report = self.bisect(
+            "--good", self.shas[0], "--verify-ends",
+            check=("sh", "-c", 'test -L .env || exit 125; test "$(cat value.txt)" -lt 4'),
+        )
+
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(report["first_bad"], self.shas[3])
+        self.assertIn("Linked local file: .env", proc.stderr)
+        self.assertEqual((self.repo / ".env").read_text(), "local config")
+
     def test_pubspec_change_refreshes_dependencies(self):
         repo = self.tmp / "pub"
         repo.mkdir()
@@ -120,18 +134,48 @@ class BisectRepo(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("pub get", log.read_text())
 
-    def test_sigterm_removes_worktree(self):
-        proc = subprocess.Popen([sys.executable, str(SCRIPT), "--repo", str(self.repo), "--good", self.shas[0],
-                                 "--", "sleep", "30"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        deadline = time.time() + 30
-        while time.time() < deadline and git(self.repo, "worktree", "list").count("\n") < 1:
-            time.sleep(0.1)
-        time.sleep(1)
-        proc.send_signal(signal.SIGTERM)
-        proc.communicate(timeout=60)
-        self.assertEqual(proc.returncode, 130)
+    def child_check(self, pid_file):
+        return ("sh", "-c", 'sleep 30 >/dev/null 2>&1 & echo "$!" >> "$1"; wait',
+                "check", str(pid_file))
+
+    def assert_children_stopped(self, pid_file):
+        pids = [int(pid) for pid in pid_file.read_text().splitlines()]
+        self.assertTrue(pids)
+        for pid in pids:
+            # An orphan awaiting reaping can still have a PID after SIGKILL.
+            state = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)],
+                                   capture_output=True, text=True).stdout.strip()
+            if state and not state.startswith("Z"):
+                os.kill(pid, signal.SIGKILL)
+                self.fail(f"check child {pid} survived with state {state}")
+
+    def test_timeout_kills_check_children(self):
+        pid_file = self.tmp / "children"
+        proc, report = self.bisect("--good", self.shas[-3], "--timeout", "1",
+                                   check=self.child_check(pid_file))
+        self.assertEqual(proc.returncode, 1, proc.stderr)
+        self.assertEqual(report["skipped"], [self.shas[-2]])
+        self.assert_children_stopped(pid_file)
         self.assert_clean()
-        self.assertEqual(git(self.repo, "for-each-ref", "refs/bisect"), "")
+
+    def test_signals_stop_children_and_remove_worktree(self):
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            with self.subTest(signal=sig):
+                pid_file = self.tmp / sig.name
+                proc = subprocess.Popen(
+                    [sys.executable, str(SCRIPT), "--repo", str(self.repo),
+                     "--good", self.shas[0], "--", *self.child_check(pid_file)],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                )
+                deadline = time.monotonic() + 10
+                while not pid_file.exists() and proc.poll() is None and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                proc.send_signal(sig)
+                _, stderr = proc.communicate(timeout=15)
+                self.assertEqual(proc.returncode, 130, stderr)
+                self.assert_children_stopped(pid_file)
+                self.assert_clean()
+                self.assertEqual(git(self.repo, "for-each-ref", "refs/bisect"), "")
 
 
 if __name__ == "__main__":

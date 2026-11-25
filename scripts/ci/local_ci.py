@@ -42,6 +42,7 @@ class Group:
     paths: list[str]
     commands: list[list[str]]
     env: dict[str, str] = field(default_factory=dict)
+    local_paths: tuple[str, ...] = ()
 
 
 # Python tests are discovered per directory (`test_*.py`) so new test files run without a list edit.
@@ -49,6 +50,8 @@ PYTHON_TEST_DIRS = ("agents", "github", "secrets", "setup", "monitoring", "ci", 
 
 GROUPS: dict[str, Group] = {
     "agents": Group(
+        # Workflow parity is checked for paths; local_paths extend pre-push coverage.
+        local_paths=("scripts/git_bisect.py", "scripts/link_local_files.sh", "scripts/create_worktree.sh"),
         paths=[
             ".agents/**", "AGENTS.md", "CLAUDE.md", "GEMINI.md", "scripts/agents/**", "scripts/github/**",
             "scripts/secrets/**", "scripts/monitoring/**", "scripts/ci/*.py", "web/about/**", ".githooks/**", ".agents/github/**",
@@ -168,7 +171,7 @@ def path_matches(patterns: list[str], path: str) -> bool:
 
 def groups_for(files: list[str]) -> list[str]:
     return [name for name, group in GROUPS.items()
-            if any(path_matches(group.paths, f) for f in files)]
+            if any(path_matches([*group.paths, *group.local_paths], f) for f in files)]
 
 
 def git(*args: str) -> str:

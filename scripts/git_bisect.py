@@ -31,6 +31,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+from contextlib import suppress
 from pathlib import Path
 
 GOOD, BAD, SKIP = "good", "bad", "skip"
@@ -77,7 +78,6 @@ class Bisect:
     def create_worktree(self, rev: str) -> None:
         self.wt = Path(tempfile.mkdtemp(prefix="bisect-"))
         git(self.repo, "worktree", "add", "--detach", "--force", str(self.wt), rev)
-        run(["bash", str(ROOT / "scripts" / "link_local_files.sh"), str(self.wt), str(self.repo)], self.repo, check=False)
 
     def teardown(self) -> None:
         if not self.wt:
@@ -95,7 +95,15 @@ class Bisect:
 
     def clean(self) -> None:
         run(["git", "reset", "-q", "--hard"], self.wt)
-        run(["git", "clean", "-fdq"], self.wt)  # keeps ignored symlinks
+        run(["git", "clean", "-fdq"], self.wt)
+
+    def link_local_files(self, linked: list[Path]) -> None:
+        result = run(["bash", str(ROOT / "scripts" / "link_local_files.sh"),
+                      str(self.wt), str(self.repo), "--bisect"], self.repo, check=False)
+        linked.extend(self.wt / path for path in result.stdout.splitlines())
+        if result.stderr:
+            self.say(result.stderr.rstrip())
+        result.check_returncode()
 
     def inject_probes(self) -> list[Path]:
         placed = []
@@ -121,6 +129,10 @@ class Bisect:
         self.say("pubspec changed: refreshing dependencies")
         res = run([self.flutter, "pub", "get"], self.wt, check=False)
         if res.returncode != 0:
+            self.say(f"flutter pub get failed (exit {res.returncode}): skipping commit")
+            output = res.stderr.strip() or res.stdout.strip()
+            if output:
+                self.say(output)
             return False
         self.last_deps = digest
         return True
@@ -129,13 +141,18 @@ class Bisect:
         env = dict(os.environ, BISECT_WORKTREE=str(self.wt))
         if self.flutter:
             env["FLUTTER_BIN"] = self.flutter
+        proc = subprocess.Popen(cmd, shell=True, cwd=self.wt, env=env,
+                                stdout=self.log, stderr=self.log, start_new_session=True)
         try:
-            proc = subprocess.run(cmd, shell=True, cwd=self.wt, env=env, timeout=timeout,
-                                  stdout=self.log, stderr=self.log, start_new_session=True)
-            return proc.returncode
-        except subprocess.TimeoutExpired:
-            self.say(f"timeout after {timeout}s: {cmd}")
-            return SKIP_CODE
+            return proc.wait(timeout=timeout)
+        except (subprocess.TimeoutExpired, Aborted, KeyboardInterrupt) as exc:
+            with suppress(ProcessLookupError):
+                os.killpg(proc.pid, signal.SIGKILL)
+            proc.wait()
+            if isinstance(exc, subprocess.TimeoutExpired):
+                self.say(f"timeout after {timeout}s: {cmd}")
+                return SKIP_CODE
+            raise
 
     def prompt(self) -> str:
         while True:
@@ -152,8 +169,11 @@ class Bisect:
     def judge(self) -> str:
         """Test the commit currently checked out in the worktree."""
         self.clean()
-        placed = self.inject_probes()
+        linked: list[Path] = []
+        placed: list[Path] = []
         try:
+            placed = self.inject_probes()
+            self.link_local_files(linked)
             if not self.refresh_deps():
                 return SKIP
             if self.args.setup and self.shell(self.args.setup, self.args.timeout) != 0:
@@ -167,6 +187,10 @@ class Bisect:
         finally:
             for p in placed:
                 p.unlink(missing_ok=True)
+            # A later checkout may track a path we linked for this step.
+            for path in reversed(linked):
+                if path.is_symlink():
+                    path.unlink()
 
     # --- bisect ---------------------------------------------------------------
 

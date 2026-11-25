@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# scripts/link_local_files.sh <target-dir> [source-dir]
+# scripts/link_local_files.sh <target-dir> [source-dir] [--bisect]
+# In bisect mode, include untracked paths at older commits and emit created paths
+# on stdout so the caller can remove the links before the next checkout.
 # Symlinks ignored, local-only files (env, Firebase config) from the main checkout into a worktree.
 # Shared by scripts/create_worktree.sh and scripts/git_bisect.py.
 
 TARGET_DIR="${1:?Usage: $0 <target-dir> [source-dir]}"
 SOURCE_DIR="${2:-$(git rev-parse --show-toplevel)}"
+MODE="${3:-}"
 MAIN_DIR=$(git -C "$SOURCE_DIR" worktree list --porcelain | sed -n '1s/^worktree //p')
 
 LINK_MAP=(
@@ -27,8 +30,14 @@ for entry in "${LINK_MAP[@]}"; do
     DEST_REL="${entry%%:*}"
     SRC="${entry#*:}"
     DEST="$TARGET_DIR/$DEST_REL"
-    if [[ -e "$DEST" || -L "$DEST" ]] ||
-        ! git -C "$TARGET_DIR" check-ignore -q -- "$DEST_REL"; then
+    if [[ -e "$DEST" || -L "$DEST" ]]; then
+        continue
+    fi
+    if [[ "$MODE" == "--bisect" ]]; then
+        if git -C "$TARGET_DIR" ls-files --error-unmatch -- "$DEST_REL" >/dev/null 2>&1; then
+            continue
+        fi
+    elif ! git -C "$TARGET_DIR" check-ignore -q -- "$DEST_REL"; then
         continue
     fi
     if [[ "$SRC" == "$MAIN_DIR/"* && ! -e "$SRC" ]]; then
@@ -37,8 +46,13 @@ for entry in "${LINK_MAP[@]}"; do
     if [[ -e "$SRC" ]]; then
         mkdir -p "$(dirname "$DEST")"
         ln -s "$SRC" "$DEST"
-        echo "  Symlinked: $DEST_REL"
-    else
+        if [[ "$MODE" == "--bisect" ]]; then
+            printf '%s\n' "$DEST_REL"
+            printf 'Linked local file: %s\n' "$DEST_REL" >&2
+        else
+            echo "  Symlinked: $DEST_REL"
+        fi
+    elif [[ "$MODE" != "--bisect" ]]; then
         echo "  Skipped: $DEST_REL (not found)"
     fi
 done
