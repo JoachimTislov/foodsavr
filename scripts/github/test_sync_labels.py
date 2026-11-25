@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 import importlib.util
 import json
+import subprocess
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import unquote
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -61,9 +63,12 @@ class LabelRulesTest(unittest.TestCase):
         labels = {"area/web", "area/agents", "risk/security", "ci"}
 
         def github_api(command, **kwargs):
-            if "PUT" in command:
-                labels.clear()
+            endpoint = command[2]
+            if endpoint.endswith("/issues/2/labels") and "POST" in command:
                 labels.update(json.loads(kwargs["input"])["labels"])
+            elif "/issues/2/labels/" in endpoint and "DELETE" in command:
+                labels.discard(unquote(endpoint.rsplit("/", 1)[1]))
+            return subprocess.CompletedProcess(command, 0, "", "")
 
         def fetch_issue(repo, endpoint):
             self.assertEqual(endpoint, "issues/2")
@@ -84,6 +89,30 @@ class LabelRulesTest(unittest.TestCase):
                     0,
                 )
                 self.assertEqual(labels, expected)
+
+    def test_apply_keeps_a_label_added_after_the_snapshot(self):
+        # merge/auto lands between the read and the write; the sync must not drop it.
+        labels = {"type/bug"}
+        commands = []
+
+        def github_api(command, **kwargs):
+            commands.append(command)
+            endpoint = command[2]
+            if endpoint.endswith("/issues/7/labels") and "POST" in command:
+                labels.update(json.loads(kwargs["input"])["labels"])
+            elif "/issues/7/labels/" in endpoint and "DELETE" in command:
+                labels.discard(unquote(endpoint.rsplit("/", 1)[1]))
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        snapshot = set(labels)
+        labels.add("merge/auto")
+        with patch.object(self.module.subprocess, "run", side_effect=github_api):
+            changes = self.module.apply_labels(
+                "owner/repo", 7, snapshot, {"type/bug", "status/ci-pending"}, self.config,
+            )
+        self.assertEqual(changes["added"], ["status/ci-pending"])
+        self.assertIn("merge/auto", labels)
+        self.assertFalse(any("PUT" in command for command in commands))
 
     def test_issue_defaults_to_task_and_preserves_human_labels_in_sync_diff(self):
         labels = self.module.classify(
