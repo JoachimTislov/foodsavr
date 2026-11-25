@@ -71,7 +71,9 @@ EVENT_POLICY_WORKFLOWS = (
     ".github/workflows/github-labels.yml",
     ".github/workflows/merge-gate.yml",
 )
-EVENT_POLICY_EVENTS = ("pull_request", "pull_request_target", "push", "workflow_dispatch")
+# An event rule allows only the events it lists for the targeted files, so this must
+# cover every trigger the three workflows declare (test_setupctl checks it).
+EVENT_POLICY_EVENTS = ("issues", "pull_request_target", "push", "schedule", "workflow_dispatch", "workflow_run")
 
 AGENT_ENV_VARS = (
     "AGENT_SESSION_ID",
@@ -502,7 +504,7 @@ def build_plan(
         human_actions.append({
             "id": "apply-event-policy",
             "title": "Record the Actions event policy allowing pull_request_target for the three trusted workflows",
-            "command": f"python3 scripts/setup/setupctl.py apply-event-policy --repo {effective_repo} --yes",
+            "command": "make setup-event-policy",
             "reason": "GitHub blocks pull_request_target in public repositories from 2026-12-02 without an explicit policy.",
         })
 
@@ -961,8 +963,7 @@ def verify_profile(
                 "actions-event-policy",
                 event_policy.get("state") == "match",
                 f"pull_request_target allowed only for {', '.join(EVENT_POLICY_WORKFLOWS)}: {event_policy.get('detail')}",
-                f"python3 scripts/setup/setupctl.py apply-event-policy --repo {gh.get('target_repo') or '<owner>/<repo>'} --yes"
-                " (owner: Settings -> Actions -> Policies)",
+                "make setup-event-policy (owner: Settings -> Actions -> Policies)",
             )
         add(
             "harness-auth",

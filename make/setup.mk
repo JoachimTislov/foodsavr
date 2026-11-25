@@ -1,4 +1,4 @@
-.PHONY: setup-fork setup-branches setup-enable-actions secrets-rotate setup setup-probe setup-verify infra-github-plan infra-github-apply infra-gcp-plan infra-gcp-apply social-auth-setup social-auth-check router-setup router-check router-matrix monitoring agent-status agent-usage
+.PHONY: setup-fork setup-branches setup-enable-actions setup-event-policy secrets-rotate setup setup-probe setup-verify infra-github-plan infra-github-apply infra-gcp-plan infra-gcp-apply social-auth-setup social-auth-check router-setup router-check router-matrix monitoring agent-status agent-usage
 
 setup: ## Run guided setup (LIST=1 lists remaining steps)
 	@python3 scripts/setup/setupctl.py wizard $(if $(filter 1,$(LIST)),--list) $(if $(PROFILE),--profile $(PROFILE))
@@ -61,6 +61,14 @@ setup-branches: ## Create missing release channel branches
 	@python3 scripts/setup/setupctl.py ensure-branches \
 		$(if $(filter-out file default undefined,$(origin REPO)),--repo "$(REPO)") \
 		$(if $(TOPOLOGY),--topology "$(TOPOLOGY)") \
+		$(if $(DRY_RUN),--dry-run) \
+		$(if $(YES),--yes)
+
+# Record the Actions event policy that allows pull_request_target for the trusted workflows.
+# Usage: make setup-event-policy [REPO=<owner>/<repo>] [DRY_RUN=1] [YES=1]
+setup-event-policy: ## Allow pull_request_target for the trusted workflows (owner)
+	@python3 scripts/setup/setupctl.py apply-event-policy \
+		$(if $(filter-out file default undefined,$(origin REPO)),--repo "$(REPO)") \
 		$(if $(DRY_RUN),--dry-run) \
 		$(if $(YES),--yes)
 
