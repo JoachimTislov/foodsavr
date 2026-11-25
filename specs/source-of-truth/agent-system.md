@@ -112,3 +112,33 @@ Full hands-free PR integration tracks these open items (#303):
 - **Live runner wakeups & single-writer lease (#256)**: inbound authenticated signaling so CI completion, PR readiness, or merge-gate rebases alert running T3 Code / local / Actions sessions without branch races.
 - **Autonomous remediation dispatch**: dispatching a write-scoped agent repair workflow when `merge_gate.py` reports a ready PR blocked by merge conflicts, failing checks, or unresolved review threads.
 - **Default-branch trailer enforcement (#277)** and **central GCS transcript archiving (#278)**.
+
+## Nightly agent-system audit
+
+The [Agent system audit workflow](../../.github/workflows/agent-audit.yml) runs at midnight Europe/Oslo, following local daylight saving time. You can also dispatch it manually.
+
+### Inputs
+
+The audit reads sessions and ledger events through `agentctl`, review attestations from `agent-review-history`, and GitHub PR, timeline, workflow run, check and commit metadata.
+
+### Gate
+
+The audit window starts at the previous completed audit's cutoff. The first attempt starts with the preceding 24 hours. Set the repository variables `AUDIT_MIN_SESSIONS` and `AUDIT_MIN_MERGED_PRS` to change the defaults of 10 new sessions or 5 merged PRs. Meeting either minimum completes the audit. Below both thresholds, the workflow records a deferred entry, exits successfully, and carries the same window forward. Dispatch with `force` to bypass the gate.
+
+### Metrics
+
+The collector measures PR flow and owner-wait labels, review outcomes and redispatches, CI outcomes and Maven 429 evidence, session activity, quota exhaustion, delivery and missing commit trailers. The first completed audit establishes the baseline. Later audits report numeric deltas and classify prior findings as resolved, improving, unchanged, or regressed.
+
+The behind count uses known PR heads and the merge predecessor. Later force pushes can make a historical head unavailable. The collector includes CI runs created from one day before the window when they complete inside the window. It uses merge-gate evidence when readable and uses `merge/auto` removal events as a proxy otherwise. CI log availability is reported alongside matching signatures.
+
+### Model step
+
+The [audit workflow definition](../../.agents/workflows/agent-audit.json) routes aggregate metrics, deltas, and previous findings through the quota-aware router. The model ranks up to five findings, cites metric IDs, and proposes a small fix with an acceptance check or owner decision. Claude requires a readable weekly quota snapshot below 85%. An unavailable model leaves the deterministic report and includes the known reset time.
+
+### Outputs
+
+The publisher posts the report on the pinned **Agent system audit log** issue. Findings that recur in consecutive completed audits and are unchanged or worse open or update one planner issue per primary metric. The collector holds read-only contents permission. The publisher uses issue write access and writes only the audit history ref with its contents permission.
+
+### History
+
+The workflow appends one snapshot per run to `audits/history.jsonl` on `agent-audit-history`. Each snapshot records the time window and disposition. Completed entries also record metrics, deltas, model status, and fingerprinted findings with recommendations.
