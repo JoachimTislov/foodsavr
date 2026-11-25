@@ -1373,34 +1373,10 @@ def parse_pr_json_payload(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-MAX_INLINE_DIFF_CHARS = 120000
+# Claude and Codex read the prompt on stdin. A 2k-line PR with its event logs is about 150k chars.
+MAX_INLINE_DIFF_CHARS = 240000
 TOOL_DENYING_PROVIDERS = frozenset({"antigravity"})
-MAX_INLINE_CONTEXT_CHARS = 140000
-EVENT_LOG_PREFIX = ".agents/events/"
-DIFF_FILE_RE = re.compile(r"^diff --git a/(\S+) b/(\S+)$", re.MULTILINE)
-
-
-def omit_added_event_logs(diff_text: str) -> tuple[str, list[str]]:
-    """Drop newly added agent event logs from a review diff.
-
-    Agents add one-line JSONL events with most commits, and CI validates them
-    (check_logs.py). Added files only: edits or deletions of existing events stay.
-    """
-    starts = [match.start() for match in DIFF_FILE_RE.finditer(diff_text)]
-    if not starts:
-        return diff_text, []
-    kept = [diff_text[:starts[0]]]
-    omitted: list[str] = []
-    for start, end in zip(starts, starts[1:] + [len(diff_text)]):
-        block = diff_text[start:end]
-        header = DIFF_FILE_RE.match(block)
-        path = header.group(2) if header else ""
-        added = re.search(r"^new file mode ", block[:500], re.MULTILINE) is not None
-        if path.startswith(EVENT_LOG_PREFIX) and path.endswith(".jsonl") and added:
-            omitted.append(path)
-        else:
-            kept.append(block)
-    return "".join(kept), omitted
+MAX_INLINE_CONTEXT_CHARS = 260000
 
 
 def staged_pr_context_text(workflow: dict[str, Any], root: Path = ROOT) -> str:
@@ -1435,17 +1411,9 @@ def stage_pr_context(
         "classification": classification.to_dict(),
     }
 
-    review_diff, omitted_events = omit_added_event_logs(diff_text)
-    bounded_diff = review_diff[:MAX_INLINE_DIFF_CHARS] if diff_text else "(diff not attached)"
-    if len(review_diff) > MAX_INLINE_DIFF_CHARS:
-        bounded_diff += f"\n... (diff truncated at {MAX_INLINE_DIFF_CHARS} of {len(review_diff)} chars)"
-    omitted_set = set(omitted_events)
-    listed_files = [f for f in classification.files if f not in omitted_set]
-    if omitted_events:
-        listed_files_note = [f"- {len(omitted_events)} added agent event log(s) under `{EVENT_LOG_PREFIX}`, "
-                             "omitted from the diff below (JSONL validated by CI)"]
-    else:
-        listed_files_note = []
+    bounded_diff = diff_text[:MAX_INLINE_DIFF_CHARS] if diff_text else "(diff not attached)"
+    if len(diff_text) > MAX_INLINE_DIFF_CHARS:
+        bounded_diff += f"\n... (diff truncated at {MAX_INLINE_DIFF_CHARS} of {len(diff_text)} chars)"
     md_lines = [
         f"# PR #{pr_num}: {pr_meta.get('title', '')}",
         "",
@@ -1476,8 +1444,7 @@ def stage_pr_context(
     md_lines.extend([
         "",
         "## Changed Files",
-        *([f"- `{f}`" for f in listed_files] or ["- (none)"]),
-        *listed_files_note,
+        *([f"- `{f}`" for f in classification.files] or ["- (none)"]),
         "",
         "## PR Description (untrusted reporter text)",
         "",
@@ -1495,7 +1462,7 @@ def stage_pr_context(
     # Flag what the reviewer actually receives: the diff cap or the whole-context cap
     # (a long body or file list can push the diff end out). A truncated view never approves.
     snapshot_payload["diff_truncated"] = (
-        len(review_diff) > MAX_INLINE_DIFF_CHARS or len(md_text) > MAX_INLINE_CONTEXT_CHARS
+        len(diff_text) > MAX_INLINE_DIFF_CHARS or len(md_text) > MAX_INLINE_CONTEXT_CHARS
     )
     snapshot_payload["patch_id"] = compute_patch_id(diff_text)
     json_snapshot.write_text(json.dumps(snapshot_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
