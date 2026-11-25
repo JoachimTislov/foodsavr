@@ -51,6 +51,8 @@ One agent system serves local shells, T3 Code threads, and GitHub runners throug
 
 - Install the pre-push hook once per clone with `make hooks`; it runs `scripts/ci/local_ci.py` for the changed areas. Fix its failures before pushing; never bypass it with `--no-verify`.
 - When a two-way-door PR is finalized (acceptance met, review addressed), add the `merge/auto` label; the merge gate updates and merges it. Remove the label before resuming work, then fetch: the gate may have rebased the branch.
+- Human-merge PRs (`risk/security`, security paths, one-way doors) also get `merge/auto` once finalized: it is what runs Validation, and the gate still refuses to merge them. Keep the label on; the human rebases and merges.
+- Each open PR has one owner session. Only the owner pushes, labels, rebases or merges it; any other session sends the owner its findings instead.
 
 ## Dependabot PRs
 

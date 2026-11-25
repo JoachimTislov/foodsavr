@@ -2319,6 +2319,8 @@ def select_review_plan(
                 "Report each blocker as one JSON object per line with path (repo-relative), line "
                 "(absolute added-line number on the new side), and body (trigger, consequence, and a "
                 "focused validation criterion). Use plain text for blockers without a defensible anchor. "
+                "Review the whole PR diff, not only its latest commit, and report every blocker you find in "
+                "this one pass: each extra review round costs a push, a CI run and another review. "
                 "Omit introductions and empty sections. Put optional advice in a short plain-text note. "
                 "Judge only the change itself: do not "
                 "request CI, attestation, head-parity, label or merge-queue evidence, which the merge gate verifies."
