@@ -19,12 +19,15 @@ enum Key {
 /// Store credentials in [FlutterSecureStorage], scoped to the signed-in
 /// FoodSavr account.
 ///
-/// Keys are `store.<uid>.<provider>.<key>`. On every auth state change the
-/// device keeps only the signed-in account's credentials, so signing out or
-/// switching accounts removes the previous account's tokens. Unscoped keys
-/// from earlier versions are adopted once, on the first auth state, only when
-/// they provably postdate the restored session's sign-in; otherwise they are
-/// deleted and the store must be reconnected.
+/// Keys are `store.<uid>.<provider>.<key>`, and every read and write uses the
+/// current Firebase user's uid. That scoping is the isolation guarantee: one
+/// account never reads another's credentials. The auth listener below only
+/// tidies the device (removing a previous account's tokens on sign-out or an
+/// account switch), and it runs only once this lazy singleton is first
+/// resolved.
+///
+/// Unscoped keys from earlier versions have no verifiable owner; they are
+/// deleted on the first auth event, and those stores must be reconnected.
 @lazySingleton
 class SecureStorage {
   SecureStorage(this._storage, {FirebaseAuth? auth, Logger? logger})
@@ -42,7 +45,8 @@ class SecureStorage {
   final Logger? _logger;
   StreamSubscription<User?>? _subscription;
   Future<void> _pending = Future.value();
-  bool _sawFirstAccount = false;
+  bool _sawFirstEvent = false;
+  String? _previousUid;
 
   /// The FoodSavr account whose credentials are visible, or null.
   String? get accountId => _auth?.currentUser?.uid;
@@ -102,12 +106,22 @@ class SecureStorage {
     }
   }
 
+  /// Purges only on a real transition. A null before any user was seen is
+  /// ignored: it can precede restoring the persisted session at launch.
   Future<void> _onAccountChanged(User? user) async {
     try {
-      final first = !_sawFirstAccount;
-      _sawFirstAccount = true;
-      if (first && user != null) await _adoptLegacy(user);
-      await _removeAllExcept(user?.uid);
+      final uid = user?.uid;
+      final previous = _previousUid;
+      _previousUid = uid;
+      if (!_sawFirstEvent) {
+        _sawFirstEvent = true;
+        await _removeLegacy();
+      }
+      if (uid == null) {
+        if (previous != null) await _removeAllExcept(null);
+      } else if (uid != previous) {
+        await _removeAllExcept(uid);
+      }
     } catch (error, stack) {
       _logger?.w(
         'Could not scope store credentials',
@@ -117,30 +131,9 @@ class SecureStorage {
     }
   }
 
-  /// Moves unscoped credentials to [user] when they were issued during the
-  /// restored session: their expiry is not earlier than the last sign-in.
-  Future<void> _adoptLegacy(User user) async {
-    final signedInAt = user.metadata.lastSignInTime;
-    if (signedInAt == null) return;
-    for (final provider in Provider.values) {
-      final values = {
-        for (final key in Key.values)
-          key: await _storage.read(key: _legacy(provider, key)),
-      };
-      final expiresAt = DateTime.tryParse(values[Key.expires_at] ?? '');
-      if (values[Key.access_token] == null ||
-          values[Key.refresh_token] == null ||
-          expiresAt == null ||
-          expiresAt.isBefore(signedInAt)) {
-        continue;
-      }
-      for (final MapEntry(:key, :value) in values.entries) {
-        if (value == null) continue;
-        await _storage.write(
-          key: _scoped(user.uid, provider, key),
-          value: value,
-        );
-      }
+  Future<void> _removeLegacy() async {
+    for (final key in _legacyKeys) {
+      await _storage.delete(key: key);
     }
   }
 
