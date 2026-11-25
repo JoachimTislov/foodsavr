@@ -18,24 +18,28 @@ void main() {
     accounts = FakeAccounts();
   });
 
+  Future<void> connectAs(SecureStorage storage, String uid) async {
+    await accounts.use(FakeAccounts.user(uid));
+    await storage.write(provider, Key.access_token, '$uid-access');
+    await storage.write(provider, Key.refresh_token, '$uid-refresh');
+  }
+
   test('user A tokens are not readable after switching to user B', () async {
     final storage = create();
-    await accounts.use(FakeAccounts.user('a'));
-    await storage.write(provider, Key.access_token, 'a-access');
+    await connectAs(storage, 'a');
     expect(await storage.read(provider, Key.access_token), 'a-access');
 
     await accounts.use(FakeAccounts.user('b'));
 
     expect(await storage.read(provider, Key.access_token), isNull);
+    expect(await raw.readAll(), isEmpty);
     await storage.write(provider, Key.access_token, 'b-access');
     expect(await raw.readAll(), {'store.b.rema.access_token': 'b-access'});
   });
 
   test('signing out removes the account tokens from the device', () async {
     final storage = create();
-    await accounts.use(FakeAccounts.user('a'));
-    await storage.write(provider, Key.access_token, 'access');
-    await storage.write(provider, Key.refresh_token, 'refresh');
+    await connectAs(storage, 'a');
 
     await accounts.use(null);
     await storage.idle;
@@ -46,6 +50,35 @@ void main() {
       () => storage.write(provider, Key.access_token, 'x'),
       throwsStateError,
     );
+  });
+
+  test('a null before the session is restored keeps its tokens', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'store.a.rema.access_token': 'a-access',
+      'store.a.rema.refresh_token': 'a-refresh',
+      'store.c.rema.access_token': 'stale',
+    });
+    final storage = create();
+
+    await accounts.use(null);
+    await storage.idle;
+    expect(await raw.readAll(), hasLength(3));
+
+    await accounts.use(FakeAccounts.user('a'));
+    expect(await storage.read(provider, Key.access_token), 'a-access');
+    expect(await raw.readAll(), {
+      'store.a.rema.access_token': 'a-access',
+      'store.a.rema.refresh_token': 'a-refresh',
+    });
+  });
+
+  test('a repeated event for the same account keeps its tokens', () async {
+    final storage = create();
+    await connectAs(storage, 'a');
+
+    await accounts.use(FakeAccounts.user('a'));
+
+    expect(await storage.read(provider, Key.access_token), 'a-access');
   });
 
   test(
@@ -63,44 +96,31 @@ void main() {
   );
 
   group('legacy unscoped tokens', () {
-    final signedInAt = DateTime.utc(2026, 11, 1);
-
-    void seedLegacy(DateTime expiresAt) {
+    setUp(() {
       FlutterSecureStorage.setMockInitialValues({
         'rema.Key.access_token': 'legacy-access',
         'rema.Key.refresh_token': 'legacy-refresh',
-        'rema.Key.expires_at': expiresAt.toIso8601String(),
+        'rema.Key.expires_at': DateTime.now()
+            .add(const Duration(hours: 1))
+            .toIso8601String(),
+        'store.b.rema.access_token': 'b-access',
       });
-    }
-
-    test('are adopted once by the restored session that issued them', () async {
-      seedLegacy(signedInAt.add(const Duration(hours: 1)));
-      final storage = create();
-      await accounts.use(FakeAccounts.user('a', signedInAt: signedInAt));
-
-      expect(await storage.read(provider, Key.access_token), 'legacy-access');
-      expect(await storage.read(provider, Key.refresh_token), 'legacy-refresh');
-      expect((await raw.readAll()).keys, everyElement(startsWith('store.a.')));
     });
 
-    test('issued before the last sign-in are deleted', () async {
-      seedLegacy(signedInAt.subtract(const Duration(minutes: 1)));
+    test('are never adopted by the account that signs in', () async {
       final storage = create();
-      await accounts.use(FakeAccounts.user('a', signedInAt: signedInAt));
+      await accounts.use(FakeAccounts.user('b'));
 
-      expect(await storage.read(provider, Key.access_token), isNull);
-      expect(await raw.readAll(), isEmpty);
+      expect(await storage.read(provider, Key.refresh_token), isNull);
+      expect(await raw.readAll(), {'store.b.rema.access_token': 'b-access'});
     });
 
-    test('are deleted when nobody is signed in at startup', () async {
-      seedLegacy(signedInAt.add(const Duration(hours: 1)));
+    test('are deleted on a first null event as well', () async {
       final storage = create();
       await accounts.use(null);
       await storage.idle;
-      await accounts.use(FakeAccounts.user('a', signedInAt: signedInAt));
 
-      expect(await storage.read(provider, Key.access_token), isNull);
-      expect(await raw.readAll(), isEmpty);
+      expect(await raw.readAll(), {'store.b.rema.access_token': 'b-access'});
     });
   });
 }
