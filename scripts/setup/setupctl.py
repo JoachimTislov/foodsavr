@@ -821,8 +821,13 @@ def _policy_matches(actual: dict[str, Any]) -> bool:
     try:
         include = sorted(actual["conditions"]["workflow_path"]["include"])
         exclude = list(actual["conditions"]["workflow_path"].get("exclude") or [])
-        rules = [r for r in actual.get("rules") or [] if r.get("type") == "restrict_action_events"]
-        events = sorted(rules[0]["parameters"]["allowed_events"]) if len(rules) == 1 else None
+        # Any rule beyond the recorded event rule (an actor restriction, say) is a mismatch.
+        rules = list(actual.get("rules") or [])
+        events = (
+            sorted(rules[0]["parameters"]["allowed_events"])
+            if len(rules) == 1 and rules[0].get("type") == "restrict_action_events"
+            else None
+        )
     except (KeyError, TypeError, AttributeError, IndexError):
         return False
     return (
@@ -854,7 +859,8 @@ def read_event_policy(repo: str, *, root: Path = ROOT) -> dict[str, Any]:
     if not REPO_SLUG_RE.fullmatch(repo):
         raise ValueError(f"Invalid repo slug: {repo!r}")
     # The collection is paginated (30 per page by default); read every page before reporting `missing`.
-    proc = _run(["gh", "api", f"repos/{repo}/actions/policies?per_page=100", "--paginate", "--slurp"], cwd=root)
+    # Repository-level policies only: an inherited policy with the same name must not be selected.
+    proc = _run(["gh", "api", f"repos/{repo}/actions/policies?per_page=100&has_parents=false", "--paginate", "--slurp"], cwd=root)
     if proc.returncode != 0:
         return {"state": "unavailable", "policy_id": None, "detail": proc.stderr.strip() or "Actions policies API unavailable"}
     try:
