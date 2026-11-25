@@ -54,6 +54,23 @@ class _CollectionListViewState extends State<CollectionListView> {
     _controller.loadCollections(all, widget.typeFilter);
   }
 
+  Future<void> _refreshAfterChange() async {
+    try {
+      await _fetchCollections();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('collection.loadError'.tr()),
+          action: SnackBarAction(
+            label: 'common.tryAgain'.tr(),
+            onPressed: _refreshAfterChange,
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -77,7 +94,7 @@ class _CollectionListViewState extends State<CollectionListView> {
                   );
                   if (!mounted) return;
                   if (result == true) {
-                    await _fetchCollections(); // Refetch if modified
+                    await _refreshAfterChange();
                   }
                 },
                 child: const Icon(Icons.add),
@@ -123,7 +140,7 @@ class _CollectionListViewState extends State<CollectionListView> {
                 hasScrollBody: false,
                 child: _EmptyCollectionListState(
                   typeFilter: widget.typeFilter,
-                  onRefresh: _fetchCollections,
+                  onRefresh: _refreshAfterChange,
                 ),
               )
             else
@@ -164,7 +181,7 @@ class _CollectionListViewState extends State<CollectionListView> {
 
   void _onSelectedChanged(Collection? collection) {
     setState(() => _selected = collection);
-    _fetchCollections();
+    _refreshAfterChange();
   }
 
   Future<void> _navigateToCollectionDetail(Collection collection) async {
@@ -177,7 +194,7 @@ class _CollectionListViewState extends State<CollectionListView> {
         builder: (context) => CollectionDetailView(collection: collection),
       ),
     );
-    if (mounted) await _fetchCollections();
+    if (mounted) await _refreshAfterChange();
   }
 }
 

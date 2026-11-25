@@ -1,0 +1,1 @@
+{"event": "Handle post-navigation and form refresh errors with a localized retry, and cover failure and recovery in a widget test.", "issues": ["#346"], "prs": ["#481"], "session_id": "t3-code:mcp:launch:ba516f76a98d59afcd83b84240b7b4a9f7ee062c8f400ed7cccbd653c93418e2", "stream": "ledger", "timestamp": "2026-11-25T06:26:07+00:00"}

@@ -114,6 +114,31 @@ void main() {
     });
   }
 
+  testWidgets('a failed refresh after returning from detail can be retried', (
+    tester,
+  ) async {
+    await pump(tester, 400);
+    await tester.tap(find.text('Pantry'));
+    await tester.pumpAndSettle();
+
+    final collections = getIt<CollectionService>();
+    when(
+      () => collections.getCollectionsForUser('user'),
+    ).thenAnswer((_) async => throw StateError('offline'));
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(SnackBarAction), findsOneWidget);
+
+    when(
+      () => collections.getCollectionsForUser('user'),
+    ).thenAnswer((_) async => [_fridge]);
+    await tester.tap(find.byType(SnackBarAction));
+    await tester.pumpAndSettle();
+    expect(find.text('Pantry'), findsNothing);
+    expect(find.text('Fridge'), findsOneWidget);
+  });
+
   testWidgets('expanded width shows list and detail side by side', (
     tester,
   ) async {
