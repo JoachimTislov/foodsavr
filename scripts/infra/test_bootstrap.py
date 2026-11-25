@@ -95,6 +95,13 @@ elif name == 'gcloud':
         print(json.dumps([{'name': f'projects/demo-proj/serviceAccounts/{email}', 'email': email}]))
     elif 'get-iam-policy' in args:
         print('{"bindings":[]}')
+    elif args[:2] == ['storage', 'ls']:
+        url = args[-1]
+        objects = [o for o in os.environ.get('FAKE_STATE_OBJECTS', '').split(',') if o and o.startswith(url)]
+        if not objects:
+            print('ERROR: One or more URLs matched no objects.', file=sys.stderr)
+            sys.exit(1)
+        print(*objects, sep=chr(10))
     elif 'describe' in args:
         status = os.environ['FAKE_BUCKET']
         if status == 'exists': print('{}')
@@ -242,6 +249,21 @@ class BackendTests(unittest.TestCase):
         self.assertIn('still stored under its production name', result.stderr)
         self.assertIn('gcp-demo-proj-test', result.stderr)
         self.assertFalse((self.root / 'config.log').exists())
+
+    def test_renamed_environment_refuses_empty_remote_state_prefix(self):
+        config = {
+            **json.loads(self.env['FAKE_CONFIG']), 'INFRA_OWNER': 'test', 'GH_ENVIRONMENT': 'test',
+            'TF_STATE_PREFIX': 'firebase-test',
+        }
+        run = dict(ENV='test', GH_ENVIRONMENT='test', FAKE_CONFIG=json.dumps(config), FAKE_BUCKET='exists')
+        result = self.run_plan(FAKE_STATE_OBJECTS='gs://demo-proj-tfstate/firebase/default.tfstate', **run)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('still under its production prefix', result.stderr)
+        self.assertIn('gs://demo-proj-tfstate/firebase-test/default.tfstate', result.stderr)
+        self.assertNotIn('"init"', (self.root / 'calls.jsonl').read_text() if (self.root / 'calls.jsonl').exists() else '')
+        moved = 'gs://demo-proj-tfstate/firebase-test/default.tfstate'
+        result = self.run_plan(FAKE_STATE_OBJECTS=moved, **run)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_existing_bucket_preserves_remote_state(self):
         result = self.run_plan(FAKE_BUCKET='exists')
