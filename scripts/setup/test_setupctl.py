@@ -428,7 +428,7 @@ class EventPolicyTest(unittest.TestCase):
                 checks = {c["name"]: c for c in setupctl.verify_profile(probe, profile="fork-agents")["checks"]}
                 self.assertEqual(checks["actions-event-policy"]["ok"], ok)
                 if not ok:
-                    self.assertIn("apply-event-policy", checks["actions-event-policy"]["remediation"])
+                    self.assertIn("make setup-event-policy", checks["actions-event-policy"]["remediation"])
 
     def test_plan_lists_owner_action_until_matched(self):
         probe = _sample_probe(repo="alice/foodsavr", login="alice", is_admin=True, local_ok=True)
@@ -438,6 +438,22 @@ class EventPolicyTest(unittest.TestCase):
         probe["github"]["event_policy"] = {"state": "match"}
         plan = setupctl.build_plan(probe, profile="fork-agents", topology="single")
         self.assertNotIn("apply-event-policy", [a["id"] for a in plan["human_actions"]])
+
+    def test_allowed_events_cover_every_trigger_of_the_targeted_workflows(self):
+        # A too-narrow allowed_events silently stops the omitted triggers of targeted files.
+        for rel in setupctl.EVENT_POLICY_WORKFLOWS:
+            with self.subTest(workflow=rel):
+                lines = (ROOT / rel).read_text(encoding="utf-8").splitlines()
+                start = next(i for i, line in enumerate(lines) if line.rstrip() in ("on:", '"on":', "'on':"))
+                triggers = set()
+                for line in lines[start + 1:]:
+                    if line and not line[0].isspace():
+                        break
+                    stripped = line.strip()
+                    if line.startswith("  ") and not line.startswith("   ") and stripped.endswith(":") and not stripped.startswith("#"):
+                        triggers.add(stripped[:-1])
+                self.assertTrue(triggers)
+                self.assertLessEqual(triggers, set(setupctl.EVENT_POLICY_EVENTS))
 
     def test_apply_guard_idempotence_create_and_update(self):
         clean = {k: v for k, v in os.environ.items() if k not in setupctl.AGENT_ENV_VARS}
