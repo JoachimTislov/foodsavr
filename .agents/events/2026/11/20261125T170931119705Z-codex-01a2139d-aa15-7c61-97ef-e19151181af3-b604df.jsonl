@@ -1,0 +1,1 @@
+{"event": "Implemented bounded verifying transactions, queued offline membership writes, and direct server confirmation before repair; added offline and cache regression coverage", "issues": ["#346"], "prs": ["#481"], "session_id": "codex:01a2139d-aa15-7c61-97ef-e19151181af3", "stream": "ledger", "timestamp": "2026-11-25T17:09:31+00:00"}

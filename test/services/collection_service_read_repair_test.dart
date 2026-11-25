@@ -39,6 +39,9 @@ void main() {
       ),
     );
     when(
+      () => repository.isProductMissingOrUnreadable(any()),
+    ).thenAnswer((_) async => true);
+    when(
       () => repository.removeProducts(any(), any()),
     ).thenAnswer((_) async {});
   });
@@ -80,9 +83,42 @@ void main() {
       expect(loaded.productIds, ['a']);
       expect(visible.map((product) => product.id), ['a']);
       expect(await service.resolveCounts('u1', [collection]), {'c1': 1});
+      verifyNever(() => repository.isProductMissingOrUnreadable(any()));
       verifyNever(() => repository.removeProducts(any(), any()));
     },
   );
+
+  test(
+    'repair skips an ID that a direct server read can still resolve',
+    () async {
+      when(
+        () => repository.isProductMissingOrUnreadable('ghost'),
+      ).thenAnswer((_) async => false);
+
+      final (loaded, _) = await service.loadContents(collection);
+
+      expect(loaded.productIds, ['a', 'b']);
+      final removed =
+          verify(
+                () => repository.removeProducts('c1', captureAny()),
+              ).captured.single
+              as Iterable<String>;
+      expect(removed, ['ghost-2']);
+    },
+  );
+
+  test('a failed server confirmation never prunes or fails the read', () async {
+    when(
+      () => repository.isProductMissingOrUnreadable(any()),
+    ).thenThrow(Exception('unavailable'));
+
+    final (loaded, visible) = await service.loadContents(collection);
+
+    expect(loaded.productIds, ['a', 'b']);
+    expect(visible.map((product) => product.id), ['a', 'b']);
+    expect(await service.resolveCounts('u1', [collection]), {'c1': 2});
+    verifyNever(() => repository.removeProducts(any(), any()));
+  });
 
   test('a clean collection triggers no repair write', () async {
     const clean = Collection(

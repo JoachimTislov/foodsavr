@@ -1,0 +1,1 @@
+{"commits": ["701c7b111223cb5af4372901fe2303e8dbcd86d9"], "harness": "codex", "issues": ["#346"], "provider": "openai", "prs": ["#481"], "session_id": "codex:01a2139d-aa15-7c61-97ef-e19151181af3", "sources": [], "started_at": "2026-11-25T16:50:51+00:00", "status": "active", "stream": "sessions", "summary": "L2 #481 real-rules permission mapping and review closure"}

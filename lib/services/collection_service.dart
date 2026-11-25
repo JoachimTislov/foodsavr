@@ -181,7 +181,7 @@ class CollectionService {
     final byId = {for (final member in products) member.id: member};
     final visible = [for (final id in collection.productIds.toSet()) ?byId[id]];
     if (authoritative) {
-      unawaited(_repairDangling(collection, byId.keys.toSet()));
+      await _repairDangling(collection, byId.keys.toSet());
     }
     return (
       collection.copyWith(productIds: visible.map((p) => p.id).toList()),
@@ -200,9 +200,9 @@ class CollectionService {
         .getMemberProducts(userId);
     final ids = products.map((product) => product.id).toSet();
     if (authoritative) {
-      for (final collection in collections) {
-        unawaited(_repairDangling(collection, ids));
-      }
+      await Future.wait(
+        collections.map((collection) => _repairDangling(collection, ids)),
+      );
     }
     return {
       for (final collection in collections)
@@ -218,6 +218,28 @@ class CollectionService {
   ) async {
     final missing = collection.productIds.toSet().difference(resolvedIds);
     if (missing.isEmpty) return;
+    try {
+      final confirmed = await Future.wait(
+        missing.map(
+          (id) async =>
+              await _collectionRepository.isProductMissingOrUnreadable(id)
+              ? id
+              : null,
+        ),
+      );
+      final dangling = confirmed.nonNulls.toList();
+      if (dangling.isNotEmpty) {
+        unawaited(_removeDangling(collection, dangling));
+      }
+    } catch (e) {
+      _logger.e('Could not verify dangling product IDs: ${e.runtimeType}');
+    }
+  }
+
+  Future<void> _removeDangling(
+    Collection collection,
+    List<String> missing,
+  ) async {
     try {
       await _collectionRepository.removeProducts(collection.id, missing);
     } catch (e) {

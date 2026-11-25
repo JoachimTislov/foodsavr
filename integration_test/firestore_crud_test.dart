@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -226,6 +228,132 @@ void _registerDeletionTests() {
       ]);
       collections.afterMembershipRead = null;
       productRepository.afterDiscovery = null;
+    });
+
+    // On web, transactions reach the backend even with the network disabled.
+    // Stalling the verifying transaction past its deadline forces the queued
+    // fallback, as a slow or unreachable server does.
+    void stallMembershipTransactions() {
+      final stall = Completer<void>();
+      collections.afterMembershipRead = () => stall.future;
+      addTearDown(stall.complete);
+    }
+
+    testWidgets('offline membership adds return promptly and sync', (
+      tester,
+    ) async {
+      final draft = fresh.copyWith(
+        id: 'offline-draft-$owner',
+        productIds: [member.id],
+      );
+      addTearDown(() => deleteEmulatorFixture('collections/${draft.id}'));
+      final collectionRef = firestore.collection('collections').doc(fresh.id);
+      await collectionRef.get();
+      stallMembershipTransactions();
+      await firestore.disableNetwork();
+      try {
+        await collections
+            .addProduct(fresh.id, member.id)
+            .timeout(const Duration(seconds: 5));
+        final pending = await collectionRef.get(
+          const GetOptions(source: Source.cache),
+        );
+        expect(pending.metadata.hasPendingWrites, isTrue);
+        expect(pending.data()!['productIds'], [member.id]);
+
+        await collections
+            .addProducts(fresh.id, [kept.id, member.id])
+            .timeout(const Duration(seconds: 5));
+        await collections.add(draft).timeout(const Duration(seconds: 5));
+        expect((await collections.get(draft.id))!.productIds, [member.id]);
+        expect(
+          (await CollectionRepository(remote).get(fresh.id))!.productIds,
+          isEmpty,
+        );
+        expect(
+          await emulatorDocumentExists('collections/${draft.id}'),
+          isFalse,
+        );
+      } finally {
+        await firestore.enableNetwork();
+      }
+      await firestore.waitForPendingWrites();
+      final remoteCollections = CollectionRepository(remote);
+      expect((await remoteCollections.get(fresh.id))!.productIds, [
+        member.id,
+        kept.id,
+      ]);
+      expect((await remoteCollections.get(draft.id))!.productIds, [member.id]);
+    });
+
+    testWidgets('server read hides and prunes an offline add racing a delete', (
+      tester,
+    ) async {
+      await collections.get(fresh.id);
+      stallMembershipTransactions();
+      await firestore.disableNetwork();
+      try {
+        await collections
+            .addProduct(fresh.id, kept.id)
+            .timeout(const Duration(seconds: 5));
+        // Another device deletes the product before the queued add syncs.
+        await remote.collection('products').doc(kept.id).delete();
+      } finally {
+        await firestore.enableNetwork();
+      }
+      await firestore.waitForPendingWrites();
+      // The rules accept the queued add although the product is gone.
+      final saved = (await CollectionRepository(remote).get(fresh.id))!;
+      expect(saved.productIds, [kept.id]);
+
+      final (loaded, visible) = await collectionService.loadContents(saved);
+      expect(loaded.productIds, isEmpty);
+      expect(visible, isEmpty);
+      expect(await collectionService.resolveCounts(owner, [saved]), {
+        fresh.id: 0,
+      });
+      await firestore.waitForPendingWrites();
+      expect(
+        (await CollectionRepository(remote).get(fresh.id))!.productIds,
+        isEmpty,
+      );
+    });
+
+    testWidgets('a rejected queued add is rolled back and never replayed', (
+      tester,
+    ) async {
+      final collectionRef = firestore.collection('collections').doc(fresh.id);
+      await collectionRef.get();
+      stallMembershipTransactions();
+      await firestore.disableNetwork();
+      try {
+        await collections
+            .addProducts(fresh.id, [kept.id])
+            .timeout(const Duration(seconds: 5));
+        expect(
+          (await collectionRef.get(
+            const GetOptions(source: Source.cache),
+          )).data()!['productIds'],
+          [kept.id],
+        );
+        // Another device deletes the collection, so the server rejects the add.
+        await CollectionRepository(remote).delete(fresh.id);
+      } finally {
+        await firestore.enableNetwork();
+      }
+      await firestore.waitForPendingWrites();
+      expect(await emulatorDocumentExists('collections/${fresh.id}'), isFalse);
+      final local = await collectionRef.get(
+        const GetOptions(source: Source.cache),
+      );
+      expect(local.metadata.hasPendingWrites, isFalse);
+      expect(local.data()?['productIds'] ?? const [], isNot(contains(kept.id)));
+      final listed = await collectionService.getCollectionsForUser(owner);
+      expect(
+        listed.map((collection) => collection.id),
+        isNot(contains(fresh.id)),
+      );
+      expect(await emulatorDocumentExists('collections/${fresh.id}'), isFalse);
     });
 
     testWidgets('offline collection loads tolerate an incomplete cache', (
