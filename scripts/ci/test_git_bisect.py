@@ -134,6 +134,58 @@ class BisectRepo(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("pub get", log.read_text())
 
+    def test_probe_over_tracked_file_is_restored(self):
+        repo = self.tmp / "tracked"
+        repo.mkdir()
+        git(repo, "init", "-q", "-b", "main")
+        good = commit(repo, {"value.txt": "1"}, "c1")
+        commit(repo, {"value.txt": "2"}, "c2")
+        commit(repo, {"value.txt": "3", "probe.py": "tracked original\n"}, "c3 tracks probe.py")
+        first_bad = commit(repo, {"value.txt": "4"}, "c4")
+        commit(repo, {"value.txt": "5", "probe.py": "tracked changed\n"}, "c5")
+        head = git(repo, "rev-parse", "HEAD")
+        probe = self.tmp / "probe.py"
+        probe.write_text("import sys\nsys.exit(0 if int(open('value.txt').read()) < 4 else 1)\n")
+        proc = subprocess.run([sys.executable, str(SCRIPT), "--repo", str(repo), "--json", "--good", good,
+                               "--verify-ends", "--probe", str(probe), "--", "python3", "probe.py"],
+                              capture_output=True, text=True, timeout=120)
+        report = json.loads(proc.stdout)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIsNone(report["error"])
+        self.assertEqual(report["first_bad"], first_bad)
+        self.assertEqual(git(repo, "status", "--porcelain"), "")
+        self.assertEqual(git(repo, "rev-parse", "HEAD"), head)
+
+    def test_restore_probes_keeps_tracked_content_and_mode(self):
+        wt = self.tmp / "wt"
+        wt.mkdir()
+        tracked, added = wt / "tracked.sh", wt / "added.sh"
+        tracked.write_text("original")
+        tracked.chmod(0o755)
+        added.write_text("probe")
+        bisect_script.Bisect.restore_probes([(tracked, (b"original", 0o100755)), (added, None)])
+        self.assertEqual(tracked.read_text(), "original")
+        self.assertEqual(tracked.stat().st_mode & 0o777, 0o755)
+        self.assertFalse(added.exists())
+
+    def test_missing_flutter_binary_skips_commits_with_valid_report(self):
+        repo = self.tmp / "noflutter"
+        repo.mkdir()
+        git(repo, "init", "-q", "-b", "main")
+        good = commit(repo, {"pubspec.yaml": "a", "value.txt": "1"}, "good")
+        commit(repo, {"pubspec.yaml": "b"}, "deps")
+        bad = commit(repo, {"pubspec.yaml": "c", "value.txt": "9"}, "bad")
+        proc = subprocess.run([sys.executable, str(SCRIPT), "--repo", str(repo), "--json", "--good", good,
+                               "--flutter-bin", str(self.tmp / "no-such-flutter"),
+                               "--", "sh", "-c", 'test "$(cat value.txt)" -lt 4'],
+                              capture_output=True, text=True, timeout=120)
+        report = json.loads(proc.stdout)
+        self.assertEqual(proc.returncode, 1, proc.stderr)
+        self.assertIsNone(report["first_bad"])
+        self.assertTrue(report["skipped"])
+        self.assertIn(bad, report["candidates"] + report["skipped"])
+        self.assertIn("skipping commit", proc.stderr)
+
     def child_check(self, pid_file):
         return ("sh", "-c", 'sleep 30 >/dev/null 2>&1 & echo "$!" >> "$1"; wait',
                 "check", str(pid_file))
