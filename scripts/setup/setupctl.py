@@ -504,7 +504,7 @@ def build_plan(
         human_actions.append({
             "id": "apply-event-policy",
             "title": "Record the Actions event policy allowing pull_request_target for the three trusted workflows",
-            "command": "make setup-event-policy",
+            "command": f"make setup-event-policy REPO={effective_repo}",
             "reason": "GitHub blocks pull_request_target in public repositories from 2026-12-02 without an explicit policy.",
         })
 
@@ -833,6 +833,19 @@ def _policy_matches(actual: dict[str, Any]) -> bool:
     )
 
 
+def _policy_items(payload: Any) -> list[Any]:
+    """Flatten a slurped page list (each page a list or a `{"policies": [...]}` object) into policies."""
+    items: list[Any] = []
+    for page in payload if isinstance(payload, list) else [payload]:
+        if isinstance(page, list):
+            items.extend(page)
+        elif isinstance(page, dict) and "policies" in page:
+            items.extend(page.get("policies") or [])
+        elif isinstance(page, dict):
+            items.append(page)
+    return items
+
+
 def read_event_policy(repo: str, *, root: Path = ROOT) -> dict[str, Any]:
     """Read-only GET of the repository Actions policies; compare with `desired_event_policy`.
 
@@ -840,14 +853,15 @@ def read_event_policy(repo: str, *, root: Path = ROOT) -> dict[str, Any]:
     """
     if not REPO_SLUG_RE.fullmatch(repo):
         raise ValueError(f"Invalid repo slug: {repo!r}")
-    proc = _run(["gh", "api", f"repos/{repo}/actions/policies"], cwd=root)
+    # The collection is paginated (30 per page by default); read every page before reporting `missing`.
+    proc = _run(["gh", "api", f"repos/{repo}/actions/policies?per_page=100", "--paginate", "--slurp"], cwd=root)
     if proc.returncode != 0:
         return {"state": "unavailable", "policy_id": None, "detail": proc.stderr.strip() or "Actions policies API unavailable"}
     try:
         payload = json.loads(proc.stdout)
     except ValueError:
         return {"state": "unavailable", "policy_id": None, "detail": "unparseable Actions policies response"}
-    items = payload if isinstance(payload, list) else (payload.get("policies") or [])
+    items = _policy_items(payload)
     found = next((i for i in items if isinstance(i, dict) and i.get("name") == EVENT_POLICY_NAME), None)
     if found is None:
         return {"state": "missing", "policy_id": None, "detail": f"policy {EVENT_POLICY_NAME!r} not configured"}
@@ -980,7 +994,7 @@ def verify_profile(
             "actions-event-policy",
             event_policy.get("state") == "match",
             f"pull_request_target allowed only for {', '.join(EVENT_POLICY_WORKFLOWS)}: {event_policy.get('detail')}",
-            "make setup-event-policy (owner: Settings -> Actions -> Policies)",
+            f"make setup-event-policy REPO={gh.get('target_repo') or '<owner>/<repo>'} (owner: Settings -> Actions -> Policies)",
         )
         add(
             "harness-auth",
