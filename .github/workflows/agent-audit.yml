@@ -53,18 +53,22 @@ jobs:
           python3 scripts/agents/agent_audit.py collect .agents/state/agent-audit.json "${args[@]}"
           jq -r '"run_model=\(.status == "completed" and (.already_published | not))"' \
             .agents/state/agent-audit.json >> "$GITHUB_OUTPUT"
+      # A failed model step must still leave the deterministic snapshot for publish.
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         if: steps.collect.outputs.run_model == 'true'
+        continue-on-error: true
         with:
           node-version: 22
       - name: Install the configured audit providers
         if: steps.collect.outputs.run_model == 'true'
+        continue-on-error: true
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           CODEX_AUTH_JSON_B64: ${{ secrets.CODEX_AUTH_JSON_B64 }}
         run: bash scripts/agents/install-ci-providers.sh
       - name: Run quota-aware audit model
         if: steps.collect.outputs.run_model == 'true'
+        continue-on-error: true
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: python3 scripts/agents/agent_audit.py model
@@ -72,6 +76,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: rm -f "$HOME/.codex/auth.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: ${{ !cancelled() }}
         with:
           name: agent-audit
           path: .agents/state/agent-audit.json

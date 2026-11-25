@@ -87,6 +87,8 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(second["deltas"], {METRIC: -.3, "ci.maven-429": -3,
                                             "pr.42.rebases": 0, "pr.42.force-pushes": 1})
         self.assertEqual(list(second["statuses"].values()), ["improving", "resolved", "unchanged", "regressed"])
+        third = snapshot({METRIC: .4}, first)
+        self.assertEqual(list(third["statuses"].values())[1:], ["not-observed"] * 3)
 
     def test_fingerprint_ignores_prose_and_filters_uncited_findings(self):
         metrics = {METRIC: .9}
@@ -191,7 +193,7 @@ class AuditTests(unittest.TestCase):
 
     def test_malformed_router_output_keeps_the_deterministic_report(self):
         metrics = {METRIC: .9}
-        workflow = json.loads(audit.WORKFLOW.read_text())
+        workflow = json.loads((Path(__file__).resolve().parents[2] / audit.WORKFLOW).read_text())
         with tempfile.TemporaryDirectory() as directory:
             workflow_path = Path(directory) / "workflow.json"
             workflow_path.write_text(json.dumps(workflow))

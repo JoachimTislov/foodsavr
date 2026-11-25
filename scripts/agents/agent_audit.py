@@ -217,6 +217,10 @@ def compare(metrics, previous):
     for finding in previous["findings"]:
         metric = finding["metric_id"]
         value = metrics.get(metric)
+        if value is None:
+            # Per-PR metrics leave the window; absence is not evidence of no change.
+            statuses[finding["id"]] = "not-observed"
+            continue
         favorable = metric.endswith(".approved-share")
         delta = deltas.get(metric, 0) * (-1 if favorable else 1)
         if value == (1 if favorable else 0) and metric in deltas:
