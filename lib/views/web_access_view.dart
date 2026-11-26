@@ -41,7 +41,7 @@ class _WebAccessViewState extends State<WebAccessView> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'FoodSavr',
+                  'FoodSavr', // l10n-ignore
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 16),

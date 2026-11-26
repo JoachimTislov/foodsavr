@@ -2,6 +2,7 @@ import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import 'package:openfoodfacts/openfoodfacts.dart' as off;
 import 'package:foodsavr/interfaces/i_validator.dart';
+import 'package:foodsavr/validation/validation_error.dart';
 
 import '../constants/preferences_config.dart';
 import '../models/collection_model.dart';
@@ -331,7 +332,7 @@ class ProductService {
     final validationResult = _productValidator.validate(product);
     if (!validationResult.isValid) {
       _logger.e('Validation failed for product: ${product.name}');
-      throw FormatException(validationResult.errors.first.message);
+      throw ValidationException(validationResult.errors.first);
     }
   }
 

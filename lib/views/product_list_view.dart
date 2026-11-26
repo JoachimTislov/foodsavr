@@ -23,6 +23,7 @@ import '../utils/view_mode_helper.dart';
 import '../widgets/product/view_mode_toggle.dart';
 import 'product_detail_view.dart';
 import 'receipt_scan_view.dart';
+import '../utils/user_error.dart';
 
 class ProductListView extends StatefulWidget {
   final bool showGlobalProducts;
@@ -365,12 +366,12 @@ class _ProductListViewState extends State<ProductListView> {
                   ),
                 );
                 await _reloadProductsAfterMutation();
-              } catch (e) {
+              } catch (e, stack) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      'product.deleteError'.tr(namedArgs: {'error': '$e'}),
+                      userErrorMessage(e, 'product.deleteError'.tr(), stack),
                     ),
                   ),
                 );

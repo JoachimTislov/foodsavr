@@ -75,6 +75,7 @@
 		}
 	},
 	"collection": {
+		"saveError": "Could not save the collection. Try again.",
 		"deleteTitle": "Delete {name}?",
 		"deleteUnsharedProductsExplanation": "Deleting with items removes only products that appear in no other collection.",
 		"deleteOnly": "Delete collection only",
@@ -162,6 +163,13 @@
 		"noMatches": "No matching products"
 	},
 	"product": {
+		"categories": {
+			"fruits": "Fruits",
+			"vegetables": "Vegetables",
+			"dairy": "Dairy",
+			"bakery": "Bakery",
+			"pantry": "Pantry"
+		},
 		"add": "Add Product",
 		"addWithoutBarcode": "Add without barcode",
 		"addFirst": "Add your first product to get started",
@@ -170,7 +178,7 @@
 		"availableIn": "Available in: {inventories}",
 		"available_stock": "AVAILABLE STOCK",
 		"addToInventoryError": "Saved the product, but could not add it to the inventory: {error}",
-		"barcodeAddError": "Could not add product by barcode: {error}",
+		"barcodeAddError": "Could not add the product by barcode. Try again.",
 		"barcodeAssumedExpiry": ". Assumes expiry in {days} days. Tap to edit.",
 		"barcodeCreated": "Created new product \"{name}\"",
 		"barcodeMatched": "Updated existing product \"{name}\"",
@@ -182,7 +190,7 @@
 		"days_until_soonest_expiry": "Days Until Soonest Expiry",
 		"delete": "Delete Product",
 		"deleteConfirmMessage": "Are you sure you want to delete \"{name}\"?",
-		"deleteError": "Error deleting product: {error}",
+		"deleteError": "Could not delete the product. Try again.",
 		"deleted": "{name} deleted",
 		"description": "Description",
 		"details": "Product Details",
@@ -205,7 +213,7 @@
 		"normal": "Normal",
 		"personal_product": "Personal Product",
 		"quantity_units": "{} units",
-		"saveError": "Failed to save product: {error}",
+		"saveError": "Could not save the product. Try again.",
 		"scanBarcode": "Scan Barcode",
 		"scan_expiry": "Scan Expiry",
 		"scanExpiryHint": "Hold the printed expiry date steady inside the frame",
@@ -351,6 +359,12 @@
 			"title": "Install FoodSavr"
 		},
 		"installed_snackbar": "FoodSavr installed successfully."
+	},
+	"validation": {
+		"productNameEmpty": "Enter a product name.",
+		"nonExpiringQuantityNegative": "The quantity cannot be negative.",
+		"expiryQuantityNotPositive": "Each expiry needs a quantity of at least 1.",
+		"collectionNameEmpty": "Enter a collection name."
 	},
 	"webAccess": {
 		"code": "Access code",

@@ -13,6 +13,7 @@ class CollectionModelValidator implements IValidator<Collection> {
         const ValidationError(
           field: 'name',
           message: 'Collection name cannot be empty',
+          code: ValidationCode.collectionNameEmpty,
         ),
       );
     }

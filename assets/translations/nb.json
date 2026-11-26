@@ -75,6 +75,7 @@
 		}
 	},
 	"collection": {
+		"saveError": "Kunne ikke lagre samlingen. Prøv igjen.",
 		"deleteTitle": "Vil du slette {name}?",
 		"deleteUnsharedProductsExplanation": "Sletting med produkter fjerner bare produkter som ikke finnes i andre samlinger.",
 		"deleteOnly": "Slett bare samlingen",
@@ -162,6 +163,13 @@
 		"noMatches": "Ingen produkter samsvarer"
 	},
 	"product": {
+		"categories": {
+			"fruits": "Frukt",
+			"vegetables": "Grønnsaker",
+			"dairy": "Meieri",
+			"bakery": "Bakevarer",
+			"pantry": "Spiskammer"
+		},
 		"add": "Legg til produkt",
 		"addWithoutBarcode": "Legg til uten strekkode",
 		"addFirst": "Legg til ditt første produkt for å komme i gang",
@@ -170,7 +178,7 @@
 		"availableIn": "Tilgjengelig i {inventories}",
 		"available_stock": "TILGJENGELIG LAGER",
 		"addToInventoryError": "Varen ble lagret, men kunne ikke legges til i lageret: {error}",
-		"barcodeAddError": "Kunne ikke legge til produkt med strekkode: {error}",
+		"barcodeAddError": "Kunne ikke legge til produktet med strekkode. Prøv igjen.",
 		"barcodeAssumedExpiry": ". Antar utløp om {days} dager. Trykk for å endre.",
 		"barcodeCreated": "Opprettet nytt produkt \"{name}\"",
 		"barcodeMatched": "Oppdaterte eksisterende produkt \"{name}\"",
@@ -182,7 +190,7 @@
 		"days_until_soonest_expiry": "Dager til nærmeste utløp",
 		"delete": "Slett produkt",
 		"deleteConfirmMessage": "Er du sikker på at du vil slette \"{name}\"?",
-		"deleteError": "Feil ved sletting av produkt: {error}",
+		"deleteError": "Kunne ikke slette produktet. Prøv igjen.",
 		"deleted": "{name} slettet",
 		"description": "Beskrivelse",
 		"details": "Produktdetaljer",
@@ -205,7 +213,7 @@
 		"normal": "Normal",
 		"personal_product": "Personlig produkt",
 		"quantity_units": "{} enheter",
-		"saveError": "Kunne ikke lagre produktet: {error}",
+		"saveError": "Kunne ikke lagre produktet. Prøv igjen.",
 		"scanBarcode": "Skann strekkode",
 		"scan_expiry": "Skann utløpsdato",
 		"scanExpiryHint": "Hold den trykte utløpsdatoen stille inne i rammen",
@@ -351,6 +359,12 @@
 			"title": "Installer FoodSavr"
 		},
 		"installed_snackbar": "FoodSavr ble installert."
+	},
+	"validation": {
+		"productNameEmpty": "Skriv inn et produktnavn.",
+		"nonExpiringQuantityNegative": "Antallet kan ikke være negativt.",
+		"expiryQuantityNotPositive": "Hver utløpsdato trenger et antall på minst 1.",
+		"collectionNameEmpty": "Skriv inn et navn på samlingen."
 	},
 	"webAccess": {
 		"code": "Tilgangskode",

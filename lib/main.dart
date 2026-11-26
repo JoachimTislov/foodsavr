@@ -27,6 +27,7 @@ import 'utils/app_theme.dart';
 import 'utils/config.dart';
 import 'utils/env_loader.dart';
 import 'utils/app_check_storage.dart';
+import 'utils/app_locales.dart';
 
 const dummyOptions = FirebaseOptions(
   apiKey: 'AIzaSyDummyKeyForDemoOnly',
@@ -152,8 +153,6 @@ void main() async {
     initializedAppCheck = true;
   }
 
-  const enLocale = Locale('en');
-  const nbLocale = Locale('nb');
   await EasyLocalization.ensureInitialized();
 
   // Start syncing the signed-in user's preferences from app start.
@@ -166,10 +165,12 @@ void main() async {
 
   runApp(
     EasyLocalization(
-      supportedLocales: const [enLocale, nbLocale],
+      supportedLocales: supportedAppLocales,
       path: 'assets/translations',
       fallbackLocale: enLocale,
-      startLocale: enLocale,
+      // Applies only until the user picks a language; easy_localization
+      // saves that choice and restores it on later launches.
+      startLocale: startLocaleFor(PlatformDispatcher.instance.locale),
       useFallbackTranslations: true,
       child: MyApp(
         router: createAppRouter(

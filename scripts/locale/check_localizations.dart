@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'literal_text.dart';
 import 'plural_translation_keys.dart';
 
 // understand with: ./regex-cheatsheet.md
@@ -57,6 +58,29 @@ Set<String> _extractUsedKeys(
     }
   }
   return usedKeys;
+}
+
+List<String> _findLiteralText() {
+  final repoRoot = Directory.current.path;
+  final findings = <String>[];
+  for (final dirName in literalTextDirs) {
+    final dir = Directory('$repoRoot/$dirName');
+    if (!dir.existsSync()) continue;
+    final files =
+        dir
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.dart'))
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
+    for (final file in files) {
+      final relativePath = p.relative(file.path, from: repoRoot);
+      for (final literal in findLiteralText(file.readAsStringSync())) {
+        findings.add('$relativePath:$literal');
+      }
+    }
+  }
+  return findings;
 }
 
 List<File> _getLocaleFiles(Directory localeDir) {
@@ -122,6 +146,18 @@ void _handleValidate(
           stdout.writeln('    - $key');
         }
       }
+    }
+  }
+
+  final literals = _findLiteralText();
+  if (literals.isNotEmpty) {
+    hasIssues = true;
+    stdout.writeln(
+      '\nUnlocalized text literals (${literals.length}); use a translation key '
+      'or mark the line with // $literalTextIgnore:',
+    );
+    for (final literal in literals) {
+      stdout.writeln('    - $literal');
     }
   }
 

@@ -6,6 +6,7 @@ import '../models/product_model.dart';
 import '../service_locator.dart';
 import '../services/collection_service.dart';
 import '../services/product_service.dart';
+import '../constants/product_categories.dart';
 
 /// Displays user's registered products for adding to a collection.
 class AddProductToCollectionView extends StatefulWidget {
@@ -194,7 +195,7 @@ class _AddProductSheetState extends State<_AddProductSheet> {
                     ),
                     title: Text(product.name),
                     subtitle: product.category != null
-                        ? Text(product.category!)
+                        ? Text(ProductCategory.label(product.category!))
                         : null,
                   );
                 },

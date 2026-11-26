@@ -13,6 +13,7 @@ import '../views/expiry_scan_view.dart';
 import '../widgets/product/expiries_section.dart';
 import '../constants/product_categories.dart';
 import '../widgets/common/adaptive_sheet.dart';
+import '../utils/user_error.dart';
 
 class ProductFormView extends StatelessWidget {
   /// The existing product being edited. Mutually exclusive with [prefill].
@@ -88,6 +89,14 @@ class _ProductFormContentState extends State<_ProductFormContent> {
   late TextEditingController _nameController;
   late TextEditingController _descriptionController;
   String? _selectedCategory;
+
+  /// Known category keys, plus a free-form category the product already has.
+  List<String> get _categoryKeys => [
+    ...ProductCategory.allKeys,
+    if (_selectedCategory case final custom?
+        when !ProductCategory.allKeys.contains(custom))
+      custom,
+  ];
   int _nonExpiringQuantity = 0;
   List<ExpiryEntry> _expiries = [];
 
@@ -122,7 +131,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
     _descriptionController = TextEditingController(
       text: source?.description ?? '',
     );
-    _selectedCategory = source?.category;
+    _selectedCategory = ProductCategory.normalize(source?.category);
     _nonExpiringQuantity = source?.nonExpiringQuantity ?? 0;
     _expiries = List.from(source?.expiries ?? []);
   }
@@ -180,11 +189,11 @@ class _ProductFormContentState extends State<_ProductFormContent> {
       if (mounted) {
         Navigator.of(context).pop(true);
       }
-    } catch (e) {
+    } catch (e, stack) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('product.saveError'.tr(namedArgs: {'error': '$e'})),
+            content: Text(userErrorMessage(e, 'product.saveError'.tr(), stack)),
           ),
         );
       }
@@ -245,8 +254,11 @@ class _ProductFormContentState extends State<_ProductFormContent> {
                     labelText: 'product.category'.tr(),
                     border: const OutlineInputBorder(),
                   ),
-                  items: ProductCategory.allNames.map((cat) {
-                    return DropdownMenuItem(value: cat, child: Text(cat));
+                  items: _categoryKeys.map((cat) {
+                    return DropdownMenuItem(
+                      value: cat,
+                      child: Text(ProductCategory.label(cat)),
+                    );
                   }).toList(),
                   onChanged: _onCategoryChanged,
                 ),

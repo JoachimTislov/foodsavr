@@ -4,6 +4,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import 'package:foodsavr/interfaces/i_validator.dart';
+import 'package:foodsavr/validation/validation_error.dart';
 
 import '../models/collection_model.dart';
 import '../models/product_model.dart';
@@ -127,7 +128,7 @@ class CollectionService {
     final validationResult = _collectionValidator.validate(collection);
     if (!validationResult.isValid) {
       _logger.e('Validation failed for collection: ${collection.name}');
-      throw FormatException(validationResult.errors.first.message);
+      throw ValidationException(validationResult.errors.first);
     }
     try {
       final added = await _collectionRepository.add(collection);
@@ -147,7 +148,7 @@ class CollectionService {
     final validationResult = _collectionValidator.validate(collection);
     if (!validationResult.isValid) {
       _logger.e('Validation failed for collection: ${collection.name}');
-      throw FormatException(validationResult.errors.first.message);
+      throw ValidationException(validationResult.errors.first);
     }
     try {
       await _collectionRepository.update(

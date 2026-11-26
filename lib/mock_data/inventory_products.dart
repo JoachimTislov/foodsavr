@@ -9,7 +9,7 @@ class InventoryProductsData {
         'description': 'A crisp and juicy apple.',
         'expirationDays': 5,
         'quantity': 6,
-        'category': 'Fruits',
+        'category': 'fruits',
       },
       {
         'id': 2,
@@ -17,7 +17,7 @@ class InventoryProductsData {
         'description': 'A ripe and sweet banana.',
         'expirationDays': 2,
         'quantity': 4,
-        'category': 'Fruits',
+        'category': 'fruits',
       },
       {
         'id': 3,
@@ -25,7 +25,7 @@ class InventoryProductsData {
         'description': 'An orange carrot.',
         'expirationDays': 10,
         'quantity': 8,
-        'category': 'Vegetables',
+        'category': 'vegetables',
       },
       {
         'id': 4,
@@ -33,7 +33,7 @@ class InventoryProductsData {
         'description': 'Organic whole milk',
         'expirationDays': 1,
         'quantity': 1,
-        'category': 'Dairy',
+        'category': 'dairy',
       },
       {
         'id': 5,
@@ -41,7 +41,7 @@ class InventoryProductsData {
         'description': 'Whole wheat bread',
         'expirationDays': 3,
         'quantity': 1,
-        'category': 'Bakery',
+        'category': 'bakery',
       },
       {
         'id': 6,
@@ -49,7 +49,7 @@ class InventoryProductsData {
         'description': 'Farm fresh eggs',
         'expirationDays': 14,
         'quantity': 12,
-        'category': 'Dairy',
+        'category': 'dairy',
       },
       {
         'id': 7,
@@ -57,7 +57,7 @@ class InventoryProductsData {
         'description': 'Aged cheddar cheese',
         'expirationDays': 20,
         'quantity': 1,
-        'category': 'Dairy',
+        'category': 'dairy',
       },
       {
         'id': 8,
@@ -65,7 +65,7 @@ class InventoryProductsData {
         'description': 'Fresh red tomatoes',
         'expirationDays': 4,
         'quantity': 5,
-        'category': 'Vegetables',
+        'category': 'vegetables',
       },
     ];
   }
