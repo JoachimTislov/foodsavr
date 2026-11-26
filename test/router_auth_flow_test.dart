@@ -28,7 +28,9 @@ import 'package:foodsavr/views/delete_account_view.dart';
 import 'package:foodsavr/views/legal_document_view.dart';
 import 'package:foodsavr/views/web_access_view.dart';
 import 'package:foodsavr/services/collection_service.dart'; // Import CollectionService
+import 'package:foodsavr/services/barcode_lookup_queue.dart';
 import 'package:foodsavr/services/product_service.dart';
+import 'package:foodsavr/services/sync_status.dart';
 import 'package:foodsavr/utils/shelf_life.dart';
 import 'package:foodsavr/utils/theme_notifier.dart';
 import 'package:foodsavr/views/dashboard_view.dart';
@@ -217,6 +219,8 @@ void main() {
       getIt.registerSingleton<IAuthService>(authService);
       final logger = Logger(level: Level.off);
       getIt.registerSingleton<Logger>(logger);
+      getIt.registerSingleton<SyncStatus>(SyncStatus(logger));
+      getIt.registerSingleton<BarcodeLookupQueue>(BarcodeLookupQueue.memory());
       getIt.registerLazySingleton<OAuthController>(
         () =>
             OAuthController(OAuthService(logger, _MockSecureStorage()), logger),

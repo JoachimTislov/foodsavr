@@ -4,6 +4,7 @@
 
 - Firestore collections: `products`, `collections`, and `users/{uid}/settings/preferences` (per-account `UserPreferences`: `expiringSoonDays`, `defaultInventoryId`; user-authored CRUD per ADR 0005, cached locally, written with merge so a group (#197) can later hold shared defaults overridden per key).
 - Domain models in `lib/models/` — plain data classes with `toJson`/`fromJson`, registered via DI repositories (`i_product_repository`, `i_collection_repository`, …).
+- Offline-first Firestore (#348): persistence is on for every platform, with multi-tab sync on web (`lib/register_module.dart`). Product and collection writes return once acknowledged or after a short wait while queued offline; `SyncStatus` counts unacknowledged writes for the pending-sync banner. Open Food Facts lookups time out and report offline instead of not found; an offline scan saves a placeholder product and queues its lookup (`BarcodeLookupQueue`, local preferences), replayed by `OfflineSync` on start, resume, and every 30 s.
 - `foodsavr_core` defines the universal `LineItem` (`packages/foodsavr_core/lib/src/line_item.dart`) — the canonical normalized format for any food input.
 
 ## Shapes (authoritative, per ADR 0004)
@@ -19,7 +20,7 @@ Field-level truth lives in JSON Schemas validated against code by `scripts/ci/ch
 Per #212 and `doc/implementation/`:
 
 - Shopping lists, meal plans, recipes, groups/family collections as Firestore collections covered by owner/group rules (#195, #196, #197).
-- Offline support and sync for Firestore data (TODO.md).
+- Offline sync beyond the Firestore cache: conflict handling and a Playwright offline-reload check (#348 acceptance), research in #115 and #116.
 - Hybrid persistence per [ADR 0005](decisions/0005-hybrid-event-log-and-crud.md): raw inbox ([contracts/raw-event.schema.json](contracts/raw-event.schema.json)), ordered domain events ([contracts/domain-event.schema.json](contracts/domain-event.schema.json)), read-only projections (inventory, consumption, shopping list, activity), and CRUD only for user-authored data. `products` splits into a derived inventory projection and a user-authored catalogue.
 - Transition phase ([ADR 0005](decisions/0005-hybrid-event-log-and-crud.md#transition-phase-inbox-first)): until the worker exists, the client writes create-only `owners/{uid}/rawEvents/{source:provider:externalId}` documents for `consumed` and `discarded` commands and for receipt and store-transaction imports, in the same batch as the `products` edit. `products` stays the read model, and no `events` or projection data exists yet.
 - Entitlement state per user ([contracts/entitlement.schema.json](contracts/entitlement.schema.json), [ADR 0008](decisions/0008-feature-modules-entitlements-and-plans.md)): plan from RevenueCat, Plus picks, one-time trials, the active-inventory selection after a downgrade, and household role. A trusted, client-unwritable copy of the plan arrives with Blaze for cloud modules.

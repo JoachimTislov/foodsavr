@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foodsavr/services/sync_status.dart';
 import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/models/product_model.dart';
 import 'package:foodsavr/repositories/collection_repository.dart';
@@ -42,8 +43,14 @@ void registerFirestoreCrudTests() {
       productId = 'it-crud-1-$runId';
       collectionId = 'it-col-1-$runId';
       firestore = FirebaseFirestore.instance;
-      repository = ProductRepository(firestore);
-      collectionRepository = CollectionRepository(firestore);
+      repository = ProductRepository(
+        firestore,
+        SyncStatus(Logger(level: Level.off)),
+      );
+      collectionRepository = CollectionRepository(
+        firestore,
+        SyncStatus(Logger(level: Level.off)),
+      );
     });
 
     tearDown(() async {
@@ -137,7 +144,10 @@ void _registerDeletionTests() {
         credentials: credentials,
       );
       foreignFirestore = await signedInEmulatorClient('deletion-foreign');
-      foreignCollections = CollectionRepository(foreignFirestore);
+      foreignCollections = CollectionRepository(
+        foreignFirestore,
+        SyncStatus(Logger(level: Level.off)),
+      );
     });
 
     tearDownAll(() async {
@@ -150,8 +160,14 @@ void _registerDeletionTests() {
     setUp(() async {
       await ensureEmulatorInitialized();
       firestore = FirebaseFirestore.instance;
-      productRepository = ProductRepository(firestore);
-      collections = CollectionRepository(firestore);
+      productRepository = ProductRepository(
+        firestore,
+        SyncStatus(Logger(level: Level.off)),
+      );
+      collections = CollectionRepository(
+        firestore,
+        SyncStatus(Logger(level: Level.off)),
+      );
       final logger = Logger(level: Level.off);
       collectionService = CollectionService(
         collections,
@@ -269,7 +285,10 @@ void _registerDeletionTests() {
         await collections.add(draft).timeout(const Duration(seconds: 5));
         expect((await collections.get(draft.id))!.productIds, [member.id]);
         expect(
-          (await CollectionRepository(remote).get(fresh.id))!.productIds,
+          (await CollectionRepository(
+            remote,
+            SyncStatus(Logger(level: Level.off)),
+          ).get(fresh.id))!.productIds,
           isEmpty,
         );
         expect(
@@ -280,7 +299,10 @@ void _registerDeletionTests() {
         await firestore.enableNetwork();
       }
       await firestore.waitForPendingWrites();
-      final remoteCollections = CollectionRepository(remote);
+      final remoteCollections = CollectionRepository(
+        remote,
+        SyncStatus(Logger(level: Level.off)),
+      );
       expect((await remoteCollections.get(fresh.id))!.productIds, [
         member.id,
         kept.id,
@@ -305,7 +327,10 @@ void _registerDeletionTests() {
       }
       await firestore.waitForPendingWrites();
       // The rules accept the queued add although the product is gone.
-      final saved = (await CollectionRepository(remote).get(fresh.id))!;
+      final saved = (await CollectionRepository(
+        remote,
+        SyncStatus(Logger(level: Level.off)),
+      ).get(fresh.id))!;
       expect(saved.productIds, [kept.id]);
 
       final (loaded, visible) = await collectionService.loadContents(saved);
@@ -315,8 +340,10 @@ void _registerDeletionTests() {
         fresh.id: 0,
       });
       await _expectEventually(
-        () async =>
-            (await CollectionRepository(remote).get(fresh.id))!.productIds,
+        () async => (await CollectionRepository(
+          remote,
+          SyncStatus(Logger(level: Level.off)),
+        ).get(fresh.id))!.productIds,
         isEmpty,
       );
     });
@@ -354,7 +381,10 @@ void _registerDeletionTests() {
 
           stall.complete();
           await Future<void>.delayed(const Duration(seconds: 2));
-          final saved = (await CollectionRepository(remote).get(target.id))!;
+          final saved = (await CollectionRepository(
+            remote,
+            SyncStatus(Logger(level: Level.off)),
+          ).get(target.id))!;
           expect(saved.name, 'Edited');
           expect(saved.productIds, isEmpty);
         },
@@ -391,7 +421,10 @@ void _registerDeletionTests() {
             isFalse,
           );
           expect(
-            (await CollectionRepository(remote).get(fresh.id))!.productIds,
+            (await CollectionRepository(
+              remote,
+              SyncStatus(Logger(level: Level.off)),
+            ).get(fresh.id))!.productIds,
             isEmpty,
           );
 
@@ -401,7 +434,10 @@ void _registerDeletionTests() {
             target.copyWith(name: 'Edited'),
             metadataOnly: true,
           );
-          final saved = (await CollectionRepository(remote).get(target.id))!;
+          final saved = (await CollectionRepository(
+            remote,
+            SyncStatus(Logger(level: Level.off)),
+          ).get(target.id))!;
           expect(saved.name, 'Edited');
           expect(saved.productIds, [member.id]);
         },
@@ -413,7 +449,10 @@ void _registerDeletionTests() {
     ) async {
       await collections.addProduct(fresh.id, kept.id);
       await remote.collection('products').doc(kept.id).delete();
-      final saved = (await CollectionRepository(remote).get(fresh.id))!;
+      final saved = (await CollectionRepository(
+        remote,
+        SyncStatus(Logger(level: Level.off)),
+      ).get(fresh.id))!;
       final reached = Completer<void>();
       final held = Completer<void>();
       addTearDown(() => held.isCompleted ? null : held.complete());
@@ -427,13 +466,20 @@ void _registerDeletionTests() {
       // The server confirmed the product missing; the prune is now held.
       await reached.future.timeout(const Duration(seconds: 10));
       await remote.collection('products').doc(kept.id).set(kept.toJson());
-      await CollectionRepository(remote).addProduct(fresh.id, kept.id);
+      await CollectionRepository(
+        remote,
+        SyncStatus(Logger(level: Level.off)),
+      ).addProduct(fresh.id, kept.id);
       held.complete();
       await Future<void>.delayed(const Duration(seconds: 2));
 
-      expect((await CollectionRepository(remote).get(fresh.id))!.productIds, [
-        kept.id,
-      ]);
+      expect(
+        (await CollectionRepository(
+          remote,
+          SyncStatus(Logger(level: Level.off)),
+        ).get(fresh.id))!.productIds,
+        [kept.id],
+      );
       final (_, restored) = await collectionService.loadContents(saved);
       expect(restored.map((product) => product.id), [kept.id]);
     });
@@ -456,7 +502,10 @@ void _registerDeletionTests() {
           [kept.id],
         );
         // Another device deletes the collection, so the server rejects the add.
-        await CollectionRepository(remote).delete(fresh.id);
+        await CollectionRepository(
+          remote,
+          SyncStatus(Logger(level: Level.off)),
+        ).delete(fresh.id);
       } finally {
         await firestore.enableNetwork();
       }
@@ -481,11 +530,15 @@ void _registerDeletionTests() {
       await collections.getMemberProducts(owner);
       final uncached = await ProductRepository(
         remote,
+        SyncStatus(Logger(level: Level.off)),
       ).add(Product(id: '', name: 'Tea', description: '', userId: owner));
       addTearDown(
         () => remote.collection('products').doc(uncached.id).delete(),
       );
-      await CollectionRepository(remote).addProduct(source.id, uncached.id);
+      await CollectionRepository(
+        remote,
+        SyncStatus(Logger(level: Level.off)),
+      ).addProduct(source.id, uncached.id);
       final listedOnline = await collectionService.getCollectionsForUser(owner);
       final cached = listedOnline.singleWhere((item) => item.id == source.id);
       expect(cached.productIds, [member.id, missingId, uncached.id]);
@@ -556,13 +609,25 @@ void _registerDeletionTests() {
               )).exists,
               isFalse,
             );
-            expect(await ProductRepository(remote).get(member.id), isNotNull);
             expect(
-              (await CollectionRepository(remote).get(target.id))!.productIds,
+              await ProductRepository(
+                remote,
+                SyncStatus(Logger(level: Level.off)),
+              ).get(member.id),
+              isNotNull,
+            );
+            expect(
+              (await CollectionRepository(
+                remote,
+                SyncStatus(Logger(level: Level.off)),
+              ).get(target.id))!.productIds,
               [kept.id, member.id],
             );
             if (removeDiscoveredCollection) {
-              await CollectionRepository(remote).delete(fresh.id);
+              await CollectionRepository(
+                remote,
+                SyncStatus(Logger(level: Level.off)),
+              ).delete(fresh.id);
             }
           } finally {
             await firestore.enableNetwork();
@@ -573,7 +638,10 @@ void _registerDeletionTests() {
             isFalse,
           );
           expect(
-            (await CollectionRepository(remote).get(target.id))!.productIds,
+            (await CollectionRepository(
+              remote,
+              SyncStatus(Logger(level: Level.off)),
+            ).get(target.id))!.productIds,
             [kept.id],
           );
           expect((await products.getProducts(owner)).map((p) => p.id), [

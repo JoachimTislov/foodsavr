@@ -114,6 +114,11 @@
 		"name": "Navn",
 		"name_required": "Vennligst oppgi et navn",
 		"or": "ELLER",
+		"pendingChanges": {
+			"zero": "{count} endringer venter på synkronisering",
+			"one": "{count} endring venter på synkronisering",
+			"other": "{count} endringer venter på synkronisering"
+		},
 		"privacy_notice": "Personvernerklæring",
 		"save": "Lagre",
 		"selectItem": "Velg et element for å se detaljene",
@@ -183,6 +188,7 @@
 		"barcodeCreated": "Opprettet nytt produkt \"{name}\"",
 		"barcodeMatched": "Oppdaterte eksisterende produkt \"{name}\"",
 		"barcodeNotFound": "Produktet ble ikke funnet. Vær den første til å legge det til!",
+		"barcodeOffline": "Du er frakoblet: strekkoden er lagret og slås opp senere",
 		"barcodeNumber": "Strekkodenummer",
 		"category": "Kategori",
 		"compact": "Kompakt",

@@ -16,6 +16,10 @@ import 'package:foodsavr/views/transfer_management_view.dart';
 import 'package:go_router/go_router.dart';
 
 import '../constants/legal_docs.dart';
+import '../injection.dart';
+import '../services/barcode_lookup_queue.dart';
+import '../services/sync_status.dart';
+import '../widgets/common/pending_sync_banner.dart';
 import '../constants/public_routes.dart';
 import '../controllers/list_query.dart';
 import '../views/legal_document_view.dart';
@@ -145,7 +149,13 @@ class MainNavigationRoute extends StatefulShellRouteData {
     BuildContext context,
     GoRouterState state,
     StatefulNavigationShell navigationShell,
-  ) => MainNavigationView(navigationShell: navigationShell);
+  ) => MainNavigationView(
+    navigationShell: navigationShell,
+    statusBanner: PendingSyncBanner(
+      syncStatus: getIt<SyncStatus>(),
+      lookupQueue: getIt<BarcodeLookupQueue>(),
+    ),
+  );
 }
 
 class DashboardRoute extends GoRouteData with $DashboardRoute {

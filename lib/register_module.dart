@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:foodsavr/constants/preferences_config.dart';
 import 'package:foodsavr/controllers/pwa_install_controller.dart';
 import 'package:foodsavr/injection.dart';
+import 'package:foodsavr/services/barcode_lookup_queue.dart';
 import 'package:foodsavr/services/web_access.dart';
 import 'package:foodsavr/utils/theme_notifier.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -22,8 +23,13 @@ abstract class RegisterModule {
   @lazySingleton
   FirebaseAuth get firebaseAuth => FirebaseAuth.instance;
 
+  /// Firestore with its local cache on every platform, so reads work and
+  /// writes queue while offline. Android and iOS enable persistence by
+  /// default; web needs it set, with multi-tab sync so several open tabs
+  /// share one cache.
   @lazySingleton
-  FirebaseFirestore get firebaseFirestore => FirebaseFirestore.instance;
+  FirebaseFirestore get firebaseFirestore =>
+      withOfflinePersistence(FirebaseFirestore.instance, isWeb: kIsWeb);
 
   @lazySingleton
   GoogleSignIn get googleSignIn => GoogleSignIn.instance;
@@ -47,6 +53,7 @@ abstract class RegisterModule {
             PwaInstallController.kDismissedKey,
             PreferencesConfig.cacheKey,
             WebAccess.preferenceKey,
+            BarcodeLookupQueue.preferenceKey,
           },
         ),
       );
@@ -64,4 +71,27 @@ abstract class RegisterModule {
   @singleton
   PwaInstallController get pwaInstallController =>
       PwaInstallController(prefs: getIt<SharedPreferencesWithCache>());
+}
+
+/// Firestore settings with offline persistence enabled.
+Settings firestoreSettings({required bool isWeb}) => Settings(
+  persistenceEnabled: true,
+  webPersistentTabManager: isWeb
+      ? const WebPersistentMultipleTabManager()
+      : null,
+);
+
+/// Applies [firestoreSettings] to [firestore]. Settings can only be set before
+/// first use; a web hot restart reuses the started instance, which keeps the
+/// settings it was started with.
+FirebaseFirestore withOfflinePersistence(
+  FirebaseFirestore firestore, {
+  required bool isWeb,
+}) {
+  try {
+    firestore.settings = firestoreSettings(isWeb: isWeb);
+  } catch (e) {
+    getIt<Logger>().w('Firestore settings already applied: ${e.runtimeType}');
+  }
+  return firestore;
 }

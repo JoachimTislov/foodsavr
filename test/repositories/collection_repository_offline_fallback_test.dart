@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logger/logger.dart';
+import 'package:foodsavr/services/sync_status.dart';
 import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/repositories/collection_repository.dart';
 import 'package:mocktail/mocktail.dart';
@@ -58,7 +60,10 @@ void main() {
     when(() => document.update(any())).thenAnswer((_) async {});
     when(() => document.set(any(), any())).thenAnswer((_) async {});
     when(() => batch.commit()).thenAnswer((_) async {});
-    repository = CollectionRepository(firestore);
+    repository = CollectionRepository(
+      firestore,
+      SyncStatus(Logger(level: Level.off)),
+    );
   });
 
   for (final (label, error) in [

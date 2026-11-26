@@ -19,6 +19,7 @@ import 'interfaces/i_auth_service.dart';
 import 'interfaces/i_error_reporter.dart';
 import 'routes/go_router.dart';
 import 'service_locator.dart';
+import 'services/offline_sync.dart';
 import 'services/web_access.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'utils/theme_notifier.dart';
@@ -157,6 +158,8 @@ void main() async {
 
   // Start syncing the signed-in user's preferences from app start.
   getIt<PreferencesController>();
+  // Look up barcodes that were scanned while offline once a connection returns.
+  getIt<OfflineSync>().start();
 
   final webAccess =
       kIsWeb && !Config.useEmulators && Config.webAccessCode.isNotEmpty
