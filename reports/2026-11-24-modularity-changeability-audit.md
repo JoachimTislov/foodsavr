@@ -10,7 +10,7 @@
 
 FoodSavr has a sound, documented layering: **views/widgets → services → interfaces → models/repositories**, with the pure-Dart `foodsavr_core` package kept separate. The data layer is well factored (repository pattern, injectable DI, interface-based). Main weaknesses:
 
-- several view/widget files violate the one-class-per-file convention;
+- multiple widgets share files in the audited revision;
 - the application layer couples controllers to concrete services;
 - the feature-module catalog (ADR 0008) is spec-ahead: no app code reads it yet.
 
@@ -48,16 +48,17 @@ Note: in the T3 worktree (`t3-00d45f01`), `.dart_tool/package_config.json` is ab
 
 ### Finding 1 — One-widget-per-file convention drift (moderate)
 
-`coding-standards.md:22` mandates "One widget per file: All widgets must be in their own file", and `:34`/`:63-64` forbid private widget builders in views. Deviations (files with 2-8 classes in `lib/views`/`lib/widgets`):
+`coding-standards.md:22` mandates "One widget per file: All widgets must be in their own file", and `:34`/`:63-64` forbid private widget builders in views. At `df1afafe`, the appendix query identified these files with multiple widget declarations.
 
-- `lib/views/profile_view.dart` (8 classes)
-- `lib/views/settings_view.dart` (6)
-- `lib/views/add_product_to_collection_view.dart` (4)
-- `lib/widgets/common/pwa_install_banner.dart` (4)
-- `lib/views/transfer_management_view.dart` (3), `lib/views/product_form_view.dart` (3), `lib/views/main_navigation_view.dart` (3), `lib/views/collection_list_view.dart` (3), `lib/views/collection_form_view.dart` (3), `lib/widgets/common/app_navigation_rail.dart` (3)
-- plus 2-class files: `lib/widgets/product/barcode_scanner_overlay.dart`, `lib/widgets/common/retry_scaffold.dart`, `lib/widgets/common/master_detail_layout.dart`, `lib/widgets/common/content_constraint.dart`, `lib/widgets/auth/auth_form_fields.dart`, `lib/views/select_products_view.dart`, `lib/views/receipt_scan_view.dart`, `lib/views/product_list_view.dart`, `lib/views/product_detail_view.dart`, `lib/views/landing_page_view.dart`
-
-Extracting classes out of views/widgets is a changeability win: smaller files, easier to test and replace.
+- `lib/views/add_product_to_collection_view.dart` (2 widgets)
+- `lib/views/collection_form_view.dart` (2 widgets)
+- `lib/views/collection_list_view.dart` (2 widgets)
+- `lib/views/product_form_view.dart` (2 widgets)
+- `lib/views/profile_view.dart` (6 widgets)
+- `lib/views/settings_view.dart` (4 widgets)
+- `lib/widgets/common/app_navigation_rail.dart` (2 widgets)
+- `lib/widgets/common/content_constraint.dart` (2 widgets)
+- `lib/widgets/common/pwa_install_banner.dart` (3 widgets)
 
 ### Finding 2 — Concrete-class coupling in the application layer (moderate)
 
@@ -69,7 +70,7 @@ Feature separation exists in `lib/features/third_party_integration/` while other
 
 ### Finding 4 — Dead code (low)
 
-`GenericRepository<T>` (`lib/utils/generic_repository.dart`) has no importers anywhere in `lib/`, `test/` or `packages/` — a legacy in-memory repository utility with no users.
+At `df1afafe`, the only reference to `GenericRepository` in `lib/`, `test/` and `packages/` was its declaration in `lib/utils/generic_repository.dart`. The file had been removed by `bf144b3`.
 
 ### Finding 5 — Environment/generated-code drift (baseline, not a code finding)
 
@@ -79,10 +80,10 @@ See §2: missing generated files block `flutter analyze` cleanly on `develop`, a
 
 ## 5. Recommendations (direction, not fixes)
 
-1. Extract classes out of the multi-class files listed in Finding 1.
+1. Separate the widgets listed in Finding 1.
 2. Where a feature moves or gets replaced, start at the service level (add `IService`-style interfaces for controllers' inputs if the ripple is real), keeping repository interfaces as the primary seam.
 3. Wire or prune the feature-module catalog per ADR 0008 before relying on it; the current split view/features/third_party_integration is the de-facto taxonomy.
-4. Remove or revive `GenericRepository` per repo policy ("Work on unused helpers only with explicit direction").
+4. Finding 4 was already addressed by the reviewed revision.
 5. Regenerate `injection.config.dart` / `user_preferences_model.g.dart` (`make build`) and address the `go_router_builder` SDK pin so `make check` (analyze) can be green.
 
 ---
@@ -91,8 +92,7 @@ See §2: missing generated files block `flutter analyze` cleanly on `develop`, a
 
 ```
 cd ~/projects/foodsavr/default && flutter analyze --no-pub    # expect 26 issues today
-grep -rln "GenericRepository" lib/ test/ packages/            # only its own file
+git grep -w GenericRepository df1afafe -- lib test packages            # only its own file
 grep -rln "feature-modules" lib/ packages/                    # nothing yet
-for f in $(find lib/views lib/widgets -name '*.dart'); do
-  c=$(grep -cE "^(class|mixin|enum) " "$f"); [ "$c" -gt 1 ] && echo "$c $f"; done
+git grep -cE 'class [[:alnum:]_]+ extends [[:alnum:]_]*Widget' df1afafe -- lib/views lib/widgets | awk -F: '$NF > 1'
 ```
