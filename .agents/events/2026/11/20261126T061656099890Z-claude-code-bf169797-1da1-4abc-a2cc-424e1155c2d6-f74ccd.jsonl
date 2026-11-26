@@ -1,0 +1,1 @@
+{"commits": ["a7b66ac2ef91ea1c2027d88a99c4373664e19daa"], "event": "Fixed r4704483345: read repair prunes in a transaction that reads the collection and re-reads each product; 32 real-rules tests and make check green", "session_id": "claude-code:bf169797-1da1-4abc-a2cc-424e1155c2d6", "stream": "ledger", "timestamp": "2026-11-26T06:16:56+00:00"}
