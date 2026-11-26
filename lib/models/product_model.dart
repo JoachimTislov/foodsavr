@@ -3,6 +3,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../constants/preferences_config.dart';
+import '../constants/product_categories.dart';
 
 part 'product_model.freezed.dart';
 part 'product_model.g.dart';
@@ -120,7 +121,7 @@ abstract class Product with _$Product {
     @Default([])
     List<ExpiryEntry> expiries, // Quantities and their expiration dates
     @Default(0) int nonExpiringQuantity,
-    String? category,
+    @JsonKey(fromJson: ProductCategory.normalize) String? category,
     String? imageUrl,
     String? barcode,
     @Default(false) bool isGlobal,

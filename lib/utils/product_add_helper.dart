@@ -10,6 +10,7 @@ import '../services/collection_service.dart';
 import '../views/product_form_view.dart';
 import '../views/product_detail_view.dart';
 import 'localization.dart';
+import 'user_error.dart';
 
 enum BarcodeScanAction { addWithoutBarcode }
 
@@ -128,7 +129,7 @@ class ProductAddHelper {
 
         return true;
       }
-    } catch (e) {
+    } catch (e, stack) {
       if (!context.mounted) return false;
       if (loadingOpen) {
         Navigator.of(
@@ -139,7 +140,7 @@ class ProductAddHelper {
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            'product.barcodeAddError'.tr(namedArgs: {'error': '$e'}),
+            userErrorMessage(e, 'product.barcodeAddError'.tr(), stack),
           ),
         ),
       );

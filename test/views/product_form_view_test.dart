@@ -245,10 +245,8 @@ void main() {
     await tester.tap(find.text('Create'));
     await settle(tester);
 
-    expect(
-      find.text('Failed to save product: Exception: offline'),
-      findsOneWidget,
-    );
+    expect(find.text('Could not save the product. Try again.'), findsOneWidget);
+    expect(find.textContaining('offline'), findsNothing);
   });
 
   testWidgets('choosing Dairy pre-fills an estimated expiry', (tester) async {
@@ -262,6 +260,7 @@ void main() {
     await tester.tap(find.text('Create'));
     await settle(tester);
 
+    expect(repository.added.last.category, 'dairy');
     final expiries = repository.added.last.expiries;
     expect(expiries, hasLength(1));
     final days = expiries.single.expirationDate

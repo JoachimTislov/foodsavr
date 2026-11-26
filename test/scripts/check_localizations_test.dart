@@ -114,4 +114,15 @@ void main() {
       expect(result.stdout, contains('auth.extra'));
     },
   );
+
+  test('Validation fails on an untranslated Text literal in a view', () async {
+    final views = await Directory('${libDir.path}/views').create();
+    await File('${views.path}/hello_view.dart').writeAsString('''
+      Widget build() => Text('Hello');
+    ''');
+    final result = await runCheck();
+    expect(result.exitCode, 1);
+    expect(result.stdout, contains('Unlocalized text literals'));
+    expect(result.stdout, contains('lib/views/hello_view.dart:1: Hello'));
+  });
 }

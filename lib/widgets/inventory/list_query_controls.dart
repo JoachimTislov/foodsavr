@@ -5,6 +5,7 @@ import '../../controllers/list_query.dart';
 import '../../controllers/list_query_state.dart';
 import '../../models/collection_model.dart';
 import '../../models/product_model.dart';
+import '../../constants/product_categories.dart';
 
 class ListQueryControls extends StatelessWidget {
   const ListQueryControls({
@@ -68,11 +69,15 @@ class ListQueryControls extends StatelessWidget {
                       CheckedPopupMenuItem(
                         value: category,
                         checked: state.category == category,
-                        child: Text(category),
+                        child: Text(ProductCategory.label(category)),
                       ),
                   ],
                   child: Chip(
-                    label: Text(state.category ?? 'listQuery.category'.tr()),
+                    label: Text(
+                      state.category == null
+                          ? 'listQuery.category'.tr()
+                          : ProductCategory.label(state.category!),
+                    ),
                   ),
                 ),
               if (collections.isNotEmpty || state.collectionId != null)

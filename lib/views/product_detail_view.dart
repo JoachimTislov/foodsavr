@@ -14,6 +14,7 @@ import '../service_locator.dart';
 import '../services/collection_service.dart';
 import '../services/product_service.dart';
 import '../interfaces/i_auth_service.dart';
+import '../utils/user_error.dart';
 
 class ProductDetailView extends WatchingStatefulWidget {
   final Product product;
@@ -114,7 +115,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                     const SizedBox(height: 8),
                     if (product.category != null)
                       Chip(
-                        label: Text(product.category!),
+                        label: Text(ProductCategory.label(product.category!)),
                         labelStyle: theme.textTheme.labelLarge,
                         backgroundColor: colorScheme.secondaryContainer,
                         avatar: Icon(
@@ -310,12 +311,12 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                 } else {
                   onDeleted();
                 }
-              } catch (e) {
+              } catch (e, stack) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      'product.deleteError'.tr(namedArgs: {'error': '$e'}),
+                      userErrorMessage(e, 'product.deleteError'.tr(), stack),
                     ),
                   ),
                 );

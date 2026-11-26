@@ -7,37 +7,37 @@ class GlobalProductsData {
         'id': 1001,
         'name': 'Pasta',
         'description': 'Italian spaghetti pasta',
-        'category': 'Pantry',
+        'category': 'pantry',
       },
       {
         'id': 1002,
         'name': 'Rice',
         'description': 'Long grain white rice',
-        'category': 'Pantry',
+        'category': 'pantry',
       },
       {
         'id': 1003,
         'name': 'Olive Oil',
         'description': 'Extra virgin olive oil',
-        'category': 'Pantry',
+        'category': 'pantry',
       },
       {
         'id': 1004,
         'name': 'Tomato Sauce',
         'description': 'Classic marinara sauce',
-        'category': 'Pantry',
+        'category': 'pantry',
       },
       {
         'id': 1005,
         'name': 'Black Beans',
         'description': 'Canned black beans',
-        'category': 'Pantry',
+        'category': 'pantry',
       },
       {
         'id': 1006,
         'name': 'Honey',
         'description': 'Pure organic honey',
-        'category': 'Pantry',
+        'category': 'pantry',
       },
     ];
   }

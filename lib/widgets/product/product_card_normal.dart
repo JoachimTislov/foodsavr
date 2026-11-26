@@ -132,7 +132,7 @@ class ProductCardNormal extends WatchingWidget {
                       children: [
                         if (product.category != null) ...[
                           Text(
-                            product.category!,
+                            ProductCategory.label(product.category!),
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: colorScheme.onSurfaceVariant,
                             ),

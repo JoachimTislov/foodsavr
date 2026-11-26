@@ -6,6 +6,7 @@ import '../service_locator.dart';
 import '../services/collection_service.dart';
 import '../interfaces/i_auth_service.dart';
 import '../utils/collection_types.dart';
+import '../utils/user_error.dart';
 
 class CollectionFormView extends StatelessWidget {
   final CollectionType type;
@@ -115,11 +116,15 @@ class _CollectionFormSheetState extends State<_CollectionFormSheet> {
       if (mounted) {
         Navigator.of(context).pop(true);
       }
-    } catch (e) {
+    } catch (e, stack) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              userErrorMessage(e, 'collection.saveError'.tr(), stack),
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) {

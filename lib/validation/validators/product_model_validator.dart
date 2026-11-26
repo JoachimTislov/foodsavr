@@ -13,6 +13,7 @@ class ProductModelValidator implements IValidator<Product> {
         const ValidationError(
           field: 'name',
           message: 'Product name cannot be empty',
+          code: ValidationCode.productNameEmpty,
         ),
       );
     }
@@ -22,6 +23,7 @@ class ProductModelValidator implements IValidator<Product> {
         const ValidationError(
           field: 'nonExpiringQuantity',
           message: 'Non-expiring quantity cannot be negative',
+          code: ValidationCode.nonExpiringQuantityNegative,
         ),
       );
     }
@@ -33,6 +35,7 @@ class ProductModelValidator implements IValidator<Product> {
           ValidationError(
             field: 'expiries[$i].quantity',
             message: 'Expiry quantity must be positive',
+            code: ValidationCode.expiryQuantityNotPositive,
           ),
         );
       }

@@ -3,6 +3,7 @@ import 'package:watch_it/watch_it.dart';
 
 import '../../controllers/preferences_controller.dart';
 import '../../models/product_model.dart';
+import '../../constants/product_categories.dart';
 
 class ProductCardCompact extends WatchingWidget {
   final Product product;
@@ -61,7 +62,7 @@ class ProductCardCompact extends WatchingWidget {
                     ),
                     if (product.category != null)
                       Text(
-                        product.category!,
+                        ProductCategory.label(product.category!),
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),
@@ -77,7 +78,7 @@ class ProductCardCompact extends WatchingWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  'x${product.quantity}',
+                  'x${product.quantity}', // l10n-ignore
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: colorScheme.onSecondaryContainer,
                     fontWeight: FontWeight.w600,
