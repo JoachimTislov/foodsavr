@@ -175,7 +175,19 @@ class CollectionService {
   Future<(Collection, List<Product>)> loadContents(
     Collection collection,
   ) async {
-    if (collection.productIds.isEmpty) return (collection, <Product>[]);
+    final (resolved, visible, authoritative: _) = await resolveContents(
+      collection,
+    );
+    return (resolved, visible);
+  }
+
+  /// Like [loadContents], and reports whether the server confirmed the result.
+  Future<(Collection, List<Product>, {bool authoritative})> resolveContents(
+    Collection collection,
+  ) async {
+    if (collection.productIds.isEmpty) {
+      return (collection, <Product>[], authoritative: true);
+    }
     final (:products, :authoritative) = await _collectionRepository
         .getMemberProducts(collection.userId);
     final byId = {for (final member in products) member.id: member};
@@ -186,6 +198,7 @@ class CollectionService {
     return (
       collection.copyWith(productIds: visible.map((p) => p.id).toList()),
       visible,
+      authoritative: authoritative,
     );
   }
 

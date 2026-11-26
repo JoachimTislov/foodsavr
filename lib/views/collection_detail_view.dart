@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
@@ -92,8 +94,24 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         _currentCollection.id,
       );
       if (source == null) throw StateError('The collection is unavailable.');
-      // Dangling IDs are hidden, so the sheet counts what the header shows.
-      final productCount = _products.length;
+      // Another device may have changed the members since this view loaded.
+      // Dangling IDs never count; an unconfirmed result never offers fewer
+      // choices than the loaded products need.
+      var productCount = _products.length;
+      try {
+        final (collection, products, :authoritative) = await _collectionService
+            .resolveContents(source);
+        if (!mounted) return;
+        setState(() {
+          _currentCollection = collection;
+          _products = products;
+        });
+        productCount = authoritative
+            ? products.length
+            : math.max(productCount, products.length);
+      } on Exception {
+        // Keep the loaded count.
+      }
       final inventories =
           source.type == CollectionType.shoppingList || productCount == 0
           ? const <Collection>[]

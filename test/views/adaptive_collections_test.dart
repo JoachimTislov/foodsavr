@@ -71,6 +71,9 @@ void main() {
     when(
       () => collections.loadContents(_fridge),
     ).thenAnswer((_) async => (_fridge, <Product>[]));
+    when(
+      () => collections.resolveContents(_pantry),
+    ).thenAnswer((_) async => (_pantry, <Product>[], authoritative: true));
     getIt
       ..registerSingleton<IAuthService>(auth)
       ..registerSingleton<CollectionService>(collections)
@@ -217,6 +220,13 @@ void main() {
     when(() => collections.loadContents(ghosts)).thenAnswer(
       (_) async => (ghosts.copyWith(productIds: const []), <Product>[]),
     );
+    when(() => collections.resolveContents(ghosts)).thenAnswer(
+      (_) async => (
+        ghosts.copyWith(productIds: const []),
+        <Product>[],
+        authoritative: true,
+      ),
+    );
     when(() => collections.deleteCollectionOnly('c3')).thenAnswer((_) async {
       deleted = true;
     });
@@ -250,5 +260,56 @@ void main() {
 
     expect(deleted, isTrue);
     verifyZeroInteractions(getIt<ProductService>());
+  });
+
+  testWidgets('a product added elsewhere after loading offers item choices', (
+    tester,
+  ) async {
+    final stocked = _pantry.copyWith(productIds: ['milk']);
+    const milk = Product(
+      id: 'milk',
+      name: 'Milk',
+      description: '',
+      userId: 'user',
+    );
+    final collections = getIt<CollectionService>();
+    var added = false;
+    when(
+      () => collections.getCollectionsForUser('user'),
+    ).thenAnswer((_) async => [_pantry]);
+    when(
+      () => collections.getCollection('c1'),
+    ).thenAnswer((_) async => added ? stocked : _pantry);
+    when(
+      () => collections.resolveContents(stocked),
+    ).thenAnswer((_) async => (stocked, [milk], authoritative: true));
+    when(
+      () => collections.getCollectionsForUser(
+        'user',
+        type: CollectionType.inventory,
+      ),
+    ).thenAnswer((_) async => [stocked]);
+
+    await tester.pumpWidget(
+      EasyLocalization(
+        supportedLocales: const [Locale('en')],
+        path: 'assets/translations',
+        child: const MaterialApp(
+          home: DynamicCollectionView(type: CollectionType.inventory),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    added = true;
+    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(DeleteCollectionSheet),
+        matching: find.byType(OutlinedButton),
+      ),
+      findsOneWidget,
+    );
   });
 }
