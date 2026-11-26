@@ -42,7 +42,7 @@ void main() {
       () => repository.isProductMissingOrUnreadable(any()),
     ).thenAnswer((_) async => true);
     when(
-      () => repository.removeProducts(any(), any()),
+      () => repository.pruneMissingProducts(any(), any()),
     ).thenAnswer((_) async {});
   });
 
@@ -53,7 +53,7 @@ void main() {
     expect(cleaned.productIds, ['a', 'b']);
     final removed =
         verify(
-              () => repository.removeProducts('c1', captureAny()),
+              () => repository.pruneMissingProducts('c1', captureAny()),
             ).captured.single
             as Iterable<String>;
     expect(removed.toSet(), {'ghost', 'ghost-2'});
@@ -66,7 +66,7 @@ void main() {
     expect(counts, {'c1': 2});
     final removed =
         verify(
-              () => repository.removeProducts('c1', captureAny()),
+              () => repository.pruneMissingProducts('c1', captureAny()),
             ).captured.single
             as Iterable<String>;
     expect(removed.toSet(), {'ghost', 'ghost-2'});
@@ -84,7 +84,7 @@ void main() {
       expect(visible.map((product) => product.id), ['a']);
       expect(await service.resolveCounts('u1', [collection]), {'c1': 1});
       verifyNever(() => repository.isProductMissingOrUnreadable(any()));
-      verifyNever(() => repository.removeProducts(any(), any()));
+      verifyNever(() => repository.pruneMissingProducts(any(), any()));
     },
   );
 
@@ -100,7 +100,7 @@ void main() {
       expect(loaded.productIds, ['a', 'b']);
       final removed =
           verify(
-                () => repository.removeProducts('c1', captureAny()),
+                () => repository.pruneMissingProducts('c1', captureAny()),
               ).captured.single
               as Iterable<String>;
       expect(removed, ['ghost-2']);
@@ -117,7 +117,7 @@ void main() {
     expect(loaded.productIds, ['a', 'b']);
     expect(visible.map((product) => product.id), ['a', 'b']);
     expect(await service.resolveCounts('u1', [collection]), {'c1': 2});
-    verifyNever(() => repository.removeProducts(any(), any()));
+    verifyNever(() => repository.pruneMissingProducts(any(), any()));
   });
 
   test('a clean collection triggers no repair write', () async {
@@ -130,14 +130,14 @@ void main() {
     await service.loadContents(clean);
     await service.resolveCounts('u1', [clean]);
 
-    verifyNever(() => repository.removeProducts(any(), any()));
+    verifyNever(() => repository.pruneMissingProducts(any(), any()));
   });
 
   test('a queued repair does not delay a read', () async {
     final acknowledgement = Completer<void>();
     addTearDown(acknowledgement.complete);
     when(
-      () => repository.removeProducts(any(), any()),
+      () => repository.pruneMissingProducts(any(), any()),
     ).thenAnswer((_) => acknowledgement.future);
 
     final (_, visible) = await service.loadContents(collection);
@@ -148,7 +148,7 @@ void main() {
 
   test('a failed repair never fails the read', () async {
     when(
-      () => repository.removeProducts(any(), any()),
+      () => repository.pruneMissingProducts(any(), any()),
     ).thenThrow(Exception('offline'));
 
     final (_, products) = await service.loadContents(collection);

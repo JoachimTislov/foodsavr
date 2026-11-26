@@ -228,6 +228,7 @@ void _registerDeletionTests() {
       ]);
       collections.afterMembershipRead = null;
       collections.beforeMembershipCommit = null;
+      collections.beforeDanglingPrune = null;
       productRepository.afterDiscovery = null;
     });
 
@@ -313,9 +314,9 @@ void _registerDeletionTests() {
       expect(await collectionService.resolveCounts(owner, [saved]), {
         fresh.id: 0,
       });
-      await firestore.waitForPendingWrites();
-      expect(
-        (await CollectionRepository(remote).get(fresh.id))!.productIds,
+      await _expectEventually(
+        () async =>
+            (await CollectionRepository(remote).get(fresh.id))!.productIds,
         isEmpty,
       );
     });
@@ -407,6 +408,36 @@ void _registerDeletionTests() {
       );
     }
 
+    testWidgets('a product re-added during repair keeps its membership', (
+      tester,
+    ) async {
+      await collections.addProduct(fresh.id, kept.id);
+      await remote.collection('products').doc(kept.id).delete();
+      final saved = (await CollectionRepository(remote).get(fresh.id))!;
+      final reached = Completer<void>();
+      final held = Completer<void>();
+      addTearDown(() => held.isCompleted ? null : held.complete());
+      collections.beforeDanglingPrune = () {
+        reached.complete();
+        return held.future;
+      };
+
+      final (_, visible) = await collectionService.loadContents(saved);
+      expect(visible, isEmpty);
+      // The server confirmed the product missing; the prune is now held.
+      await reached.future.timeout(const Duration(seconds: 10));
+      await remote.collection('products').doc(kept.id).set(kept.toJson());
+      await CollectionRepository(remote).addProduct(fresh.id, kept.id);
+      held.complete();
+      await Future<void>.delayed(const Duration(seconds: 2));
+
+      expect((await CollectionRepository(remote).get(fresh.id))!.productIds, [
+        kept.id,
+      ]);
+      final (_, restored) = await collectionService.loadContents(saved);
+      expect(restored.map((product) => product.id), [kept.id]);
+    });
+
     testWidgets('a rejected queued add is rolled back and never replayed', (
       tester,
     ) async {
@@ -480,11 +511,10 @@ void _registerDeletionTests() {
       expect((await collections.get(source.id))!.productIds, cached.productIds);
       final (_, visible) = await collectionService.loadContents(cached);
       expect(visible.map((p) => p.id), [member.id, uncached.id]);
-      await firestore.waitForPendingWrites();
-      expect((await collections.get(source.id))!.productIds, [
-        member.id,
-        uncached.id,
-      ]);
+      await _expectEventually(
+        () async => (await collections.get(source.id))!.productIds,
+        [member.id, uncached.id],
+      );
     });
 
     for (final removeDiscoveredCollection in [false, true]) {
@@ -746,8 +776,10 @@ void _registerDeletionTests() {
       final (loaded, visible) = await collectionService.loadContents(added);
       expect(visible.map((product) => product.id), [kept.id]);
       expect(loaded.productIds, [kept.id]);
-      await firestore.waitForPendingWrites();
-      expect((await collections.get(added.id))!.productIds, [kept.id]);
+      await _expectEventually(
+        () async => (await collections.get(added.id))!.productIds,
+        [kept.id],
+      );
     });
 
     testWidgets('bulk deletion tolerates a product deleted after discovery', (
@@ -930,8 +962,10 @@ void _registerDeletionTests() {
 
         expect(visible.map((p) => p.id), [member.id]);
         expect(cleaned.productIds, [member.id]);
-        await firestore.waitForPendingWrites();
-        expect((await collections.get(source.id))!.productIds, [member.id]);
+        await _expectEventually(
+          () async => (await collections.get(source.id))!.productIds,
+          [member.id],
+        );
       },
     );
   });
@@ -944,3 +978,15 @@ Matcher _throwsUnavailableProduct(String id) => throwsA(
     'Product $id is unavailable. Reload and try again.',
   ),
 );
+
+/// Read repair runs in the background, so poll for its result.
+Future<void> _expectEventually(
+  Future<Object?> Function() read,
+  Object? matcher,
+) async {
+  for (var attempt = 0; attempt < 25; attempt++) {
+    if (wrapMatcher(matcher).matches(await read(), {})) return;
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+  }
+  expect(await read(), matcher);
+}
