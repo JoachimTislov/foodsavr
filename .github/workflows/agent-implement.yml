@@ -22,7 +22,7 @@ on:
         default: false
 
 concurrency:
-  group: agent-implement-${{ github.event.issue.number || inputs.issue }}
+  group: agent-implement-${{ github.event.issue.number || inputs.issue }}${{ (github.event_name == 'issues' && github.event.label.name != 'triage/ready-for-agent') && format('-label-{0}', github.run_id) || '' }}
   cancel-in-progress: false
 
 permissions:
@@ -114,10 +114,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p .agents/state/workflows
-          gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json number,title,body,labels \
+          gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json number,title,body,labels,comments \
             > ".agents/state/issue-${ISSUE}.json"
-          jq -r '"# Issue #\(.number): \(.title)\n\nLabels: \([.labels[].name] | join(", "))\n\n\(.body)"' \
-            ".agents/state/issue-${ISSUE}.json" > ".agents/state/issue-${ISSUE}.md"
+          jq -r '
+            "# Issue #\(.number): \(.title)\n\nLabels: \([.labels[].name] | join(", "))\n\n\(.body)" +
+            (
+              [ .comments[]? | select(.authorAssociation == "OWNER" or .authorAssociation == "COLLABORATOR" or .authorAssociation == "MEMBER") ]
+              | if length > 0 then
+                  "\n\n## Trusted Comments & Agent Briefs\n\n" +
+                  (map("### Comment by @\(.author.login // "unknown") (\(.authorAssociation))\n\n\(.body)") | join("\n\n---\n\n"))
+                else "" end
+            )
+          ' ".agents/state/issue-${ISSUE}.json" > ".agents/state/issue-${ISSUE}.md"
           jq --arg file ".agents/state/issue-${ISSUE}.md" --arg issue "#${ISSUE}" \
             --slurpfile metadata ".agents/state/issue-${ISSUE}.json" '
             [$metadata[0].labels[].name] as $labels |
@@ -187,11 +195,20 @@ jobs:
           flutter analyze --fatal-infos --fatal-warnings --no-pub > .agents/state/analyze.log 2>&1; analyze=$?
           dart run scripts/locale/check_localizations.dart > .agents/state/locale.log 2>&1; locale=$?
           flutter test --no-pub > .agents/state/test.log 2>&1; tests=$?
+          agent_checks=0
+          if git status --porcelain | grep -qE '(\.agents/|scripts/agents/|scripts/ci/|\.py$|\.sql$)'; then
+            python3 scripts/ci/local_ci.py --group agents > .agents/state/agents_ci.log 2>&1; agent_checks=$?
+          fi
+          doc_checks=0
+          if git status --porcelain | grep -qE '(\.md$|docs/|specs/)'; then
+            python3 scripts/ci/local_ci.py --group docs > .agents/state/docs_ci.log 2>&1; doc_checks=$?
+          fi
           set -e
           state() { [ "$1" = 0 ] && echo passed || echo failed; }
-          result=passed; [ "$analyze$locale$tests" = "000" ] || result=failed
+          result=passed; [ "$analyze$locale$tests$agent_checks$doc_checks" = "00000" ] || result=failed
           echo "result=${result}" >> "$GITHUB_OUTPUT"
-          printf -- '- analyze: %s\n- localization: %s\n- tests: %s\n' "$(state $analyze)" "$(state $locale)" "$(state $tests)" > .agents/state/verify.md
+          printf -- '- analyze: %s\n- localization: %s\n- tests: %s\n- agent_checks: %s\n- doc_checks: %s\n' \
+            "$(state $analyze)" "$(state $locale)" "$(state $tests)" "$(state $agent_checks)" "$(state $doc_checks)" > .agents/state/verify.md
 
       - name: Export final patch
         if: steps.patch.outputs.changed == 'true'
