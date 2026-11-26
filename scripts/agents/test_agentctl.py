@@ -2589,6 +2589,20 @@ if args[:1] == ["version"]:
     sys.exit(0)
 if args[:3] == ["storage", "buckets", "create"]:
     sys.exit(0)
+if args[:2] == ["projects", "describe"]:
+    print("ACTIVE")
+    sys.exit(0)
+if args[:3] == ["billing", "projects", "describe"]:
+    print(os.environ.get("FAKE_GCLOUD_BILLING", "True"))
+    sys.exit(0)
+if args[:3] == ["billing", "projects", "link"]:
+    sys.exit(0)
+if args[:2] == ["services", "list"]:
+    print("storage.googleapis.com")
+    sys.exit(0)
+if args[:3] == ["storage", "buckets", "describe"]:
+    print("ERROR: 404 bucket not found", file=sys.stderr)
+    sys.exit(1)
 if args[:2] == ["storage", "cp"]:
     if os.environ.get("FAKE_GCLOUD_FAIL"):
         print("ERROR: Reauthentication required. Please run: gcloud auth login", file=sys.stderr)
@@ -2885,6 +2899,23 @@ class ArchiveTest(unittest.TestCase):
         self.assertEqual(self.calls(), [])
         self.cli("sessions", "provision-archive", "--apply")
         self.assertTrue(any(call.startswith("storage buckets create gs://test-bucket") for call in self.calls()))
+        self.assertFalse(any(call.startswith("projects create") for call in self.calls()))
+
+    def test_provision_stops_at_billing_unless_owner_links_it(self) -> None:
+        blocked = self.cli("sessions", "provision-archive", "--apply", check=False, FAKE_GCLOUD_BILLING="False")
+        self.assertEqual(blocked.returncode, 3)
+        self.assertIn("blocked: billing", blocked.stdout)
+        self.assertFalse(any(call.startswith(("billing projects link", "storage buckets create")) for call in self.calls()))
+        self.config_file.write_text(json.dumps({**self.config, "billingAccount": "000000-000000-000000"}))
+        self.cli("sessions", "provision-archive", "--apply", "--link-billing", FAKE_GCLOUD_BILLING="False")
+        self.assertTrue(any(call.startswith("billing projects link proj --billing-account=000000-000000-000000") for call in self.calls()))
+
+    def test_archive_all_backfills_sessions_without_transcripts(self) -> None:
+        self.index.write_text(json.dumps({"session_id": self.session, "started_at": "2026-11-22T00:00:00+00:00"}) + "\n")
+        result = self.cli("sessions", "archive", "--all", "--json")
+        summary = json.loads(result.stdout)
+        self.assertEqual(summary["pending"], 1)
+        self.assertEqual(sum(v for k, v in summary.items() if k in ("archived", "skipped")), 1)
 
     def test_doctor_archive_report_and_index_transcript_rule(self) -> None:
         module = load_agentctl_module()

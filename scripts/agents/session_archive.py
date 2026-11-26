@@ -26,7 +26,7 @@ import tomllib
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import traceability as tr  # noqa: E402
@@ -482,9 +482,38 @@ def fetch(uri: str, gcloud: Gcloud, out: Path | None = None) -> Path:
     return destination
 
 
-def provision_commands(config: Mapping[str, Any]) -> list[list[str]]:
-    bucket, project = bucket_name(config), config.get("project")
-    command = ["gcloud", "storage", "buckets", "create", f"gs://{bucket}", f"--project={project}",
-               f"--location={config.get('location', 'europe-north1')}", "--uniform-bucket-level-access", "--public-access-prevention"]
+class ProvisionStep(NamedTuple):
+    """One idempotent provisioning step: `check` succeeds when it is already done."""
+
+    name: str
+    check: list[str]
+    command: list[str]
+    done: Callable[[str], bool] = lambda stdout: True
+    owner: bool = False  # links billing: runs only when the owner passes --link-billing
+
+
+def provision_steps(config: Mapping[str, Any]) -> list[ProvisionStep]:
+    """Dedicated archive project, billing link, Storage API, then the bucket (#278)."""
+    bucket, project = bucket_name(config), str(config.get("project") or "")
+    if not project:
+        raise ArchiveError("archive config has no `project`; set it in .agents/sessions/archive.json")
+    steps = [ProvisionStep("project", ["gcloud", "projects", "describe", project, "--format=value(lifecycleState)"],
+                           ["gcloud", "projects", "create", project, f"--name={project}"],
+                           lambda out: out.strip() == "ACTIVE")]
+    billing = str(config.get("billingAccount") or "")
+    steps.append(ProvisionStep("billing", ["gcloud", "billing", "projects", "describe", project, "--format=value(billingEnabled)"],
+                               ["gcloud", "billing", "projects", "link", project, f"--billing-account={billing or '<BILLING_ACCOUNT>'}"],
+                               lambda out: out.strip().lower() == "true", owner=True))
+    steps.append(ProvisionStep("storage-api", ["gcloud", "services", "list", "--enabled", f"--project={project}",
+                                               "--filter=config.name=storage.googleapis.com", "--format=value(config.name)"],
+                               ["gcloud", "services", "enable", "storage.googleapis.com", f"--project={project}"],
+                               lambda out: "storage.googleapis.com" in out))
     # Soft delete stays at the default retention; objects are immutable by construction (content-addressed, --no-clobber).
-    return [command]
+    steps.append(ProvisionStep("bucket", ["gcloud", "storage", "buckets", "describe", f"gs://{bucket}", f"--project={project}", "--format=value(name)"],
+                               ["gcloud", "storage", "buckets", "create", f"gs://{bucket}", f"--project={project}",
+                                f"--location={config.get('location', 'europe-north1')}", "--uniform-bucket-level-access", "--public-access-prevention"]))
+    return steps
+
+
+def provision_commands(config: Mapping[str, Any]) -> list[list[str]]:
+    return [step.command for step in provision_steps(config)]
