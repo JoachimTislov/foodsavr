@@ -1,6 +1,16 @@
 {
   "a11y": {
-    "removeExpiry": "Fjern utløpsdato"
+    "removeExpiry": "Fjern utløpsdato",
+    "decreaseQuantity": "Reduser antall",
+    "increaseQuantity": "Øk antall",
+    "editProduct": "Rediger produkt",
+    "deleteProduct": "Slett produkt",
+    "editCollection": "Rediger samling",
+    "deleteCollection": "Slett samling",
+    "decreaseDays": "Færre dager",
+    "increaseDays": "Flere dager",
+    "showPassword": "Vis passord",
+    "hidePassword": "Skjul passord"
   },
 	"auth": {
 		"error": {

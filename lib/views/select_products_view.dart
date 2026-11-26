@@ -73,6 +73,7 @@ class _SelectProductsViewState extends State<SelectProductsView> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           onPressed: () => context.pop(),
         ),
         title: Text(

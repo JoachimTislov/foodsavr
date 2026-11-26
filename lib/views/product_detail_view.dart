@@ -240,6 +240,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                         ),
                         IconButton(
                           icon: const Icon(Icons.edit),
+                          tooltip: 'a11y.editProduct'.tr(),
                           onPressed: () async {
                             final result = await ProductFormView.show(
                               context,
@@ -259,6 +260,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                         ),
                         IconButton(
                           icon: Icon(Icons.delete, color: colorScheme.error),
+                          tooltip: 'a11y.deleteProduct'.tr(),
                           onPressed: () => _showDeleteConfirmation(product),
                         ),
                       ],

@@ -20,6 +20,7 @@ class ProfileView extends WatchingWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -95,7 +96,7 @@ class ProfileView extends WatchingWidget {
                   style: textTheme.labelSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.2,
-                    color: Colors.red,
+                    color: Theme.of(context).colorScheme.error,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -319,7 +320,7 @@ class _SettingsItem extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    final color = isDestructive ? Colors.red : colorScheme.onSurface;
+    final color = isDestructive ? colorScheme.error : colorScheme.onSurface;
 
     return ListTile(
       onTap: onTap,
@@ -327,7 +328,7 @@ class _SettingsItem extends StatelessWidget {
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: isDestructive
-              ? Colors.red.withValues(alpha: 0.1)
+              ? colorScheme.errorContainer
               : colorScheme.surfaceContainer,
           shape: BoxShape.circle,
         ),

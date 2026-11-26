@@ -77,6 +77,7 @@ class CollectionHeader extends StatelessWidget {
                         Icons.edit,
                         color: colorScheme.onPrimaryContainer,
                       ),
+                      tooltip: 'a11y.editCollection'.tr(),
                       onPressed: onEdit,
                     ),
                   if (onDelete != null)
@@ -85,6 +86,7 @@ class CollectionHeader extends StatelessWidget {
                         Icons.delete_outline,
                         color: colorScheme.onPrimaryContainer,
                       ),
+                      tooltip: 'a11y.deleteCollection'.tr(),
                       onPressed: onDelete,
                     ),
                 ],

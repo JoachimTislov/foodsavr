@@ -1,0 +1,1 @@
+{"commits": [], "harness": "claude-code", "issues": ["#356"], "provider": "anthropic", "prs": [], "session_id": "claude-code:d1faf972-3d1f-442c-a24d-a3953f06adbe", "sources": [], "started_at": "2026-11-26T21:55:55+00:00", "status": "active", "stream": "sessions", "summary": "Label icon-only controls, theme destructive colors, add screen accessibility guideline tests (#356)"}

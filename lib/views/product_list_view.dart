@@ -228,6 +228,7 @@ class _ProductListViewState extends State<ProductListView> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.arrow_back),
+                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
                   onPressed: () => Navigator.of(context).pop(),
                 ),
                 const SizedBox(width: 8),

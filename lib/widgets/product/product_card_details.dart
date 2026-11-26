@@ -82,12 +82,14 @@ class ProductCardDetails extends WatchingWidget {
                         if (onEdit != null)
                           IconButton(
                             icon: const Icon(Icons.edit_outlined, size: 20),
+                            tooltip: 'a11y.editProduct'.tr(),
                             onPressed: onEdit,
                             visualDensity: VisualDensity.compact,
                           ),
                         if (onDelete != null)
                           IconButton(
                             icon: const Icon(Icons.delete_outline, size: 20),
+                            tooltip: 'a11y.deleteProduct'.tr(),
                             onPressed: onDelete,
                             color: colorScheme.error,
                             visualDensity: VisualDensity.compact,
