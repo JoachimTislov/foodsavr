@@ -21,11 +21,12 @@ import uuid
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -799,6 +800,8 @@ def session_archive_command(args: argparse.Namespace, index: Path, root: Path) -
     config = archive_config()
     if config is None:
         raise ValueError("archiving is not configured (.agents/sessions/archive.json or AGENT_SESSION_BUCKET)")
+    if getattr(args, "all", False):
+        return backfill_archive(args, index, config)
     session_id = tr.normalize_session_id(args.session, getattr(args, "harness", None)) if args.session else current_identity(args).session_id
     result = sa.archive(session_id, config, make_redactor(), dry_run=args.dry_run)
     if result["status"] == "archived":
@@ -814,6 +817,33 @@ def session_archive_command(args: argparse.Namespace, index: Path, root: Path) -
             print(f"sha256: {result['sha256']}  bytes: {result['bytes']}  files: {len(result['manifest']['files'])}")
             print("redactions: " + (", ".join(f"{k}={v}" for k, v in result["redactions"].items()) or "none"))
     return 0
+
+
+def backfill_archive(args: argparse.Namespace, index: Path, config: Mapping[str, Any]) -> int:
+    """Archive every archivable session that has no transcript yet; one failure does not stop the rest."""
+    pending = [r for r in records(index) if str(r.get("session_id", "")).split(":", 1)[0] in sa.ARCHIVABLE and not r.get("transcript")]
+    redactor, gcloud = make_redactor(), sa.Gcloud(config.get("project"))
+    counts: Counter[str] = Counter()
+    results = []
+    for record in pending:
+        session_id = record["session_id"]
+        try:
+            result = sa.archive(session_id, config, redactor, gcloud=gcloud, dry_run=args.dry_run)
+        except sa.ArchiveError as error:
+            result = {"status": "failed", "session_id": session_id, "reason": str(error)}
+        if result["status"] == "archived":
+            identity = tr.Identity(session_id, sa.split_session_id(session_id)[0], record.get("provider", "unknown"), [], "archive")
+            ensure_session(index, identity, fields=archive_fields(result))
+        counts[result["status"]] += 1
+        results.append({k: v for k, v in result.items() if k in ("status", "session_id", "uri", "reason")})
+    summary = {"pending": len(pending), **dict(counts), "results": results}
+    if args.json:
+        print(json.dumps(summary, indent=2, sort_keys=True))
+    else:
+        for item in results:
+            print(f"{item['status']}: {item['session_id']} {item.get('uri') or item.get('reason', '')}".rstrip())
+        print(f"backfill: {len(pending)} pending, " + ", ".join(f"{k}={v}" for k, v in sorted(counts.items())))
+    return 1 if counts["failed"] else 0
 
 
 def session_fetch(args: argparse.Namespace, index: Path) -> int:
@@ -844,22 +874,31 @@ def provision_archive_command(args: argparse.Namespace) -> int:
     config = archive_config()
     if config is None:
         raise ValueError("archiving is not configured (.agents/sessions/archive.json or AGENT_SESSION_BUCKET)")
-    commands = sa.provision_commands(config)
-    printable = [" ".join(shlex.quote(part) for part in command) for command in commands]
+    steps = sa.provision_steps(config)
+    printable = {step.name: " ".join(shlex.quote(part) for part in step.command) for step in steps}
     if not args.apply:
-        print("# Owner-only step (ADR 0003): review, then run these or `agentctl sessions provision-archive --apply`.")
-        print("\n".join(printable))
+        print("# Owner-only step (ADR 0003): review, then run `make session-archive` (or `agentctl sessions provision-archive --apply --link-billing`).")
+        print("# Each step is skipped when its check shows it is already done.")
+        print("\n".join(printable.values()))
         return 0
     gcloud = sa.Gcloud()  # the commands carry --project themselves
     if not gcloud.available():
         gcloud.run(["version"])
-    for command, text in zip(commands, printable):
-        result = gcloud.run(command[1:], timeout=120)
+    for step in steps:
+        checked = gcloud.run(step.check[1:], timeout=60)
+        if checked.returncode == 0 and step.done(checked.stdout or ""):
+            print(f"exists: {step.name}")
+            continue
+        if step.owner and not (args.link_billing and config.get("billingAccount")):
+            reason = "set `billingAccount` in .agents/sessions/archive.json" if not config.get("billingAccount") else "run `make session-archive`"
+            print(f"blocked: {step.name}: billing is not linked to {config['project']}; owner: {reason}")
+            return 3
+        result = gcloud.run(step.command[1:], timeout=180)
         already = "already exists" in (result.stderr or "").lower() or "409" in (result.stderr or "")
         status = "exists" if already else ("created" if result.returncode == 0 else "failed")
-        print(f"{status}: {text}")
+        print(f"{status}: {printable[step.name]}")
         if status == "failed":
-            gcloud.check(result, "provision")
+            gcloud.check(result, f"provision {step.name}")
     return 0
 
 
@@ -4667,6 +4706,7 @@ def build_parser() -> argparse.ArgumentParser:
     register.add_argument("--summary")
     archive_parser = session_commands.add_parser("archive", help="redact, bundle and upload a session transcript (default: the current session)")
     archive_parser.add_argument("--session", help="session id (default: detected)")
+    archive_parser.add_argument("--all", action="store_true", help="backfill every archivable session without an archived transcript")
     archive_parser.add_argument("--dry-run", action="store_true", help="build and report the bundle; no upload, no gcloud call")
     archive_parser.add_argument("--json", action="store_true")
     fetch_parser = session_commands.add_parser("fetch", help="download, verify and extract an archived transcript")
@@ -4675,7 +4715,8 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_parser.add_argument("--sha", help="pick this bundle sha256 when several exist")
     fetch_parser.add_argument("--json", action="store_true")
     provision_parser = session_commands.add_parser("provision-archive", help="OWNER ONLY (ADR 0003): print or run the gcloud commands that create the archive bucket")
-    provision_parser.add_argument("--apply", action="store_true", help="run the commands (default: print them)")
+    provision_parser.add_argument("--apply", action="store_true", help="run the missing steps (default: print them)")
+    provision_parser.add_argument("--link-billing", action="store_true", help="OWNER ONLY: link archive.json's billingAccount to the archive project")
     session_commit_parser = session_commands.add_parser("commits", help="list commits linked by the Agent-Session trailer")
     session_commit_parser.add_argument("session_id")
     skills = commands.add_parser("skills", help="validate, list, and project the canonical skill catalog")

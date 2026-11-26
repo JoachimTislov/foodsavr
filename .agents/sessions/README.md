@@ -66,14 +66,16 @@ scripts/agents/agentctl trace '#300'           # why does this exist? (also SHA,
 
 ## Transcript archive (#278)
 
-Config: [archive.json](archive.json) (project, bucket, location, prefix; env
-`AGENT_SESSION_BUCKET` overrides the bucket). No secret is involved: access is
-your own `gcloud auth login`.
+Config: [archive.json](archive.json) (project, bucket, location, prefix,
+billingAccount; env `AGENT_SESSION_BUCKET` overrides the bucket). The bucket
+lives in its own billed project (`foodsavr-agents`) so the app's Firebase
+projects stay on Spark. No secret is involved: access is your own
+`gcloud auth login`. Owner setup is one step: `make session-archive`.
 
 ```sh
-scripts/agents/agentctl sessions archive [--session ID] [--dry-run] [--json]  # also runs on `sessions register --status completed` (--no-archive skips)
+scripts/agents/agentctl sessions archive [--session ID | --all] [--dry-run] [--json]  # --all backfills; also runs on `sessions register --status completed` (--no-archive skips)
 scripts/agents/agentctl sessions fetch <session-id> [--out DIR]               # ~/.cache/foodsavr/agent-sessions/<harness>/<native>/<sha>/
-scripts/agents/agentctl sessions provision-archive [--apply]                          # OWNER ONLY (ADR 0003): prints, or runs, the gcloud commands
+scripts/agents/agentctl sessions provision-archive [--apply [--link-billing]]         # OWNER ONLY (ADR 0003): project, billing, Storage API, bucket; done steps are skipped
 ```
 
 - Bundle: deterministic `tar.gz` of the main transcript, Claude Code subagent

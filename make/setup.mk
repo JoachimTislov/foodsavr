@@ -1,4 +1,4 @@
-.PHONY: setup-fork setup-branches setup-enable-actions setup-event-policy secrets-rotate setup setup-probe setup-verify infra-github-plan infra-github-apply infra-gcp-plan infra-gcp-apply social-auth-setup social-auth-check router-setup router-check router-matrix monitoring agent-status agent-usage
+.PHONY: setup-fork setup-branches setup-enable-actions setup-event-policy secrets-rotate setup setup-probe setup-verify infra-github-plan infra-github-apply infra-gcp-plan infra-gcp-apply social-auth-setup social-auth-check router-setup router-check router-matrix monitoring agent-status agent-usage session-archive
 
 setup: ## Run guided setup (LIST=1 lists remaining steps)
 	@python3 scripts/setup/setupctl.py wizard $(if $(filter 1,$(LIST)),--list) $(if $(PROFILE),--profile $(PROFILE))
@@ -38,6 +38,10 @@ router-matrix:
 
 monitoring: ## Check or configure web monitoring
 	@scripts/setup/monitoring.sh
+
+session-archive: ## Provision the agent session archive (owner: links billing) and backfill it
+	@scripts/agents/agentctl sessions provision-archive --apply --link-billing
+	@scripts/agents/agentctl sessions archive --all
 
 agent-status: ## Show agent system health
 	@scripts/agents/agentctl status
