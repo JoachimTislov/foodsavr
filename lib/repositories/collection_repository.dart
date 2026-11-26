@@ -30,6 +30,10 @@ class CollectionRepository implements ICollectionRepository {
   @visibleForTesting
   Future<void> Function()? beforeMembershipCommit;
 
+  /// Runs before a read-repair prune starts its transaction.
+  @visibleForTesting
+  Future<void> Function()? beforeDanglingPrune;
+
   CollectionRepository(this._firestore);
 
   /// Returns a validation error before any membership write is staged.
@@ -354,6 +358,42 @@ class CollectionRepository implements ICollectionRepository {
       'productIds': FieldValue.arrayRemove(productIds.toList()),
     });
   }
+
+  @override
+  Future<void> pruneMissingProducts(
+    String collectionId,
+    Iterable<String> productIds,
+  ) async {
+    final docRef = _firestore.collection(_collectionName).doc(collectionId);
+    await beforeDanglingPrune?.call();
+    await _firestore
+        .runTransaction((transaction) async {
+          // Read the collection first in every attempt. A missing product reads as
+          // permission-denied and stays out of the read set, so a concurrent write
+          // to the collection is what makes the commit conflict and retry.
+          final members = _memberIds(await transaction.get(docRef));
+          final missing = <String>[];
+          for (final id in productIds.toSet().where(members.contains)) {
+            try {
+              final product = await transaction.get(
+                _firestore.collection('products').doc(id),
+              );
+              if (!product.exists) missing.add(id);
+            } on FirebaseException catch (e) {
+              if (e.code != 'permission-denied') rethrow;
+              missing.add(id);
+            }
+          }
+          if (missing.isEmpty) return;
+          transaction.update(docRef, {
+            'productIds': FieldValue.arrayRemove(missing),
+          });
+        }, timeout: _transactionTimeout)
+        .timeout(_membershipTimeout);
+  }
+
+  List<String> _memberIds(DocumentSnapshot<Map<String, dynamic>> snapshot) =>
+      List<String>.from(snapshot.data()?['productIds'] as List? ?? const []);
 
   @override
   Future<void> addCollectionsInBatch(List<Collection> collections) async {

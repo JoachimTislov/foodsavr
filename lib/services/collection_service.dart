@@ -241,7 +241,7 @@ class CollectionService {
     List<String> missing,
   ) async {
     try {
-      await _collectionRepository.removeProducts(collection.id, missing);
+      await _collectionRepository.pruneMissingProducts(collection.id, missing);
     } catch (e) {
       _logger.e(
         'Could not repair ${missing.length} dangling IDs in '

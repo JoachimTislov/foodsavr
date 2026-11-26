@@ -23,6 +23,13 @@ abstract class ICollectionRepository extends IRepository<Collection, String> {
   /// Confirms missing or inaccessible products directly on the server.
   Future<bool> isProductMissingOrUnreadable(String id);
   Future<void> removeProducts(String collectionId, Iterable<String> productIds);
+
+  /// Removes each of [productIds] that is still a member and still missing or
+  /// unreadable on the server, atomically with those checks.
+  Future<void> pruneMissingProducts(
+    String collectionId,
+    Iterable<String> productIds,
+  );
   Future<void> addProduct(String collectionId, String productId);
   Future<void> addProducts(String collectionId, List<String> productIds);
   Future<void> removeProduct(String collectionId, String productId);
