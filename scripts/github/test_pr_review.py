@@ -385,6 +385,214 @@ class PrepareReviewTest(unittest.TestCase):
             self.assertNotIn("## Standards", body)
 
 
+class QuotaDegradationTest(unittest.TestCase):
+    def _prepare(self, tmp: Path, providers: list[str], outcome, snapshots=None, workflow=None) -> dict:
+        import agentctl
+
+        path = tmp / "workflow.json"
+        path.write_text((workflow or pr_review.DEFAULT_WORKFLOW).read_text())
+        args = [
+            "prepare-review", "--workflow", str(path), "--required-tier", "deep",
+            "--result", str(tmp / "result.json"),
+            *(arg for name in providers for arg in ("--provider", name)),
+        ]
+        output = io.StringIO()
+        with patch.object(agentctl, "available_providers", return_value=list(providers)), \
+             patch.object(agentctl, "provider_is_safe", return_value=True), \
+             patch.object(agentctl.hu, "probe_all", return_value=snapshots or {}), \
+             patch.object(pr_review, "run_prepared_review", side_effect=outcome), \
+             contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(pr_review.main(args), 0)
+        return json.loads(output.getvalue())
+
+    def _record(self, tmp: Path, *extra: str) -> tuple[dict, dict]:
+        review = tmp / "review.json"
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            pr_review.main([
+                "record-review", "--pr", "460", "--head-sha", "abc1234", "--bot",
+                "--required-tier", "deep", "--history", str(tmp / "history.jsonl"),
+                "--output-review", str(review), *extra,
+            ])
+        return json.loads(output.getvalue()), json.loads(review.read_text())
+
+    def test_unusable_runner_output_is_a_failed_result(self):
+        cases = {
+            "empty": (1, ""),
+            "not-json": (0, "Traceback (most recent call last)"),
+            "not-an-object": (0, "[]"),
+            "nonzero-success": (1, '{"status": "succeeded"}'),
+            "nonzero-unavailable": (1, '{"status": "unavailable", "reason": "quota-exhausted"}'),
+        }
+        for name, (code, stdout) in cases.items():
+            completed = subprocess.CompletedProcess([], code, stdout=stdout)
+            with self.subTest(name), patch.object(pr_review.subprocess, "run", return_value=completed):
+                result = pr_review.run_prepared_review(Path("workflow.json"), "claude")
+                self.assertEqual(result["status"], "failed")
+                self.assertFalse(pr_review.is_quota_pause(result))
+        with patch.object(pr_review.subprocess, "run", side_effect=OSError("missing")):
+            self.assertEqual(pr_review.run_prepared_review(Path("workflow.json"), "claude")["status"], "failed")
+        paused = {"status": "unavailable", "reason": "quota-exhausted"}
+        completed = subprocess.CompletedProcess([], 0, stdout=json.dumps(paused))
+        with patch.object(pr_review.subprocess, "run", return_value=completed):
+            self.assertEqual(pr_review.run_prepared_review(Path("workflow.json"), "claude"), paused)
+
+    def test_quota_skip_is_attested_as_skipped_without_inline_comments(self):
+        resets = {"claude": "2026-11-26T22:00:00+00:00", "codex": "2026-11-26T20:00:00Z"}
+        calls = []
+
+        def outcome(_path, provider):
+            calls.append(provider)
+            return {"status": "unavailable", "reason": "quota-exhausted", "resets_at": resets[provider]}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan = self._prepare(root, ["claude", "codex"], outcome)
+            self.assertCountEqual(calls, ["claude", "codex"])
+            self.assertFalse(plan["run_model"])
+            self.assertEqual(plan["reason"], "quota-exhausted")
+            self.assertEqual(plan["resets_at"], "2026-11-26T20:00:00Z")
+            self.assertIn("2026-11-26T20:00:00Z", plan["skip_reason"])
+            self.assertNotIn("Check ", plan["skip_reason"])
+            self.assertEqual(len(plan["skip_reason"].splitlines()), 1)
+            self.assertFalse((root / "result.json").exists())
+
+            recorded, review = self._record(
+                root, "--tier", plan["tier"], "--status", "skipped", "--provider", "deterministic-gate",
+                "--model", "policy-verifier", "--summary", plan["skip_reason"], "--reason", plan["reason"],
+            )
+        self.assertEqual(recorded["record"]["status"], "skipped")
+        self.assertEqual(recorded["record"]["provider"], "deterministic-gate")
+        self.assertEqual(recorded["attestation_marker"]["status"], "skipped")
+        self.assertEqual(recorded["attestation_marker"]["reason"], "quota-exhausted")
+        self.assertEqual(review["comments"], [])
+        self.assertEqual(review["event"], "COMMENT")
+        self.assertIn("2026-11-26T20:00:00Z", review["body"])
+
+    def test_pre_run_exhaustion_reports_quota_and_drops_invalid_reset(self):
+        import agentctl
+
+        def snapshot(reset):
+            return agentctl.hu.HarnessUsageSnapshot(
+                "claude", "ok", (agentctl.hu.UsageWindow("5h", "5h", 100, resets_at=reset),),
+            )
+
+        for reset, expected in (("2999-01-01T00:00:00Z", "2999-01-01T00:00:00Z"), (None, None)):
+            with self.subTest(reset=reset), tempfile.TemporaryDirectory() as tmp:
+                plan = self._prepare(
+                    Path(tmp), ["claude"], AssertionError("must not run"), {"claude": snapshot(reset)},
+                )
+                self.assertEqual(plan["reason"], "quota-exhausted")
+                self.assertEqual(plan.get("resets_at"), expected)
+        self.assertIsNone(pr_review.normalized_reset("soon\nrun_model=true"))
+
+    def test_hard_failure_is_not_reported_as_a_quota_pause(self):
+        results = {
+            "claude": {"status": "unavailable", "failure_kind": "quota_exhausted"},
+            "codex": {"status": "failed"},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = self._prepare(Path(tmp), ["claude", "codex"], lambda _path, name: results[name])
+        self.assertNotIn("reason", plan)
+        self.assertIn("Execution failed with codex", plan["skip_reason"])
+        self.assertIn("Provider quota is exhausted for claude.", plan["skip_reason"])
+        self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", plan["skip_reason"])
+
+    def test_record_review_separates_unavailable_from_failed_workflows(self):
+        cases = [
+            ({"status": "unavailable", "reason": "quota-exhausted", "resets_at": "2026-11-26T20:00:00Z"},
+             "quota-exhausted", "Earliest reset: 2026-11-26T20:00:00Z"),
+            ({"status": "unavailable", "reason": "quota-exhausted"}, "quota-exhausted", "usage limit"),
+            ({"status": "failed"}, None, "workflow failed"),
+        ]
+        for result, reason, text in cases:
+            with self.subTest(result=result), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root / "result.json").write_text(json.dumps(result))
+                recorded, review = self._record(root, "--workflow-result", str(root / "result.json"))
+                self.assertEqual(recorded["record"]["status"], "skipped")
+                self.assertEqual(recorded["record"].get("reason"), reason)
+                self.assertIn(text, recorded["record"]["summary"])
+                self.assertEqual(review["comments"], [])
+
+    def test_claude_to_antigravity_fallback_caps_the_prompt_and_cannot_approve(self):
+        import agentctl
+
+        spec = agentctl.provider_specs()["antigravity"]
+        cap = spec["max_prompt_argv_bytes"]
+        diff = (
+            "diff --git a/lib/a.dart b/lib/a.dart\n--- a/lib/a.dart\n+++ b/lib/a.dart\n@@ -0,0 +1 @@\n+"
+            + "\u20ac" * (200 * 1024 // 3) + "END-OF-DIFF\n"
+        )
+        self.assertGreater(len(diff.encode("utf-8")), 200 * 1000)
+        classification = pr_review.classify_pr(
+            number=460, title="fix: x", author="owner", author_association="OWNER",
+            head_sha="abc1234", files=["lib/a.dart"], additions=1, deletions=0,
+        )
+        for order in (["claude", "antigravity"], ["antigravity", "claude"]):
+            with self.subTest(order=order), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                staged = root / "staged.json"
+                pr_review.stage_pr_context(
+                    pr_meta={"title": "fix: x", "body": "short"}, classification=classification,
+                    diff_text=diff, state_dir=root, stage_workflow_out=staged,
+                )
+                snapshot = root / "pr-460.json"
+                self.assertFalse(json.loads(snapshot.read_text())["diff_truncated"])
+                seen = {}
+
+                def outcome(path, provider):
+                    prepared = json.loads(path.read_text())
+                    verify = prepared["steps"][-1]
+                    truncated = json.loads(snapshot.read_text())["diff_truncated"]
+                    if provider == "antigravity":
+                        self.assertEqual(agentctl.validate_workflow_file(path), [])
+                        prompt = agentctl.workflow_prompt(
+                            prepared, verify, f"{prepared['id']}-0123456789ab",
+                            agentctl.resolve_workflow_context(prepared, root / "knowledge.sqlite3"),
+                        )
+                        command, stdin = agentctl.provider_command(provider, spec, prompt)
+                        self.assertIsNone(stdin)
+                        self.assertEqual(command[-1], prompt)
+                        # Truncation fills the cap, less at most one split multibyte character.
+                        self.assertTrue(cap - 3 <= len(prompt.encode("utf-8")) <= cap)
+                        self.assertIn("truncated to fit the antigravity 131071-byte prompt limit", prompt)
+                        self.assertNotIn("END-OF-DIFF", prompt)
+                        self.assertNotIn("\ufffd", prompt)
+                        self.assertIn("VERDICT: CHANGES_REQUESTED when it fails.", prompt)
+                    else:
+                        self.assertIn("END-OF-DIFF", verify["prompt"])
+                        self.assertNotIn("byte prompt limit", verify["prompt"])
+                    seen[provider] = truncated
+                    if provider == order[0]:
+                        return {"status": "unavailable", "reason": "quota-exhausted"}
+                    (root / "verify-gate.attempt-1.json").write_text(json.dumps(
+                        {"review_verdict": "APPROVE", "review_output": "VERDICT: APPROVE"},
+                    ))
+                    return {"status": "succeeded", "artifacts": ["verify-gate.attempt-1.json"],
+                            "steps": [{"id": "verify-gate", "provider": provider}]}
+
+                # The shared quota ranking picks the order under test.
+                snapshots = {
+                    name: agentctl.hu.HarnessUsageSnapshot(
+                        name, "ok", (agentctl.hu.UsageWindow("5h", "5h", used),),
+                    )
+                    for name, used in zip(order, (10, 50))
+                }
+                plan = self._prepare(root, order, outcome, snapshots, workflow=staged)
+                self.assertTrue(plan["run_model"])
+                self.assertEqual(list(seen), order)
+                self.assertEqual(seen, {"claude": False, "antigravity": True})
+
+                recorded, _ = self._record(root, "--workflow-result", str(root / "result.json"))
+                final_is_cut = order[-1] == "antigravity"
+                self.assertEqual(recorded["record"]["status"], "commented" if final_is_cut else "approved")
+                self.assertEqual(bool(recorded["record"].get("diff_truncated")), final_is_cut)
+                self.assertEqual(bool(recorded["attestation_marker"].get("diff_truncated")), final_is_cut)
+                if final_is_cut:
+                    self.assertEqual(recorded["record"]["reason"], "diff-truncated")
+
+
 class AttestationAndHistoryStoreTest(unittest.TestCase):
     def test_native_review_anchors_only_current_added_lines_and_preserves_other_findings(self):
         diff = "diff --git a/a b/a\n+++ b/a\n@@ -5,2 +8,2 @@\n-old\n context\n+new"

@@ -239,7 +239,9 @@ jobs:
           persist-credentials: false
 
       - uses: actions/download-artifact@v4
-        if: needs.implement.outputs.changed == 'true'
+        if: needs.implement.outputs.changed == 'true' || needs.implement.outputs.status == 'unavailable'
+        # Only a patch requires the artifact; without one, the report falls back to the run status.
+        continue-on-error: ${{ needs.implement.outputs.changed != 'true' }}
         with:
           name: agent-implement-${{ env.ISSUE }}
           path: ${{ runner.temp }}/agent
@@ -313,9 +315,29 @@ jobs:
           STATUS: ${{ needs.implement.outputs.status }}
           VERIFY: ${{ needs.implement.outputs.verify }}
           SESSION: ${{ needs.implement.outputs.session }}
+          ARTIFACTS: ${{ runner.temp }}/agent
         run: |
+          reason=""
+          resets_at=""
+          if [ "$STATUS" = "unavailable" ] && [ -f "$ARTIFACTS/result.json" ]; then
+            reason="$(jq -r '.reason // empty' "$ARTIFACTS/result.json" 2>/dev/null || true)"
+            resets_at="$(jq -r '.resets_at // empty' "$ARTIFACTS/result.json" 2>/dev/null || true)"
+            [[ "$resets_at" =~ ^[0-9TZ:.+-]+$ ]] || resets_at=""
+          fi
+          pause=""
+          if [ "$reason" = "quota-exhausted" ]; then
+            pause="paused on a provider usage limit, which is not an implementation failure"
+            if [ -n "$resets_at" ]; then pause="${pause} (earliest reset: ${resets_at})"; fi
+          fi
           if [ "$CHANGED" = "true" ]; then
             outcome="produced a patch on \`${BRANCH}\` (runner verification: ${VERIFY:-not run}); see the draft PR"
+            if [ -n "$pause" ]; then
+              outcome="${pause}. The patch on \`${BRANCH}\` may be partial (runner verification: ${VERIFY:-not run}); review its pull request before relying on it"
+            fi
+          elif [ -n "$pause" ]; then
+            outcome="${pause}. No pull request was opened; run it again after the limit resets"
+          elif [ "$STATUS" = "unavailable" ]; then
+            outcome="was unavailable and made no change; see the run log"
           else
             outcome="made no change (workflow status: ${STATUS:-not run})"
           fi
