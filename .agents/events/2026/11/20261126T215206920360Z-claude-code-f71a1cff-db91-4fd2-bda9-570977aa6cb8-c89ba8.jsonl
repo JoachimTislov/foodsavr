@@ -1,0 +1,1 @@
+{"commits": [], "harness": "claude-code", "issues": ["#355"], "provider": "anthropic", "prs": [], "session_id": "claude-code:f71a1cff-db91-4fd2-bda9-570977aa6cb8", "sources": [], "started_at": "2026-11-26T21:52:06+00:00", "status": "active", "stream": "sessions", "summary": "Implement #355 l10n: device locale, hard-coded strings, category keys"}
