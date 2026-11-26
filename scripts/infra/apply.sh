@@ -227,7 +227,7 @@ if [ "$backend" = local ] && { [ "$billing_fallback" = true ] || [ -f "$state_di
   recovery=true
 fi
 if [ "$recovery" = true ] && [ -z "${PLAN_FILE:-}" ]; then
-  deploy_account="$(python3 "$root/scripts/infra/adopt.py" gcp "$dir" "$PROJECT_ID" "$WEB_APP_ID" \
+  deploy_account="$(HOSTING_SITES="$(sed -n 's/^hosting_sites = //p' "$tfvars")" python3 "$root/scripts/infra/adopt.py" gcp "$dir" "$PROJECT_ID" "$WEB_APP_ID" \
     "$GITHUB_REPOSITORY" "$gh_env" "$deploy_branch" "$integration_branch" \
     "${ALLOW_PREVIEW_REFS:-false}" "$DEPLOYMENT_LEVEL" "${BILLING_ACCOUNT:-}" "${GCLOUD_ACCOUNT:-}")"
   printf 'deploy_service_account_id = "%s"\nlocal_recovery = true\n' "$deploy_account" >>"$tfvars"

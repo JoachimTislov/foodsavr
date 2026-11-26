@@ -103,7 +103,9 @@ resource "google_firebase_web_app" "web" {
 
 # ---------------------------------------------------------------------------
 # Hosting sites of the release channels (multiple sites work on Spark). The
-# default site (project id) already exists and is not managed here.
+# default site (project id) already exists and is not managed here. A web app
+# links to at most one site, so channel sites stay unlinked (the web config
+# comes from the app, not the site).
 # ---------------------------------------------------------------------------
 
 resource "google_firebase_hosting_site" "channel" {
@@ -111,7 +113,6 @@ resource "google_firebase_hosting_site" "channel" {
   for_each   = toset([for site in var.hosting_sites : site if site != var.project_id])
   project    = var.project_id
   site_id    = each.key
-  app_id     = google_firebase_web_app.web.app_id
   depends_on = [google_project_service.apis]
 }
 

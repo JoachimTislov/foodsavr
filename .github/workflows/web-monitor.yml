@@ -95,7 +95,7 @@ jobs:
         run: |
           url="${INPUT_URL:-$VAR_URL}"
           if [ -z "$url" ] && [ "$REPO" = "JoachimTislov/foodsavr" ]; then
-            url="https://my-foodsavr-store.web.app"
+            url="https://foodsavr-test.web.app"
           fi
           if [ -z "$url" ]; then
             echo "::warning::MONITOR_TARGET_URL is not configured; skipping web probe."

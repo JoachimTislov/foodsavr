@@ -122,7 +122,7 @@ jobs:
         run: |
           project="${FIREBASE_PROJECT_ID}"
           if [ -z "$project" ] && [ "$REPO" = "JoachimTislov/foodsavr" ]; then
-            project="my-foodsavr-store"
+            project="foodsavr-test"
           fi
           if [ "$HAS_WIF_CONFIG" != "true" ] || [ -z "$ACCESS_TOKEN" ] || [ -z "$project" ]; then
             echo "::warning::GCP WIF telemetry polling or FIREBASE_PROJECT_ID is not configured; skipping pull poll."

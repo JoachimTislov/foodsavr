@@ -39,7 +39,7 @@ class PollFirebaseTelemetryTest(unittest.TestCase):
             return [
                 {
                     "document": {
-                        "name": "projects/my-foodsavr-store/databases/(default)/documents/runtime_errors/1",
+                        "name": "projects/foodsavr-test/databases/(default)/documents/runtime_errors/1",
                         "createTime": "2026-11-22T01:00:00Z",
                         "fields": {
                             "error_type": {"stringValue": "EmptyEnvFileError"},
@@ -52,7 +52,7 @@ class PollFirebaseTelemetryTest(unittest.TestCase):
             ]
 
         events = poll_spark_firestore(
-            project_id="my-foodsavr-store",
+            project_id="foodsavr-test",
             access_token="tok-123",
             http_post=fake_post,
         )
@@ -69,7 +69,7 @@ class PollFirebaseTelemetryTest(unittest.TestCase):
             return {
                 "entries": [
                     {
-                        "logName": "projects/my-foodsavr-store/logs/firebase-telemetry",
+                        "logName": "projects/foodsavr-test/logs/firebase-telemetry",
                         "timestamp": "2026-11-22T01:05:00Z",
                         "severity": "ERROR",
                         "jsonPayload": {
@@ -82,7 +82,7 @@ class PollFirebaseTelemetryTest(unittest.TestCase):
             }
 
         events = poll_blaze_cloud_logging(
-            project_id="my-foodsavr-store",
+            project_id="foodsavr-test",
             access_token="tok-456",
             http_post=fake_post,
         )

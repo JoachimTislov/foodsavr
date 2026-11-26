@@ -265,7 +265,7 @@ class TestMonitoringEntrypoint(unittest.TestCase):
                     ("AUTO_HEAL_ENABLED (true|false) [true]: ", "\n"),
                     ("AUTO_HEAL_MERGE (true|false) [false]: ", "\n"),
                     ("TELEMETRY_POLL_ENABLED (true|false) [false]: ", "\n"),
-                    ("MONITOR_TARGET_URL [https://my-foodsavr-store.web.app]: ", "\n"),
+                    ("MONITOR_TARGET_URL [https://foodsavr-test.web.app]: ", "\n"),
                     ("ERROR_REPORTER (none|spark-firestore|crashlytics-web|external) [none]: ", "\n"),
                     ("Monitoring and healing loop setup checks passed.", "q\n"),
                 ],
@@ -277,7 +277,7 @@ class TestMonitoringEntrypoint(unittest.TestCase):
             self.assertEqual(saved["AUTO_HEAL_ENABLED"], "true")
             self.assertEqual(saved["AUTO_HEAL_MERGE"], "false")
             self.assertEqual(saved["TELEMETRY_POLL_ENABLED"], "false")
-            self.assertEqual(saved["MONITOR_TARGET_URL"], "https://my-foodsavr-store.web.app")
+            self.assertEqual(saved["MONITOR_TARGET_URL"], "https://foodsavr-test.web.app")
             self.assertEqual(saved["ERROR_REPORTER"], "none")
 
     def test_makefile_has_single_monitoring_target(self) -> None:

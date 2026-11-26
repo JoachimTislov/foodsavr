@@ -23,7 +23,7 @@ class FaultSchemaTest(unittest.TestCase):
     def test_normalizes_playwright_probe_empty_env_file_error(self):
         probe_payload = {
             "source": "github/playwright-probe",
-            "target_url": "https://my-foodsavr-store.web.app",
+            "target_url": "https://foodsavr-test.web.app",
             "checked_at": "2026-11-22T01:00:00Z",
             "release_sha": "abc1234",
             "environment": "production",
@@ -56,7 +56,7 @@ class FaultSchemaTest(unittest.TestCase):
     def test_normalizes_spark_firestore_rest_document(self):
         doc = {
             "document": {
-                "name": "projects/my-foodsavr-store/databases/(default)/documents/runtime_errors/err1",
+                "name": "projects/foodsavr-test/databases/(default)/documents/runtime_errors/err1",
                 "createTime": "2026-11-22T01:05:00Z",
                 "fields": {
                     "error_type": {"stringValue": "StateError"},
@@ -64,7 +64,7 @@ class FaultSchemaTest(unittest.TestCase):
                     "platform": {"stringValue": "web"},
                     "environment": {"stringValue": "production"},
                     "deployment_level": {"stringValue": "firebase-spark"},
-                    "url": {"stringValue": "https://my-foodsavr-store.web.app/#/inventory"},
+                    "url": {"stringValue": "https://foodsavr-test.web.app/#/inventory"},
                     "occurrence_count": {"integerValue": "3"},
                     "stack_frames": {
                         "arrayValue": {
@@ -87,7 +87,7 @@ class FaultSchemaTest(unittest.TestCase):
 
     def test_normalizes_blaze_cloud_logging_entry(self):
         entry = {
-            "logName": "projects/my-foodsavr-store/logs/firebase-telemetry",
+            "logName": "projects/foodsavr-test/logs/firebase-telemetry",
             "timestamp": "2026-11-22T01:10:00Z",
             "severity": "ERROR",
             "jsonPayload": {
@@ -96,7 +96,7 @@ class FaultSchemaTest(unittest.TestCase):
                 "platform": "web",
                 "environment": "production",
                 "deployment_level": "firebase-blaze",
-                "url": "https://my-foodsavr-store.web.app/",
+                "url": "https://foodsavr-test.web.app/",
                 "stack": ["at authGuard (main.dart.js:90:12)"],
             },
         }
@@ -116,7 +116,7 @@ class FaultSchemaTest(unittest.TestCase):
             "properties": {
                 "$exception_type": "RangeError",
                 "$exception_message": "Index out of range",
-                "$current_url": "https://my-foodsavr-store.web.app/#/home",
+                "$current_url": "https://foodsavr-test.web.app/#/home",
                 "$exception_stack_trace_raw": "at HomeView.build (home.dart:10)",
             },
         }
@@ -125,7 +125,7 @@ class FaultSchemaTest(unittest.TestCase):
             "ALERT_TITLE": "Production Web Boot Failed",
             "CHECK_NAME": "FoodSavr Web",
             "ERROR": "Page crashed with EmptyEnvFileError",
-            "TARGET_URL": "https://my-foodsavr-store.web.app",
+            "TARGET_URL": "https://foodsavr-test.web.app",
             "STATUS_CODE": "200",
         }
         faro = {
@@ -134,7 +134,7 @@ class FaultSchemaTest(unittest.TestCase):
                 {
                     "status": "firing",
                     "labels": {"alertname": "FrontendBootFailure", "environment": "production"},
-                    "annotations": {"summary": "Uncaught TypeError on boot", "url": "https://my-foodsavr-store.web.app"},
+                    "annotations": {"summary": "Uncaught TypeError on boot", "url": "https://foodsavr-test.web.app"},
                     "startsAt": "2026-11-22T01:15:00Z",
                 }
             ],
@@ -155,7 +155,7 @@ class FaultSchemaTest(unittest.TestCase):
                             }
                         ]
                     },
-                    "request": {"url": "https://my-foodsavr-store.web.app/"},
+                    "request": {"url": "https://foodsavr-test.web.app/"},
                 }
             },
         }
@@ -171,7 +171,7 @@ class FaultSchemaTest(unittest.TestCase):
                     "name": "FoodSavr Store",
                     "cause": "HTTP 503 Service Unavailable",
                     "status_code": 503,
-                    "url": "https://my-foodsavr-store.web.app",
+                    "url": "https://foodsavr-test.web.app",
                 }
             },
         }
@@ -231,7 +231,7 @@ class FaultSchemaTest(unittest.TestCase):
         self.assertTrue(cleaned.endswith("..."))
 
         self.assertEqual(sanitize_url("javascript:alert(1)"), "[redacted-non-http-url]")
-        self.assertEqual(sanitize_url("https://my-foodsavr-store.web.app/app"), "https://my-foodsavr-store.web.app/app")
+        self.assertEqual(sanitize_url("https://foodsavr-test.web.app/app"), "https://foodsavr-test.web.app/app")
 
 
 if __name__ == "__main__":
