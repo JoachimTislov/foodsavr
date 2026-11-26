@@ -182,13 +182,16 @@ def poll_blaze_cloud_logging(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", choices=["auto", "spark", "blaze"], default="auto")
-    parser.add_argument("--project", default="foodsavr-test")
+    parser.add_argument("--project", default=os.environ.get("FIREBASE_PROJECT_ID", ""),
+                        help="Firebase project (default: FIREBASE_PROJECT_ID)")
     parser.add_argument("--environment", default="production")
     parser.add_argument("--deployment-level", default="")
     parser.add_argument("--since-minutes", type=int, default=360)
     parser.add_argument("--limit", type=int, default=25)
     parser.add_argument("--out", default=None, help="Optional output file path")
     args = parser.parse_args(argv)
+    if not args.project:
+        parser.error("no Firebase project: pass --project or set FIREBASE_PROJECT_ID")
 
     selected_plan = resolve_plan(args.plan, deployment_level=args.deployment_level)
     token = resolve_access_token()

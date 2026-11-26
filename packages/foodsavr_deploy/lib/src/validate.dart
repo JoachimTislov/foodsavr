@@ -50,8 +50,17 @@ ValidationReport validate(DeploymentInstance i) {
   void err(String m) => r.errors.add(m);
 
   if (i.version != 1) err('version: only version 1 is supported');
-  if (!RegExp(r'^[\w.-]+/[\w.-]+$').hasMatch(i.identity.githubRepository)) {
+  final repo = i.identity.githubRepository;
+  if (repo != null && !RegExp(r'^[\w.-]+/[\w.-]+$').hasMatch(repo)) {
     err('identity.githubRepository: expected owner/repo');
+  }
+  if (repo == null &&
+      i.environments.values.any((e) => e.cloud && e.provisioned)) {
+    err(
+      'identity.githubRepository: provisioned environments need it '
+      '(set it in the instance overlay: DEPLOY_INSTANCE or '
+      '.agents/instance.local.json deployInstance)',
+    );
   }
   if (i.capabilities.toSet().length != i.capabilities.length) {
     err('capabilities: duplicates');

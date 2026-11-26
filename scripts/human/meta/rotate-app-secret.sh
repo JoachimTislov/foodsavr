@@ -235,7 +235,7 @@ stage "Firebase: apply the new secret"
 say "Run this now so Facebook sign-in works again:"
 note "    scripts/setup/social_auth.sh"
 note "If facebook.com is already enabled, update the secret at:"
-note "    https://console.firebase.google.com/project/${FIREBASE_PROJECT:-foodsavr-test}/authentication/providers"
+note "    https://console.firebase.google.com/project/${FIREBASE_PROJECT:-$(python3 "$(git rev-parse --show-toplevel)/scripts/instance_local.py" firebase-project)}/authentication/providers"
 pause "Press Enter when Firebase has the new secret"
 
 finish

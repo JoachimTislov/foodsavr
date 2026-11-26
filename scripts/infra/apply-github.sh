@@ -100,6 +100,9 @@ fi
 [ -n "${DEFAULT_BRANCH:-}" ] && tf_args+=("-var=default_branch=$DEFAULT_BRANCH")
 [ -n "${AGENT_APP_ID:-}" ] && tf_args+=("-var=agent_app_id=$AGENT_APP_ID")
 [ -n "${RELEASE_GATE_APP_ID:-}" ] && tf_args+=("-var=release_gate_app_id=$RELEASE_GATE_APP_ID")
+# Instance state from the gitignored local state (DEPLOY_INSTANCE, FIREBASE_DEFINES_TEST).
+instance_variables="$(python3 "$root/scripts/instance_local.py" ci-variables)"
+[ "$instance_variables" != "{}" ] && tf_args+=("-var=instance_variables=$instance_variables")
 [ -n "${TFVARS_FILE:-}" ] && tf_args+=("-var-file=$TFVARS_FILE")
 
 terraform -chdir="$work/config" init -input=false

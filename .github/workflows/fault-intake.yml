@@ -117,13 +117,9 @@ jobs:
           ACCESS_TOKEN: ${{ steps.gcp-auth.outputs.access_token }}
           FIREBASE_PLAN: ${{ vars.FIREBASE_PLAN }}
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
-          REPO: ${{ github.repository }}
           INPUT_SOURCE: ${{ inputs.source }}
         run: |
           project="${FIREBASE_PROJECT_ID}"
-          if [ -z "$project" ] && [ "$REPO" = "JoachimTislov/foodsavr" ]; then
-            project="foodsavr-test"
-          fi
           if [ "$HAS_WIF_CONFIG" != "true" ] || [ -z "$ACCESS_TOKEN" ] || [ -z "$project" ]; then
             echo "::warning::GCP WIF telemetry polling or FIREBASE_PROJECT_ID is not configured; skipping pull poll."
             printf '{"events": []}\n' > "$RUNNER_TEMP/intake-payload.json"

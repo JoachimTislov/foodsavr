@@ -40,7 +40,7 @@
     },
     "identity": {
       "type": "object",
-      "required": ["name", "githubRepository", "region"],
+      "required": ["name", "region"],
       "properties": {
         "name": { "type": "string" },
         "githubRepository": { "type": "string", "pattern": "^[\\w.-]+/[\\w.-]+$" },

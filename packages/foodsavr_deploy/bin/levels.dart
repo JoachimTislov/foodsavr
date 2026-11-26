@@ -74,7 +74,7 @@ Future<void> main(List<String> argv) async {
   final manifest =
       cmd.option('manifest') ??
       (cmd.rest.isNotEmpty ? cmd.rest.first : _defaultManifest());
-  final parsed = loadManifest(manifest);
+  final parsed = loadManifest(manifest, overlay: _overlayFor(manifest));
   if (parsed.instance == null) {
     _report(manifest, parsed.errors, const []);
     exit(1);
@@ -217,6 +217,19 @@ String _defaultManifest() {
     if (dir.parent.path == dir.path) return 'deploy/instance.yaml';
     dir = dir.parent;
   }
+}
+
+/// The instance overlay applies to the repository manifest only, so
+/// templates (deploy/examples) validate as written.
+String? _overlayFor(String manifest) {
+  final repoManifest = File(_defaultManifest());
+  final file = File(manifest);
+  if (!repoManifest.existsSync() || !file.existsSync()) return null;
+  if (file.resolveSymbolicLinksSync() !=
+      repoManifest.resolveSymbolicLinksSync()) {
+    return null;
+  }
+  return instanceOverlay(repoManifest.absolute.parent.parent.path);
 }
 
 void _report(String manifest, List<String> errors, List<String> warnings) {

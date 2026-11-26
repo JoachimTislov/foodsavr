@@ -9,7 +9,7 @@
 #   scripts/human/google/create-web-client-secret.sh (rotate: rotate-web-client-secret.sh)
 #
 # Inputs (environment or repo-root .env):
-#   FIREBASE_PROJECT          default: foodsavr-test
+#   FIREBASE_PROJECT          default: the test project recorded by make setup
 #   FACEBOOK_APP_ID           Meta app ID
 #   FACEBOOK_APP_SECRET       Meta app secret (Firebase provider + Graph API)
 #   FACEBOOK_CLIENT_TOKEN     Meta client token (Android SDK)
@@ -39,7 +39,13 @@ if [ -f .env ]; then
   set +a
 fi
 
-project="${FIREBASE_PROJECT:-foodsavr-test}"
+project="${FIREBASE_PROJECT:-$(python3 scripts/instance_local.py firebase-project)}"
+if [ -z "$project" ]; then
+  echo "No Firebase project: set FIREBASE_PROJECT or run make setup (records the test project locally)." >&2
+  exit 2
+fi
+site_url="$(python3 scripts/instance_local.py site-url)"
+site_url="${site_url:-https://$project.web.app}"
 idt="https://identitytoolkit.googleapis.com/admin/v2/projects/$project"
 todo=()
 
@@ -260,7 +266,7 @@ if [[ "${FACEBOOK_APP_ID:-}" =~ ^[0-9]+$ ]]; then
   if [ "${#key_hashes[@]}" -gt 0 ]; then
     note "Android signing key hashes: ${key_hashes[*]}"
   fi
-  note "$dashboard/settings/basic/ — set the data deletion instructions URL to https://foodsavr-test.web.app/delete-account"
+  note "$dashboard/settings/basic/ — set the data deletion instructions URL to $site_url/delete-account"
   note "$dashboard/ — verify the app is live for public sign-in"
 else
   miss "FACEBOOK_APP_ID missing or invalid; run scripts/human/meta/create-app-credentials.sh"

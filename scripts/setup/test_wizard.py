@@ -192,17 +192,21 @@ class WizardTest(TestCase):
         self.assertEqual(wizard.primary_environment([{"name": "production"}]), "production")
         self.assertEqual(wizard.primary_environment(environments, "production"), "production")
 
-    def test_production_identity_replaces_the_unprovisioned_marker(self):
-        with tempfile.TemporaryDirectory() as directory:
-            manifest = Path(directory) / "instance.yaml"
-            manifest.write_text((wizard.ROOT / "deploy/instance.yaml").read_text(encoding="utf-8"), encoding="utf-8")
-            self.assertTrue(wizard.write_production_identity(manifest, "foodsavr-prod", "1:9:web:9"))
-            text = manifest.read_text(encoding="utf-8")
-            production = text[text.index("  production:\n"):]
-            self.assertNotIn("provisioned: false", production)
-            self.assertIn('      projectId: foodsavr-prod\n      webAppId: "1:9:web:9"\n', production)
-            self.assertIn("foodsavr-test-daily", text)
-            self.assertFalse(wizard.write_production_identity(manifest, "foodsavr-prod", "1:9:web:9"))
+    def test_identities_are_recorded_in_the_local_overlay_not_the_manifest(self):
+        tracked = (wizard.ROOT / "deploy/instance.yaml").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            os.environ, {"FOODSAVR_INSTANCE_LOCAL": str(Path(directory) / "instance.local.json")},
+        ):
+            self.assertTrue(wizard.record_identity("test", "example-project", "1:9:web:9", "owner/repo",
+                                                   ["develop", "daily", "weekly"]))
+            self.assertTrue(wizard.record_identity("production", "example-prod", "1:8:web:8", "owner/repo", ["stable"]))
+            self.assertFalse(wizard.record_identity("production", "example-prod", "1:8:web:8", "owner/repo", ["stable"]))
+            overlay = wizard.load_instance_local()["deployInstance"]
+        self.assertEqual(overlay["identity"], {"githubRepository": "owner/repo"})
+        self.assertEqual(overlay["environments"]["test"]["channels"],
+                         {"develop": "example-project", "daily": "example-project-daily", "weekly": "example-project-weekly"})
+        self.assertEqual(overlay["environments"]["production"]["firebase"]["projectId"], "example-prod")
+        self.assertEqual((wizard.ROOT / "deploy/instance.yaml").read_text(encoding="utf-8"), tracked)
 
     def setup_instance(self):
         state = {"local_config": {}, "github": {"target_repo": "owner/repo", "variables": {}}}
@@ -265,14 +269,14 @@ class WizardTest(TestCase):
         instance.state["tools"] = {"terraform": True}
         out = StringIO()
         with patch.object(wizard, "terraform_step", return_value=True) as step, \
-                patch.object(wizard, "committed_project", return_value=committed) as committed_mock, \
+                patch.object(wizard, "published_project", return_value=committed) as committed_mock, \
                 patch.object(wizard, "firebase_identity", return_value=(local, "1:9:web:9")), \
                 patch.object(instance, "cloud_authenticated", return_value=True), \
                 patch.object(instance, "terraform_state", return_value=True), \
                 redirect_stdout(out):
             self.assertTrue(instance.firebase_infrastructure())
         if committed_mock.called:
-            self.assertEqual(committed_mock.call_args.args[1:3], ("origin/develop", "production"))
+            self.assertEqual(committed_mock.call_args.args[1], "production")
         return [(c.args[0], c.args[2]["ENV"], c.args[2]["SETUP_GCP_OUTPUTS_READY"]) for c in step.call_args_list], (
             out.getvalue()
         )
@@ -284,16 +288,16 @@ class WizardTest(TestCase):
         calls, output = self.run_infrastructure(instance, committed="foodsavr-prod", local="foodsavr-prod")
         self.assertEqual([env for _, env, _ in calls], ["test"])
         self.assertIn("this run created the production project", output)
-        self.assertIn("verify the legal texts and account deletion, then run make setup again", output)
+        self.assertIn("Verify the legal texts and account deletion, then run make setup again", output)
 
-    def test_production_is_applied_only_when_merged_on_the_integration_branch(self):
+    def test_production_is_applied_only_when_published_to_ci(self):
         for committed in ("", "other-prod"):
             with self.subTest(committed=committed):
                 instance = self.setup_instance()
                 instance.environments = [{"name": "test"}, {"name": "production", "provisioned": True}]
                 calls, output = self.run_infrastructure(instance, committed=committed, local="foodsavr-prod")
                 self.assertEqual([env for _, env, _ in calls], ["test"])
-                self.assertIn("production project foodsavr-prod is not merged on origin/develop", output)
+                self.assertIn("production project foodsavr-prod is not published in DEPLOY_INSTANCE", output)
 
     def test_creating_production_prints_the_next_steps(self):
         instance = self.setup_instance()
@@ -307,56 +311,29 @@ class WizardTest(TestCase):
                 patch.object(wizard, "firebase_project_exists", return_value=True), \
                 patch.object(wizard, "firebase_web_app", return_value="1:9:web:9"), \
                 patch.object(wizard, "default_site_exists", return_value=True), \
-                patch.object(wizard, "write_production_identity", return_value=True), \
+                patch.object(wizard, "record_identity", return_value=True), \
                 patch.object(wizard, "manifest_environments", return_value=[]), \
                 patch.object(wizard, "firebase_identity", return_value=("foodsavr-prod", "1:9:web:9")), \
                 redirect_stdout(out):
             self.assertTrue(instance.production_project())
         self.assertTrue(instance.production_created)
-        for step in ("open a PR", "verify the legal texts and account deletion", "Run make setup again"):
+        for step in ("DEPLOY_INSTANCE", "verify the legal texts and account deletion", "Run make setup again"):
             self.assertIn(step, out.getvalue())
 
-    def test_committed_project_reads_the_manifest_from_the_ref(self):
-        env = {"GITHUB_REPOSITORY": "owner/repo"}
-        self.assertIsNone(wizard.committed_project("/elsewhere/instance.yaml", "origin/develop", "production", env))
-        manifest = str(wizard.ROOT / "deploy/instance.yaml")
-        missing = Mock(returncode=128, stdout="")
-        with patch.object(wizard, "run", return_value=0), patch.object(wizard.subprocess, "run", return_value=missing):
-            self.assertEqual(wizard.committed_project(manifest, "origin/develop", "production", env), "")
-        shown = Mock(returncode=0, stdout="committed: manifest\n")
-        seen = {}
+    def test_published_project_reads_the_ci_overlay(self):
+        overlay = {"environments": {"production": {"firebase": {"projectId": "example-prod"}}}}
+        self.assertEqual(wizard.published_project({"DEPLOY_INSTANCE": json.dumps(overlay)}, "production"), "example-prod")
+        self.assertEqual(wizard.published_project({"DEPLOY_INSTANCE": json.dumps(overlay)}, "test"), "")
+        self.assertEqual(wizard.published_project({}, "production"), "")
+        self.assertEqual(wizard.published_project({"DEPLOY_INSTANCE": "not json"}, "production"), "")
 
-        def levels(values):
-            seen["text"] = Path(values["MANIFEST"]).read_text(encoding="utf-8")
-            seen["env"] = values["ENV"]
-            return {"PROVISIONED": "true"}
-
-        with patch.object(wizard, "run", return_value=0) as fetch, \
-                patch.object(wizard.subprocess, "run", return_value=shown) as show, \
-                patch.object(wizard, "levels_env", side_effect=levels), \
-                patch.object(wizard, "firebase_identity", return_value=("foodsavr-prod", "1:9:web:9")):
-            self.assertEqual(wizard.committed_project(manifest, "origin/develop", "production", env), "foodsavr-prod")
-        fetch.assert_called_once_with("git", "fetch", "--quiet", "origin", "develop", quiet=True)
-        self.assertEqual(show.call_args.args[0], ["git", "show", "origin/develop:deploy/instance.yaml"])
-        self.assertEqual(seen, {"text": "committed: manifest\n", "env": "production"})
-
-    def test_committed_project_is_empty_when_the_ref_does_not_provision_it(self):
-        env = {"GITHUB_REPOSITORY": "owner/repo"}
-        manifest = str(wizard.ROOT / "deploy/instance.yaml")
-        shown = Mock(returncode=0, stdout="committed: manifest\n")
-        with patch.object(wizard, "run", return_value=0), \
-                patch.object(wizard.subprocess, "run", return_value=shown), \
-                patch.object(wizard, "levels_env", return_value={"PROVISIONED": "false", "PROJECT_ID": "foodsavr-prod"}), \
-                patch.object(wizard, "firebase_identity", return_value=("foodsavr-prod", "1:9:web:9")):
-            self.assertEqual(wizard.committed_project(manifest, "origin/develop", "production", env), "")
-
-    def test_selected_production_is_applied_only_when_merged(self):
+    def test_selected_production_is_applied_only_when_published(self):
         instance = self.setup_instance()
         instance.env = {"ENV": "production"}
         instance.environments = [{"name": "test"}, {"name": "production", "provisioned": True}]
         calls, output = self.run_infrastructure(instance, committed="", local="foodsavr-prod")
         self.assertEqual(calls, [])
-        self.assertIn("is not merged on origin/develop", output)
+        self.assertIn("is not published in DEPLOY_INSTANCE", output)
         instance = self.setup_instance()
         instance.env = {"ENV": "production"}
         instance.environments = [{"name": "test"}, {"name": "production", "provisioned": True}]

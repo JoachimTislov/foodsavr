@@ -24,7 +24,7 @@ Map<String, String> envValues(Deployment d, {String? channel}) {
     'EMULATOR': '${env.emulator}',
     'PROVISIONED': '${env.provisioned}',
     'CHANNEL': ?channel,
-    'GITHUB_REPOSITORY': id.githubRepository,
+    'GITHUB_REPOSITORY': ?id.githubRepository,
     'GH_ENVIRONMENT': ?env.githubEnvironment,
     'VAR_SUFFIX': varSuffix(d.flavor),
     'INFRA_OWNER': owner,
@@ -52,7 +52,7 @@ Map<String, Object> tfVars(Deployment d) {
     'level': d.currentLevel,
     if (d.current.provider == 'firebase') 'firebase_plan': d.current.plan,
     'region': d.identity.region,
-    'github_repository': d.identity.githubRepository,
+    'github_repository': ?d.identity.githubRepository,
     if (fb != null) ...{
       'project_id': fb.projectId,
       'web_app_id': fb.webAppId,

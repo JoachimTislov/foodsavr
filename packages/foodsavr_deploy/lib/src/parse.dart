@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:yaml/yaml.dart';
@@ -18,22 +19,98 @@ class ParseResult {
   final List<String> errors;
 }
 
-ParseResult loadManifest(String path) {
+/// Reads the manifest at [path], deep-merged with [overlay] when given.
+///
+/// The tracked manifest holds the shared ladder only; the overlay holds the
+/// instance state (repository, Firebase identities, Hosting sites) and comes
+/// from [instanceOverlay].
+ParseResult loadManifest(String path, {String? overlay}) {
   final file = File(path);
   if (!file.existsSync()) return ParseResult(null, ['$path: file not found']);
-  return parseManifest(file.readAsStringSync());
+  return parseManifest(file.readAsStringSync(), overlay: overlay);
 }
 
-ParseResult parseManifest(String text) {
+ParseResult parseManifest(String text, {String? overlay}) {
   Object? doc;
   try {
     doc = _plain(loadYaml(text));
   } on YamlException catch (e) {
     return ParseResult(null, ['yaml: ${e.message}']);
   }
+  if (overlay != null && overlay.trim().isNotEmpty) {
+    try {
+      doc = _merge(doc, _plain(loadYaml(overlay)));
+    } on YamlException catch (e) {
+      return ParseResult(null, ['instance overlay: ${e.message}']);
+    }
+  }
   final r = _Reader();
   final instance = r.instance(doc);
   return ParseResult(r.errors.isEmpty ? instance : null, r.errors);
+}
+
+/// Overlay [over] onto [base]: mappings merge key by key, anything else
+/// (scalars, lists, null) replaces.
+Object? _merge(Object? base, Object? over) {
+  if (base is Map<String, Object?> && over is Map<String, Object?>) {
+    return {
+      ...base,
+      for (final e in over.entries) e.key: _merge(base[e.key], e.value),
+    };
+  }
+  return over;
+}
+
+/// Instance overlay text for the repository manifest, from (first wins):
+/// `DEPLOY_INSTANCE` (YAML or JSON; CI sets it from the GitHub Actions
+/// variable of that name), then the `deployInstance` object of the gitignored
+/// `.agents/instance.local.json` (FOODSAVR_INSTANCE_LOCAL overrides its path;
+/// worktrees fall back to the main checkout's file). Null when unset: the
+/// manifest then describes an unbound instance, as on a fresh fork.
+String? instanceOverlay(String repoRoot, [Map<String, String>? environment]) {
+  final env = environment ?? Platform.environment;
+  final direct = env['DEPLOY_INSTANCE'];
+  if (direct != null && direct.trim().isNotEmpty) return direct;
+  for (final path in _localStatePaths(repoRoot, env)) {
+    final file = File(path);
+    if (!file.existsSync()) continue;
+    try {
+      final data = loadYaml(file.readAsStringSync());
+      final overlay = data is YamlMap ? data['deployInstance'] : null;
+      return overlay == null ? null : jsonEncode(_plain(overlay));
+    } on YamlException {
+      return null;
+    }
+  }
+  return null;
+}
+
+Iterable<String> _localStatePaths(
+  String repoRoot,
+  Map<String, String> env,
+) sync* {
+  const relative = '.agents/instance.local.json';
+  final override = env['FOODSAVR_INSTANCE_LOCAL'];
+  if (override != null && override.isNotEmpty) {
+    yield override;
+    return;
+  }
+  yield '$repoRoot/$relative';
+  try {
+    final common = Process.runSync('git', [
+      '-C',
+      repoRoot,
+      'rev-parse',
+      '--path-format=absolute',
+      '--git-common-dir',
+    ]);
+    final dir = '${common.stdout}'.trim();
+    if (common.exitCode == 0 && dir.isNotEmpty) {
+      yield '${File(dir).parent.path}/$relative';
+    }
+  } on ProcessException {
+    // No git: only the worktree's own file applies.
+  }
 }
 
 Object? _plain(Object? v) => switch (v) {
@@ -157,9 +234,9 @@ class _Reader {
     final m = _map(v, p, {'name', 'githubRepository', 'region'});
     if (m == null) return null;
     final name = _get<String>(m, 'name', p);
-    final repo = _get<String>(m, 'githubRepository', p);
+    final repo = _get<String>(m, 'githubRepository', p, required: false);
     final region = _get<String>(m, 'region', p);
-    if (name == null || repo == null || region == null) return null;
+    if (name == null || region == null) return null;
     return Identity(name: name, githubRepository: repo, region: region);
   }
 

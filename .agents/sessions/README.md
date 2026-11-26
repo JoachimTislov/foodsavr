@@ -66,11 +66,14 @@ scripts/agents/agentctl trace '#300'           # why does this exist? (also SHA,
 
 ## Transcript archive (#278)
 
-Config: [archive.json](archive.json) (project, bucket, location, prefix,
-billingAccount; env `AGENT_SESSION_BUCKET` overrides the bucket). The bucket
-lives in its own billed project (`foodsavr-agents`) so the app's Firebase
-projects stay on Spark. No secret is involved: access is your own
-`gcloud auth login`. Owner setup is one step: `make session-archive`.
+Config: [archive.json](archive.json) (location, prefix) plus instance state (project, bucket,
+billingAccount). The tracked file holds shared defaults only; the project,
+bucket (default `<project>-sessions`) and billing account come from
+`AGENT_SESSION_PROJECT`/`_BUCKET`/`_BILLING_ACCOUNT`/`_LOCATION` or the
+`sessionArchive` section of the gitignored `.agents/instance.local.json`.
+Use a dedicated billed project so the app's Firebase projects stay on Spark.
+No secret is involved: access is your own `gcloud auth login`. Owner setup is
+one step: `make session-archive`.
 
 ```sh
 scripts/agents/agentctl sessions archive [--session ID | --all] [--dry-run] [--json]  # --all backfills; also runs on `sessions register --status completed` (--no-archive skips)

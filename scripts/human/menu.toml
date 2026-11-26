@@ -58,6 +58,14 @@ needs = "gh login for the cloud profiles"
 vars = [{ name = "PROFILE", prompt = "Profile", choices = ["local-dev", "fork-agents", "full-cloud"], default = "full-cloud" }]
 
 [[entry]]
+id = "session-archive"
+group = "setup"
+title = "Provision the agent session archive (links billing) and backfill it"
+target = "session-archive"
+step = ""
+needs = "gcloud login with billing access; sessionArchive (project, billingAccount) in .agents/instance.local.json"
+
+[[entry]]
 id = "setup-fork"
 group = "setup"
 title = "Fork upstream (contributors; GitHub secrets are owner-only)"

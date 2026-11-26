@@ -17,7 +17,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
 gh_bin="${GH_BIN:-gh}"
-default_target_url="https://foodsavr-test.web.app"
+# The test site recorded by make setup; empty on an unset-up clone (nothing is baked in).
+default_target_url="$(python3 scripts/instance_local.py site-url)"
 
 todo=()
 secrets_list=""

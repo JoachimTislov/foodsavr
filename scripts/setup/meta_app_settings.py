@@ -9,7 +9,6 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 GRAPH_API = "https://graph.facebook.com/v27.0"
-LEGAL_SITE = "https://foodsavr-test.web.app"
 URL_FIELDS = ("website_url", "privacy_policy_url", "terms_of_service_url")
 FIELDS = ("app_domains", *URL_FIELDS)
 
@@ -31,11 +30,12 @@ def graph_request(endpoint, token, settings=None):
 
 
 def changed_settings(current, project):
+    # The legal pages are served from the project's own Hosting site.
     website_domain = f"{project}.web.app"
     desired = {
         "website_url": f"https://{website_domain}/",
-        "privacy_policy_url": f"{LEGAL_SITE}/privacy",
-        "terms_of_service_url": f"{LEGAL_SITE}/terms",
+        "privacy_policy_url": f"https://{website_domain}/privacy",
+        "terms_of_service_url": f"https://{website_domain}/terms",
     }
     updates = {key: value for key, value in desired.items() if current.get(key) != value}
     domains = current.get("app_domains", [])

@@ -39,6 +39,9 @@ import session_archive as sa  # noqa: E402
 import system_status as ss  # noqa: E402
 import harness_usage as hu  # noqa: E402
 
+sys.path.insert(0, str(ROOT / "scripts"))
+import instance_local  # noqa: E402
+
 
 def configured_path(environment: str, default: Path) -> Path:
     """Read trusted runner configuration without changing repository authority."""
@@ -773,7 +776,9 @@ def current_identity(args: argparse.Namespace) -> Any:
 # ---- session transcript archive (#278)
 
 def archive_config() -> dict[str, Any] | None:
-    return sa.load_config(configured_path("AGENT_ARCHIVE_CONFIG", ROOT / ".agents/sessions/archive.json"))
+    local = instance_local.load(ROOT).get("sessionArchive")
+    return sa.load_config(configured_path("AGENT_ARCHIVE_CONFIG", ROOT / ".agents/sessions/archive.json"),
+                          local=local if isinstance(local, dict) else None)
 
 
 def make_redactor() -> Any:
@@ -799,7 +804,7 @@ def archive_for_end(session_id: str) -> dict[str, Any] | None:
 def session_archive_command(args: argparse.Namespace, index: Path, root: Path) -> int:
     config = archive_config()
     if config is None:
-        raise ValueError("archiving is not configured (.agents/sessions/archive.json or AGENT_SESSION_BUCKET)")
+        raise ValueError("archiving is not configured: set AGENT_SESSION_PROJECT (or sessionArchive.project in .agents/instance.local.json; make setup)")
     if getattr(args, "all", False):
         return backfill_archive(args, index, config)
     session_id = tr.normalize_session_id(args.session, getattr(args, "harness", None)) if args.session else current_identity(args).session_id
@@ -873,7 +878,7 @@ def session_fetch(args: argparse.Namespace, index: Path) -> int:
 def provision_archive_command(args: argparse.Namespace) -> int:
     config = archive_config()
     if config is None:
-        raise ValueError("archiving is not configured (.agents/sessions/archive.json or AGENT_SESSION_BUCKET)")
+        raise ValueError("archiving is not configured: set AGENT_SESSION_PROJECT (or sessionArchive.project in .agents/instance.local.json; make setup)")
     steps = sa.provision_steps(config)
     printable = {step.name: " ".join(shlex.quote(part) for part in step.command) for step in steps}
     if not args.apply:
@@ -890,7 +895,7 @@ def provision_archive_command(args: argparse.Namespace) -> int:
             print(f"exists: {step.name}")
             continue
         if step.owner and not (args.link_billing and config.get("billingAccount")):
-            reason = "set `billingAccount` in .agents/sessions/archive.json" if not config.get("billingAccount") else "run `make session-archive`"
+            reason = "set AGENT_SESSION_BILLING_ACCOUNT or sessionArchive.billingAccount in .agents/instance.local.json" if not config.get("billingAccount") else "run `make session-archive`"
             print(f"blocked: {step.name}: billing is not linked to {config['project']}; owner: {reason}")
             return 3
         result = gcloud.run(step.command[1:], timeout=180)
@@ -4716,7 +4721,7 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_parser.add_argument("--json", action="store_true")
     provision_parser = session_commands.add_parser("provision-archive", help="OWNER ONLY (ADR 0003): print or run the gcloud commands that create the archive bucket")
     provision_parser.add_argument("--apply", action="store_true", help="run the missing steps (default: print them)")
-    provision_parser.add_argument("--link-billing", action="store_true", help="OWNER ONLY: link archive.json's billingAccount to the archive project")
+    provision_parser.add_argument("--link-billing", action="store_true", help="OWNER ONLY: link the configured billing account to the archive project")
     session_commit_parser = session_commands.add_parser("commits", help="list commits linked by the Agent-Session trailer")
     session_commit_parser.add_argument("session_id")
     skills = commands.add_parser("skills", help="validate, list, and project the canonical skill catalog")

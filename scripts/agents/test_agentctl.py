@@ -2691,7 +2691,7 @@ class ArchiveTest(unittest.TestCase):
     def env(self, **extra: str) -> dict[str, str]:
         env = clean_env(HOME=str(self.home), PATH=f"{self.bin}:{os.environ['PATH']}", FAKE_GCS_ROOT=str(self.gcs),
                         AGENT_SESSION_INDEX=str(self.index), AGENT_LEDGER_FILE=str(self.ledger),
-                        AGENT_ARCHIVE_CONFIG=str(self.config_file), AGENT_SESSION_CACHE=str(self.dir / "cache"),
+                        AGENT_ARCHIVE_CONFIG=str(self.config_file), FOODSAVR_INSTANCE_LOCAL=str(self.dir / "instance.local.json"), AGENT_SESSION_CACHE=str(self.dir / "cache"),
                         AGENT_KNOWLEDGE_DB=str(self.dir / "k.sqlite3"), CLAUDE_CODE_SESSION_ID=self.native)
         env.pop("CLAUDE_CONFIG_DIR", None)
         env.update(extra)
@@ -2900,6 +2900,16 @@ class ArchiveTest(unittest.TestCase):
         self.cli("sessions", "provision-archive", "--apply")
         self.assertTrue(any(call.startswith("storage buckets create gs://test-bucket") for call in self.calls()))
         self.assertFalse(any(call.startswith("projects create") for call in self.calls()))
+
+    def test_archive_identity_resolves_from_local_state_and_environment(self) -> None:
+        shared = self.dir / "shared.json"
+        shared.write_text(json.dumps({"location": "europe-north1", "prefix": "sessions/"}))
+        self.assertIsNone(self.sa.load_config(shared, {}))
+        local = {"project": "local-proj", "billingAccount": "000000-000000-000000"}
+        config = self.sa.load_config(shared, {}, local)
+        self.assertEqual((config["project"], config["bucket"]), ("local-proj", "local-proj-sessions"))
+        config = self.sa.load_config(shared, {"AGENT_SESSION_PROJECT": "env-proj", "AGENT_SESSION_BUCKET": "gs://env-bucket/"}, local)
+        self.assertEqual((config["project"], config["bucket"], config["billingAccount"]), ("env-proj", "env-bucket", "000000-000000-000000"))
 
     def test_provision_stops_at_billing_unless_owner_links_it(self) -> None:
         blocked = self.cli("sessions", "provision-archive", "--apply", check=False, FAKE_GCLOUD_BILLING="False")

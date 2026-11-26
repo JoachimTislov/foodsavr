@@ -1,52 +1,53 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-options='lib/firebase_options.dart'
+# Client options come from FIREBASE_DEFINES (JSON; CI: the FIREBASE_DEFINES_TEST
+# Actions variable written by setup) or the local defines file; the repository
+# tracks no project ids.
+defines="$(python3 scripts/firebase_options.py path)"
 google_services='android/app/src/production/debug/google-services.json'
 env_file='assets/.env'
 
-if [ ! -s "$options" ] || grep -q 'not configured for fork\|not configured for this CI run' "$options"; then
-  echo '::error::lib/firebase_options.dart must contain the real test-project configuration for the Drive APK.'
+if [ -n "${FIREBASE_DEFINES:-}" ]; then
+  mkdir -p "$(dirname "$defines")"
+  printf '%s
+' "$FIREBASE_DEFINES" > "$defines"
+fi
+if ! python3 scripts/firebase_options.py validate "$defines"; then
+  echo '::error::Firebase defines for the test project are missing (set FIREBASE_DEFINES_TEST, or run make setup).'
   exit 1
 fi
 
 mkdir -p "$(dirname "$google_services")" assets
-python3 - "$options" "$google_services" <<'PY'
+python3 - "$defines" "$google_services" <<'PY'
 import json
-import re
 import sys
 from pathlib import Path
 
-source = Path(sys.argv[1]).read_text()
+defines = json.loads(Path(sys.argv[1]).read_text())
 output = Path(sys.argv[2])
-android_match = re.search(r"FirebaseOptions\s+android\s*=\s*FirebaseOptions\((.*?)\);", source, re.DOTALL)
-block = android_match.group(1) if android_match else source
-
-def value(name):
-    match = re.search(rf"\b{name}\s*(?:[:=])\s*(['\"])(.*?)\1", block)
-    if not match or not match.group(2):
-        raise SystemExit(f"::error::Firebase options is missing {name}")
-    return match.group(2)
-
-project_id = value("projectId")
+missing = [name for name in ("FIREBASE_ANDROID_APP_ID", "FIREBASE_ANDROID_API_KEY") if not defines.get(name)]
+if missing:
+    raise SystemExit(f"::error::Firebase defines are missing {', '.join(missing)}")
 config = {
     "project_info": {
-        "project_number": value("messagingSenderId"),
-        "project_id": project_id,
-        "storage_bucket": value("storageBucket"),
+        "project_number": defines["FIREBASE_MESSAGING_SENDER_ID"],
+        "project_id": defines["FIREBASE_PROJECT_ID"],
+        "storage_bucket": defines.get("FIREBASE_STORAGE_BUCKET", ""),
     },
     "client": [{
         "client_info": {
-            "mobilesdk_app_id": value("appId"),
+            "mobilesdk_app_id": defines["FIREBASE_ANDROID_APP_ID"],
             "android_client_info": {"package_name": "com.foodsavr.app"},
         },
         "oauth_client": [],
-        "api_key": [{"current_key": value("apiKey")}],
+        "api_key": [{"current_key": defines["FIREBASE_ANDROID_API_KEY"]}],
         "services": {},
     }],
     "configuration_version": "1",
 }
-output.write_text(json.dumps(config, indent=2) + "\n")
+output.write_text(json.dumps(config, indent=2) + "
+")
 PY
 
 if [ -n "${ANDROID_ENV_B64:-}" ]; then

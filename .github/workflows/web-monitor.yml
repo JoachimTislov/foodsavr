@@ -38,8 +38,7 @@ jobs:
       (github.event_name != 'workflow_run' ||
        github.event.workflow_run.conclusion == 'success') &&
       (inputs.target_url != '' ||
-       vars.MONITOR_TARGET_URL != '' ||
-       github.repository == 'JoachimTislov/foodsavr')
+       vars.MONITOR_TARGET_URL != '')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -89,14 +88,10 @@ jobs:
         env:
           INPUT_URL: ${{ inputs.target_url }}
           VAR_URL: ${{ vars.MONITOR_TARGET_URL }}
-          REPO: ${{ github.repository }}
           DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha }}
           FIREBASE_PLAN: ${{ vars.FIREBASE_PLAN }}
         run: |
           url="${INPUT_URL:-$VAR_URL}"
-          if [ -z "$url" ] && [ "$REPO" = "JoachimTislov/foodsavr" ]; then
-            url="https://foodsavr-test.web.app"
-          fi
           if [ -z "$url" ]; then
             echo "::warning::MONITOR_TARGET_URL is not configured; skipping web probe."
             exit 0

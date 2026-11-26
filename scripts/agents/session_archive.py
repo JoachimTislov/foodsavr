@@ -295,17 +295,37 @@ def build_bundle(session_id: str, files: list[tuple[str, Path]], redactor: Redac
 
 # ---------------------------------------------------------------- config
 
-def load_config(path: Path, environ: Mapping[str, str] | None = None) -> dict[str, Any] | None:
-    """Archive config, or None when archiving is not configured."""
+ARCHIVE_ENV = {  # archive key -> environment variable (CI: GitHub Actions variables of the same name)
+    "project": "AGENT_SESSION_PROJECT",
+    "bucket": "AGENT_SESSION_BUCKET",
+    "billingAccount": "AGENT_SESSION_BILLING_ACCOUNT",
+    "location": "AGENT_SESSION_LOCATION",
+}
+
+
+def load_config(path: Path, environ: Mapping[str, str] | None = None, local: Mapping[str, Any] | None = None) -> dict[str, Any] | None:
+    """Archive config, or None when archiving is not configured.
+
+    The tracked file holds shared defaults only (location, prefix). The
+    instance identity (project, bucket, billing account) comes from `local`
+    (the `sessionArchive` section of .agents/instance.local.json) and the
+    AGENT_SESSION_* environment variables, which win. The bucket defaults to
+    `<project>-sessions`.
+    """
     environ = os.environ if environ is None else environ
     config: dict[str, Any] = {}
     try:
         config = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         config = {}
-    override = (environ.get("AGENT_SESSION_BUCKET") or "").strip()
-    if override:
-        config["bucket"] = override.removeprefix("gs://").strip("/")
+    config.update({k: v for k, v in (local or {}).items() if k in ARCHIVE_ENV and v})
+    for key, variable in ARCHIVE_ENV.items():
+        if (environ.get(variable) or "").strip():
+            config[key] = environ[variable].strip()
+    if config.get("bucket"):
+        config["bucket"] = str(config["bucket"]).removeprefix("gs://").strip("/")
+    elif config.get("project"):
+        config["bucket"] = f"{config['project']}-sessions"
     if not config.get("bucket"):
         return None
     config.setdefault("prefix", "sessions/")
@@ -496,7 +516,7 @@ def provision_steps(config: Mapping[str, Any]) -> list[ProvisionStep]:
     """Dedicated archive project, billing link, Storage API, then the bucket (#278)."""
     bucket, project = bucket_name(config), str(config.get("project") or "")
     if not project:
-        raise ArchiveError("archive config has no `project`; set it in .agents/sessions/archive.json")
+        raise ArchiveError("archive project is not set; set AGENT_SESSION_PROJECT or sessionArchive.project in .agents/instance.local.json (make setup)")
     steps = [ProvisionStep("project", ["gcloud", "projects", "describe", project, "--format=value(lifecycleState)"],
                            ["gcloud", "projects", "create", project, f"--name={project}"],
                            lambda out: out.strip() == "ACTIVE")]

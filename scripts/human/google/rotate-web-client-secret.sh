@@ -218,7 +218,8 @@ run_wizard() {
 [[ -t 0 && -t 1 ]] || { echo "scripts/human: interactive only; run it yourself in a terminal" >&2; exit 2; }
 
 TOTAL_STAGES=3
-PROJECT="${FIREBASE_PROJECT:-foodsavr-test}"
+PROJECT="${FIREBASE_PROJECT:-$(python3 "$(git rev-parse --show-toplevel)/scripts/instance_local.py" firebase-project)}"
+[[ -n "$PROJECT" ]] || { echo "No Firebase project: set FIREBASE_PROJECT or run make setup first" >&2; exit 2; }
 
 banner "Google web client secret rotation"
 

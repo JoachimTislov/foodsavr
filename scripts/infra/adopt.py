@@ -95,6 +95,10 @@ def github_resources(directory, repo, enable_rulesets):
             f"github_actions_variable.{field}", key,
             f'({enabled}) && contains(local.existing_variables, "{key}") ? {{ existing = true }} : {{}}',
         ))
+    blocks.append(import_block(
+        "github_actions_variable.instance[each.key]", "${each.key}",
+        "{ for name in keys(var.instance_variables) : name => name if contains(local.existing_variables, name) }",
+    ))
     for name in rulesets:
         blocks.append(import_block(
             f"github_repository_ruleset.release_channels_{name.replace('-', '_')}[0]", "${each.value}",

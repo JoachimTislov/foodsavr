@@ -91,9 +91,9 @@ an Actions artifact, publish to Play, or write an APK into the repository. The
 automatic Android delivery workflow and Play internal deployment have been
 removed.
 The workflow requires `GOOGLE_DRIVE_FOLDER_ID` and
-`GOOGLE_DRIVE_OAUTH_JSON`. It reads the tracked `lib/firebase_options.dart`
-for the Firebase test project and derives the matching native Android
-configuration from it (`scripts/ci/write_android_test_config.sh`).
+`GOOGLE_DRIVE_OAUTH_JSON`. It reads the test project's Firebase defines from the
+`FIREBASE_DEFINES_TEST` variable and derives the matching native Android
+configuration from them (`scripts/ci/write_android_test_config.sh`).
 `ANDROID_ENV_B64` may provide the bundled runtime configuration; when absent,
 the workflow uses non-secret API endpoint defaults. It uses the debug signing
 key intended for direct test installation.
@@ -133,7 +133,7 @@ single-line encoded files, for example `base64 -w 0 <file>` on Linux.
 | `GOOGLE_DRIVE_OAUTH_JSON` | OAuth JSON containing `client_id`, `client_secret`, and `refresh_token` for a user who can write to the folder. |
 | `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | Play publishing service-account JSON with access to this app's testing releases. |
 
-Normal CI builds use the tracked `lib/firebase_options.dart`.
+Normal CI builds compile `lib/firebase_options.dart` without defines (unconfigured; tests and emulators only).
 Drive authorization must allow file creation in the selected folder. Use a
 durable OAuth grant with the Drive API enabled; the workflow refreshes access
 tokens automatically. It preserves the folder's access settings and doesn't

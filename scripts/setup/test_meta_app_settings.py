@@ -5,18 +5,18 @@ from meta_app_settings import sync
 
 
 class MetaAppSettingsTest(unittest.TestCase):
-    project = "foodsavr-test"
+    project = "example-project"
     app_id = "123"
     token = "app-token"
     current = {"id": app_id, "app_domains": ["existing.example"]}
     desired = {
         "app_domains": [
             "existing.example",
-            "foodsavr-test.web.app",
+            "example-project.web.app",
         ],
-        "website_url": "https://foodsavr-test.web.app/",
-        "privacy_policy_url": "https://foodsavr-test.web.app/privacy",
-        "terms_of_service_url": "https://foodsavr-test.web.app/terms",
+        "website_url": "https://example-project.web.app/",
+        "privacy_policy_url": "https://example-project.web.app/privacy",
+        "terms_of_service_url": "https://example-project.web.app/terms",
     }
 
     def test_check_reports_drift_without_writing(self):
