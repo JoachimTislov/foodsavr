@@ -42,6 +42,7 @@ DEFAULT_TRUSTED_BOTS = frozenset({DEPENDABOT, "github-actions"})
 TIER_ORDER: tuple[str, ...] = ("exempt", "fast", "balanced", "deep", "human")
 TIER_RANK: dict[str, int] = {tier: idx for idx, tier in enumerate(TIER_ORDER)}
 PROVIDER_CAP = "provider-capacity"
+QUOTA_REASON = "quota-exhausted"
 PATCH_EQUIVALENT_REASON = "patch-equivalent-rebase"
 CI_REVIEW_CREDENTIALS = {
     "claude": "CLAUDE_CODE_OAUTH_TOKEN",
@@ -1377,17 +1378,41 @@ def parse_pr_json_payload(data: dict[str, Any]) -> dict[str, Any]:
 MAX_INLINE_DIFF_CHARS = 240000
 TOOL_DENYING_PROVIDERS = frozenset({"antigravity"})
 MAX_INLINE_CONTEXT_CHARS = 260000
+PR_CONTEXT_END = "\n</untrusted-pr-context>\n"
 
 
-def staged_pr_context_text(workflow: dict[str, Any], root: Path = ROOT) -> str:
-    """Return the staged PR markdown snapshot (metadata + bounded diff) named in the workflow context."""
+def _staged_pr_context_path(workflow: dict[str, Any], root: Path = ROOT) -> Path | None:
     for name in workflow.get("context", {}).get("files", []) or []:
         path = Path(str(name))
         if not path.is_absolute():
             path = root / path
         if path.name.startswith("pr-") and path.suffix == ".md" and path.is_file():
-            return path.read_text(encoding="utf-8", errors="replace")[:MAX_INLINE_CONTEXT_CHARS]
-    return ""
+            return path
+    return None
+
+
+def staged_pr_context_text(workflow: dict[str, Any], root: Path = ROOT) -> str:
+    """Return the staged PR markdown snapshot (metadata + bounded diff) named in the workflow context."""
+    path = _staged_pr_context_path(workflow, root)
+    return path.read_text(encoding="utf-8", errors="replace")[:MAX_INLINE_CONTEXT_CHARS] if path else ""
+
+
+def record_provider_truncation(workflow: dict[str, Any], truncated: bool, root: Path = ROOT) -> None:
+    """Record in the snapshot whether the selected provider's view is cut, so record-review cannot approve it."""
+    context = _staged_pr_context_path(workflow, root)
+    if context is None:
+        return
+    snapshot = context.with_suffix(".json")
+    try:
+        payload = json.loads(snapshot.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        payload = {}
+    except (OSError, ValueError):
+        return  # _diff_truncated already treats an unreadable snapshot as truncated.
+    # A later fallback may receive the full context, so keep the staging result separate.
+    staged = payload.setdefault("staged_diff_truncated", bool(payload.get("diff_truncated")))
+    payload["diff_truncated"] = bool(staged or truncated)
+    snapshot.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def stage_pr_context(
@@ -2219,13 +2244,16 @@ def cmd_prepare_review(args: argparse.Namespace) -> int:
         and agentctl.provider_is_safe(name, workflow, specs)
     ]
     snapshots = agentctl.hu.probe_all(safe, cache_dir=agentctl.QUOTA_CACHE)
-    failed = []
+    failed: list[str] = []
+    paused: list[str] = []
+    resets: list[str] = []
     while safe:
         plan = select_review_plan(workflow, args.required_tier, safe, specs, router, snapshots)
         if not plan:
             break
-        tier, provider, prepared = plan
+        tier, provider, prepared, context_truncated = plan
         path.write_text(json.dumps(prepared, indent=2) + "\n", encoding="utf-8")
+        record_provider_truncation(workflow, context_truncated)
         if not args.result:
             print(json.dumps({"tier": tier, "run_model": True}))
             return 0
@@ -2235,29 +2263,77 @@ def cmd_prepare_review(args: argparse.Namespace) -> int:
             Path(args.result).write_text(json.dumps(result) + "\n", encoding="utf-8")
             print(json.dumps({"tier": tier, "run_model": True}))
             return 0
-        failed.append(provider)
+        if is_quota_pause(result):
+            paused.append(provider)
+            if reset := normalized_reset(result.get("resets_at")):
+                resets.append(reset)
+            print(f"{provider} reached its usage limit; looking for another provider.", file=sys.stderr)
+        else:
+            failed.append(provider)
+            print(f"Review could not complete using {provider}; looking for another provider.", file=sys.stderr)
         safe.remove(provider)
-        print(f"Review could not complete using {provider}; looking for another provider.", file=sys.stderr)
 
+    spent = [name for name in safe if not agentctl.hu.rank_providers_by_quota([name], snapshots)[0]]
+    if reset := normalized_reset(agentctl.hu.earliest_quota_reset(spent, snapshots)):
+        resets.append(reset)
+    exhausted = [*paused, *spent]
+    quota_note = ""
+    if exhausted:
+        quota_note = f"Provider quota is exhausted for {', '.join(exhausted)}."
+        if resets:
+            quota_note += f" Earliest reset: {min(resets)}."
+
+    quota_fields: dict[str, str] = {}
     if not args.provider:
         credentials = ", ".join(CI_REVIEW_CREDENTIALS.values())
         reason = f"Model review skipped. Missing CI credentials ({credentials})."
     elif failed:
         credentials = ", ".join(CI_REVIEW_CREDENTIALS.get(name, name) for name in failed)
         reason = f"Model review skipped. Execution failed with {', '.join(failed)}. Check {credentials} and the runner logs."
+        if quota_note:
+            reason += f" {quota_note}"
+    elif exhausted:
+        # Quota is the only cause, so this is a pause rather than a failure.
+        reason = f"Model review skipped ({QUOTA_REASON}). {quota_note}"
+        quota_fields = {"reason": QUOTA_REASON, **({"resets_at": min(resets)} if resets else {})}
     else:
         reason = "Model review skipped. The configured providers have no policy-safe CLI with available quota."
-    print(json.dumps({"tier": "fast", "run_model": False, "skip_reason": reason}))
+    print(json.dumps({"tier": "fast", "run_model": False, "skip_reason": reason, **quota_fields}))
     return 0
 
 
-def run_prepared_review(path: Path, provider: str) -> dict[str, Any]:
-    completed = subprocess.run(
-        [str(ROOT / "scripts/agents/agentctl"), "workflow", "run", str(path),
-         "--execute", "--provider", provider],
-        stdout=subprocess.PIPE, text=True, check=False,
+def is_quota_pause(result: dict[str, Any]) -> bool:
+    return result.get("status") == "unavailable" and (
+        result.get("reason") == QUOTA_REASON or result.get("failure_kind") == "quota_exhausted"
     )
-    return json.loads(completed.stdout)
+
+
+def normalized_reset(value: Any) -> str | None:
+    """Return a provider-supplied reset time as UTC, dropping anything that is not a timestamp."""
+    import agentctl
+
+    parsed = agentctl.hu.parse_iso(value)
+    return agentctl.hu.iso_utc(parsed) if parsed else None
+
+
+def run_prepared_review(path: Path, provider: str) -> dict[str, Any]:
+    """Run one provider attempt; unusable runner output becomes a failed result instead of an exception."""
+    try:
+        completed = subprocess.run(
+            [str(ROOT / "scripts/agents/agentctl"), "workflow", "run", str(path),
+             "--execute", "--provider", provider],
+            stdout=subprocess.PIPE, encoding="utf-8", errors="replace", check=False,
+        )
+    except OSError:
+        return {"status": "failed", "reason": "runner-unavailable"}
+    try:
+        result = json.loads(completed.stdout)
+    except ValueError:
+        result = None
+    if not isinstance(result, dict):
+        return {"status": "failed", "reason": "runner-output-invalid"}
+    # agentctl exits 0 for a quota pause, so a nonzero exit is always a failure.
+    return {**result, "status": "failed"} if completed.returncode else result
 
 
 def select_review_plan(
@@ -2267,7 +2343,8 @@ def select_review_plan(
     specs: dict[str, dict[str, Any]],
     router: dict[str, Any],
     snapshots: dict[str, Any],
-) -> tuple[str, str, dict[str, Any]] | None:
+) -> tuple[str, str, dict[str, Any], bool] | None:
+    """Return (tier, provider, prepared workflow, whether the provider's PR context was cut)."""
     import agentctl
 
     verify = next(step for step in workflow["steps"] if step["id"] == "verify-gate")
@@ -2301,7 +2378,7 @@ def select_review_plan(
             "\n\nThe PR metadata and bounded diff follow."
             + (" Do not run tools or commands; review only this context.\n" if no_tools
                else " You do not need to run tools to read them.\n")
-            + "<untrusted-pr-context>\n" + staged + "\n</untrusted-pr-context>\n"
+            + "<untrusted-pr-context>\n" + staged + PR_CONTEXT_END
         ) if staged else ""
         review_step = {
             **verify,
@@ -2348,8 +2425,34 @@ def select_review_plan(
         if no_tools:
             # Listed files and skills invite reads the provider will deny.
             prepared["context"] = {**workflow.get("context", {}), "files": [], "skills": []}
-        return tier, decision.provider, prepared
+        truncated = False
+        cap = specs[decision.provider].get("max_prompt_argv_bytes")
+        if cap and staged:
+            # Resolved context has no fixed size, so a byte-capped prompt carries only the PR context.
+            prepared["context"] = {"queries": [], "files": [], "skills": []}
+            final_step = next(step for step in prepared["steps"] if step["id"] == "verify-gate")
+            truncated = fit_prompt_to_cap(prepared, final_step, staged, decision.provider, cap)
+        return tier, decision.provider, prepared, truncated
     return None
+
+
+def fit_prompt_to_cap(
+    workflow: dict[str, Any], step: dict[str, Any], pr_context: str, provider: str, cap: int,
+) -> bool:
+    """Cut the inline PR context so the prompt agentctl sends fits the provider's UTF-8 byte cap."""
+    import agentctl
+
+    # Run IDs have a fixed length, and the caller leaves no repository context to resolve.
+    run_id = f"{workflow['id']}-{'0' * 12}"
+    excess = len(agentctl.workflow_prompt(workflow, step, run_id, "").encode("utf-8")) - cap
+    if excess <= 0:
+        return False
+    note = f"The PR context was truncated to fit the {provider} {cap}-byte prompt limit, so the diff is incomplete.\n"
+    encoded = pr_context.encode("utf-8")
+    keep = max(len(encoded) - excess - len(note.encode("utf-8")), 0)
+    before, after = step["prompt"].split(pr_context + PR_CONTEXT_END, 1)
+    step["prompt"] = before + encoded[:keep].decode("utf-8", errors="ignore") + PR_CONTEXT_END + note + after
+    return True
 
 
 def _diff_truncated(pr_number: int, workflow_result: Path, head_sha: str = "") -> bool:
@@ -2489,6 +2592,15 @@ def cmd_record_review(args: argparse.Namespace) -> int:
         elif wf_status == "planned":
             if not status:
                 status = "commented"
+        elif is_quota_pause(wf_res):
+            if not status:
+                status = "skipped"
+            reason = reason or QUOTA_REASON
+            reset = normalized_reset(wf_res.get("resets_at"))
+            summary = summary or (
+                f"Model review skipped ({QUOTA_REASON}). The provider reached its usage limit."
+                + (f" Earliest reset: {reset}." if reset else "")
+            )
         else:
             if not status:
                 status = "skipped"

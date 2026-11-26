@@ -74,7 +74,20 @@ jobs:
           AGENT_KNOWLEDGE_DB: ${{ runner.temp }}/knowledge.sqlite3
         run: |
           cp .agents/ledger.jsonl "$AGENT_LEDGER_FILE"
-          scripts/agents/agentctl workflow run .agents/workflows/repository-health.json
+          report="$RUNNER_TEMP/repository-health.json"
+          code=0
+          scripts/agents/agentctl workflow run .agents/workflows/repository-health.json > "$report" || code=$?
+          cat "$report"
+          status="$(jq -r '.status // empty' "$report" 2>/dev/null || true)"
+          if [[ "$status" == unavailable ]]; then
+            # Not a pass: the lifecycle was not exercised. The notice separates it from a failure.
+            echo "::notice title=Repository health unavailable::The workflow could not run, so its health is unverified."
+            exit 1
+          fi
+          if [[ "$code" != 0 || ( "$status" != planned && "$status" != succeeded ) ]]; then
+            echo "::error title=Repository health failed::status=${status:-unreadable}, exit code=${code}"
+            exit 1
+          fi
           test -s "$AGENT_LEDGER_FILE"
       - name: Check generated state is ignored
         run: test -z "$(git status --porcelain)"

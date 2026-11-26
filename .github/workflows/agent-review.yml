@@ -52,6 +52,7 @@ jobs:
       executed_tier: ${{ steps.plan.outputs.tier }}
       run_model: ${{ steps.plan.outputs.run_model }}
       skip_reason: ${{ steps.plan.outputs.skip_reason }}
+      skip_code: ${{ steps.plan.outputs.skip_code }}
     steps:
       - name: Checkout trusted control plane
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -176,6 +177,12 @@ jobs:
             skip_reason="$(jq -r '.skip_reason' <<< "$plan")"
             echo "skip_reason=$skip_reason" >> "$GITHUB_OUTPUT"
             echo "$skip_reason" >> "$GITHUB_STEP_SUMMARY"
+            # Set only for a quota pause; a hard failure has no code.
+            skip_code="$(jq -r '.reason // empty' <<< "$plan")"
+            if [[ "$skip_code" == quota-exhausted ]]; then
+              echo "skip_code=$skip_code" >> "$GITHUB_OUTPUT"
+              echo "::notice title=Model review unavailable::$skip_reason"
+            fi
           elif [[ "$tier" != "$REQ_TIER" && "$REQ_TIER" != human ]]; then
             echo "Review tier capped from $REQ_TIER to $tier for the available providers." >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -238,6 +245,7 @@ jobs:
           EXECUTED_TIER: ${{ needs.review.outputs.executed_tier }}
           RUN_MODEL: ${{ needs.review.outputs.run_model }}
           SKIP_REASON: ${{ needs.review.outputs.skip_reason }}
+          SKIP_CODE: ${{ needs.review.outputs.skip_code }}
         run: |
           [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || { echo "PR_NUMBER must be an integer"; exit 1; }
           [[ "$HEAD_SHA" =~ ^[0-9a-f]{7,40}$ ]] || { echo "invalid head sha"; exit 1; }
@@ -356,6 +364,7 @@ jobs:
           else
             outcome=(--status skipped --provider deterministic-gate --model policy-verifier
               --summary "$SKIP_REASON")
+            if [[ "$SKIP_CODE" == quota-exhausted ]]; then outcome+=(--reason "$SKIP_CODE"); fi
           fi
           python3 scripts/github/pr_review.py record-review "${common[@]}" \
             --tier "$EXECUTED_TIER" --capacity-cap \
