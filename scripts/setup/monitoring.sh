@@ -17,7 +17,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
 gh_bin="${GH_BIN:-gh}"
-default_target_url="https://my-foodsavr-store.web.app"
+default_target_url="https://foodsavr-test.web.app"
 
 todo=()
 secrets_list=""

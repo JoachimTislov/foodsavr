@@ -1,4 +1,4 @@
-// Generated from the Firebase project my-foodsavr-store (web and Android apps).
+// Generated from the Firebase project foodsavr-test (web and Android apps).
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
@@ -17,19 +17,19 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDkNj5YrtkFAgAY2e2qEu3pHljSA6RU090',
-    appId: '1:514586238925:web:e562b8b85d97417f83ae84',
-    messagingSenderId: '514586238925',
-    projectId: 'my-foodsavr-store',
-    authDomain: 'my-foodsavr-store.firebaseapp.com',
-    storageBucket: 'my-foodsavr-store.firebasestorage.app',
+    apiKey: 'AIzaSyASwg08GwQp30lwM61tO8-se6BbPW2lpqg',
+    appId: '1:965790789072:web:95b2627567ba28b9ae1dd5',
+    messagingSenderId: '965790789072',
+    projectId: 'foodsavr-test',
+    authDomain: 'foodsavr-test.firebaseapp.com',
+    storageBucket: 'foodsavr-test.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAsu7CJwmAVOCfaBjZmu3bkS3UvZ0YiZS4',
-    appId: '1:514586238925:android:366b08d42cf7d0b383ae84',
-    messagingSenderId: '514586238925',
-    projectId: 'my-foodsavr-store',
-    storageBucket: 'my-foodsavr-store.firebasestorage.app',
+    apiKey: 'AIzaSyB_Q32ZYB8rvySrlf9bxM0P12KWiMlktlU',
+    appId: '1:965790789072:android:fdc53a86cd602616ae1dd5',
+    messagingSenderId: '965790789072',
+    projectId: 'foodsavr-test',
+    storageBucket: 'foodsavr-test.firebasestorage.app',
   );
 }

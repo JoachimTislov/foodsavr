@@ -57,7 +57,7 @@ Missing channel branches are created idempotently via the GitHub Refs API during
 
 - **Never put secret values in `terraform.tfstate` or LLM context.** Stateless `scripts/secrets/rotate.py` (using declarative `sync_file` + `encode` instead of `shell=True`, explicit `--repo`, and interactive TTY confirmation) pushes secret values directly to GitHub Secrets.
 - **Keep `FIRESTORE_RULES_B64` and `FIREBASE_OPTIONS_B64` out of fork-exposed `vars.*`.** Only non-sensitive identifiers (`AGENT_APP_ID`, `RELEASE_GATE_APP_ID`, `FIREBASE_APP_ID_ANDROID`, `FACEBOOK_APP_ID`, `FACEBOOK_CLIENT_TOKEN`, `ROUTER_MODEL`) move to GitHub Actions Variables. `ROUTER_BASE_URL` must always pass policy `allow_hosts` validation.
-- **CI vs. local config split**: local tools read gitignored `.agents/instance.local.json` (symlinked into worktrees); CI workflows read GitHub Actions Variables (`vars.*`) and fall back to upstream `deploy/instance.yaml` / `my-foodsavr-store` defaults only when `github.repository == 'JoachimTislov/foodsavr'`. Scheduled workflows skip cleanly (`exit 0`) when unconfigured so enabling Actions on a fork never triggers failure storms or probes upstream URLs.
+- **CI vs. local config split**: local tools read gitignored `.agents/instance.local.json` (symlinked into worktrees); CI workflows read GitHub Actions Variables (`vars.*`) and fall back to upstream `deploy/instance.yaml` / `foodsavr-test` defaults only when `github.repository == 'JoachimTislov/foodsavr'`. Scheduled workflows skip cleanly (`exit 0`) when unconfigured so enabling Actions on a fork never triggers failure storms or probes upstream URLs.
 
 ### 6. Agent-prepares / human-executes setup (`setupctl.py`, `setup-system`, `make setup`)
 

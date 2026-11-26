@@ -201,7 +201,7 @@ class WizardTest(TestCase):
             production = text[text.index("  production:\n"):]
             self.assertNotIn("provisioned: false", production)
             self.assertIn('      projectId: foodsavr-prod\n      webAppId: "1:9:web:9"\n', production)
-            self.assertIn("my-foodsavr-store-daily", text)
+            self.assertIn("foodsavr-test-daily", text)
             self.assertFalse(wizard.write_production_identity(manifest, "foodsavr-prod", "1:9:web:9"))
 
     def setup_instance(self):

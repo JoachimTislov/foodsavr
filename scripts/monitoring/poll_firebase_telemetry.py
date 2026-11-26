@@ -182,7 +182,7 @@ def poll_blaze_cloud_logging(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", choices=["auto", "spark", "blaze"], default="auto")
-    parser.add_argument("--project", default="my-foodsavr-store")
+    parser.add_argument("--project", default="foodsavr-test")
     parser.add_argument("--environment", default="production")
     parser.add_argument("--deployment-level", default="")
     parser.add_argument("--since-minutes", type=int, default=360)

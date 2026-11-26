@@ -262,14 +262,14 @@ environments:
     currentLevel: firebase-spark
     githubEnvironment: test
     firebase:
-      projectId: my-foodsavr-store
-      webAppId: "1:514586238925:web:e562b8b85d97417f83ae84"
-      webApiKeyId: 2010adfb-c62e-4376-bf08-58fb4bd61747
-      siteId: my-foodsavr-store
+      projectId: foodsavr-test
+      webAppId: "1:965790789072:web:95b2627567ba28b9ae1dd5"
+      webApiKeyId: 94556f20-f2b2-4bb5-9a72-b36eb53fc438
+      siteId: foodsavr-test
     channels:
-      develop: my-foodsavr-store
-      daily: my-foodsavr-store-daily
-      weekly: my-foodsavr-store-weekly
+      develop: foodsavr-test
+      daily: foodsavr-test-daily
+      weekly: foodsavr-test-weekly
   # Production project, served from stable. `make setup` creates it, then
   # replaces `provisioned: false` with its firebase identity.
   production:

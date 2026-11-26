@@ -134,6 +134,18 @@ def app_check_get(project, path, *, missing_ok=False):
         raise ValueError("Cannot read Firebase App Check. Check permissions in the Firebase console.") from None
 
 
+def hosting_sites(project):
+    request = Request(f"https://firebasehosting.googleapis.com/v1beta1/projects/{project}/sites?pageSize=100", headers={
+        "Authorization": f"Bearer {os.environ['GOOGLE_OAUTH_ACCESS_TOKEN']}",
+        "x-goog-user-project": project,
+    })
+    try:
+        with urlopen(request, timeout=30) as response:
+            return json.load(response).get("sites", [])
+    except HTTPError:
+        raise ValueError("Cannot list Firebase Hosting sites. Check permissions in the Firebase console.") from None
+
+
 def lookup(items, matches, label):
     found = [item for item in items if matches(item)]
     if len(found) > 1:
@@ -193,6 +205,14 @@ def gcp_resources(directory, project, app, repo, environment, deploy_branch, int
         import_item("google_recaptcha_enterprise_key.web", key)
     elif config.get("siteKey"):
         raise ValueError("Enable read access to reCAPTCHA Enterprise before adopting the configured App Check key.")
+
+    # Channel sites the manifest declares (HOSTING_SITES, a JSON list) that already exist.
+    wanted = set(json.loads(os.environ.get("HOSTING_SITES") or "[]")) - {project}
+    if wanted and "firebasehosting.googleapis.com" in enabled:
+        for site in hosting_sites(project):
+            site_id = site["name"].rsplit("/", 1)[-1]
+            if site_id in wanted:
+                resources[indexed("google_firebase_hosting_site.channel", site_id)] = site["name"]
 
     pool_path = f"{project_path}/locations/global/workloadIdentityPools/github"
     if "iam.googleapis.com" in enabled:

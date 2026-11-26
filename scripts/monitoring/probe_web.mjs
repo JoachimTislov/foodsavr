@@ -60,7 +60,7 @@ function loadPlaywright() {
 
 function parseArgs(argv) {
   const opts = {
-    url: process.env.TARGET_URL || 'https://my-foodsavr-store.web.app',
+    url: process.env.TARGET_URL || 'https://foodsavr-test.web.app',
     output: '',
     timeoutMs: Number(process.env.PROBE_TIMEOUT_MS || 25000),
     settleMs: Number(process.env.PROBE_SETTLE_MS || 2000),

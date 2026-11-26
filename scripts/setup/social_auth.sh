@@ -9,7 +9,7 @@
 #   scripts/human/google/create-web-client-secret.sh (rotate: rotate-web-client-secret.sh)
 #
 # Inputs (environment or repo-root .env):
-#   FIREBASE_PROJECT          default: my-foodsavr-store
+#   FIREBASE_PROJECT          default: foodsavr-test
 #   FACEBOOK_APP_ID           Meta app ID
 #   FACEBOOK_APP_SECRET       Meta app secret (Firebase provider + Graph API)
 #   FACEBOOK_CLIENT_TOKEN     Meta client token (Android SDK)
@@ -39,7 +39,7 @@ if [ -f .env ]; then
   set +a
 fi
 
-project="${FIREBASE_PROJECT:-my-foodsavr-store}"
+project="${FIREBASE_PROJECT:-foodsavr-test}"
 idt="https://identitytoolkit.googleapis.com/admin/v2/projects/$project"
 todo=()
 
@@ -260,7 +260,7 @@ if [[ "${FACEBOOK_APP_ID:-}" =~ ^[0-9]+$ ]]; then
   if [ "${#key_hashes[@]}" -gt 0 ]; then
     note "Android signing key hashes: ${key_hashes[*]}"
   fi
-  note "$dashboard/settings/basic/ — set the data deletion instructions URL to https://my-foodsavr-store.web.app/delete-account"
+  note "$dashboard/settings/basic/ — set the data deletion instructions URL to https://foodsavr-test.web.app/delete-account"
   note "$dashboard/ — verify the app is live for public sign-in"
 else
   miss "FACEBOOK_APP_ID missing or invalid; run scripts/human/meta/create-app-credentials.sh"

@@ -9,7 +9,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 GRAPH_API = "https://graph.facebook.com/v27.0"
-LEGAL_SITE = "https://my-foodsavr-store.web.app"
+LEGAL_SITE = "https://foodsavr-test.web.app"
 URL_FIELDS = ("website_url", "privacy_policy_url", "terms_of_service_url")
 FIELDS = ("app_domains", *URL_FIELDS)
 
