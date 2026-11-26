@@ -1,6 +1,5 @@
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
-import 'package:openfoodfacts/openfoodfacts.dart' as off;
 import 'package:foodsavr/interfaces/i_validator.dart';
 import 'package:foodsavr/validation/validation_error.dart';
 
@@ -9,6 +8,8 @@ import '../models/collection_model.dart';
 import '../models/product_model.dart';
 import '../interfaces/i_product_repository.dart';
 import '../utils/shelf_life.dart';
+import 'barcode_lookup_queue.dart';
+import 'open_food_facts_client.dart';
 
 @lazySingleton
 class ProductService {
@@ -18,6 +19,8 @@ class ProductService {
   final IValidator<Product> _productValidator;
   final ShelfLifeService _shelfLifeService;
   final Logger _logger;
+  final OpenFoodFactsClient _offClient;
+  final BarcodeLookupQueue _lookupQueue;
 
   final Map<String, (DateTime, List<Product>)> _productsCache = {};
   final Map<String, int> _fetchSequence = {};
@@ -28,8 +31,11 @@ class ProductService {
     this._productRepository,
     this._productValidator,
     this._shelfLifeService,
-    this._logger,
-  );
+    this._logger, {
+    OpenFoodFactsClient? offClient,
+    BarcodeLookupQueue? lookupQueue,
+  }) : _offClient = offClient ?? OpenFoodFactsClient(_logger),
+       _lookupQueue = lookupQueue ?? BarcodeLookupQueue.memory();
 
   void _invalidateCache() {
     _productsCache.clear();
@@ -43,18 +49,6 @@ class ProductService {
       normalized = normalized.padLeft(13, '0');
     }
     return normalized;
-  }
-
-  off.OpenFoodFactsLanguage _getOFFLanguage(String languageCode) {
-    switch (languageCode) {
-      case 'en':
-        return off.OpenFoodFactsLanguage.ENGLISH;
-      case 'nb':
-      case 'no':
-        return off.OpenFoodFactsLanguage.NORWEGIAN;
-      default:
-        return off.OpenFoodFactsLanguage.ENGLISH;
-    }
   }
 
   Future<ScanAddProductResult> addOrIncrementByBarcode({
@@ -110,53 +104,22 @@ class ProductService {
       );
     }
 
-    // Attempt to fetch from Open Food Facts API
-    try {
-      final configuration = off.ProductQueryConfiguration(
-        normalizedBarcode,
-        language: _getOFFLanguage(languageCode),
-        version: off.ProductQueryVersion.latestVersion,
-        fields: [
-          off.ProductField.NAME,
-          off.ProductField.IMAGE_FRONT_URL,
-          off.ProductField.LABELS_TAGS,
-          off.ProductField.CATEGORIES_TAGS,
-        ],
-      );
-
-      final result = await off.OpenFoodAPIClient.getProductV3(configuration);
-
-      if (result.status == off.ProductResultV3.statusSuccess &&
-          result.product != null) {
-        final productData = result.product!;
-        final productName = productData.productName ?? normalizedBarcode;
-        final imageUrl = productData.imageFrontUrl;
-        final tags = productData.labelsTags ?? [];
-        final categories = productData.categoriesTags ?? [];
-
-        // Combine tags and categories for better shelf life heuristics
-        final combinedTags = [...tags, ...categories];
-
-        final estimatedExpiry = _shelfLifeService.estimateExpiration(
-          // Use a temporary, minimal product instance for estimation
-          Product(
-            id: '0',
-            name: '',
-            description: '',
-            userId: '',
-            tags: combinedTags,
-          ),
-        );
-
+    final lookup = await _offClient.lookup(
+      normalizedBarcode,
+      languageCode: languageCode,
+    );
+    switch (lookup) {
+      case OffFound(product: final data):
+        final estimatedExpiry = _estimateFromTags(data.tags);
         final newProduct = Product(
           id: '',
-          name: productName,
+          name: data.name ?? normalizedBarcode,
           description: '',
           userId: userId,
           nonExpiringQuantity: estimatedExpiry == null ? 1 : 0,
           barcode: normalizedBarcode,
-          imageUrl: imageUrl,
-          tags: combinedTags,
+          imageUrl: data.imageUrl,
+          tags: data.tags,
           expiries: estimatedExpiry != null
               ? [ExpiryEntry(quantity: 1, expirationDate: estimatedExpiry)]
               : [],
@@ -173,26 +136,92 @@ class ProductService {
               ?.difference(DateTime.now())
               .inDays,
         );
-      }
-    } catch (e) {
-      _logger.e('Error fetching from Open Food Facts API: $e');
+      case OffOffline():
+        // Save the barcode now and look it up once the connection returns.
+        final placeholder = Product(
+          id: '',
+          name: normalizedBarcode,
+          description: '',
+          userId: userId,
+          nonExpiringQuantity: 1,
+          barcode: normalizedBarcode,
+        );
+        _validateOrThrow(placeholder);
+        final saved = await _productRepository.add(placeholder);
+        _invalidateCache();
+        await _lookupQueue.enqueue(
+          QueuedBarcodeLookup(
+            productId: saved.id,
+            barcode: normalizedBarcode,
+            languageCode: languageCode,
+          ),
+        );
+        _logger.i('Offline: queued lookup for barcode $normalizedBarcode');
+        return ScanAddProductResult(
+          product: saved,
+          matchedExisting: false,
+          offline: true,
+        );
+      case OffNotFound():
+        // Return an unsaved draft to prefill the manual-entry form; its empty
+        // id is assigned by the repository on save.
+        _logger.i('Barcode not found on OFF API: $normalizedBarcode');
+        return ScanAddProductResult(
+          product: Product(
+            id: '',
+            name: '',
+            description: '',
+            userId: userId,
+            nonExpiringQuantity: 1,
+            barcode: normalizedBarcode,
+          ),
+          matchedExisting: false,
+          notFound: true,
+        );
     }
+  }
 
-    // Not found locally or on OFF API. Return an unsaved draft to prefill the
-    // manual-entry form; its empty id is assigned by the repository on save.
-    _logger.i('Barcode not found on OFF API: $normalizedBarcode');
-    return ScanAddProductResult(
-      product: Product(
-        id: '',
-        name: '',
-        description: '',
-        userId: userId,
-        nonExpiringQuantity: 1,
-        barcode: normalizedBarcode,
-      ),
-      matchedExisting: false,
-      notFound: true,
-    );
+  DateTime? _estimateFromTags(List<String> tags) =>
+      _shelfLifeService.estimateExpiration(
+        // A temporary, minimal product instance for estimation.
+        Product(id: '0', name: '', description: '', userId: '', tags: tags),
+      );
+
+  Future<int>? _replay;
+
+  /// Looks up barcodes queued while offline and fills in their placeholder
+  /// products. Stops at the first lookup that is still offline; returns the
+  /// number of products updated. Concurrent calls share one run.
+  Future<int> replayQueuedLookups() =>
+      _replay ??= _replayQueuedLookups().whenComplete(() => _replay = null);
+
+  Future<int> _replayQueuedLookups() async {
+    var resolved = 0;
+    for (final entry in _lookupQueue.entries) {
+      final lookup = await _offClient.lookup(
+        entry.barcode,
+        languageCode: entry.languageCode,
+      );
+      if (lookup is OffOffline) break;
+      if (lookup case OffFound(product: final data)) {
+        final current = await _productRepository.get(entry.productId);
+        // Skip a placeholder that was deleted or edited in the meantime.
+        if (current != null && current.name == entry.barcode) {
+          final updated = current.copyWith(
+            name: data.name ?? current.name,
+            imageUrl: data.imageUrl ?? current.imageUrl,
+            tags: {...current.tags, ...data.tags}.toList(),
+          );
+          _validateOrThrow(updated);
+          await _productRepository.update(updated);
+          _invalidateCache();
+          resolved++;
+        }
+      }
+      await _lookupQueue.remove(entry);
+    }
+    if (resolved > 0) _logger.i('Resolved $resolved queued barcode lookups.');
+    return resolved;
   }
 
   /// Fetches all products for a specific user
@@ -426,12 +455,17 @@ class ScanAddProductResult {
   final Product product;
   final bool matchedExisting;
   final bool notFound;
+
+  /// Open Food Facts was unreachable: the barcode was saved as a placeholder
+  /// product and its lookup is queued until the connection returns.
+  final bool offline;
   final int? estimatedExpiryDays;
 
   const ScanAddProductResult({
     required this.product,
     required this.matchedExisting,
     this.notFound = false,
+    this.offline = false,
     this.estimatedExpiryDays,
   });
 }

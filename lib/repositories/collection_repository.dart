@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -8,6 +7,7 @@ import 'package:injectable/injectable.dart';
 import '../models/collection_model.dart';
 import '../models/product_model.dart';
 import '../interfaces/i_collection_repository.dart';
+import '../services/sync_status.dart';
 
 /// Firestore implementation of ICollectionRepository.
 /// Persists collection data in Firestore 'collections' collection.
@@ -17,7 +17,6 @@ class CollectionRepository implements ICollectionRepository {
   final String _collectionName = 'collections';
   static const _membershipTimeout = Duration(seconds: 2);
   static const _transactionTimeout = Duration(seconds: 30);
-  static const _queueAcknowledgementTimeout = Duration(milliseconds: 500);
   static const _offlineCodes = {'unavailable', 'deadline-exceeded'};
 
   /// Runs after membership products were read and before the commit, so tests
@@ -34,7 +33,10 @@ class CollectionRepository implements ICollectionRepository {
   @visibleForTesting
   Future<void> Function()? beforeDanglingPrune;
 
-  CollectionRepository(this._firestore);
+  /// Counts membership writes queued offline.
+  final SyncStatus _syncStatus;
+
+  CollectionRepository(this._firestore, this._syncStatus);
 
   /// Returns a validation error before any membership write is staged.
   Future<StateError?> _validateOwnedProducts(
@@ -155,29 +157,14 @@ class CollectionRepository implements ICollectionRepository {
 
   /// Issues the unverified arrayUnion [write] that Firestore queues offline.
   /// It returns once the server acknowledges it, or after
-  /// [_queueAcknowledgementTimeout] while the write stays queued.
+  /// [SyncStatus.acknowledgementTimeout] while the write stays queued.
   ///
   /// A queued add can leave a dangling ID when it races a delete or names a
   /// foreign product; server reads hide and repair such references. A write
   /// the server rejects later is rolled back in the local cache and never
   /// replayed.
-  Future<void> _queueMembership(Future<void> Function() write) async {
-    final acknowledged = Future.sync(write);
-    unawaited(
-      acknowledged.then<void>(
-        (_) {},
-        onError: (Object error) => developer.log(
-          'Queued collection write failed: ${error.runtimeType}',
-          name: 'CollectionRepository',
-        ),
-      ),
-    );
-    try {
-      await acknowledged.timeout(_queueAcknowledgementTimeout);
-    } on TimeoutException {
-      // Offline: Firestore syncs the queued write after reconnecting.
-    }
-  }
+  Future<void> _queueMembership(Future<void> Function() write) =>
+      _syncStatus.queue(write);
 
   @override
   Future<bool> isProductMissingOrUnreadable(String id) async {

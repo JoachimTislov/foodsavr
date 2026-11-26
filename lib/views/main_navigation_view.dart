@@ -11,7 +11,14 @@ import '../widgets/common/app_navigation_rail.dart';
 class MainNavigationView extends StatefulWidget {
   final StatefulNavigationShell navigationShell;
 
-  const MainNavigationView({super.key, required this.navigationShell});
+  /// Shown above every branch, such as the pending-sync banner.
+  final Widget? statusBanner;
+
+  const MainNavigationView({
+    super.key,
+    required this.navigationShell,
+    this.statusBanner,
+  });
 
   @override
   State<MainNavigationView> createState() => _MainNavigationViewState();
@@ -29,7 +36,16 @@ class _MainNavigationViewState extends State<MainNavigationView> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    final body = KeyedSubtree(key: _bodyKey, child: widget.navigationShell);
+    final shell = KeyedSubtree(key: _bodyKey, child: widget.navigationShell);
+    final banner = widget.statusBanner;
+    final body = banner == null
+        ? shell
+        : Column(
+            children: [
+              banner,
+              Expanded(child: shell),
+            ],
+          );
     final selectedIndex = widget.navigationShell.currentIndex;
 
     if (WindowSize.fromWidth(width).isCompact) {

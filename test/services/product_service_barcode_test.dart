@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_product_repository.dart';
 import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/models/product_model.dart';
+import 'package:foodsavr/services/open_food_facts_client.dart';
 import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/utils/shelf_life.dart';
 import 'package:logger/logger.dart';
@@ -14,6 +15,14 @@ class _MockShelfLifeService extends Mock implements ShelfLifeService {}
 class _MockIValidatorProduct extends Mock implements IValidator<Product> {}
 
 class _FakeProduct extends Fake implements Product {}
+
+class _NotFoundOffClient extends Fake implements OpenFoodFactsClient {
+  @override
+  Future<OffLookup> lookup(
+    String barcode, {
+    String languageCode = 'nb',
+  }) async => const OffNotFound();
+}
 
 class _FakeProductRepository implements IProductRepository {
   final List<Product> _products;
@@ -130,6 +139,7 @@ void main() {
         mockProductValidator,
         mockShelfLifeService,
         Logger(level: Level.off),
+        offClient: _NotFoundOffClient(),
       );
 
       final result = await service.addOrIncrementByBarcode(

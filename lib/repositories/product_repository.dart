@@ -6,10 +6,12 @@ import '../models/collection_model.dart';
 import '../models/product_model.dart';
 import '../utils/collection_types.dart';
 import '../interfaces/i_product_repository.dart';
+import '../services/sync_status.dart';
 
 @LazySingleton(as: IProductRepository)
 class ProductRepository implements IProductRepository {
   final FirebaseFirestore _firestore;
+  final SyncStatus _syncStatus;
   final String _collectionName = 'products';
 
   /// Runs between discovery and the atomic commit of a delete, so tests can
@@ -17,7 +19,7 @@ class ProductRepository implements IProductRepository {
   @visibleForTesting
   Future<void> Function()? afterDiscovery;
 
-  ProductRepository(this._firestore);
+  ProductRepository(this._firestore, this._syncStatus);
 
   @override
   Future<Product> add(Product product) async {
@@ -27,7 +29,8 @@ class ProductRepository implements IProductRepository {
     final savedProduct = product.id.isEmpty
         ? product.copyWith(id: docRef.id)
         : product;
-    await docRef.set(savedProduct.toJson());
+    // Offline, the write lands in the local cache and syncs on reconnect.
+    await _syncStatus.queue(() => docRef.set(savedProduct.toJson()));
     return savedProduct;
   }
 
@@ -43,10 +46,12 @@ class ProductRepository implements IProductRepository {
 
   @override
   Future<void> update(Product product) async {
-    await _firestore
-        .collection(_collectionName)
-        .doc(product.id)
-        .update(product.toJson());
+    await _syncStatus.queue(
+      () => _firestore
+          .collection(_collectionName)
+          .doc(product.id)
+          .update(product.toJson()),
+    );
   }
 
   @override

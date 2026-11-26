@@ -114,6 +114,11 @@
 		"name": "Name",
 		"name_required": "Please enter a name",
 		"or": "OR",
+		"pendingChanges": {
+			"zero": "{count} changes waiting to sync",
+			"one": "{count} change waiting to sync",
+			"other": "{count} changes waiting to sync"
+		},
 		"privacy_notice": "Privacy Notice",
 		"save": "Save",
 		"selectItem": "Select an item to see its details",
@@ -183,6 +188,7 @@
 		"barcodeCreated": "Created new product \"{name}\"",
 		"barcodeMatched": "Updated existing product \"{name}\"",
 		"barcodeNotFound": "Product not found. Be the first to add it!",
+		"barcodeOffline": "You are offline: the barcode is saved and will be looked up later",
 		"barcodeNumber": "Barcode number",
 		"category": "Category",
 		"compact": "Compact",

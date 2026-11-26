@@ -108,14 +108,16 @@ class ProductAddHelper {
         messenger.showSnackBar(
           SnackBar(
             content: Text(
-              (addResult.matchedExisting
-                      ? 'product.barcodeMatched'.tr(
-                          namedArgs: {'name': addResult.product.name},
-                        )
-                      : 'product.barcodeCreated'.tr(
-                          namedArgs: {'name': addResult.product.name},
-                        )) +
-                  expiryMsg,
+              addResult.offline
+                  ? 'product.barcodeOffline'.tr()
+                  : (addResult.matchedExisting
+                            ? 'product.barcodeMatched'.tr(
+                                namedArgs: {'name': addResult.product.name},
+                              )
+                            : 'product.barcodeCreated'.tr(
+                                namedArgs: {'name': addResult.product.name},
+                              )) +
+                        expiryMsg,
             ),
           ),
         );
