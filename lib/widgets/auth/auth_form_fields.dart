@@ -72,6 +72,9 @@ class _AuthFormFieldsState extends State<AuthFormFields> {
               icon: Icon(
                 _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
               ),
+              tooltip: _isPasswordVisible
+                  ? 'a11y.hidePassword'.tr()
+                  : 'a11y.showPassword'.tr(),
               onPressed: () {
                 setState(() {
                   _isPasswordVisible = !_isPasswordVisible;

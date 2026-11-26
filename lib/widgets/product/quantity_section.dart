@@ -20,11 +20,13 @@ class QuantitySection extends StatelessWidget {
         children: [
           IconButton(
             icon: const Icon(Icons.remove),
+            tooltip: 'a11y.decreaseQuantity'.tr(),
             onPressed: quantity > 0 ? () => onChanged(quantity - 1) : null,
           ),
           Text(quantity.toString()),
           IconButton(
             icon: const Icon(Icons.add),
+            tooltip: 'a11y.increaseQuantity'.tr(),
             onPressed: () => onChanged(quantity + 1),
           ),
         ],

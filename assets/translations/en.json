@@ -1,6 +1,16 @@
 {
   "a11y": {
-    "removeExpiry": "Remove expiry"
+    "removeExpiry": "Remove expiry",
+    "decreaseQuantity": "Decrease quantity",
+    "increaseQuantity": "Increase quantity",
+    "editProduct": "Edit product",
+    "deleteProduct": "Delete product",
+    "editCollection": "Edit collection",
+    "deleteCollection": "Delete collection",
+    "decreaseDays": "Decrease days",
+    "increaseDays": "Increase days",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
 	"auth": {
 		"error": {

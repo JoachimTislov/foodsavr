@@ -79,7 +79,7 @@ class _SettingsViewState extends State<SettingsView> {
                     ? 'settings.guest_user'.tr()
                     : (user?.displayName ??
                           user?.email?.split('@').first ??
-                          '');
+                          'profile.title'.tr());
                 final email = isAnonymous ? null : (user?.email);
 
                 return _SettingsSection(
@@ -371,6 +371,7 @@ class _BehaviorSectionState extends State<_BehaviorSection> {
             children: [
               IconButton(
                 icon: const Icon(Icons.remove),
+                tooltip: 'a11y.decreaseDays'.tr(),
                 onPressed: days > PreferencesConfig.minExpiringSoonDays
                     ? () => setDialogState(() => days--)
                     : null,
@@ -381,6 +382,7 @@ class _BehaviorSectionState extends State<_BehaviorSection> {
               ),
               IconButton(
                 icon: const Icon(Icons.add),
+                tooltip: 'a11y.increaseDays'.tr(),
                 onPressed: days < PreferencesConfig.maxExpiringSoonDays
                     ? () => setDialogState(() => days++)
                     : null,
