@@ -10,6 +10,11 @@ const AUTH_HOST = normalizeHost(
 );
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID ?? 'demo-project';
 
+// Seeding, inspection and cleanup act as the test harness, not as a user, so
+// they use the Firestore emulator's rules-bypassing admin credential. App
+// traffic still goes through the real firestore.rules.
+const EMULATOR_ADMIN = { Authorization: 'Bearer owner' };
+
 // Firebase emulator host variables use the `host:port` form without a scheme.
 function normalizeHost(value: string | undefined, fallback: string): string {
   if (!value) return fallback;
@@ -71,7 +76,7 @@ export async function seedCollection(collection: SeedCollection): Promise<void> 
     `${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/collections?documentId=${collection.id}`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...EMULATOR_ADMIN },
       body: JSON.stringify({
         fields: {
           id: { stringValue: collection.id },
@@ -102,6 +107,7 @@ export async function seedCollection(collection: SeedCollection): Promise<void> 
 export async function deleteSeededCollections(): Promise<void> {
   const listRes = await fetch(
     `${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/collections?pageSize=100`,
+    { headers: EMULATOR_ADMIN },
   );
   expect(
     listRes.ok,
@@ -121,7 +127,7 @@ export async function deleteSeededCollections(): Promise<void> {
   for (const id of ownedIds) {
     const res = await fetch(
       `${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/collections/${id}`,
-      { method: 'DELETE' },
+      { method: 'DELETE', headers: EMULATOR_ADMIN },
     );
     expect(
       res.ok || res.status === 404,
@@ -135,6 +141,7 @@ export async function deleteSeededCollections(): Promise<void> {
 export async function getInventoryNames(userId: string): Promise<string[]> {
   const res = await fetch(
     `${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/collections?pageSize=100`,
+    { headers: EMULATOR_ADMIN },
   );
   expect(res.ok, `listing collections failed: ${res.status}`).toBeTruthy();
   const body = (await res.json()) as {
