@@ -16,6 +16,7 @@ class CollectionRepository implements ICollectionRepository {
   final FirebaseFirestore _firestore;
   final String _collectionName = 'collections';
   static const _membershipTimeout = Duration(seconds: 2);
+  static const _transactionTimeout = Duration(seconds: 30);
   static const _queueAcknowledgementTimeout = Duration(milliseconds: 500);
   static const _offlineCodes = {'unavailable', 'deadline-exceeded'};
 
@@ -23,6 +24,11 @@ class CollectionRepository implements ICollectionRepository {
   /// can interleave a delete with the transaction.
   @visibleForTesting
   Future<void> Function()? afterMembershipRead;
+
+  /// Runs after a membership transaction staged its writes and before it
+  /// returns them for commit, so tests can delay the commit.
+  @visibleForTesting
+  Future<void> Function()? beforeMembershipCommit;
 
   CollectionRepository(this._firestore);
 
@@ -57,9 +63,15 @@ class CollectionRepository implements ICollectionRepository {
       StateError('Product $id is unavailable. Reload and try again.');
 
   /// Verifies products and writes membership in one transaction. With
-  /// [queue], an unreachable server or a transaction slower than
-  /// [_membershipTimeout] falls back to [queue], the queued write that works
-  /// offline. Permission and validation errors never fall back.
+  /// [queue], a server that is unreachable, or slower than
+  /// [_membershipTimeout] before any write is staged, falls back to [queue],
+  /// the queued write that works offline. Permission and validation errors
+  /// never fall back.
+  ///
+  /// Once an attempt has staged its writes, the call waits for the real
+  /// outcome instead of falling back: a late commit must never land after a
+  /// reported success and overwrite a later edit. After a fallback, no attempt,
+  /// retries included, can stage a write.
   Future<void> _writeMembership(
     Future<StateError?> Function(Transaction, Set<String>, VoidCallback)
     write, {
@@ -67,43 +79,57 @@ class CollectionRepository implements ICollectionRepository {
   }) async {
     final verifiedProducts = <String>{};
     var readyToCommit = false;
+    var staged = false;
     var expired = false;
-    // Stops an attempt that outlived the deadline from staging its writes.
+    // Stops an attempt from staging writes after a fallback, and records that
+    // an attempt staged them.
     void checkDeadline() {
       if (expired) throw TimeoutException('Membership transaction expired.');
+      staged = true;
     }
 
+    // Return validation errors through the callback to preserve their Dart
+    // type on FlutterFire Web.
+    final transaction = _firestore.runTransaction((transaction) async {
+      if (expired) throw TimeoutException('Membership transaction expired.');
+      verifiedProducts.clear();
+      readyToCommit = false;
+      final validationError = await write(
+        transaction,
+        verifiedProducts,
+        checkDeadline,
+      );
+      if (validationError == null) await beforeMembershipCommit?.call();
+      readyToCommit = validationError == null;
+      return validationError;
+    }, timeout: _transactionTimeout);
     StateError? error;
     try {
-      // Return validation errors through the callback to preserve their Dart
-      // type on FlutterFire Web.
-      var transaction = _firestore.runTransaction(
-        (transaction) async {
-          checkDeadline();
-          verifiedProducts.clear();
-          readyToCommit = false;
-          final validationError = await write(
-            transaction,
-            verifiedProducts,
-            checkDeadline,
-          );
-          readyToCommit = validationError == null;
-          return validationError;
-        },
-        timeout: queue == null
-            ? const Duration(seconds: 30)
-            : _membershipTimeout,
-      );
-      if (queue != null) transaction = transaction.timeout(_membershipTimeout);
-      error = await transaction;
+      if (queue == null) {
+        error = await transaction;
+      } else {
+        final deadline = Completer<void>();
+        final timer = Timer(_membershipTimeout, deadline.complete);
+        final ({StateError? error})? outcome;
+        try {
+          outcome = await Future.any([
+            transaction.then((error) => (error: error)),
+            deadline.future.then((_) => null),
+          ]);
+        } finally {
+          timer.cancel();
+        }
+        expired = outcome == null && !staged;
+        if (!expired) {
+          error = outcome == null ? await transaction : outcome.error;
+        }
+      }
     } on TimeoutException {
-      if (queue == null) rethrow;
-      expired = true;
+      if (queue == null || staged) rethrow;
       return queue();
     } on FirebaseException catch (e) {
       // Native platforms report the transaction timeout as deadline-exceeded.
-      if (queue != null && _offlineCodes.contains(e.code)) {
-        expired = true;
+      if (queue != null && !staged && _offlineCodes.contains(e.code)) {
         return queue();
       }
       if (!readyToCommit || e.code != 'permission-denied') rethrow;
@@ -115,6 +141,10 @@ class CollectionRepository implements ICollectionRepository {
         }
       }
       rethrow;
+    }
+    if (expired) {
+      unawaited(transaction.then<void>((_) {}, onError: (_) {}));
+      return queue!();
     }
     if (error != null) throw error;
   }

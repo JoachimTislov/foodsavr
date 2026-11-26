@@ -94,6 +94,26 @@ void main() {
     });
   }
 
+  test(
+    'a transaction that misses the deadline before staging queues',
+    () async {
+      final pending = Completer<StateError?>();
+      addTearDown(() => pending.complete(null));
+      when(
+        () => firestore.runTransaction<StateError?>(
+          any(),
+          timeout: any(named: 'timeout'),
+        ),
+      ).thenAnswer((_) => pending.future);
+
+      await repository
+          .addProduct('c1', 'p1')
+          .timeout(const Duration(seconds: 5));
+
+      verify(() => document.update(any())).called(1);
+    },
+  );
+
   test('a queued add returns before the server acknowledges it', () async {
     transactionFails(FirebaseException(plugin: 'p', code: 'unavailable'));
     final acknowledgement = Completer<void>();

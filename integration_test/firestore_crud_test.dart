@@ -227,6 +227,7 @@ void _registerDeletionTests() {
           deleteEmulatorFixture('collections/${collection.id}'),
       ]);
       collections.afterMembershipRead = null;
+      collections.beforeMembershipCommit = null;
       productRepository.afterDiscovery = null;
     });
 
@@ -318,6 +319,93 @@ void _registerDeletionTests() {
         isEmpty,
       );
     });
+
+    for (final create in [true, false]) {
+      testWidgets(
+        create
+            ? 'a timed-out create never overwrites later edits'
+            : 'a timed-out add never overwrites later edits',
+        (tester) async {
+          final draft = fresh.copyWith(
+            id: 'timed-out-$owner',
+            productIds: [member.id],
+          );
+          addTearDown(() => deleteEmulatorFixture('collections/${draft.id}'));
+          final target = create ? draft : fresh;
+          final stall = Completer<void>();
+          addTearDown(() => stall.isCompleted ? null : stall.complete());
+          collections.afterMembershipRead = () => stall.future;
+          if (create) {
+            await collections.add(draft).timeout(const Duration(seconds: 5));
+          } else {
+            await collections
+                .addProduct(fresh.id, member.id)
+                .timeout(const Duration(seconds: 5));
+          }
+          await firestore.waitForPendingWrites();
+          // The user edits the collection after the add reported success.
+          await collections.update(
+            target.copyWith(name: 'Edited'),
+            metadataOnly: true,
+          );
+          await collections.removeProduct(target.id, member.id);
+          await firestore.waitForPendingWrites();
+
+          stall.complete();
+          await Future<void>.delayed(const Duration(seconds: 2));
+          final saved = (await CollectionRepository(remote).get(target.id))!;
+          expect(saved.name, 'Edited');
+          expect(saved.productIds, isEmpty);
+        },
+      );
+    }
+
+    for (final create in [true, false]) {
+      testWidgets(
+        create
+            ? 'a create commit delayed past the deadline is awaited'
+            : 'an add commit delayed past the deadline is awaited',
+        (tester) async {
+          final draft = fresh.copyWith(
+            id: 'delayed-commit-$owner',
+            productIds: [member.id],
+          );
+          addTearDown(() => deleteEmulatorFixture('collections/${draft.id}'));
+          final target = create ? draft : fresh;
+          final release = Completer<void>();
+          addTearDown(() => release.isCompleted ? null : release.complete());
+          collections.beforeMembershipCommit = () => release.future;
+          var done = false;
+          final adding =
+              (create
+                      ? collections.add(draft)
+                      : collections.addProduct(fresh.id, member.id))
+                  .then((_) => done = true);
+
+          // No fallback write may race the staged commit.
+          await Future<void>.delayed(const Duration(seconds: 3));
+          expect(done, isFalse);
+          expect(
+            await emulatorDocumentExists('collections/${draft.id}'),
+            isFalse,
+          );
+          expect(
+            (await CollectionRepository(remote).get(fresh.id))!.productIds,
+            isEmpty,
+          );
+
+          release.complete();
+          await adding.timeout(const Duration(seconds: 10));
+          await collections.update(
+            target.copyWith(name: 'Edited'),
+            metadataOnly: true,
+          );
+          final saved = (await CollectionRepository(remote).get(target.id))!;
+          expect(saved.name, 'Edited');
+          expect(saved.productIds, [member.id]);
+        },
+      );
+    }
 
     testWidgets('a rejected queued add is rolled back and never replayed', (
       tester,
