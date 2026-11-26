@@ -81,6 +81,15 @@ resource "github_actions_variable" "custom" {
   value         = each.value
 }
 
+# Instance state (ADR 0008): the repository is stateless, so CI reads this
+# clone's deployment identity and Firebase client options from variables.
+resource "github_actions_variable" "instance" {
+  for_each      = var.instance_variables
+  repository    = data.github_repository.this.name
+  variable_name = each.key
+  value         = each.value
+}
+
 resource "github_actions_environment_variable" "env_vars" {
   for_each      = local.flat_environment_variables
   repository    = data.github_repository.this.name

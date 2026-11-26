@@ -2,14 +2,16 @@
 class Identity {
   const Identity({
     required this.name,
-    required this.githubRepository,
+    this.githubRepository,
     required this.region,
   });
 
   final String name;
 
   /// `owner/repo` that deploys this instance (Workload Identity condition).
-  final String githubRepository;
+  /// Instance state: set by the overlay (see `loadManifest`), so the tracked
+  /// manifest stays fork-neutral.
+  final String? githubRepository;
 
   /// Default region for state buckets and regional resources.
   final String region;

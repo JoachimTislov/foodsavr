@@ -1,167 +1,90 @@
-"""Validate, render, and recover local Flutter Firebase client options."""
+"""Firebase client options as compile-time defines (lib/firebase_options.dart).
+
+The repository tracks no project ids: setup writes the environment's options
+to the gitignored `.agents/state/firebase.defines.json`, which builds pass with
+`--dart-define-from-file`. Worktrees read the main checkout's file.
+
+    python3 scripts/firebase_options.py path        # resolved defines file
+    python3 scripts/firebase_options.py flags       # `--dart-define-from-file=...` or nothing
+    python3 scripts/firebase_options.py validate [FILE]
+"""
 
 import argparse
 import hashlib
 import json
 from pathlib import Path
-import re
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import instance_local  # noqa: E402
+
+ROOT = Path(__file__).resolve().parents[1]
+RELATIVE = Path(".agents/state/firebase.defines.json")
 ANDROID_PACKAGE = "com.foodsavr.app"
-WEB_FIELDS = (
-    "apiKey", "appId", "messagingSenderId", "projectId", "authDomain",
-    "storageBucket", "measurementId", "databaseURL",
-)
-REQUIRED_FIELDS = WEB_FIELDS[:4]
-STUB_MARKERS = ("Compile-only stub written by scripts/ci/local_ci.py", "foodsavr-local-dev")
-DART_TOKEN = re.compile(
-    r"""//[^\r\n]*|/\*|r?(?P<quote>'{3}|"{3}|'|")(?:(?!(?P=quote))(?:\\.|[^\\]))*(?P=quote)|\w+|\S""",
-    re.DOTALL,
-)
-BLOCK_COMMENT = re.compile(r"/\*|\*/")
+# Define name -> (platform, sdk config key). Shared keys come from the web config.
+DEFINES = {
+    "FIREBASE_PROJECT_ID": ("web", "projectId"),
+    "FIREBASE_MESSAGING_SENDER_ID": ("web", "messagingSenderId"),
+    "FIREBASE_STORAGE_BUCKET": ("web", "storageBucket"),
+    "FIREBASE_AUTH_DOMAIN": ("web", "authDomain"),
+    "FIREBASE_MEASUREMENT_ID": ("web", "measurementId"),
+    "FIREBASE_WEB_API_KEY": ("web", "apiKey"),
+    "FIREBASE_WEB_APP_ID": ("web", "appId"),
+    "FIREBASE_ANDROID_API_KEY": ("android", "apiKey"),
+    "FIREBASE_ANDROID_APP_ID": ("android", "appId"),
+}
+REQUIRED = ("FIREBASE_PROJECT_ID", "FIREBASE_MESSAGING_SENDER_ID", "FIREBASE_WEB_API_KEY", "FIREBASE_WEB_APP_ID")
 
 
-def dart_tokens(source):
-    """Read generated Dart tokens, retaining quoted literals and skipping comments."""
-    offset = 0
-    while match := DART_TOKEN.search(source, offset):
-        token = match[0]
-        offset = match.end()
-        if token == "/*":
-            depth = 1
-            for delimiter in BLOCK_COMMENT.finditer(source, offset):
-                depth += 1 if delimiter[0] == "/*" else -1
-                if depth == 0:
-                    offset = delimiter.end()
-                    break
-            else:
-                return
-        elif not token.startswith("//"):
-            yield token
+def defines_path(root: Path = ROOT) -> Path:
+    """This worktree's defines file when present, else the main checkout's (where setup writes)."""
+    own = root / RELATIVE
+    if own.is_file():
+        return own
+    main = instance_local.main_checkout(root)
+    return main / RELATIVE if main else own
 
 
-def web_options(source):
-    tokens = list(dart_tokens(source))
-    declaration = ["static", "const", "FirebaseOptions", "web", "=", "FirebaseOptions", "("]
-    header = ["class", "DefaultFirebaseOptions", "{"]
-    start = next(
-        (index + len(header) for index in range(len(tokens)) if tokens[index:index + len(header)] == header),
-        len(tokens),
-    )
-    depth = 1
-    for index in range(start, len(tokens)):
-        if depth == 1 and tokens[index:index + len(declaration)] == declaration:
-            fields = {}
-            index += len(declaration)
-            while tokens[index:index + 1] != [")"]:
-                if len(tokens) - index < 3:
-                    return {}
-                field, separator, literal = tokens[index:index + 3]
-                if separator != ":" or literal[:1] not in ("'", '"'):
-                    return {}
-                fields[field] = literal[1:-1]
-                index += 3
-                if tokens[index:index + 1] == [","]:
-                    index += 1
-                elif tokens[index:index + 1] != [")"]:
-                    return {}
-            return fields
-        if tokens[index] == "{":
-            depth += 1
-        elif tokens[index] == "}":
-            depth -= 1
-            if depth == 0:
-                break
-    return {}
-
-
-def validate(content: bytes, *, syntax=False) -> str:
+def validate(content: bytes) -> dict:
     try:
-        source = content.decode("utf-8")
-    except UnicodeDecodeError:
-        raise ValueError("Firebase options must be UTF-8 Dart.") from None
-    if (
-        not re.search(r"(?m)^\s*class\s+DefaultFirebaseOptions\s*\{", source)
-        or not re.search(r"\bFirebaseOptions\s*\(", source)
-        or any(marker in source for marker in STUB_MARKERS)
-    ):
-        raise ValueError("Firebase options must define DefaultFirebaseOptions and construct FirebaseOptions.")
-    if syntax:
-        try:
-            parsed = subprocess.run(
-                ["dart", "format", "--output=none"], input=content,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30,
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            raise ValueError("Install the Flutter SDK to validate Firebase options.") from None
-        if parsed.returncode:
-            raise ValueError("Firebase options contain invalid Dart syntax.")
-    return source
+        defines = json.loads(content.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        raise ValueError("Firebase defines must be a UTF-8 JSON object.") from None
+    if not isinstance(defines, dict) or not all(isinstance(defines.get(name), str) and defines[name] for name in REQUIRED):
+        raise ValueError(f"Firebase defines need {', '.join(REQUIRED)}.")
+    unknown = set(defines) - set(DEFINES)
+    if unknown:
+        raise ValueError(f"Unknown Firebase defines: {', '.join(sorted(unknown))}.")
+    return defines
 
 
 def fingerprint(path, project, web_app):
-    """Return the digest only for valid options belonging to the selected deployment."""
+    """Return the digest only for valid defines belonging to the selected deployment."""
     if not project or not web_app:
         return None
     try:
-        content = path.read_bytes()
-        source = validate(content, syntax=True)
+        content = Path(path).read_bytes()
+        defines = validate(content)
     except (OSError, ValueError):
         return None
-    web = web_options(source)
-    if (web.get("projectId"), web.get("appId")) != (project, web_app):
+    if (defines["FIREBASE_PROJECT_ID"], defines["FIREBASE_WEB_APP_ID"]) != (project, web_app):
         return None
     return hashlib.sha256(content).hexdigest()
 
 
-def render(configs):
-    def dart_string(value):
-        escaped = (
-            value.replace("\\", "\\\\")
-            .replace("'", "\\'")
-            .replace("$", "\\$")
-            .replace("\r", "\\r")
-            .replace("\n", "\\n")
-            .replace("\t", "\\t")
-        )
-        return f"'{escaped}'"
-
-    declarations = []
-    for platform, config in configs.items():
-        if not all(isinstance(config.get(field), str) and config[field] for field in REQUIRED_FIELDS):
-            raise ValueError(f"The Firebase {platform} configuration is incomplete.")
-        args = "".join(
-            f"    {name}: {dart_string(config[name])},\n"
-            for name in WEB_FIELDS if isinstance(config.get(name), str) and config[name]
-        )
-        declarations.append(f"  static const FirebaseOptions {platform} = FirebaseOptions(\n{args}  );\n")
-
-    mobile = "defaultTargetPlatform == TargetPlatform.android" if "android" in configs else ""
-    imports = (
-        "import 'package:flutter/foundation.dart'\n"
-        "    show kIsWeb, defaultTargetPlatform, TargetPlatform;\n\n"
-        if mobile
-        else "import 'package:flutter/foundation.dart' show kIsWeb;\n\n"
-    )
-    branches = "    if (kIsWeb) return web;\n"
-    if mobile:
-        branches += f"    if ({mobile}) return android;\n"
-    return (
-        "// Generated from the Firebase project.\n"
-        "import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;\n"
-        f"{imports}"
-        "class DefaultFirebaseOptions {\n"
-        "  static FirebaseOptions get currentPlatform {\n"
-        f"{branches}"
-        "    throw UnsupportedError(\n"
-        "      'FirebaseOptions are unavailable for this platform.',\n"
-        "    );\n"
-        "  }\n\n"
-        + "\n".join(declarations)
-        + "}\n"
-    ).encode("utf-8")
+def render(configs) -> bytes:
+    """Defines JSON from {"web": sdkconfig, "android": options}; android is optional."""
+    web = configs.get("web") or {}
+    if not all(isinstance(web.get(key), str) and web[key] for key in ("apiKey", "appId", "messagingSenderId", "projectId")):
+        raise ValueError("The Firebase web configuration is incomplete.")
+    defines = {}
+    for name, (platform, key) in DEFINES.items():
+        value = (configs.get(platform) or {}).get(key)
+        if isinstance(value, str) and value:
+            defines[name] = value
+    return (json.dumps(defines, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 
 def firebase_cli(project, *args):
@@ -193,19 +116,7 @@ def android_options(config, app_id):
         "messagingSenderId": project["project_number"],
         "projectId": project["project_id"],
         "storageBucket": project.get("storage_bucket"),
-        "databaseURL": project.get("firebase_url"),
     }
-
-
-def format_dart(content: bytes) -> bytes:
-    try:
-        formatted = subprocess.run(
-            ["dart", "format", "--output=show"],
-            input=content, capture_output=True, timeout=30,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return content
-    return formatted.stdout if formatted.returncode == 0 and formatted.stdout else content
 
 
 def regenerate(path, project, web_app, *, read=firebase_cli):
@@ -226,22 +137,31 @@ def regenerate(path, project, web_app, *, read=firebase_cli):
             raise ValueError("Firebase returned configuration from a different project or app.")
     except (KeyError, TypeError) as error:
         raise ValueError("Check the Firebase Web and Android SDK configuration.") from error
-    content = format_dart(render({"web": web, "android": android}))
-    validate(content, syntax=True)
+    content = render({"web": web, "android": android})
+    validate(content)
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
     with NamedTemporaryFile(dir=path.parent, delete=False) as temporary:
         temporary.write(content)
     Path(temporary.name).replace(path)
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("path", type=Path)
-    parser.add_argument("--syntax", action="store_true")
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("command", choices=("path", "flags", "validate"))
+    parser.add_argument("file", nargs="?", type=Path)
     args = parser.parse_args()
-    try:
-        validate(args.path.read_bytes(), syntax=args.syntax)
-    except (OSError, ValueError) as error:
-        sys.exit(str(error))
+    path = args.file or defines_path()
+    if args.command == "path":
+        print(path)
+    elif args.command == "flags":
+        if path.is_file():
+            print(f"--dart-define-from-file={path}")
+    else:
+        try:
+            validate(path.read_bytes())
+        except (OSError, ValueError) as error:
+            sys.exit(str(error))
 
 
 if __name__ == "__main__":

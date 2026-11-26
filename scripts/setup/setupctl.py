@@ -41,6 +41,9 @@ sys.path.insert(0, str(ROOT / "scripts/github"))
 from promote_release import TOPOLOGIES, TOPOLOGY_CHANNELS  # noqa: E402
 from release_topology import UPSTREAM_REPO  # noqa: E402
 
+sys.path.insert(0, str(ROOT / "scripts"))
+import instance_local  # noqa: E402
+
 INSTANCE_LOCAL_PATH = Path(".agents/instance.local.json")
 PROFILES = ("local-dev", "fork-agents", "full-cloud")
 FIREBASE_PLANS = ("spark", "blaze")
@@ -150,18 +153,11 @@ def is_unattended_agent_env(env: dict[str, str] | None = None) -> bool:
 
 
 def load_instance_local(root: Path = ROOT) -> dict[str, Any]:
-    path = root / INSTANCE_LOCAL_PATH
-    if not path.is_file():
-        return {}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except (OSError, ValueError):
-        return {}
+    return instance_local.load(root)
 
 
 def save_instance_local(payload: dict[str, Any], root: Path = ROOT) -> Path:
-    path = root / INSTANCE_LOCAL_PATH
+    path = instance_local.path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     merged = {**load_instance_local(root), **payload, "updated_at": datetime.now(timezone.utc).isoformat()}
     with NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as temporary:
@@ -205,7 +201,7 @@ def probe_environment(
     local_files = {
         "dotenv": (root / "assets/.env").is_file(),
         "google_services": (root / "android/app/google-services.json").is_file(),
-        "instance_local": (root / INSTANCE_LOCAL_PATH).is_file(),
+        "instance_local": instance_local.path(root).is_file(),
         "hooks_configured": hooks_path == ".githooks",
     }
 

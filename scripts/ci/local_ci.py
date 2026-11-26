@@ -256,7 +256,7 @@ def precheck(name: str) -> str | None:
         if options.is_symlink() and not options.exists():
             return "lib/firebase_options.dart is a dangling symlink"
         if not options.exists() or "DefaultFirebaseOptions" not in options.read_text(errors="replace"):
-            return "lib/firebase_options.dart is missing or invalid (restore from git or flutterfire configure)"
+            return "lib/firebase_options.dart is missing or invalid (restore it from git)"
         for rel in CI_FILES:
             if (ROOT / rel).is_symlink() and not (ROOT / rel).exists():
                 return f"{rel} is a dangling symlink"

@@ -47,7 +47,7 @@ class VerifyAndCloseTest(unittest.TestCase):
         ]
         res = verify_and_close(
             probe_ok=True,
-            target_url="https://foodsavr-test.web.app",
+            target_url="https://example-project.web.app",
             deployed_sha=RELEASE_SHA,
             served_revision=RELEASE_SHA,
             run_url="https://github.com/JoachimTislov/foodsavr/actions/runs/999",
@@ -99,7 +99,7 @@ class VerifyAndCloseTest(unittest.TestCase):
         ]
         res = verify_and_close(
             probe_ok=False,
-            target_url="https://foodsavr-test.web.app",
+            target_url="https://example-project.web.app",
             deployed_sha="badc0de",
             run_url="https://github.com/JoachimTislov/foodsavr/actions/runs/1000",
             gh=gh,

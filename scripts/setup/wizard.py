@@ -30,7 +30,7 @@ from setupctl import (
 )
 
 sys.path.insert(0, str(ROOT / "scripts"))
-from firebase_options import fingerprint, regenerate  # noqa: E402
+from firebase_options import defines_path, fingerprint, regenerate  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "scripts/infra"))
 from bootstrap_support import local_state_path  # noqa: E402
@@ -111,7 +111,7 @@ def manifest_environments(manifest):
 
 
 def primary_environment(environments, requested=""):
-    """The environment the tracked lib/firebase_options.dart targets: test when declared."""
+    """The environment local builds target (.agents/state/firebase.defines.json): test when declared."""
     if requested:
         return requested
     names = {e.get("name") for e in environments if not e.get("emulator")}
@@ -188,34 +188,15 @@ def enable_facebook_provider(project, account, app_id, app_secret):
     )
 
 
-def committed_project(manifest, ref, environment, env):
-    """Firebase project of a provisioned `environment` in the manifest committed on `ref`.
-
-    None when the manifest lives outside this repository; "" when `ref` lacks the
-    manifest or the environment is not provisioned there.
-    """
+def published_project(variables, environment):
+    """Firebase project of `environment` in the DEPLOY_INSTANCE overlay published to CI; "" when absent."""
     try:
-        relative = Path(manifest).resolve().relative_to(ROOT.resolve())
+        overlay = json.loads((variables or {}).get("DEPLOY_INSTANCE") or "{}")
     except ValueError:
-        return None
-    remote, _, branch = ref.partition("/")
-    run("git", "fetch", "--quiet", remote, branch, quiet=True)
-    try:
-        shown = subprocess.run(
-            ["git", "show", f"{ref}:{relative.as_posix()}"], cwd=ROOT, capture_output=True, text=True, timeout=60,
-        )
-    except (OSError, subprocess.TimeoutExpired):
         return ""
-    if shown.returncode:
-        return ""
-    with TemporaryDirectory(prefix="foodsavr-manifest-") as directory:
-        path = Path(directory) / "instance.yaml"
-        path.write_text(shown.stdout, encoding="utf-8")
-        committed_env = {**env, "MANIFEST": str(path), "ENV": environment}
-        values = levels_env(committed_env)
-        if values is None or values.get("PROVISIONED", "true") != "true":
-            return ""
-        return firebase_identity(committed_env, values)[0]
+    env = (overlay.get("environments") or {}).get(environment) if isinstance(overlay, dict) else None
+    firebase = env.get("firebase") if isinstance(env, dict) else None
+    return str(firebase.get("projectId") or "") if isinstance(firebase, dict) else ""
 
 
 def firebase_json(*args):
@@ -249,24 +230,30 @@ def default_site_exists(project):
     return any(site.get("name", "").endswith(f"/sites/{project}") for site in sites)
 
 
-def write_production_identity(manifest, project, web_app):
-    """Replace production's `provisioned: false` with its Firebase identity."""
-    path = Path(manifest)
-    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-    try:
-        start = lines.index("  production:\n")
-        marker = lines.index("    provisioned: false\n", start)
-    except ValueError:
+def channel_sites(project, channels):
+    """Hosting site per release channel: the first (integration) channel serves the
+    project's default site, later ones `<project>-<channel>`."""
+    return {channel: project if index == 0 else f"{project}-{channel}" for index, channel in enumerate(channels)}
+
+
+def record_identity(environment, project, web_app, repo, channels=()):
+    """Record an environment's Firebase identity in the instance overlay
+    (`deployInstance` in .agents/instance.local.json), never in tracked files.
+    Returns False when the same identity is already recorded."""
+    overlay = load_instance_local().get("deployInstance")
+    overlay = overlay if isinstance(overlay, dict) else {}
+    envs = overlay.get("environments") if isinstance(overlay.get("environments"), dict) else {}
+    entry = {"provisioned": True, "firebase": {"projectId": project, "webAppId": web_app, "siteId": project}}
+    if channels:
+        entry["channels"] = channel_sites(project, channels)
+    identity = overlay.get("identity") if isinstance(overlay.get("identity"), dict) else {}
+    if envs.get(environment) == entry and identity.get("githubRepository") == repo:
         return False
-    if any(line.strip() and not line.startswith("    ") for line in lines[start + 1:marker]):
-        return False
-    lines[marker:marker + 1] = [
-        "    firebase:\n",
-        f"      projectId: {project}\n",
-        f'      webAppId: "{web_app}"\n',
-        f"      siteId: {project}\n",
-    ]
-    path.write_text("".join(lines), encoding="utf-8")
+    save_instance_local({"deployInstance": {
+        **overlay,
+        "identity": {**identity, "githubRepository": repo},
+        "environments": {**envs, environment: entry},
+    }})
     return True
 
 
@@ -644,26 +631,37 @@ class Setup:
         if not self.firebase:
             return True
         self.env = self.deployment_env()
+        # The tracked manifest is instance-neutral; this clone's identities live in
+        # the overlay (record_identity), so forks use it as is.
         manifest = self.env.get("MANIFEST") or self.config.get("manifest")
-        if self.repo and self.repo.casefold() != UPSTREAM_REPO.casefold() and not manifest:
-            if self.listing:
-                print("Select the Firebase deployment manifest")
-            else:
-                print(f"Choose the deployment manifest for {self.repo}. See deploy/examples/firebase-free-web.yaml.")
-                path = Path(input("Deployment manifest path: ").strip()).expanduser()
-                if not path.is_file():
-                    print("Choose an existing deployment manifest and resume setup.")
-                    return False
-                manifest = str(path.resolve())
-                save_instance_local({"manifest": manifest})
         self.env["MANIFEST"] = str(Path(manifest or ROOT / "deploy/instance.yaml").resolve())
         self.environments = manifest_environments(self.env["MANIFEST"]) if self.tools["dart"] else []
         self.env["ENV"] = primary_environment(self.environments, os.environ.get("ENV", ""))
         if self.tools["dart"]:
             self.project, self.web_app = firebase_identity(self.env)
+
+        def record():
+            """Record an existing Firebase project for the primary environment."""
+            if not shutil.which("firebase"):
+                print("Install the Firebase CLI at https://firebase.google.com/docs/cli.")
+                return False
+            name = self.env["ENV"]
+            project = input(f"Existing Firebase project ID for {name}: ").strip()
+            if not PROJECT_ID.fullmatch(project) or not firebase_project_exists(project):
+                print("Use the ID of a Firebase project your login can access (firebase projects:list).")
+                return False
+            web_app = firebase_web_app(project)
+            if not web_app:
+                print(f"Add a web app at {CONSOLE}/{project}/settings/general and resume setup.")
+                return False
+            record_identity(name, project, web_app, self.repo or "", (self.declared(name) or {}).get("channels") or ())
+            self.environments = manifest_environments(self.env["MANIFEST"])
+            self.project, self.web_app = firebase_identity(self.env)
+            return bool(self.project and self.web_app)
+
         return self.step(
-            "Firebase project", bool(self.project and self.web_app),
-            next_action="Check the deployment manifest against https://console.firebase.google.com/.",
+            "Firebase project", bool(self.project and self.web_app), record,
+            next_action="Record the Firebase project of this environment (make setup).",
         ) and self.production_project()
 
     def declared(self, name):
@@ -709,13 +707,11 @@ class Setup:
             ):
                 print(f"Open Hosting at {CONSOLE}/{project}/hosting and resume setup.")
                 return False
-            if not write_production_identity(self.env["MANIFEST"], project, web_app):
-                print(f"Set environments.production.firebase to projectId {project}, webAppId {web_app}"
-                      " in the deployment manifest and remove provisioned: false.")
-                return False
+            record_identity("production", project, web_app, self.repo or "",
+                            (self.declared("production") or {}).get("channels") or ())
             self.production_created = True
-            print(f"Created production project {project}. Next steps:")
-            print("  1. Commit the updated deployment manifest on a branch and open a PR.")
+            print(f"Created production project {project} (recorded in the local instance overlay). Next steps:")
+            print("  1. Run make setup again: the GitHub configuration step publishes the overlay as DEPLOY_INSTANCE.")
             print(f"  2. Create the Firestore database at {CONSOLE}/{project}/firestore.")
             print(f"  3. Enable sign-in providers at {CONSOLE}/{project}/authentication/providers.")
             print("  4. After the PR is merged, verify the legal texts and account deletion.")
@@ -746,23 +742,20 @@ class Setup:
         return all(self.environment_infrastructure(name, available) for name in names)
 
     def production_apply_allowed(self):
-        """Apply production only once its identity is merged, never in the run that created it."""
+        """Apply production only once its identity is published to CI, never in the run that created it."""
         production = self.declared("production")
         if production is None or not production.get("provisioned", True):
             return False
         if self.production_created:
             print("Skipping the production configuration: this run created the production project. "
-                  "Merge the manifest PR, verify the legal texts and account deletion, then run make setup again.")
+                  "Verify the legal texts and account deletion, then run make setup again.")
             return False
-        ref = f"origin/{TOPOLOGY_BRANCHES[self.topology][0]}"
-        committed = committed_project(self.env["MANIFEST"], ref, "production", self.env)
-        if committed is None:
-            return True
+        published = published_project(self.github["variables"], "production")
         local = firebase_identity({**self.env, "ENV": "production"})[0]
-        if not committed or committed != local:
+        if not published or published != local:
             print(f"Skipping the production configuration: production project {local or '(none)'} is not "
-                  f"merged on {ref}. Merge the manifest PR, verify the legal texts and account deletion, "
-                  "then run make setup again.")
+                  "published in DEPLOY_INSTANCE. Run the GitHub configuration step, verify the legal texts "
+                  "and account deletion, then run make setup again.")
             return False
         return True
 
@@ -862,10 +855,11 @@ class Setup:
         if not self.firebase:
             return True
 
-        # lib/firebase_options.dart is tracked in git (#426); this step only
-        # repairs it when it no longer matches the manifest's project and web app.
-        path = ROOT / "lib/firebase_options.dart"
-        # The tracked default options target the default environment (test when
+        # Local builds read the environment's client options from the gitignored
+        # defines file (lib/firebase_options.dart tracks no project ids); this
+        # step writes it when it is missing or no longer matches the manifest.
+        path = defines_path()
+        # The local defines target the default environment (test when
         # declared), even when setup runs with ENV=production.
         default = primary_environment(self.environments)
         project, web_app = (
@@ -878,7 +872,7 @@ class Setup:
             return bool(project and web_app and fingerprint(path, project, web_app))
 
         def repair():
-            if not confirm("Regenerate lib/firebase_options.dart from Firebase?"):
+            if not confirm(f"Write {path} from Firebase?"):
                 return False
             if not shutil.which("firebase"):
                 print("Install the Firebase CLI at https://firebase.google.com/docs/cli.")
@@ -898,7 +892,7 @@ class Setup:
                     return False
             if not ready():
                 return False
-            print("Regenerated lib/firebase_options.dart; commit it on a branch and open a PR.")
+            print(f"Wrote {path}; make run-* and make build-* pass it to Flutter.")
             return True
 
         return self.step("Firebase app configuration", ready(), repair, f"Check registered apps at {url}.", ready)

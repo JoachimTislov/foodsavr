@@ -25,6 +25,7 @@ jobs:
       GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
       GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
       ANDROID_ENV_B64: ${{ secrets.ANDROID_ENV_B64 }}
+      FIREBASE_DEFINES: ${{ vars.FIREBASE_DEFINES_TEST }}
     steps:
       - name: Check Drive configuration
         run: |

@@ -49,13 +49,18 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # Instance state: the repository is stateless (ADR 0008); the levels CLI
+  # merges this overlay over deploy/instance.yaml. Unset on a fresh fork.
+  DEPLOY_INSTANCE: ${{ vars.DEPLOY_INSTANCE }}
+
 jobs:
   promote:
     name: Fast-forward release channel
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      RELEASE_TOPOLOGY: ${{ vars.RELEASE_TOPOLOGY || (github.repository == 'JoachimTislov/foodsavr' && 'full-channels' || 'single') }}
+      RELEASE_TOPOLOGY: ${{ vars.RELEASE_TOPOLOGY || 'single' }}
     steps:
       - name: Skip cleanly in single-branch topology
         if: env.RELEASE_TOPOLOGY == 'single'

@@ -89,7 +89,7 @@ class FaultIntakeTest(unittest.TestCase):
             source="github/playwright-probe",
             error_type="EmptyEnvFileError",
             message='Environment file "assets/.env" is empty. <!-- evil --> ```ignore```',
-            url="https://foodsavr-test.web.app/",
+            url="https://example-project.web.app/",
         )
         res = process_events([ev], gh, dispatch=True, dry_run=False)
         self.assertEqual(res["processed"], 1)

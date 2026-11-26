@@ -57,7 +57,7 @@ Missing channel branches are created idempotently via the GitHub Refs API during
 
 - **Never put secret values in `terraform.tfstate` or LLM context.** Stateless `scripts/secrets/rotate.py` (using declarative `sync_file` + `encode` instead of `shell=True`, explicit `--repo`, and interactive TTY confirmation) pushes secret values directly to GitHub Secrets.
 - **Keep `FIRESTORE_RULES_B64` and `FIREBASE_OPTIONS_B64` out of fork-exposed `vars.*`.** Only non-sensitive identifiers (`AGENT_APP_ID`, `RELEASE_GATE_APP_ID`, `FIREBASE_APP_ID_ANDROID`, `FACEBOOK_APP_ID`, `FACEBOOK_CLIENT_TOKEN`, `ROUTER_MODEL`) move to GitHub Actions Variables. `ROUTER_BASE_URL` must always pass policy `allow_hosts` validation.
-- **CI vs. local config split**: local tools read gitignored `.agents/instance.local.json` (symlinked into worktrees); CI workflows read GitHub Actions Variables (`vars.*`) and fall back to upstream `deploy/instance.yaml` / `foodsavr-test` defaults only when `github.repository == 'JoachimTislov/foodsavr'`. Scheduled workflows skip cleanly (`exit 0`) when unconfigured so enabling Actions on a fork never triggers failure storms or probes upstream URLs.
+- **CI vs. local config split**: local tools read gitignored `.agents/instance.local.json` (worktrees read the main checkout's file); CI workflows read GitHub Actions Variables (`vars.*`) and never fall back to upstream defaults (amended November 26, 2026). Scheduled workflows skip cleanly (`exit 0`) when unconfigured so enabling Actions on a fork never triggers failure storms or probes upstream URLs.
 
 ### 6. Agent-prepares / human-executes setup (`setupctl.py`, `setup-system`, `make setup`)
 
@@ -87,3 +87,12 @@ CI and local automated workflows invoke vendor harnesses directly (`claude`, `co
 - Any developer can contribute via `local-dev` with zero cloud accounts or secrets, or run an autonomous personal fork/new repo with minimal secrets and zero dirty git diffs.
 - `scripts/setup/monitoring.sh` and `scripts/setup/agent_router.sh` will be retired once `setupctl.py` and Terraform cover their responsibilities.
 - `agent-implement.yml` automatically steers around exhausted subscriptions when multiple harness credentials are configured, without introducing external proxy infrastructure.
+
+## Amendment — November 26, 2026: stateless repository
+
+Owner directive: tracked files hold no instance state. Project ids, Hosting sites, web app ids, buckets, billing accounts and client options live only in GitHub Actions variables and secrets (CI), environment variables, and gitignored local state (`.agents/instance.local.json`, `.agents/state/`, `${XDG_STATE_HOME}`). Tooling resolves them from there, and a fork works after `make setup` without code changes.
+
+- `deploy/instance.yaml` keeps the shared ladder and environment shapes; every cloud environment is `provisioned: false` there. The levels CLI deep-merges the instance overlay over it: `DEPLOY_INSTANCE` (CI, from the Actions variable) or `deployInstance` in `.agents/instance.local.json`. `make setup` records identities in the overlay and the GitHub Terraform root publishes it (`instance_variables`).
+- `lib/firebase_options.dart` reads compile-time defines; setup writes them to `.agents/state/firebase.defines.json` (CI: `FIREBASE_DEFINES_<ENV>`). The production apply gate requires the production identity in the published `DEPLOY_INSTANCE`, replacing the merged-manifest check.
+- The session archive reads its project, bucket and billing account from `AGENT_SESSION_*` or `sessionArchive` in the local state.
+- Workflows drop `github.repository == '<upstream>'` fallbacks; unset variables skip cleanly.

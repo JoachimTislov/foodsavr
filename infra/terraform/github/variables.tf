@@ -161,3 +161,16 @@ variable "environment_variables" {
     error_message = "environment_variables must only contain non-secret, non-kill-switch identifiers."
   }
 }
+
+variable "instance_variables" {
+  description = "Instance state published to CI (DEPLOY_INSTANCE overlay, FIREBASE_DEFINES_<ENV> client options), from the gitignored local state via scripts/instance_local.py ci-variables. Non-secret."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition = alltrue([
+      for k in keys(var.instance_variables) : k == "DEPLOY_INSTANCE" || can(regex("^FIREBASE_DEFINES(_[A-Z0-9]+)?$", k))
+    ])
+    error_message = "instance_variables only holds DEPLOY_INSTANCE and FIREBASE_DEFINES[_<ENV>]."
+  }
+}

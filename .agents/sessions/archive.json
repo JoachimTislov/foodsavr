@@ -1,7 +1,4 @@
 {
-  "project": "foodsavr-agents",
-  "bucket": "foodsavr-agents-sessions",
   "location": "europe-north1",
-  "prefix": "sessions/",
-  "billingAccount": "01AC17-3EE9E3-5089AE"
+  "prefix": "sessions/"
 }

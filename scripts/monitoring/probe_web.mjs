@@ -60,7 +60,7 @@ function loadPlaywright() {
 
 function parseArgs(argv) {
   const opts = {
-    url: process.env.TARGET_URL || 'https://foodsavr-test.web.app',
+    url: process.env.TARGET_URL || '',
     output: '',
     timeoutMs: Number(process.env.PROBE_TIMEOUT_MS || 25000),
     settleMs: Number(process.env.PROBE_SETTLE_MS || 2000),
@@ -114,6 +114,7 @@ async function runProbe(opts) {
   let phase = 'navigation';
   let firstPageErrorPhase = null;
   let mainBundleResponse;
+  if (!opts.url) throw new Error('No probe target: set TARGET_URL or pass --url.');
   const target = new URL(opts.url);
 
   let mainBundleSha256 = null;

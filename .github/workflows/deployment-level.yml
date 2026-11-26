@@ -40,12 +40,16 @@ defaults:
   run:
     working-directory: packages/foodsavr_deploy
 
+env:
+  # Instance state: the repository is stateless (ADR 0008); the levels CLI
+  # merges this overlay over deploy/instance.yaml. Unset on a fresh fork.
+  DEPLOY_INSTANCE: ${{ vars.DEPLOY_INSTANCE }}
+
 jobs:
   check:
     name: Validate manifests and test levels CLI
     if: >-
       github.event_name != 'schedule' ||
-      github.repository == 'JoachimTislov/foodsavr' ||
       vars.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
     runs-on: ubuntu-latest
     timeout-minutes: 10

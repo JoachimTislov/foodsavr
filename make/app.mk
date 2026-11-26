@@ -1,5 +1,5 @@
 .PHONY: run-dev run-prod build-apk-debug build-apk-release install-dev install-prod dev-chrome-prod dev-chrome build-web serve-web watch build 
-DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env")
+DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env") $(shell python3 scripts/firebase_options.py flags)
 FLUTTER_INSTALL := flutter install
 FLUTTER_RUN_CMD := flutter run --no-pub $(DOTENV_FLAGS)
 # dev:integration_test is ignored when doing a release build - https://github.com/flutter/flutter/issues/169336
@@ -35,7 +35,7 @@ BASE_HREF ?= /
 build-web: deps ## Build the web app
 	@echo "Building web (base-href $(BASE_HREF))..."
 	@flutter create . --platforms web
-	@flutter build web --release --base-href "$(BASE_HREF)"
+	@flutter build web --release --base-href "$(BASE_HREF)" $(shell python3 scripts/firebase_options.py flags)
 	@if [ -d build/web/about ]; then python3 scripts/web/write_landing_config.py build/web/about/config.js; fi
 
 serve-web: build-web ## Serve the web app

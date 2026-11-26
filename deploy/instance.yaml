@@ -1,4 +1,10 @@
-# FoodSavr deployment instance (owner's instance).
+# FoodSavr deployment manifest: the shared ladder, triggers and environment
+# shapes. It holds no instance state: the repository, Firebase identities and
+# Hosting sites come from the instance overlay, deep-merged over this file by
+# the levels CLI (DEPLOY_INSTANCE in CI, from the GitHub Actions variable of
+# that name; `deployInstance` in the gitignored .agents/instance.local.json
+# locally; both written by `make setup`). Without an overlay every cloud
+# environment is unprovisioned, so forks deploy nothing until set up.
 #
 # Shape: specs/source-of-truth/schemas/deployment-instance.schema.json
 # Why:   specs/source-of-truth/deployment-levels.md, ADR 0005
@@ -12,7 +18,6 @@ version: 1
 
 identity:
   name: foodsavr
-  githubRepository: JoachimTislov/foodsavr
   region: europe-north1
 
 # What the app needs from a backend. Cloud Storage (blobs) is not used:
@@ -257,21 +262,18 @@ environments:
     currentLevel: firebase-spark
     emulator: true
   # Test project: develop, daily and weekly each deploy to their own Hosting
-  # site (multiple sites per project work on Spark).
+  # site (multiple sites per project work on Spark). The overlay supplies
+  # firebase, the channel sites and provisioned: true.
   test:
     currentLevel: firebase-spark
+    provisioned: false
     githubEnvironment: test
-    firebase:
-      projectId: foodsavr-test
-      webAppId: "1:965790789072:web:95b2627567ba28b9ae1dd5"
-      webApiKeyId: 94556f20-f2b2-4bb5-9a72-b36eb53fc438
-      siteId: foodsavr-test
     channels:
-      develop: foodsavr-test
-      daily: foodsavr-test-daily
-      weekly: foodsavr-test-weekly
-  # Production project, served from stable. `make setup` creates it, then
-  # replaces `provisioned: false` with its firebase identity.
+      develop:
+      daily:
+      weekly:
+  # Production project, served from stable. `make setup` creates it and
+  # records its firebase identity in the overlay.
   production:
     currentLevel: firebase-spark
     provisioned: false
