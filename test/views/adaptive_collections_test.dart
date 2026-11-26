@@ -198,4 +198,57 @@ void main() {
     expect(find.byType(CollectionDetailView), findsNothing);
     expect(find.byType(CollectionListView), findsOneWidget);
   });
+
+  testWidgets('a collection of only dangling IDs offers the empty choices', (
+    tester,
+  ) async {
+    const ghosts = Collection(
+      id: 'c3',
+      name: 'Ghosts',
+      productIds: ['deleted-product'],
+      userId: 'user',
+    );
+    final collections = getIt<CollectionService>();
+    var deleted = false;
+    when(
+      () => collections.getCollectionsForUser('user'),
+    ).thenAnswer((_) async => deleted ? [] : [ghosts]);
+    when(() => collections.getCollection('c3')).thenAnswer((_) async => ghosts);
+    when(() => collections.loadContents(ghosts)).thenAnswer(
+      (_) async => (ghosts.copyWith(productIds: const []), <Product>[]),
+    );
+    when(() => collections.deleteCollectionOnly('c3')).thenAnswer((_) async {
+      deleted = true;
+    });
+
+    await tester.pumpWidget(
+      EasyLocalization(
+        supportedLocales: const [Locale('en')],
+        path: 'assets/translations',
+        child: const MaterialApp(
+          home: DynamicCollectionView(type: CollectionType.inventory),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.pumpAndSettle();
+
+    final sheet = find.byType(DeleteCollectionSheet);
+    expect(
+      find.descendant(of: sheet, matching: find.byType(OutlinedButton)),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: sheet, matching: find.byType(FilledButton)),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.descendant(of: sheet, matching: find.byType(FilledButton)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(deleted, isTrue);
+    verifyZeroInteractions(getIt<ProductService>());
+  });
 }

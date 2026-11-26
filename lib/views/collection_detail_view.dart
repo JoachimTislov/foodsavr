@@ -92,9 +92,10 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         _currentCollection.id,
       );
       if (source == null) throw StateError('The collection is unavailable.');
+      // Dangling IDs are hidden, so the sheet counts what the header shows.
+      final productCount = _products.length;
       final inventories =
-          source.type == CollectionType.shoppingList ||
-              source.productIds.isEmpty
+          source.type == CollectionType.shoppingList || productCount == 0
           ? const <Collection>[]
           : await _collectionService.getCollectionsForUser(
               source.userId,
@@ -104,7 +105,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       final choice = await DeleteCollectionSheet.show(
         context,
         collection: source,
-        productCount: source.productIds.length,
+        productCount: productCount,
         destinations: inventories
             .where((item) => item.id != source.id)
             .toList(),
