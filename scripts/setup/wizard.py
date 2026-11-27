@@ -31,6 +31,7 @@ from setupctl import (
 
 sys.path.insert(0, str(ROOT / "scripts"))
 from firebase_options import defines_path, fingerprint, regenerate  # noqa: E402
+import instance_local  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "scripts/infra"))
 from bootstrap_support import local_state_path  # noqa: E402
@@ -909,10 +910,11 @@ class Setup:
         def ready():
             return run(script, "--check", env={**os.environ, "FIREBASE_PROJECT": self.project}, quiet=True) == 0
 
-        return self.step(
-            "Social sign-in", ready(), lambda: run(script, env={**os.environ, "FIREBASE_PROJECT": self.project}) == 0,
+        return self.optional_step(
+            "social-sign-in", "Social sign-in", "Configure Google and Facebook sign-in now?", ready,
+            lambda: run(script, env={**os.environ, "FIREBASE_PROJECT": self.project}) == 0,
             "Run scripts/human/meta/create-app-credentials.sh and "
-            "scripts/human/google/create-web-client-secret.sh, then make setup.", ready,
+            "scripts/human/google/create-web-client-secret.sh, then make setup.",
         )
 
     def web_monitoring(self):
@@ -929,7 +931,32 @@ class Setup:
             except OSError:
                 return False
 
-        return self.step("Web monitoring", ready(), lambda: run(script) == 0, "Run make setup again.", ready)
+        return self.optional_step(
+            "web-monitoring", "Web monitoring", "Configure web monitoring and the healing loop now?", ready,
+            lambda: run(script) == 0, "Run make setup again.",
+        )
+
+    def optional_step(self, key, title, question, ready, action, next_action):
+        """A step the owner may decline: the choice is recorded so it never blocks later steps.
+
+        Resume a declined step with its own target (make social-auth-setup, make monitoring)
+        or by removing it from `declinedSteps` in .agents/instance.local.json.
+        """
+        declined = list(load_instance_local().get("declinedSteps") or [])
+        if key in declined:
+            return True
+        skipped = False
+
+        def act():
+            nonlocal skipped
+            if not confirm(question):
+                save_instance_local({"declinedSteps": sorted({*declined, key})})
+                print(f"{title} skipped; recorded in declinedSteps in {instance_local.path(ROOT)}.")
+                skipped = True
+                return True
+            return action()
+
+        return self.step(title, ready(), act, next_action, lambda: skipped or ready())
 
     def session_archive(self):
         """Agent session transcripts in Cloud Storage, in a dedicated billed project (optional)."""
