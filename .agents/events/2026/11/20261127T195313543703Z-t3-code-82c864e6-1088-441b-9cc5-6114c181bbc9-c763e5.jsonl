@@ -1,0 +1,1 @@
+{"commits": [], "harness": "t3-code", "issues": ["#496"], "provider": "openai", "prs": ["#531"], "session_id": "t3-code:82c864e6-1088-441b-9cc5-6114c181bbc9", "sources": [], "started_at": "2026-11-27T19:53:13+00:00", "status": "active", "stream": "sessions", "summary": "Remediate PR #531 CI failure and rebase conflicts"}
