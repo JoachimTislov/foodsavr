@@ -107,6 +107,8 @@ def validate_system_manifest(manifest: Any, source: Path | str) -> list[str]:
         for field in ("autoHealVar", "telemetryPollVar", "webMonitorWorkflow"):
             if not _non_empty_str(obs.get(field)):
                 errors.append(f"{source}: spec.observability.{field} must be a non-empty string")
+        if "webMonitorRunName" in obs and not _non_empty_str(obs.get("webMonitorRunName")):
+            errors.append(f"{source}: spec.observability.webMonitorRunName must be a non-empty string")
         if not _non_empty_str_list(obs.get("wifVarsAllOf")):
             errors.append(f"{source}: spec.observability.wifVarsAllOf must be a non-empty array of strings")
         archive = obs.get("transcriptArchive")
@@ -122,6 +124,8 @@ def validate_system_manifest(manifest: Any, source: Path | str) -> list[str]:
     if isinstance(delivery, dict):
         if not _non_empty_str(delivery.get("promoteWorkflow")):
             errors.append(f"{source}: spec.delivery.promoteWorkflow must be a non-empty string")
+        if "promoteRunName" in delivery and not _non_empty_str(delivery.get("promoteRunName")):
+            errors.append(f"{source}: spec.delivery.promoteRunName must be a non-empty string")
         if "detectOrphanedWorkflows" in delivery and not isinstance(delivery.get("detectOrphanedWorkflows"), bool):
             errors.append(f"{source}: spec.delivery.detectOrphanedWorkflows must be a boolean")
 
@@ -209,16 +213,23 @@ def _component(
     }
 
 
-def _latest_run_conclusion(runs_payload: Any) -> tuple[str | None, int | None]:
+def _latest_run_conclusion(runs_payload: Any, run_name: str | None = None) -> tuple[str | None, int | None]:
+    """Latest run, or the latest whose display title contains `run_name` (one operation of a shared workflow)."""
     if not isinstance(runs_payload, dict):
         return None, None
     runs = runs_payload.get("workflow_runs")
     if not isinstance(runs, list) or not runs:
         return None, None
-    first = runs[0]
-    if not isinstance(first, dict):
+    matching = [r for r in runs if isinstance(r, dict) and (not run_name or run_name in str(r.get("display_title") or ""))]
+    if not matching:
         return None, None
+    first = matching[0]
     return first.get("conclusion") or first.get("status"), first.get("id")
+
+
+def _runs_endpoint(workflow: str, run_name: str | None) -> str:
+    # A shared workflow runs other operations in between; look further back for this one.
+    return f"repos/{{owner}}/{{repo}}/actions/workflows/{workflow}/runs?per_page={30 if run_name else 1}"
 
 
 def _extract_repo_remote_state(
@@ -243,8 +254,8 @@ def _extract_repo_remote_state(
         "workflows": f"{repo_endpoint}/{WORKFLOWS_ENDPOINT}",
         "rulesets": "repos/{owner}/{repo}/rulesets?per_page=100",
         "merge_runs": f"repos/{{owner}}/{{repo}}/actions/workflows/{merge_wf}/runs?per_page=1",
-        "monitor_runs": f"repos/{{owner}}/{{repo}}/actions/workflows/{monitor_wf}/runs?per_page=1",
-        "promote_runs": f"repos/{{owner}}/{{repo}}/actions/workflows/{promote_wf}/runs?per_page=1",
+        "monitor_runs": _runs_endpoint(monitor_wf, obs.get("webMonitorRunName")),
+        "promote_runs": _runs_endpoint(promote_wf, delivery.get("promoteRunName")),
     }
     if delivery.get("detectOrphanedWorkflows", True):
         endpoints["default_tree"] = f"{repo_endpoint}/{DEFAULT_BRANCH_TREE_ENDPOINT}"
@@ -521,7 +532,7 @@ def observe_agent_system(
         else:
             auto_heal = variables.get(obs["autoHealVar"], "")
             ok_mon, mon_runs, _ = raw["monitor_runs"]
-            conclusion, run_id = _latest_run_conclusion(mon_runs) if ok_mon else (None, None)
+            conclusion, run_id = _latest_run_conclusion(mon_runs, obs.get("webMonitorRunName")) if ok_mon else (None, None)
             reasons = []
             msgs = []
             if conclusion in {"failure", "timed_out", "startup_failure"}:
@@ -637,7 +648,7 @@ def observe_agent_system(
             required_branches = [default_branch, *TOPOLOGY_CHANNELS[topology]]
             missing_branches = [branch for branch in required_branches if branch not in branch_names]
             ok_pr, pr_runs, _ = raw["promote_runs"]
-            conclusion, run_id = _latest_run_conclusion(pr_runs) if ok_pr else (None, None)
+            conclusion, run_id = _latest_run_conclusion(pr_runs, delivery.get("promoteRunName")) if ok_pr else (None, None)
             if missing_branches:
                 components.append(_component(
                     "delivery", "promote-channels", "0/1", "Failed", "MissingReleaseBranch",

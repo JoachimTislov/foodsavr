@@ -30,11 +30,11 @@ One PR is in flight at a time, so each merged head is exactly what CI tested. Ch
 
 ### Adaptive auto-review and post-merge bisect learning
 
-`scripts/github/pr_review.py` and `.github/workflows/agent-review.yml` classify each PR into an adaptive review tier (`exempt`, `fast`, `balanced`, `deep`, or `human`) aligned with `.agents/runners/router.json` and the dual-axis `code-review` skill (Standards + Spec). Prior `incident` records in `.agents/reviews/history.jsonl` matching the PR's files, areas, or risk signatures automatically escalate `required_tier` (e.g. from `fast` or `balanced` to `deep`, or from `deep` to `human`) and surface recommended static checks. When a post-merge regression occurs, `pr_review.py bisect-learn` runs a two-stage `git bisect` (`--first-parent` across merges on `main`, then across the culprit PR's feature-branch commits) and records a new `incident` entry so future changes to that area automatically receive deeper review.
+`scripts/github/pr_review.py` and the review operation of `.github/workflows/agent-ops.yml` classify each PR into an adaptive review tier (`exempt`, `fast`, `balanced`, `deep`, or `human`) aligned with `.agents/runners/router.json` and the dual-axis `code-review` skill (Standards + Spec). Prior `incident` records in `.agents/reviews/history.jsonl` matching the PR's files, areas, or risk signatures automatically escalate `required_tier` (e.g. from `fast` or `balanced` to `deep`, or from `deep` to `human`) and surface recommended static checks. When a post-merge regression occurs, `pr_review.py bisect-learn` runs a two-stage `git bisect` (`--first-parent` across merges on `main`, then across the culprit PR's feature-branch commits) and records a new `incident` entry so future changes to that area automatically receive deeper review.
 
 ### Local CI mirror before pushing
 
-`scripts/ci/local_ci.py` runs the CI checks for the areas a branch changes, through a pre-push hook (`make hooks`). Agent-system and documentation CI call the same script; the Dart group is kept equal to `ci-checks.yml` and uses CI's pinned Flutter version. Checks that need CI infrastructure (smoke, E2E, integration, rules, dependency review) remain CI-only.
+`scripts/ci/local_ci.py` runs the CI checks for the areas a branch changes, through a pre-push hook (`make hooks`). Agent-system and documentation CI call the same script; the Dart group is kept equal to `Check & Test` in `pull-request.yml` and uses CI's pinned Flutter version. Checks that need CI infrastructure (smoke, E2E, integration, rules, dependency review) remain CI-only.
 
 ### Amends ADR 0003
 

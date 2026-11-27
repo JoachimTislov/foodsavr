@@ -38,7 +38,7 @@ One lane per batch owns each file; a second lane needs a stack or the next batch
 | `lib/services/firebase_auth_service.dart` | Sign-in, sign-up, sign-out, deletion; #330, #334, #354 all change it. |
 | `lib/services/collection_service.dart` | Defaults, deletion, membership. |
 | `lib/services/receipt_ingestion_service.dart` | Receipt placement, expiry, metadata. |
-| `.github/workflows/ci-checks.yml`, `scripts/ci/*`, `make/*.mk` | CI selection and test running; #305 and #366 both change them. |
+| `.github/workflows/pull-request.yml`, `scripts/ci/*`, `make/*.mk` | CI selection and test running; #305 and #366 both change them. |
 | `scripts/agents/agentctl.py`, `scripts/agents/test_agentctl.py` | The most-changed files in the repository. |
 
 ## Environment gotchas for lane briefs

@@ -7,7 +7,7 @@
 # Why human: Codecov issues upload tokens only through its web UI behind the
 #   owner's GitHub sign-in; there is no API to mint one.
 #
-# Used by ci-checks.yml (codecov/codecov-action). Run it yourself in a
+# Used by pull-request.yml / Check & Test (codecov/codecov-action). Run it yourself in a
 # terminal; agents never execute scripts/human/.
 #
 #

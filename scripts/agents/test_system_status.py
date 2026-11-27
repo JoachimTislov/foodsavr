@@ -91,7 +91,8 @@ def _healthy_gh_api(root: Path, endpoint: str) -> tuple[bool, Any, str]:
     if endpoint == "repos/{owner}/{repo}/rulesets/25301211":
         return True, json.loads(LIVE_RULESET.read_text(encoding="utf-8")), ""
     if "/runs?" in endpoint:
-        return True, {"workflow_runs": [{"id": 9001, "conclusion": "success", "status": "completed"}]}, ""
+        return True, {"workflow_runs": [{"id": 9001, "conclusion": "success", "status": "completed",
+                                          "display_title": "Release: promote, Ops & Maintenance: web-monitor"}]}, ""
     return False, None, f"unexpected endpoint {endpoint}"
 
 
@@ -232,10 +233,17 @@ class TestObserveAgentSystem(unittest.TestCase):
                         }
                     ],
                 }, ""
-            if "web-monitor.yml/runs" in endpoint:
-                return True, {"workflow_runs": [{"id": 5555, "conclusion": "failure"}]}, ""
+            if "ops-maintenance.yml/runs" in endpoint:
+                # The newer label sync run is another operation; the probe run decides.
+                return True, {"workflow_runs": [
+                    {"id": 5556, "conclusion": "success", "display_title": "Ops & Maintenance: labels #7"},
+                    {"id": 5555, "conclusion": "failure", "display_title": "Ops & Maintenance: web-monitor"},
+                ]}, ""
             if "/runs?" in endpoint:
-                return True, {"workflow_runs": [{"id": 4444, "conclusion": "failure"}]}, ""
+                return True, {"workflow_runs": [
+                    {"id": 4445, "conclusion": "success", "display_title": "Release: push stable"},
+                    {"id": 4444, "conclusion": "failure", "display_title": "Release: promote"},
+                ]}, ""
             return _healthy_gh_api(root, endpoint)
 
         def missing_bucket(_root: Path, bucket: str, _project: str | None) -> tuple[str, str]:

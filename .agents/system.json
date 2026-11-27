@@ -34,7 +34,7 @@
     },
     "governance": {
       "disallowDuplicateRequiredChecks": true,
-      "traceabilityWorkflow": "traceability.yml"
+      "traceabilityWorkflow": "pull-request.yml"
     },
     "observability": {
       "autoHealVar": "AUTO_HEAL_ENABLED",
@@ -43,14 +43,16 @@
         "GCP_WORKLOAD_IDENTITY_PROVIDER",
         "GCP_DEPLOY_SERVICE_ACCOUNT"
       ],
-      "webMonitorWorkflow": "web-monitor.yml",
+      "webMonitorWorkflow": "ops-maintenance.yml",
+      "webMonitorRunName": "Ops & Maintenance: web-monitor",
       "transcriptArchive": {
         "configFile": ".agents/sessions/archive.json",
         "verifyBucket": true
       }
     },
     "delivery": {
-      "promoteWorkflow": "promote.yml",
+      "promoteWorkflow": "release.yml",
+      "promoteRunName": "Release: promote",
       "detectOrphanedWorkflows": true
     }
   }

@@ -1,0 +1,723 @@
+name: Pull Request
+
+# One verification workflow for develop PRs, release-channel pushes and speculative
+# merge-train refs (#496). It replaces pr-base, traceability, dependency-review,
+# ci-checks, agent-system, the docs-pages build, validation and the deployment-level
+# PR check, so a PR update boots one workflow instead of eight.
+#
+# Stage 1, `Decide whether to run CI` (required check): PR base freshness, commit
+#   traceability and event logs, dependency review, then every suite decision. A
+#   failed preflight fails this required check, so the skipped suites behind it never
+#   count as passing (ADR 0006).
+# Stage 2: `Check & Test` (required), release scripts, agent system, documentation
+#   build and the deployment-levels CLI, each only for the paths it covers. The
+#   decisions come from scripts/ci/local_ci.py --ci-filters, the same paths
+#   `make check` uses locally.
+# Stage 3: Validation (Web smoke + E2E, Firestore rules), started by `merge/auto` on
+#   PRs and always on pushes. Android smoke + integration run only on manual dispatch
+#   (`make validate`); `Validation result` succeeds without them. `Validation result`
+#   is a commit status, not a check run: GitHub counts a skipped required check run
+#   as passing, but a status that is never posted stays pending
+#   (scripts/ci/validation_status.py).
+#
+# Label and edit events run the same graph on the same head. Their suites skip only
+# where another run on this head already passed them, so a newer skipped check run
+# never hides an older failure of a required check.
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened, edited, labeled]
+  push:
+    branches: [daily, weekly, stable, 'merge-train/**']
+  schedule:
+    # Weekly agent-system validation on develop.
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "all: every suite and Validation; checks: Check & Test (full suite), agent system, docs, release scripts, levels CLI; validation: Validation only"
+        type: choice
+        options: [all, checks, validation]
+        default: all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # A new head cancels the running one. Label and edit events wait for it instead and
+  # then reuse its results, so they never cancel a running validation. Dependabot
+  # rebases keep the running check: the next run reuses it when nothing in scope changed.
+  cancel-in-progress: ${{ (github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' && github.event.action != 'edited' && github.event.action != 'labeled') || startsWith(github.ref, 'refs/heads/merge-train/') }}
+
+jobs:
+  gate:
+    name: Decide whether to run CI
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      statuses: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+      run_release: ${{ steps.decide.outputs.run_release }}
+      agents: ${{ steps.decide.outputs.agents }}
+      docs: ${{ steps.decide.outputs.docs }}
+      deploy: ${{ steps.decide.outputs.deploy }}
+      validate: ${{ steps.decide.outputs.validate }}
+      web: ${{ steps.decide.outputs.web }}
+      rules: ${{ steps.decide.outputs.rules }}
+    env:
+      EVENT_NAME: ${{ github.event_name }}
+      PR_ACTION: ${{ github.event.action }}
+      CONTENT_EVENT: ${{ github.event_name == 'pull_request' && contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) }}
+      HAS_AUTO: ${{ contains(github.event.pull_request.labels.*.name, 'merge/auto') }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Post pending Validation result (hold)
+        if: env.CONTENT_EVENT == 'true' && env.HAS_AUTO != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+        run: python3 scripts/ci/validation_status.py hold
+
+      - name: "Preflight: branch contains latest base"
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/ci/check_pr_base.py "${{ github.base_ref }}"
+
+      # Every PR needs an owner: an `Agent-Session:` trailer on each commit, or an
+      # `Agent-Session:` line in the PR body (`none (human)` declares a human author).
+      # Dependabot and other bots are exempt. See .agents/sessions/README.md.
+      - name: "Preflight: agent session declared"
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: scripts/agents/agentctl check-pr --base "$BASE_SHA" --head "$HEAD_SHA"
+
+      - name: "Preflight: validate agent event logs"
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/agents/check_logs.py
+
+      - name: Changed paths
+        id: paths
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+          IS_TRAIN: ${{ startsWith(github.ref, 'refs/heads/merge-train/') }}
+        run: |
+          if [ "$EVENT_NAME" = pull_request ]; then
+            base="$PR_BASE"
+          elif [ "$IS_TRAIN" = true ]; then
+            git fetch --no-tags origin develop
+            base=origin/develop
+          else
+            base="$BEFORE"
+          fi
+          # A new branch or unknown base puts every suite in scope.
+          python3 scripts/ci/local_ci.py --ci-filters "$base" HEAD | tee -a "$GITHUB_OUTPUT"
+
+      - name: "Preflight: review dependency changes"
+        if: github.event_name == 'pull_request' && steps.paths.outputs.deps == 'true'
+        uses: actions/dependency-review-action@v4
+
+      - name: Decide
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPERATION: ${{ inputs.operation }}
+          REF: ${{ github.ref }}
+          LABEL: ${{ github.event.label.name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DART: ${{ steps.paths.outputs.dart }}
+          RELEASE: ${{ steps.paths.outputs.release }}
+          AGENTS: ${{ steps.paths.outputs.agents }}
+          DOCS: ${{ steps.paths.outputs.docs }}
+          INFRA: ${{ steps.paths.outputs.infra }}
+          WEB: ${{ steps.paths.outputs.web }}
+          RULES: ${{ steps.paths.outputs.rules }}
+        run: |
+          run=false run_release=false agents=false docs=false deploy=false validate=false
+          web="${WEB:-false}" rules="${RULES:-false}"
+          train=false
+          [[ "$REF" == refs/heads/merge-train/* ]] && train=true
+
+          # Check & Test reuses a green previous head (synchronize), the merged PR head
+          # (push), or the speculative train tree; scope must match the `dart` group.
+          check_and_test() {
+            local tmp
+            tmp="$(mktemp)"
+            GITHUB_OUTPUT="$tmp" scripts/ci/already_tested.sh \
+              --require-job '^Check & Test$' --substantive-job '^Check & Test$' \
+              --pr-reuse-jobs '^(Decide whether to run CI|Check & Test)$' \
+              pull-request.yml ':(glob)**/*.dart' lib packages test assets/translations \
+              pubspec.yaml pubspec.lock analysis_options.yaml integration_test test_driver
+            if grep -q '^skip=true$' "$tmp"; then echo false; else echo true; fi
+          }
+
+          # Jobs that already succeeded on this head in another run of this workflow.
+          passed=""
+          if [ "$EVENT_NAME" = pull_request ] && [ "$CONTENT_EVENT" != true ]; then
+            passed="$(python3 scripts/ci/head_jobs.py --workflow pull-request.yml --sha "$HEAD_SHA" --exclude-run "$GITHUB_RUN_ID")"
+          fi
+          needed() {  # needed <path decision> <job name>: in scope and not yet green on this head
+            [ "$1" = true ] && ! grep -Fxq "$2" <<< "$passed"
+          }
+
+          case "$EVENT_NAME" in
+            pull_request)
+              if [ "$CONTENT_EVENT" = true ]; then
+                [ "$DART" = true ] && run="$(check_and_test)"
+                run_release="$RELEASE" agents="$AGENTS" docs="$DOCS" deploy="$INFRA"
+                validate="$HAS_AUTO"
+              else
+                # Label and edit events: a pending run they replaced may never have run.
+                needed "$DART" "Check & Test" && run=true
+                needed "$RELEASE" "Check release scripts" && run_release=true
+                needed "$AGENTS" "Agent system validation" && agents=true
+                needed "$DOCS" "Build documentation" && docs=true
+                needed "$INFRA" "Validate manifests and test levels CLI" && deploy=true
+                if [ "$PR_ACTION" = labeled ] && [ "$LABEL" = merge/auto ]; then
+                  validate=true
+                elif [ "$HAS_AUTO" = true ]; then
+                  # Start Validation only if no validating run reported on this head.
+                  status="$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/statuses" \
+                    --jq '[.[] | select(.context == "Validation result")][0].description // ""')"
+                  if [ -z "$status" ] || [ "$status" = "Add merge/auto to run Validation" ]; then validate=true; fi
+                fi
+              fi
+              ;;
+            push)
+              [ "$DART" = true ] && run="$(check_and_test)"
+              validate=true
+              if [ "$train" != true ]; then
+                run_release=true agents="$AGENTS"
+                # stable publishes the site from release.yml, which builds it there.
+                [ "$REF" != refs/heads/stable ] && docs="$DOCS"
+              fi
+              ;;
+            schedule)
+              agents=true
+              ;;
+            workflow_dispatch)
+              if [ "$OPERATION" != validation ]; then
+                run=true run_release=true agents=true docs=true deploy=true
+              fi
+              if [ "$OPERATION" != checks ]; then
+                validate=true web=true rules=true
+              fi
+              ;;
+          esac
+          {
+            echo "run=$run"
+            echo "run_release=$run_release"
+            echo "agents=$agents"
+            echo "docs=$docs"
+            echo "deploy=$deploy"
+            echo "validate=$validate"
+            echo "web=$web"
+            echo "rules=$rules"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  # --- Stage 2: path-gated suites --------------------------------------------
+
+  release-scripts:
+    name: Check release scripts
+    needs: gate
+    if: needs.gate.outputs.run_release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Run release script tests
+        run: python3 scripts/ci/local_ci.py --group release
+
+  check:
+    name: Check & Test
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Flutter app
+        uses: ./.github/actions/setup-flutter-app
+        with:
+          flutter-version: 3.47.6
+          run-pub-get: "false"
+          run-build-runner: "false"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Restore committed analysis options
+        run: git checkout -- analysis_options.yaml
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Cache build_runner state
+        uses: actions/cache@v4
+        with:
+          path: .dart_tool/build
+          key: build-runner-${{ runner.os }}-3.47.6-${{ hashFiles('pubspec.lock', 'lib/**/*.dart', 'packages/**/*.dart') }}
+          restore-keys: |
+            build-runner-${{ runner.os }}-3.47.6-${{ hashFiles('pubspec.lock') }}-
+            build-runner-${{ runner.os }}-3.47.6-
+
+      - name: Build generative code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze code
+        run: flutter analyze --fatal-infos --fatal-warnings --no-pub
+
+      - name: Localization check
+        run: dart run scripts/locale/check_localizations.dart
+
+      - name: "Shape-sync check (ADR 0004)"
+        run: dart run scripts/ci/check_shape_sync.dart
+
+      - name: "Select tests (ADR 0002 relational selection + core pin)"
+        id: select
+        run: |
+          set -o pipefail
+          dart run scripts/ci/select_tests.dart | tee selection.txt
+          echo "files=$(grep '^files=' selection.txt | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
+          echo "reason=$(grep '^reason=' selection.txt | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore test hash cache
+        uses: actions/cache@v4
+        with:
+          path: .test-hashes/
+          key: test-hashes-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}-${{ github.sha }}
+          restore-keys: |
+            test-hashes-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}-
+
+      - name: "Run tests (selected slice incl. foodsavr_core package tests, cached-green skip, core workflows pinned)"
+        run: dart run scripts/ci/run_tests.dart
+        env:
+          SELECTED_FILES: ${{ steps.select.outputs.files }}
+          FORCE_ALL: ${{ github.event_name == 'workflow_dispatch' }}
+
+      - name: Upload coverage to Codecov
+        if: hashFiles('coverage/lcov.info') != '' && env.CODECOV_TOKEN != ''
+        uses: codecov/codecov-action@v5
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        with:
+          token: ${{ env.CODECOV_TOKEN }}
+          files: coverage/lcov.info
+          fail_ci_if_error: true
+
+      - name: Report skipped Codecov upload
+        if: hashFiles('coverage/lcov.info') != '' && env.CODECOV_TOKEN == ''
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: echo '::warning::CODECOV_TOKEN is missing; coverage upload was skipped.'
+
+  agents:
+    name: Agent system validation
+    needs: gate
+    if: needs.gate.outputs.agents == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Validate agent CLI
+        run: python3 scripts/ci/local_ci.py --group agents
+      - name: Exercise declarative workflow lifecycle
+        env:
+          AGENT_LEDGER_FILE: ${{ runner.temp }}/agent-ledger.jsonl
+          AGENT_SESSION_INDEX: ${{ runner.temp }}/sessions.jsonl
+          AGENT_KNOWLEDGE_DB: ${{ runner.temp }}/knowledge.sqlite3
+        run: |
+          cp .agents/ledger.jsonl "$AGENT_LEDGER_FILE"
+          report="$RUNNER_TEMP/repository-health.json"
+          code=0
+          scripts/agents/agentctl workflow run .agents/workflows/repository-health.json > "$report" || code=$?
+          cat "$report"
+          status="$(jq -r '.status // empty' "$report" 2>/dev/null || true)"
+          if [[ "$status" == unavailable ]]; then
+            # Not a pass: the lifecycle was not exercised. The notice separates it from a failure.
+            echo "::notice title=Repository health unavailable::The workflow could not run, so its health is unverified."
+            exit 1
+          fi
+          if [[ "$code" != 0 || ( "$status" != planned && "$status" != succeeded ) ]]; then
+            echo "::error title=Repository health failed::status=${status:-unreadable}, exit code=${code}"
+            exit 1
+          fi
+          test -s "$AGENT_LEDGER_FILE"
+      - name: Check generated state is ignored
+        run: test -z "$(git status --porcelain)"
+
+  docs:
+    name: Build documentation
+    needs: gate
+    if: needs.gate.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: scripts/docs/requirements.txt
+      - name: Install documentation tools
+        run: python -m pip install -r scripts/docs/requirements.txt
+      - name: Build and check documentation
+        env:
+          LOCAL_CI_PYTHON: python
+        run: python scripts/ci/local_ci.py --group docs
+      - name: Record provenance
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/provenance
+        with:
+          sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          pr: ${{ github.event.pull_request.number }}
+
+  # Deployment levels (ADR 0005, specs/source-of-truth/deployment-levels.md): validate
+  # deploy/ manifests and test packages/foodsavr_deploy. The scheduled usage poll is
+  # the deployment-poll operation of ops-maintenance.yml.
+  deploy-levels:
+    name: Validate manifests and test levels CLI
+    needs: gate
+    if: needs.gate.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Instance state: the repository is stateless (ADR 0008); the levels CLI
+      # merges this overlay over deploy/instance.yaml. Unset on a fresh fork.
+      DEPLOY_INSTANCE: ${{ vars.DEPLOY_INSTANCE }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/deploy-levels-check
+
+  # --- Stage 3: Validation ----------------------------------------------------
+
+  changes:
+    name: Detect changed areas
+    needs: gate
+    if: needs.gate.outputs.validate == 'true'
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      statuses: write
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.decide.outputs.web }}
+      web_e2e: ${{ steps.decide.outputs.web_e2e }}
+      rules: ${{ steps.decide.outputs.rules }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: ${{ ((github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]') || startsWith(github.ref, 'refs/heads/merge-train/')) && 0 || 1 }}
+      - name: Post pending Validation result (start)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+        run: python3 scripts/ci/validation_status.py start
+      - name: Fetch develop base for speculative train diff
+        if: startsWith(github.ref, 'refs/heads/merge-train/')
+        run: git fetch --no-tags origin develop:refs/heads/develop
+      - name: Skip if merged tree or unchanged target already validated
+        id: tested
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/ci/already_tested.sh --push-only-reuse \
+            --require-job 'Validation status \(result\)' \
+            --substantive-job '^(Web smoke test|Android smoke test|Firestore security rules)$' \
+            --target 'web:lib,packages,web,assets,pubspec.yaml,pubspec.lock,test/e2e' \
+            --target 'rules:firestore-rules,firestore.rules' \
+            pull-request.yml lib packages web assets test/e2e \
+            firestore-rules firestore.rules pubspec.yaml pubspec.lock
+      - name: Classify Dependabot pubspec bump
+        id: dep
+        if: >
+          steps.tested.outputs.skip != 'true' &&
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.user.login == 'dependabot[bot]'
+        env:
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          git fetch --no-tags --depth=0 origin "${{ github.base_ref }}" 2>/dev/null ||
+            git fetch --no-tags origin "${{ github.base_ref }}" 2>/dev/null || true
+          python3 scripts/ci/dep_impact.py --base "origin/${{ github.base_ref }}"
+      - name: Decide validation targets
+        id: decide
+        env:
+          SKIP: ${{ steps.tested.outputs.skip }}
+          SKIP_WEB: ${{ steps.tested.outputs.skip_web }}
+          SKIP_RULES: ${{ steps.tested.outputs.skip_rules }}
+          EVENT_NAME: ${{ github.event_name }}
+          FILTER_WEB: ${{ needs.gate.outputs.web }}
+          FILTER_RULES: ${{ needs.gate.outputs.rules }}
+          DEP_WEB: ${{ steps.dep.outputs.run_web }}
+        run: |
+          web=false
+          web_e2e=false
+          rules=false
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            web=true
+            web_e2e=true
+            rules=true
+          elif [ "$SKIP" != "true" ]; then
+            # PRs and pushes get the same smoke and E2E coverage; on PRs dep_impact.py
+            # may narrow it to the platforms the change can affect, and already_tested.sh
+            # reuses green per-target runs when a synchronize left that target untouched.
+            if [ "$SKIP_WEB" != "true" ] && [ "$FILTER_WEB" = "true" ] && [ "$DEP_WEB" != "false" ]; then
+              web=true
+              web_e2e=true
+            fi
+            [ "$SKIP_RULES" != "true" ] && [ "$FILTER_RULES" = "true" ] && rules=true
+          fi
+          {
+            echo "web=$web"
+            echo "web_e2e=$web_e2e"
+            echo "rules=$rules"
+          } >> "$GITHUB_OUTPUT"
+
+  web-smoke:
+    name: Web smoke test
+    needs: changes
+    if: ${{ needs.changes.outputs.web == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Set up Flutter app
+        uses: ./.github/actions/setup-flutter-app
+        with:
+          flutter-version: "3.47.6"
+          dotenv-content: "CI_TEST=1"
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Generate web platform files
+        run: flutter create . --platforms web
+      - name: Start Firebase Emulators (background)
+        uses: ./.github/actions/start-firebase-emulators
+        with:
+          mode: start
+      - name: Build web
+        run: flutter build web --release
+      - name: Serve web build
+        run: |
+          npx -y serve build/web -l 4173 --no-clipboard &
+          for i in $(seq 1 30); do
+            curl -s http://localhost:4173 > /dev/null && break
+            sleep 1
+          done
+      - name: Install Playwright dependencies
+        working-directory: test/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Wait for Firebase Emulators
+        uses: ./.github/actions/start-firebase-emulators
+        with:
+          mode: wait
+      - name: Run Playwright smoke tests
+        working-directory: test/e2e
+        run: npx playwright test --project=smoke
+      - name: Run Playwright E2E tests
+        if: ${{ needs.changes.outputs.web_e2e == 'true' }}
+        working-directory: test/e2e
+        run: npx playwright test --project=chromium
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-e2e-artifacts
+          path: test/e2e/playwright-report/
+          retention-days: 7
+
+  android-smoke:
+    name: Android smoke test
+    needs: changes
+    # Android checks run only on manual dispatch (`make validate`).
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Set up Flutter app
+        uses: ./.github/actions/setup-flutter-app
+        with:
+          flutter-version: "3.47.6"
+          dotenv-content: "CI_TEST=1"
+          write-dummy-google-services: "true"
+      - name: Start Firebase Emulators (background)
+        uses: ./.github/actions/start-firebase-emulators
+        with:
+          mode: start
+      - name: Cache Android AVD
+        id: avd-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-34-x86_64-google_apis-v1
+      - name: Build development debug APK
+        run: flutter build apk --flavor development --debug --dart-define=EMULATOR_HOST=10.0.2.2
+      - name: Wait for Firebase Emulators
+        uses: ./.github/actions/start-firebase-emulators
+        with:
+          mode: wait
+      - name: Run Android smoke and integration tests on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          force-avd-creation: ${{ steps.avd-cache.outputs.cache-hit != 'true' }}
+          script: |
+            bash scripts/ci/android_smoke.sh
+            adb reverse tcp:8080 tcp:8080
+            adb reverse tcp:9099 tcp:9099
+            flutter test integration_test/all_tests.dart --flavor development --no-pub
+      - name: Upload emulator screenshots and video
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-visuals
+          path: |
+            artifacts/android-visuals/
+            firebase-emulators.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  firestore-rules:
+    name: Firestore security rules
+    needs: changes
+    if: ${{ needs.changes.outputs.rules == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        working-directory: firestore-rules
+        run: npm ci
+      - name: Start Firestore emulator
+        run: |
+          cat > firebase.json <<'EOT'
+          {
+            "firestore": {
+              "rules": "firestore.rules"
+            },
+            "emulators": {
+              "firestore": { "port": 8080 }
+            }
+          }
+          EOT
+          npx -y firebase-tools@15 emulators:start --project demo-project &
+          emulator_up=false
+          for _ in $(seq 1 60); do
+            if curl -s http://localhost:8080 > /dev/null; then emulator_up=true; break; fi
+            sleep 2
+          done
+          if [ "$emulator_up" != true ]; then
+            echo "Firestore emulator did not start" >&2
+            exit 1
+          fi
+      - name: Run rules unit tests
+        working-directory: firestore-rules
+        run: npx jest --ci
+
+  validation-result:
+    name: Validation status (result)
+    needs: [gate, changes, web-smoke, android-smoke, firestore-rules]
+    # Also after a failed preflight on a run that would have validated, so the status
+    # reads failure instead of waiting forever. Label and edit runs never overwrite a
+    # real result from their preflight alone.
+    if: >-
+      !cancelled() &&
+      (needs.gate.outputs.validate == 'true' ||
+       (needs.gate.result == 'failure' &&
+        (github.event_name == 'push' ||
+         (github.event_name == 'workflow_dispatch' && inputs.operation != 'checks') ||
+         (github.event_name == 'pull_request' &&
+          ((github.event.action == 'labeled' && github.event.label.name == 'merge/auto') ||
+           (github.event.action != 'labeled' && github.event.action != 'edited' &&
+            contains(github.event.pull_request.labels.*.name, 'merge/auto')))))))
+    permissions:
+      contents: read
+      statuses: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: scripts/ci
+      - name: Post final Validation result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: python3 scripts/ci/validation_status.py final

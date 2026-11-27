@@ -20,7 +20,7 @@ Today the instance runs on Firebase Spark (billing disabled): Auth, Firestore, A
 4. **Triggers (KEDA-inspired).** Pluggable scalers read a metric; thresholds are ratios of usage to the **current level's** limit with `warn`/`promote`/`demote` bands (hysteresis). A band must hold for `stabilizationPolls` consecutive polls; demotion also waits `minDwell` (cooldown). On metric failure the poller **holds** and alerts after `fallback.alertAfterFailures`; it never promotes on missing data.
 5. **Migration classes.** `inPlace` < `redeploy` < `dataMove` < `authMove`, derived from the binding diff; a declared class may not understate it. Only `inPlace` may run without a per-transition approval, and only in mode `auto`; the default mode is `recommend`. `dataMove`/`authMove` always need owner approval (future: a GitHub Environment with required reviewers).
 6. **Paid levels declare a budget.** Provider budgets alert but never cap (Blaze); a paid level must declare `budget` (optional kill switch). Billing changes remain owner-approved per ADR 0003; setting `mode: auto` with a budget in a reviewed manifest is that pre-approval for `inPlace` transitions only.
-7. **Recommend-only in phase 1.** `levels poll` and `.github/workflows/deployment-level.yml` recommend (`hold`/`warn`/`promote`/`demote`) and keep one issue updated; nothing mutates infrastructure.
+7. **Recommend-only in phase 1.** `levels poll` and the deployment-poll operation of `.github/workflows/ops-maintenance.yml` recommend (`hold`/`warn`/`promote`/`demote`) and keep one issue updated; nothing mutates infrastructure.
 
 ## Phases
 

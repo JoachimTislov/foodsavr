@@ -79,7 +79,7 @@ id = "setup-branches"
 group = "setup"
 title = "Create the missing release channel branches"
 target = "setup-branches"
-step = "promote.yml"
+step = "release.yml / promote"
 needs = "gh login with push rights"
 vars = [
   { name = "REPO", prompt = "Repository (empty: origin remote)" },
@@ -174,7 +174,7 @@ id = "ci-check"
 group = "merge"
 title = "Run the local CI mirror (analyze, format, test, locale-check)"
 target = "check"
-step = "ci-checks.yml / Check & Test"
+step = "pull-request.yml / Check & Test"
 needs = "Flutter (CI's pinned version is provisioned)"
 
 [[entry]]
@@ -182,7 +182,7 @@ id = "validate"
 group = "merge"
 title = "Dispatch the full Validation workflow on a branch"
 target = "validate"
-step = "validation.yml"
+step = "pull-request.yml / Validation"
 needs = "gh login; the branch pushed"
 vars = [{ name = "REF", prompt = "Branch (empty: current)" }]
 
@@ -210,7 +210,7 @@ id = "agent-review"
 group = "merge"
 title = "Re-run the adaptive agent review on a PR"
 target = "agent-review"
-step = "agent-review.yml"
+step = "agent-ops.yml / review"
 needs = "gh login"
 vars = [{ name = "PR", prompt = "PR number", required = true }]
 
@@ -222,7 +222,7 @@ target = "dispatch"
 step = "any workflow"
 needs = "gh login"
 vars = [
-  { name = "WORKFLOW", prompt = "Workflow file (for example ci-checks.yml)", required = true },
+  { name = "WORKFLOW", prompt = "Workflow file (for example pull-request.yml)", required = true },
   { name = "REF", prompt = "Ref to run on", required = true },
   { name = "INPUTS", prompt = "Inputs as key=value, space separated (empty for none)" },
 ]
@@ -234,12 +234,12 @@ id = "promote"
 group = "release"
 title = "Fast-forward a release channel"
 target = "promote"
-step = "promote.yml"
+step = "release.yml / promote"
 needs = "gh login that may push the channel branch; DISPATCH=1 uses the Actions token instead"
 vars = [
   { name = "CHANNEL", prompt = "Channel", choices = ["daily", "weekly", "stable"], required = true },
   { name = "SOURCE", prompt = "Source branch (empty: the channel's default)" },
-  { name = "DISPATCH", prompt = "Run promote.yml on Actions instead of locally (1 or empty)" },
+  { name = "DISPATCH", prompt = "Run the release.yml promote operation on Actions instead of locally (1 or empty)" },
 ]
 apply_assign = "APPLY=1"
 
@@ -248,7 +248,7 @@ id = "build-remote"
 group = "release"
 title = "Run a release artifact build on Actions"
 target = "build-remote"
-step = "build-web.yml / build-android.yml"
+step = "release.yml / build-web, build-android"
 needs = "gh login"
 vars = [
   { name = "PLATFORM", prompt = "Platform", choices = ["web", "android"], required = true },
@@ -260,7 +260,7 @@ id = "release-candidate"
 group = "release"
 title = "Produce the web release candidate artifact"
 target = "release-candidate"
-step = "release-gated.yml"
+step = "release.yml / release gate"
 needs = "gh login"
 vars = [{ name = "REF", prompt = "Ref (empty: stable)" }]
 
@@ -269,7 +269,7 @@ id = "deploy-web"
 group = "release"
 title = "Build the web app locally and deploy it to Firebase Hosting"
 target = "deploy-web"
-step = "firebase-hosting.yml"
+step = "release.yml / hosting"
 needs = "firebase login; gh login for Actions variables; Flutter is provisioned"
 vars = [
   { name = "ENV", prompt = "Environment (deploy/instance.yaml)", default = "production", required = true },
@@ -294,7 +294,7 @@ id = "android-apk"
 group = "release"
 title = "Deliver the Android test APK to Google Drive"
 target = "android-apk"
-step = "android-drive-test.yml"
+step = "manual-tools.yml / android-drive-test"
 needs = "gh login; with LOCAL=1 GOOGLE_DRIVE_FOLDER_ID and GOOGLE_DRIVE_OAUTH_JSON"
 vars = [
   { name = "REF", prompt = "Ref (empty: stable)" },
@@ -306,7 +306,7 @@ id = "docs-build"
 group = "release"
 title = "Build and check the documentation site locally"
 target = "docs-build"
-step = "docs-pages.yml / build"
+step = "pull-request.yml / Build documentation"
 needs = "Python; docs tools are installed on demand"
 
 [[entry]]
@@ -314,7 +314,7 @@ id = "docs-publish"
 group = "release"
 title = "Publish the documentation to GitHub Pages"
 target = "docs-publish"
-step = "docs-pages.yml / deploy"
+step = "release.yml / docs-publish"
 needs = "gh login; Pages publishing only works from Actions"
 vars = [{ name = "REF", prompt = "Ref (empty: stable)" }]
 
@@ -325,7 +325,7 @@ id = "deployment-poll"
 group = "observe"
 title = "Poll an environment's usage against its level limits"
 target = "deployment-poll"
-step = "deployment-level.yml / poll"
+step = "ops-maintenance.yml / deployment-poll"
 needs = "gcloud login with monitoring access"
 vars = [{ name = "ENV", prompt = "Environment (deploy/instance.yaml)", default = "production", required = true }]
 
@@ -334,7 +334,7 @@ id = "monitor-web"
 group = "observe"
 title = "Probe the live site and route failures through fault intake"
 target = "monitor-web"
-step = "web-monitor.yml"
+step = "ops-maintenance.yml / web-monitor"
 needs = "Node and Playwright (installed on first run); gh login"
 vars = [{ name = "URL", prompt = "URL (empty: MONITOR_TARGET_URL)" }]
 apply_assign = "APPLY=1"

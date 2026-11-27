@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Manual bypass for .github/workflows/web-monitor.yml: probe a live URL with
+# Manual bypass for the web-monitor operation (.github/actions/web-probe): probe a live URL with
 # the same scripts the workflow runs, then route a failure through fault intake
 # and verify/close resolved healing issues. Uses your own `gh` login.
 #

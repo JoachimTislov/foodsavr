@@ -9,14 +9,24 @@
 # --target <name>:<p1,p2,...> flags are given, each target also emits
 # skip_<name>=true|false so unrelated target changes (e.g. a web-only merge on
 # develop) reuse green web/rules runs from the previous head.
+# Several suites share one workflow (pull-request.yml), so a green run does not prove
+# that a given suite passed. --require-job <regex> names the job that must have
+# succeeded, --substantive-job <regex> the jobs that count as executed work (default:
+# any job that is not a control job), and --pr-reuse-jobs <regex> the jobs a previous
+# PR head's run must have finished with success or skipped (at least one success) for
+# a synchronize to reuse it.
 # Usage: already_tested.sh [--push-only-reuse] [--require-job <regex>]
+#        [--substantive-job <regex>] [--pr-reuse-jobs <regex>]
 #        [--target <name>:<csv_paths>]... <workflow-file.yml> [pathspec...]   (needs GH_TOKEN)
 set -euo pipefail
 out="${GITHUB_OUTPUT:-/dev/stdout}"
 
 push_only_reuse=false
 require_job_re=""
+substantive_re=""
+pr_reuse_re=""
 targets=()
+control_re="already|detect|skip|preflight|validation status|decide"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --push-only-reuse)
@@ -25,6 +35,14 @@ while [ "$#" -gt 0 ]; do
       ;;
     --require-job)
       require_job_re="${2:?--require-job requires a regex}"
+      shift 2
+      ;;
+    --substantive-job)
+      substantive_re="${2:?--substantive-job requires a regex}"
+      shift 2
+      ;;
+    --pr-reuse-jobs)
+      pr_reuse_re="${2:?--pr-reuse-jobs requires a regex}"
       shift 2
       ;;
     --target)
@@ -75,23 +93,48 @@ run_matches_requirement() {
     [ "${matched:-0}" -gt 0 ] || return 1
   fi
   if [ -z "$require_job_re" ] || [ "$require_substantive" = "true" ]; then
-    substantive=$(printf '%s' "$jobs_json" | jq '[.jobs[] | select(.conclusion == "success" and (.name | test("already|detect|skip|preflight|validation status|decide"; "i") | not))] | length' 2>/dev/null || echo 0)
+    substantive=$(count_substantive "$jobs_json")
     [ "${substantive:-0}" -gt 0 ] || return 1
   fi
   return 0
 }
 
+# Successful jobs that did real work: --substantive-job matches, else any non-control job.
+count_substantive() {
+  if [ -n "$substantive_re" ]; then
+    printf '%s' "$1" | jq --arg re "$substantive_re" '[.jobs[] | select(.conclusion == "success" and (.name | test($re; "i")))] | length' 2>/dev/null || echo 0
+  else
+    printf '%s' "$1" | jq --arg re "$control_re" '[.jobs[] | select(.conclusion == "success" and (.name | test($re; "i") | not))] | length' 2>/dev/null || echo 0
+  fi
+}
+
+# --pr-reuse-jobs: every matching job succeeded or was skipped, and at least one succeeded.
+run_matches_pr_reuse() {
+  local jobs_json
+  jobs_json=$(gh api "repos/$repo/actions/runs/$1/jobs" 2>/dev/null || true)
+  [ -n "$jobs_json" ] || return 1
+  printf '%s' "$jobs_json" | jq -e --arg re "$pr_reuse_re" '
+    [.jobs[] | select(.name | test($re; "i"))] as $m
+    | ($m | length) > 0
+      and ($m | all(.conclusion == "success" or .conclusion == "skipped"))
+      and ($m | any(.conclusion == "success"))' >/dev/null 2>&1
+}
+
 has_green_pr_run() {
   local commit_sha="$1"
-  local run_ids
-  run_ids=$(gh run list --repo "$repo" --workflow "$wf" --commit "$commit_sha" --event pull_request --status success --json databaseId --jq '.[].databaseId' 2>/dev/null || true)
+  local run_ids status=success
+  # A job-level requirement decides on its own: other suites in the run may have failed.
+  if [ -n "$require_job_re" ] || [ -n "$pr_reuse_re" ]; then status=completed; fi
+  run_ids=$(gh run list --repo "$repo" --workflow "$wf" --commit "$commit_sha" --event pull_request --status "$status" --json databaseId --jq '.[].databaseId' 2>/dev/null || true)
   [ -n "$run_ids" ] || return 1
-  if [ -z "$require_job_re" ]; then
+  if [ -z "$require_job_re" ] && [ -z "$pr_reuse_re" ]; then
     return 0
   fi
   local run_id
   for run_id in $run_ids; do
-    if run_matches_requirement "$run_id"; then
+    if [ -n "$pr_reuse_re" ]; then
+      run_matches_pr_reuse "$run_id" && return 0
+    elif run_matches_requirement "$run_id"; then
       return 0
     fi
   done
@@ -176,7 +219,9 @@ sha="${GITHUB_SHA:?}"
 has_non_skipped_run() {
   local commit_sha="$1"
   local event_filter="${2:-}"
-  local args=(run list --repo "$repo" --workflow "$wf" --commit "$commit_sha" --status success --json databaseId --jq '.[].databaseId')
+  local status=success
+  if [ -n "$require_job_re" ]; then status=completed; fi
+  local args=(run list --repo "$repo" --workflow "$wf" --commit "$commit_sha" --status "$status" --json databaseId --jq '.[].databaseId')
   if [ -n "$event_filter" ]; then
     args+=(--event "$event_filter")
   fi
@@ -184,9 +229,15 @@ has_non_skipped_run() {
   run_ids=$(gh "${args[@]}" 2>/dev/null || true)
   local run_id
   for run_id in $run_ids; do
+    if [ -n "$require_job_re" ]; then
+      # Shared workflow: the required job and this suite's own work must have succeeded.
+      if run_matches_requirement "$run_id" true; then
+        return 0
+      fi
+      continue
+    fi
     local executed
-    executed=$(gh api "repos/$repo/actions/runs/$run_id/jobs" \
-      --jq '[.jobs[] | select(.conclusion == "success" and (.name | test("already|detect|skip|preflight|validation status|decide"; "i") | not))] | length' 2>/dev/null || echo 0)
+    executed=$(count_substantive "$(gh api "repos/$repo/actions/runs/$run_id/jobs" 2>/dev/null || true)")
     if [ "${executed:-0}" -gt 0 ]; then
       return 0
     fi

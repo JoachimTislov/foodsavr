@@ -6,6 +6,8 @@ Accepted (explicit owner intent, 2026-11-22: #292 — introduce `develop` as the
 
 The November 23, 2026 amendment below supersedes the original channel names, schedules, and deployment branch.
 
+Workflow files named below were consolidated on November 27, 2026 (#496): `ci-checks.yml`, `validation.yml`, `agent-system.yml`, `traceability.yml`, the `docs-pages.yml` build and the `deployment-level.yml` PR check are jobs of `pull-request.yml`; `promote.yml`, `build-web.yml`, `build-android.yml`, `release-gated.yml`, `firebase-hosting.yml` and the Pages publish are operations of `release.yml`; `agent-implement.yml`, `agent-review.yml`, `agent-audit.yml` and `agent-incident.yml` are operations of `agent-ops.yml`; `fault-intake.yml`, `web-monitor.yml`, `github-labels.yml` and the `deployment-level.yml` poll are operations of `ops-maintenance.yml`; `android-drive-test.yml` is a tool of `manual-tools.yml`. See [ci-workflows.md](../ci-workflows.md).
+
 ## Context
 
 Under ADR 0006, every PR targeted `main`, every PR push ran expensive emulator/Playwright/build workflows, and every merged PR immediately triggered deployment pipelines (`firebase-hosting.yml`, `release-gated.yml`, `docs-pages.yml`). Separating integration from release channels lets contributors iterate against fast checks on `develop`, gates expensive checks in the merge queue, eliminates stale-`main` divergence noise, and provides periodic release cadences (`nightly`, `beta`, `stable`, `release`).

@@ -442,7 +442,7 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(actions([
             pr(1, labels=(gate.LABEL, "risk/security")),
             pr(2, files=["infra/terraform/main.tf"]),
-            pr(3, files=[".github/workflows/ci-checks.yml"]),
+            pr(3, files=[".github/workflows/pull-request.yml"]),
             pr(4, files=[".agents/policies/default.json"]),
         ]), [])
 

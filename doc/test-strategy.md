@@ -31,10 +31,10 @@ If an existing unit test mocks more than one repository/service boundary, it sho
 
 ## CI wiring
 
-- `.github/workflows/ci-checks.yml` — format, analyze, localization, unit tests, coverage (existing).
-- `.github/workflows/validation.yml` — path-filtered smoke, Android integration, and Playwright E2E jobs via `dorny/paths-filter`. The Android integration job (`reactivecircus/android-emulator-runner`, API 34, KVM on ubuntu-latest) is a required, blocking gate for `lib/**`, `android/**`, and `integration_test/**` changes.
+- `.github/workflows/pull-request.yml` (`Check & Test`) — format, analyze, localization, unit tests, coverage (existing).
+- `.github/workflows/pull-request.yml` (Validation) — path-filtered Web smoke and Playwright E2E, started by `merge/auto` on PRs and run on release pushes. The Android smoke and integration job (`reactivecircus/android-emulator-runner`, API 34, KVM on `ubuntu-24.04`) runs only on manual dispatch (`make validate`).
 - Playwright lives in `test/e2e/` (`npm ci && npx playwright test`); smoke specs use the `.smoke.spec.ts` suffix and run in the `smoke` project.
-- `.github/workflows/build-web.yml` builds and uploads the Flutter `web-build` artifact. `.github/workflows/docs-pages.yml` validates the documentation build and local links on PRs, and publishes the vision, spec, and docs to GitHub Pages on trusted `release` changes.
+- `.github/workflows/release.yml` builds and uploads the Flutter `web-build` artifact on release pushes. `pull-request.yml` validates the documentation build and local links on PRs; `release.yml` publishes the vision, spec, and docs to GitHub Pages on `stable`.
 
 - Firebase emulators must be running for integration and E2E suites (`make start-firebase-emulators` locally; started in CI jobs).
 

@@ -1,0 +1,156 @@
+name: Web probe
+description: >-
+  Synthetic probe for live web health. Emits normalized FaultEvents into
+  fault_intake.py on failure and closes resolved healing issues via
+  verify_and_close.py on verified boots. Used by the scheduled and dispatched
+  web-monitor operation of ops-maintenance.yml and by the post-deploy probe of
+  release.yml. Requires an earlier actions/checkout step of trusted monitor scripts
+  and a job token with issues: write, actions: write and pull-requests: read.
+
+inputs:
+  target-url:
+    description: URL to probe; empty skips the probe with a warning
+    default: ''
+  deployed-sha:
+    description: Commit the probed deployment was built from (post-deploy probes)
+    default: ''
+  dry-run:
+    description: Run probe and intake without mutating issues ('true' or empty)
+    default: ''
+  firebase-plan:
+    description: vars.FIREBASE_PLAN
+    default: ''
+  auto-heal-enabled:
+    description: vars.AUTO_HEAL_ENABLED
+    default: ''
+  app-id:
+    description: Agent GitHub App id (vars.AGENT_APP_ID or the secret)
+    default: ''
+  app-private-key:
+    description: Agent GitHub App private key
+    default: ''
+  github-token:
+    description: Fallback token when the agent App is not configured
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Check agent App configuration
+      id: app-config
+      shell: bash
+      env:
+        AGENT_APP_ID: ${{ inputs.app-id }}
+        AGENT_APP_PRIVATE_KEY: ${{ inputs.app-private-key }}
+      run: |
+        if [ -n "$AGENT_APP_ID" ] && [ -n "$AGENT_APP_PRIVATE_KEY" ]; then
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "Agent App not configured; using GITHUB_TOKEN."
+        fi
+
+    - name: Mint agent App token
+      id: app
+      if: steps.app-config.outputs.configured == 'true'
+      uses: actions/create-github-app-token@v2
+      with:
+        app-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.app-private-key }}
+
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+
+    - name: Install Playwright (test/e2e)
+      shell: bash
+      working-directory: test/e2e
+      run: |
+        npm ci
+        npx playwright install --with-deps chromium
+
+    - name: Resolve probe target
+      id: target
+      shell: bash
+      env:
+        URL: ${{ inputs.target-url }}
+        DEPLOYED_SHA: ${{ inputs.deployed-sha }}
+        FIREBASE_PLAN: ${{ inputs.firebase-plan }}
+      run: |
+        if [ -z "$URL" ]; then
+          echo "::warning::MONITOR_TARGET_URL is not configured; skipping web probe."
+          exit 0
+        fi
+        level="firebase-${FIREBASE_PLAN:-spark}"
+        echo "url=${URL}" >> "$GITHUB_OUTPUT"
+        echo "sha=${DEPLOYED_SHA}" >> "$GITHUB_OUTPUT"
+        echo "level=${level}" >> "$GITHUB_OUTPUT"
+
+    - name: Run Playwright web probe
+      id: probe
+      if: steps.target.outputs.url != ''
+      shell: bash
+      env:
+        TARGET_URL: ${{ steps.target.outputs.url }}
+        RELEASE_SHA: ${{ steps.target.outputs.sha }}
+        DEPLOYMENT_LEVEL: ${{ steps.target.outputs.level }}
+        ENVIRONMENT: production
+      run: |
+        node scripts/monitoring/probe_web.mjs \
+          --url "$TARGET_URL" \
+          --release-sha "$RELEASE_SHA" \
+          --deployment-level "$DEPLOYMENT_LEVEL" \
+          --environment "$ENVIRONMENT" \
+          --output "$RUNNER_TEMP/probe-report.json" \
+          --no-fail
+        ok=$(python3 -c 'import json,sys; print("true" if json.load(open(sys.argv[1])).get("ok") else "false")' "$RUNNER_TEMP/probe-report.json")
+        echo "ok=${ok}" >> "$GITHUB_OUTPUT"
+        cat "$RUNNER_TEMP/probe-report.json" >> "$GITHUB_STEP_SUMMARY" || true
+
+    - name: Process probe failure through Fault Intake
+      if: steps.target.outputs.url != '' && steps.probe.outputs.ok != 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ steps.app.outputs.token || inputs.github-token }}
+        DRY_RUN: ${{ inputs.dry-run }}
+        AUTO_HEAL_ENABLED: ${{ inputs.auto-heal-enabled }}
+        TARGET_URL: ${{ steps.target.outputs.url }}
+        DEPLOYED_SHA: ${{ steps.target.outputs.sha }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      run: |
+        args=(--input "$RUNNER_TEMP/probe-report.json" --ref "$DEFAULT_BRANCH")
+        verify_args=(--probe-file "$RUNNER_TEMP/probe-report.json" --target-url "$TARGET_URL" --deployed-sha "$DEPLOYED_SHA" --run-url "$RUN_URL")
+        if [ "$DRY_RUN" = "true" ]; then
+          args+=(--dry-run)
+          verify_args+=(--dry-run)
+        elif [ "$AUTO_HEAL_ENABLED" = "true" ]; then
+          args+=(--dispatch)
+        fi
+        python3 scripts/monitoring/fault_intake.py "${args[@]}"
+        python3 scripts/monitoring/verify_and_close.py "${verify_args[@]}"
+
+    - name: Verify and close resolved healing issues on clean boot
+      if: steps.target.outputs.url != '' && steps.probe.outputs.ok == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ steps.app.outputs.token || inputs.github-token }}
+        DRY_RUN: ${{ inputs.dry-run }}
+        TARGET_URL: ${{ steps.target.outputs.url }}
+        DEPLOYED_SHA: ${{ steps.target.outputs.sha }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        verify_args=(--probe-file "$RUNNER_TEMP/probe-report.json" --target-url "$TARGET_URL" --deployed-sha "$DEPLOYED_SHA" --run-url "$RUN_URL")
+        if [ "$DRY_RUN" = "true" ]; then
+          verify_args+=(--dry-run)
+        fi
+        python3 scripts/monitoring/verify_and_close.py "${verify_args[@]}"
+
+    - name: Fail job when live web probe detected errors
+      if: steps.target.outputs.url != '' && steps.probe.outputs.ok != 'true' && inputs.dry-run != 'true'
+      shell: bash
+      env:
+        TARGET_URL: ${{ steps.target.outputs.url }}
+      run: |
+        echo "::error::Web probe failed on ${TARGET_URL}; see Fault Intake output."
+        exit 1

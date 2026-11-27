@@ -67,14 +67,25 @@ TOPOLOGY_BRANCHES = {name: ordered_branches(channels) for name, channels in TOPO
 HARNESS_AUTH_SECRETS = health.group("harness")
 
 EVENT_POLICY_NAME = "foodsavr-pull-request-target"
+# The workflows that declare pull_request_target (#496: review moved into agent-ops.yml,
+# label sync into ops-maintenance.yml).
 EVENT_POLICY_WORKFLOWS = (
-    ".github/workflows/agent-review.yml",
-    ".github/workflows/github-labels.yml",
+    ".github/workflows/agent-ops.yml",
     ".github/workflows/merge-gate.yml",
+    ".github/workflows/ops-maintenance.yml",
 )
 # An event rule allows only the events it lists for the targeted files, so this must
 # cover every trigger the three workflows declare (test_setupctl checks it).
-EVENT_POLICY_EVENTS = ("issue_comment", "issues", "pull_request_target", "push", "schedule", "workflow_dispatch", "workflow_run")
+EVENT_POLICY_EVENTS = (
+    "issue_comment",
+    "issues",
+    "pull_request_target",
+    "push",
+    "repository_dispatch",
+    "schedule",
+    "workflow_dispatch",
+    "workflow_run",
+)
 
 AGENT_ENV_VARS = (
     "AGENT_SESSION_ID",
@@ -410,7 +421,7 @@ def build_plan(
             "id": "create-agent-app",
             "title": "Create untrusted author GitHub App",
             "command": f"scripts/human/github/create-agent-app.sh --role agent --repo {effective_repo}",
-            "reason": "Used by agent-implement.yml; no workflows:write or ruleset bypass.",
+            "reason": "Used by agent-ops.yml (implement); no workflows:write or ruleset bypass.",
         })
 
     has_release_gate_app = (
@@ -422,7 +433,7 @@ def build_plan(
             "id": "create-release-gate-app",
             "title": "Create trusted Release-Gate GitHub App",
             "command": f"scripts/human/github/create-agent-app.sh --role release-gate --repo {effective_repo}",
-            "reason": "Used by merge-gate.yml and promote.yml; sole app allowed on the PR-gate ruleset bypass.",
+            "reason": "Used by merge-gate.yml and release.yml (promote); sole app allowed on the PR-gate ruleset bypass.",
         })
 
     has_harness_auth = any(name in secrets_present for name in HARNESS_AUTH_SECRETS)

@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from checks import FAILED, IGNORED_WORKFLOWS, QUEUE_CHECK, queue_check_state, review_check_state, rollup_state  # noqa: E402
+from checks import FAILED, QUEUE_CHECK, queue_check_state, review_check_state, rollup_state  # noqa: E402
 try:
     from scripts.github import pr_review
 except ImportError:

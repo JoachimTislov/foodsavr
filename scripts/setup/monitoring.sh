@@ -184,8 +184,8 @@ run_audit() {
   step "Local monitoring workflows and scripts"
   local required_file
   for required_file in \
-    .github/workflows/web-monitor.yml \
-    .github/workflows/fault-intake.yml \
+    .github/workflows/ops-maintenance.yml \
+    .github/actions/web-probe/action.yml \
     scripts/monitoring/probe_web.mjs \
     scripts/monitoring/fault_intake.py \
     scripts/monitoring/verify_and_close.py; do

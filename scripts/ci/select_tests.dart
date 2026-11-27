@@ -30,7 +30,7 @@ const corePackageInputs = <String>[
 
 const selfScope = <String>[
   'scripts/ci/select_tests.dart',
-  '.github/workflows/ci-checks.yml',
+  '.github/workflows/pull-request.yml',
   'pubspec.yaml',
   'pubspec.lock',
   'analysis_options.yaml',

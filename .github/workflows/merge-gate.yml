@@ -1,17 +1,14 @@
 name: Merge gate
 
 # Integrates opted-in PRs from trusted authors into develop, one at a time (ADR 0006, ADR 0007, ADR 0008).
-# Level-triggered: each run reconciles the whole queue on CI completion, PR
-# readiness (opened non-draft, ready_for_review, labeled merge/auto), pushes, or schedule.
+# Level-triggered: each run reconciles the whole queue on PR verification completion,
+# PR readiness (opened non-draft, ready_for_review, labeled merge/auto), pushes, or
+# schedule. Every PR check now runs in the single `Pull Request` workflow, so one
+# completion wakes the gate instead of six. A finished adaptive review dispatches the
+# gate from agent-ops.yml rather than through a second workflow_run subscription.
 on:
   workflow_run:
-    workflows:
-      - "Format, Analyze, Check Localizations and Run Tests"
-      - "Validation"
-      - "Agent system validation"
-      - "Agent review"
-      - "Documentation Pages"
-      - "Dependency Review"
+    workflows: ["Pull Request"]
     types: [completed]
   pull_request_target:
     types: [opened, ready_for_review, labeled]

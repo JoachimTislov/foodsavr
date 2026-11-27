@@ -42,7 +42,7 @@ Triage state labels use the unmanaged `triage/` prefix, created on first use wit
 | `ready-for-human` | `triage/ready-for-human` |
 | `wontfix` | close the issue as not planned |
 
-`triage/ready-for-agent` marks an issue a headless runner may pick up. When the owner applies it, `.github/workflows/agent-implement.yml` runs the `implement-issue` workflow and opens a draft PR; locally or in T3 Code, run the same workflow (see [.agents/workflows/README.md](workflows/README.md#implementing-issues)).
+`triage/ready-for-agent` marks an issue a headless runner may pick up. When the owner applies it, the `implement` operation of `.github/workflows/agent-ops.yml` runs the `implement-issue` workflow and opens a draft PR; locally or in T3 Code, run the same workflow (see [.agents/workflows/README.md](workflows/README.md#implementing-issues)).
 
 ## Domain docs
 

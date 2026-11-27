@@ -7,7 +7,7 @@
 # Why human: `firebase login:ci` needs Google account consent in a browser and
 #   a pasted authorization code; only the account owner can grant it.
 #
-# Used by release-gated.yml (Firebase App Distribution). Run it yourself in a
+# Used by the release gate of release.yml (Firebase App Distribution). Run it yourself in a
 # terminal; agents never execute scripts/human/.
 #
 #

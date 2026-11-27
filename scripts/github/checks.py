@@ -6,22 +6,47 @@ from datetime import datetime
 from typing import Any
 
 QUEUE_CHECK = "Detect changed areas"
-REVIEW_WORKFLOW = "Agent review"
-IGNORED_WORKFLOWS = {
-    "Merge gate",
-    REVIEW_WORKFLOW,
-    "Synchronize GitHub labels",
-    "Promote develop to main",
-    "Promote release channels",
-}
 # This is an informational attestation status, not an independent required check.
 # The review evaluator is the authority and binds approval to the head SHA.
 IGNORED_STATUSES = {"Review verdict"}
+ANY_JOB = "*"
+# (workflow, job) check runs. Agent Ops and Ops & Maintenance also run jobs whose
+# failures must count (implementation, audit, monitoring), so they match by job.
+# Names of the workflows retired by #496 stay for runs still on older heads.
+REVIEW_CHECKS: frozenset[tuple[str, str]] = frozenset({
+    ("Agent Ops", "Adaptive PR review"),
+    ("Agent Ops", "Record review and attest"),
+    ("Agent review", ANY_JOB),
+})
+IGNORED_CHECKS: frozenset[tuple[str, str]] = REVIEW_CHECKS | frozenset({
+    ("Merge gate", ANY_JOB),
+    ("Agent Ops", "Wake the merge gate"),
+    ("Ops & Maintenance", "Synchronize GitHub labels"),
+    ("Release", "Fast-forward release channel"),
+    ("Synchronize GitHub labels", ANY_JOB),
+    ("Promote develop to main", ANY_JOB),
+    ("Promote release channels", ANY_JOB),
+})
 FAILED = {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"}
 
 
 def _workflow_name(context: dict[str, Any]) -> str | None:
     return (((context.get("checkSuite") or {}).get("workflowRun") or {}).get("workflow") or {}).get("name")
+
+
+def _matches(context: dict[str, Any], checks: frozenset[tuple[str, str]]) -> bool:
+    workflow = _workflow_name(context)
+    return (workflow, ANY_JOB) in checks or (workflow, context.get("name")) in checks
+
+
+def is_ignored(context: dict[str, Any]) -> bool:
+    """True for metadata check runs (merge gate, review, label sync, promotion) outside rollups."""
+    return context.get("__typename") == "CheckRun" and _matches(context, IGNORED_CHECKS)
+
+
+def is_review(context: dict[str, Any]) -> bool:
+    """True for adaptive review check runs (review and attestation jobs)."""
+    return context.get("__typename") == "CheckRun" and _matches(context, REVIEW_CHECKS)
 
 
 def _key(context: dict[str, Any]) -> tuple[str | None, ...]:
@@ -93,7 +118,7 @@ def rollup_state(contexts: list[dict[str, Any]]) -> str | None:
     states = []
     for c in effective_runs(contexts):
         if c.get("__typename") == "CheckRun":
-            if _workflow_name(c) in IGNORED_WORKFLOWS:
+            if is_ignored(c):
                 continue
             states.append(
                 "PENDING"
@@ -141,7 +166,7 @@ def review_check_state(contexts: list[dict[str, Any]]) -> tuple[bool, datetime |
     """Return (running, started_at) for active trusted Agent review check runs on this head."""
     runs = effective_runs([
         c for c in contexts
-        if _is_trusted_actions_check(c) and _workflow_name(c) == REVIEW_WORKFLOW
+        if _is_trusted_actions_check(c) and is_review(c)
     ])
     active = [c for c in runs if c.get("status") != "COMPLETED"]
     if not active:
@@ -151,5 +176,5 @@ def review_check_state(contexts: list[dict[str, Any]]) -> tuple[bool, datetime |
 
 
 def review_check_running(contexts: list[dict[str, Any]]) -> bool:
-    """Return True when a trusted Agent review workflow check run is active on this head."""
+    """Return True when a trusted adaptive review check run is active on this head."""
     return review_check_state(contexts)[0]

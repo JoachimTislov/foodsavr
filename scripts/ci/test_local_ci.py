@@ -28,6 +28,15 @@ def first_paths(workflow: str) -> set[str]:
     return set(items)
 
 
+def workflow_text(workflow: str) -> str:
+    return (ROOT / ".github/workflows" / workflow).read_text()
+
+
+def pathspecs(patterns: list[str]) -> set[str]:
+    """Glob filter patterns as the git pathspecs already_tested.sh diffs."""
+    return {p.removesuffix("/**") for p in patterns}
+
+
 class LocalCiTest(unittest.TestCase):
     def test_glob_semantics_match_github_path_filters(self):
         self.assertTrue(ci.glob_re("**.dart").match("lib/a/b.dart"))
@@ -49,10 +58,38 @@ class LocalCiTest(unittest.TestCase):
         self.assertEqual(ci.groups_for(["scripts/release/prepare_android.py"]), ["release"])
         self.assertEqual(ci.groups_for(["scripts/infra/bootstrap_support.py"]), ["infra"])
 
-    def test_group_paths_match_their_workflows(self):
-        self.assertEqual(set(ci.GROUPS["agents"].paths), first_paths("agent-system.yml"))
-        self.assertEqual(set(ci.GROUPS["docs"].paths) | {"scripts/ci/local_ci.py"}, first_paths("docs-pages.yml"))
-        self.assertEqual(set(ci.GROUPS["dart"].paths), first_paths("ci-checks.yml"))
+    def test_pull_request_workflow_decides_suites_with_local_ci(self):
+        # #496: suite path decisions come from this module, so CI and `make check` agree.
+        text = workflow_text("pull-request.yml")
+        self.assertIn("scripts/ci/local_ci.py --ci-filters", text)
+        for group, output in (("dart", "DART"), ("release", "RELEASE"), ("agents", "AGENTS"),
+                              ("docs", "DOCS"), ("infra", "INFRA"), ("web", "WEB"), ("rules", "RULES")):
+            self.assertIn(f"{output}: ${{{{ steps.paths.outputs.{group} }}}}", text)
+        self.assertIn("steps.paths.outputs.deps == 'true'", text)
+        self.assertEqual(set(ci.ci_filters([])), set(ci.CI_GROUPS) | set(ci.CI_FILTERS))
+
+    def test_ci_filters_follow_group_paths_without_local_extras(self):
+        decisions = ci.ci_filters([".agents/events/2026/11/x.jsonl", "README.md"])
+        self.assertFalse(decisions["agents"])
+        self.assertTrue(decisions["docs"])
+        self.assertFalse(ci.ci_filters(["scripts/setup/setupctl.py"])["infra"])
+        self.assertTrue(ci.ci_filters(["deploy/instance.yaml"])["infra"])
+        self.assertTrue(ci.ci_filters(["lib/main.dart"])["web"])
+        self.assertTrue(ci.ci_filters(["firestore.rules"])["rules"])
+        self.assertTrue(ci.ci_filters(["packages/foodsavr_core/pubspec.yaml"])["deps"])
+        self.assertFalse(any(ci.ci_filters(["scripts/github/merge_gate.py"])[k] for k in ("dart", "web", "deps")))
+
+    def test_validation_reuse_targets_match_ci_filters(self):
+        text = workflow_text("pull-request.yml")
+        for name in ("web", "rules"):
+            match = re.search(rf"--target '{name}:([^']+)'", text)
+            self.assertIsNotNone(match, name)
+            self.assertEqual(set(match.group(1).split(",")), pathspecs(ci.CI_FILTERS[name]))
+
+    def test_release_push_paths_are_the_union_of_its_filters(self):
+        union = set().union(*ci.RELEASE_FILTERS.values())
+        self.assertEqual(first_paths("release.yml"), union)
+        self.assertIn("scripts/ci/local_ci.py --release-filters", workflow_text("release.yml"))
 
     def test_python_tests_are_discovered_per_directory(self):
         commands = ci.GROUPS["agents"].commands
@@ -74,11 +111,10 @@ class LocalCiTest(unittest.TestCase):
         self.assertEqual(ci.groups_for(["scripts/setup/test_setupctl.py"]), ["agents"])
 
     def test_workflows_run_the_same_commands(self):
-        workflows = ROOT / ".github/workflows"
-        self.assertIn("scripts/ci/local_ci.py --group agents", (workflows / "agent-system.yml").read_text())
-        self.assertIn("scripts/ci/local_ci.py --group docs", (workflows / "docs-pages.yml").read_text())
-        checks = (workflows / "ci-checks.yml").read_text()
-        self.assertIn("scripts/ci/local_ci.py --group release", checks)
+        checks = workflow_text("pull-request.yml")
+        for group in ("agents", "docs", "release"):
+            self.assertIn(f"scripts/ci/local_ci.py --group {group}", checks)
+        self.assertIn("scripts/ci/local_ci.py --group docs", workflow_text("release.yml"))
         for command in ci.GROUPS["dart"].commands:
             self.assertIn(" ".join(command), checks)
 
@@ -141,7 +177,7 @@ class LocalCiTest(unittest.TestCase):
 
     def test_staged_runs_only_requested_groups_the_index_touches(self):
         cases = {
-            ".github/workflows/agent-implement.yml": ["agents"],
+            ".github/workflows/agent-ops.yml": ["agents"],
             "mkdocs.yml": ["docs"],
             "scripts/docs/requirements.txt": ["docs"],
             "lib/main.dart": [],

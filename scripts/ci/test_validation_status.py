@@ -22,6 +22,7 @@ def load_module():
 
 
 def needs(**results):
+    results = {"gate": "success", **results}
     return json.dumps({k: {"result": v} for k, v in results.items()})
 
 
@@ -71,6 +72,19 @@ class ValidationStatusTest(unittest.TestCase):
                 needs(changes=gate, **{"web-smoke": "skipped"})
             )
             self.assertEqual(self.mod.decide_final(results)[0], "failure")
+
+    def test_failed_or_skipped_preflight_is_failure(self):
+        # #496: Stage 1 preflight lives in `gate`; its failure skips `changes` too.
+        for gate in ("failure", "skipped"):
+            results = self.mod.parse_results(
+                needs(gate=gate, changes="skipped", **{"web-smoke": "skipped"})
+            )
+            self.assertEqual(self.mod.decide_final(results)[0], "failure")
+        self.assertEqual(self.mod.decide_final({"changes": "success"})[0], "failure")
+
+    def test_cancelled_preflight_posts_nothing(self):
+        results = self.mod.parse_results(needs(gate="cancelled", changes="skipped"))
+        self.assertIsNone(self.mod.decide_final(results))
 
     def test_start_job_outcome_is_ignored(self):
         results = self.mod.parse_results(

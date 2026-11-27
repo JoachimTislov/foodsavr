@@ -22,7 +22,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from branch_governance import default_branch_required_checks  # noqa: E402
-from checks import FAILED, IGNORED_WORKFLOWS, effective_runs, _workflow_name  # noqa: E402
+from checks import FAILED, effective_runs, is_ignored  # noqa: E402
 import pr_review  # noqa: E402
 
 BASE = "develop"
@@ -258,7 +258,7 @@ def decide(pr: PullRequest, required: list[str], override_review: bool = False) 
         {
             _name(c)
             for c in effective_runs(pr.contexts)
-            if context_state(c) == "failure" and _name(c) not in required and _workflow_name(c) not in IGNORED_WORKFLOWS
+            if context_state(c) == "failure" and _name(c) not in required and not is_ignored(c)
         }
     )
     if others:

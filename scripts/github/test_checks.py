@@ -109,7 +109,7 @@ class EffectiveRunTest(unittest.TestCase):
         self.assertEqual(checks.queue_check_state([q("SUCCESS", 0), q(None, 1, status="IN_PROGRESS")]), (False, True))
 
     def test_review_check_running_tracks_active_trusted_agent_review(self):
-        rev = lambda conclusion, minutes, **kw: run(conclusion, minutes, name="Review PR", workflow=checks.REVIEW_WORKFLOW, **kw)
+        rev = lambda conclusion, minutes, **kw: run(conclusion, minutes, name="Adaptive PR review", workflow="Agent Ops", **kw)
         self.assertTrue(checks.review_check_running([rev(None, 1, status="IN_PROGRESS")]))
         self.assertEqual(
             checks.review_check_state([rev(None, 5, status="IN_PROGRESS")]),
@@ -125,9 +125,47 @@ class EffectiveRunTest(unittest.TestCase):
             (False, None),
         )
         self.assertFalse(checks.review_check_running([run(None, 1, status="IN_PROGRESS", workflow="Validation")]))
+        # Other Agent Ops jobs (implementation, audit) and the gate wake-up are not reviews.
+        for name in ("Implement issue", "Collect audit metrics", "Wake the merge gate"):
+            self.assertFalse(checks.review_check_running([run(None, 1, name=name, status="IN_PROGRESS", workflow="Agent Ops")]))
+        # A review on a head checked before the consolidation still counts.
+        self.assertTrue(checks.review_check_running([run(None, 1, name="Review PR", status="IN_PROGRESS", workflow="Agent review")]))
         untrusted = rev(None, 1, status="IN_PROGRESS")
         untrusted["checkSuite"]["app"]["slug"] = "rogue-app"
         self.assertEqual(checks.review_check_state([untrusted]), (False, None))
+
+
+class JobAwareRollupTest(unittest.TestCase):
+    """#496: consolidated workflows are filtered by (workflow, job), never by workflow alone."""
+
+    def test_metadata_jobs_are_ignored(self):
+        for workflow, name in (
+            ("Agent Ops", "Adaptive PR review"),
+            ("Agent Ops", "Record review and attest"),
+            ("Agent Ops", "Wake the merge gate"),
+            ("Ops & Maintenance", "Synchronize GitHub labels"),
+            ("Release", "Fast-forward release channel"),
+            ("Merge gate", "Integrate ready PRs"),
+            ("Agent review", "publish"),
+            ("Synchronize GitHub labels", "sync"),
+        ):
+            with self.subTest(workflow=workflow, name=name):
+                self.assertIsNone(checks.rollup_state([run("FAILURE", 0, name=name, workflow=workflow)]))
+
+    def test_operational_failures_in_shared_workflows_count(self):
+        for workflow, name in (
+            ("Agent Ops", "Implement issue"),
+            ("Agent Ops", "Publish audit"),
+            ("Ops & Maintenance", "Probe live web app"),
+            ("Ops & Maintenance", "Normalize and route faults"),
+            ("Release", "Build and deploy to Firebase Hosting"),
+            ("Pull Request", "Check & Test"),
+        ):
+            with self.subTest(workflow=workflow, name=name):
+                self.assertEqual(checks.rollup_state([run("FAILURE", 0, name=name, workflow=workflow)]), "FAILURE")
+
+    def test_status_contexts_are_never_ignored(self):
+        self.assertFalse(checks.is_ignored({"__typename": "StatusContext", "context": "Validation result"}))
 
 
 HOLD = "Validation status (hold)"
