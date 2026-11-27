@@ -78,6 +78,7 @@ Settings are a fixed-width, centered column; exports and connections live in it.
 
 ## Platform behavior
 
+- As a returning user, I want the first paint in my selected theme's color with a loader until the app resolves to login or dashboard, so that startup never flashes the wrong color or a blank screen.
 - As a desktop user, I want zoom with Ctrl and +/- or the scroll wheel, so that I control how much I see.
 - As a mobile user, I want pinch to zoom, so that the app obeys the platform's natural gesture.
 - As a desktop user, I want hover states, cursors, and focus rings that signal interactivity, so that it is obvious what reacts to a click.
