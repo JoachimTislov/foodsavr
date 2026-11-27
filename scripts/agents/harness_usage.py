@@ -44,6 +44,8 @@ ANTIGRAVITY_ENDPOINTS = (
 )
 ANTIGRAVITY_USER_AGENT_VERSION = "2.24.0"
 ANTIGRAVITY_USER_AGENT_CL = "963137146"
+CLAUDE_OAUTH_USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
+CLAUDE_OAUTH_USER_AGENT = "claude-code/2.1.326"
 SUPPORTED_PROVIDERS = ("claude", "codex", "antigravity")
 
 
@@ -312,6 +314,14 @@ def _is_untouched_antigravity_bucket(
     return abs((reset_dt - expected).total_seconds()) <= 300
 
 
+def _is_antigravity_3p_bucket(bucket_id: str, group_label: str) -> bool:
+    bid = bucket_id.strip().lower()
+    if bid == "3p" or bid.startswith("3p-"):
+        return True
+    glabel = group_label.strip().lower()
+    return bool(glabel) and "gemini" not in glabel and ("claude" in glabel or "gpt" in glabel or "3p" in glabel)
+
+
 def parse_antigravity_quota_summary(payload: Mapping[str, Any], now: datetime | None = None) -> list[UsageWindow]:
     ref = now or utc_now()
     buckets: list[dict[str, Any]] = []
@@ -319,7 +329,7 @@ def parse_antigravity_quota_summary(payload: Mapping[str, Any], now: datetime | 
     if isinstance(raw_groups, list):
         for group in raw_groups:
             if isinstance(group, dict) and isinstance(group.get("buckets"), list):
-                group_label = group.get("label") or group.get("groupId") or ""
+                group_label = group.get("label") or group.get("displayName") or group.get("groupId") or ""
                 for bucket in group["buckets"]:
                     if isinstance(bucket, dict):
                         buckets.append({"_group_label": group_label, **bucket})
@@ -331,6 +341,10 @@ def parse_antigravity_quota_summary(payload: Mapping[str, Any], now: datetime | 
 
     windows: list[UsageWindow] = []
     for index, bucket in enumerate(buckets):
+        bucket_id = str(bucket.get("bucketId") or bucket.get("id") or f"bucket-{index}")
+        group_label = str(bucket.get("_group_label") or "").strip()
+        if _is_antigravity_3p_bucket(bucket_id, group_label):
+            continue
         remaining_raw = bucket.get("remainingFraction")
         disabled = bool(bucket.get("disabled", False))
         if remaining_raw is None and not disabled:
@@ -348,8 +362,6 @@ def parse_antigravity_quota_summary(payload: Mapping[str, Any], now: datetime | 
         description = bucket.get("description") if isinstance(bucket.get("description"), str) else None
         if _is_untouched_antigravity_bucket(remaining_fraction, description, reset_time, duration_mins, ref):
             reset_time = None
-        bucket_id = str(bucket.get("bucketId") or bucket.get("id") or f"bucket-{index}")
-        group_label = str(bucket.get("_group_label") or "").strip()
         label = description or (f"{group_label} ({window_tag})" if group_label and window_tag else bucket_id)
         windows.append(
             UsageWindow(
@@ -374,6 +386,11 @@ def parse_antigravity_available_models(payload: Mapping[str, Any], now: datetime
     weekly_worst: tuple[float, str | None, str] | None = None
     for model_id, info in models.items():
         if not isinstance(info, dict):
+            continue
+        model_provider = str(info.get("modelProvider") or "").strip().upper()
+        if model_provider and model_provider != "MODEL_PROVIDER_GOOGLE":
+            continue
+        if not model_provider and not str(model_id).lower().startswith(("gemini-", "tab_")):
             continue
         for key, duration_mins, target in (
             ("quotaInfo", 300, "session"),
@@ -857,12 +874,54 @@ def probe_codex(
     )
 
 
+def _get_claude_oauth_usage(url: str, token: str, timeout: float) -> dict[str, Any]:
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "User-Agent": CLAUDE_OAUTH_USER_AGENT,
+            "anthropic-beta": "oauth-2025-04-20",
+        },
+        method="GET",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        raw = response.read(512 * 1024).decode("utf-8", errors="replace")
+    parsed = json.loads(raw)
+    if not isinstance(parsed, dict):
+        raise ValueError("expected JSON object from Claude OAuth usage API")
+    return parsed
+
+
+def _read_claude_oauth_token(environ: Mapping[str, str]) -> str | None:
+    env_token = environ.get("CLAUDE_CODE_OAUTH_TOKEN", "").strip()
+    if env_token:
+        return env_token
+    home = Path(environ.get("HOME") or Path.home())
+    config = Path(environ.get("CLAUDE_CONFIG_DIR") or home / ".claude").expanduser()
+    creds_path = config / ".credentials.json"
+    if not creds_path.is_file():
+        return None
+    try:
+        parsed = json.loads(creds_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if isinstance(parsed, Mapping):
+        oauth = parsed.get("claudeAiOauth")
+        if isinstance(oauth, Mapping):
+            tok = oauth.get("accessToken")
+            if isinstance(tok, str) and tok.strip():
+                return tok.strip()
+    return None
+
+
 def probe_claude(
     *,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
     command: str = "claude",
     env: Mapping[str, str] | None = None,
     now: datetime | None = None,
+    http_get: Callable[[str, str, float], dict[str, Any]] | None = None,
 ) -> HarnessUsageSnapshot:
     ref = now or utc_now()
     environ = dict(os.environ if env is None else env)
@@ -887,6 +946,8 @@ def probe_claude(
             )
 
     proc: subprocess.Popen[str] | None = None
+    response: dict[str, Any] | None = None
+    cli_error: str | None = None
     try:
         proc = subprocess.Popen(
             [binary, "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"],
@@ -914,42 +975,43 @@ def probe_claude(
             timeout,
         )
     except OSError as exc:
-        return HarnessUsageSnapshot(
-            provider="claude",
-            status="error",
-            auth_mode="subscription",
-            fetched_at=iso_utc(ref),
-            error=f"failed to start claude stream-json control probe: {exc}",
-        )
+        cli_error = f"failed to start claude stream-json control probe: {exc}"
     finally:
         if proc is not None:
             _terminate_quietly(proc)
 
-    if response is None:
-        return HarnessUsageSnapshot(
-            provider="claude",
-            status="error",
-            auth_mode="subscription",
-            fetched_at=iso_utc(ref),
-            error="timed out waiting for claude get_usage control_response",
-        )
-    resp_body = response.get("response", {})
-    if isinstance(resp_body, dict) and resp_body.get("subtype") == "error":
-        return HarnessUsageSnapshot(
-            provider="claude",
-            status="error",
-            auth_mode="subscription",
-            fetched_at=iso_utc(ref),
-            error="Claude rejected the usage request.",
-        )
-    windows = parse_claude_usage(response)
+    windows: list[UsageWindow] = []
+    if response is not None:
+        resp_body = response.get("response", {})
+        if isinstance(resp_body, dict) and resp_body.get("subtype") == "error":
+            cli_error = "Claude rejected the usage request."
+        else:
+            windows = parse_claude_usage(response)
+            if not windows:
+                cli_error = "claude returned no usage windows"
+    elif cli_error is None:
+        cli_error = "timed out waiting for claude get_usage control_response"
+
+    if not windows:
+        # When authenticated solely via CLAUDE_CODE_OAUTH_TOKEN (without ~/.claude/.credentials.json),
+        # Claude CLI's stream-json `get_usage` returns `rate_limits_available: false`. Fall back to
+        # the direct OAuth usage endpoint using the configured OAuth token.
+        oauth_token = _read_claude_oauth_token(environ)
+        if oauth_token:
+            getter = http_get or _get_claude_oauth_usage
+            try:
+                oauth_payload = getter(CLAUDE_OAUTH_USAGE_URL, oauth_token, timeout)
+                windows = parse_claude_usage(oauth_payload)
+            except (urllib.error.URLError, OSError, ValueError) as exc:
+                cli_error = f"{cli_error or 'claude get_usage failed'}; OAuth usage endpoint failed: {exc}"
+
     if not windows:
         return HarnessUsageSnapshot(
             provider="claude",
             status="error",
             auth_mode="subscription",
             fetched_at=iso_utc(ref),
-            error="claude returned no usage windows",
+            error=cli_error or "claude returned no usage windows",
         )
     return HarnessUsageSnapshot(
         provider="claude",

@@ -74,7 +74,7 @@ EVENT_POLICY_WORKFLOWS = (
 )
 # An event rule allows only the events it lists for the targeted files, so this must
 # cover every trigger the three workflows declare (test_setupctl checks it).
-EVENT_POLICY_EVENTS = ("issues", "pull_request_target", "push", "schedule", "workflow_dispatch", "workflow_run")
+EVENT_POLICY_EVENTS = ("issue_comment", "issues", "pull_request_target", "push", "schedule", "workflow_dispatch", "workflow_run")
 
 AGENT_ENV_VARS = (
     "AGENT_SESSION_ID",
