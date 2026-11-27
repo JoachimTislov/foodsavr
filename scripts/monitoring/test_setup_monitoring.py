@@ -192,6 +192,21 @@ class TestMonitoringEntrypoint(unittest.TestCase):
             self.assertIn("Monitoring and healing loop setup checks passed.", res.stdout)
             self.assertNotIn("Monitoring shell", res.stdout)
 
+    def test_target_outside_the_recorded_sites_is_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            state_file = tmp / "state.json"
+            secrets = ["CLAUDE_CODE_OAUTH_TOKEN", "AGENT_APP_ID", "AGENT_APP_PRIVATE_KEY"]
+            variables = {"FIREBASE_PLAN": "spark", "AUTO_HEAL_ENABLED": "true"}
+            fake_gh = _make_fake_gh(tmp, state_file)
+            for url, code in (("https://old-project.web.app", 1), ("https://example-project.web.app/", 0)):
+                with self.subTest(url=url):
+                    state_file.write_text(json.dumps({"secrets": secrets, "variables": {**variables, "MONITOR_TARGET_URL": url}}))
+                    res = subprocess.run([str(SCRIPT)], cwd=ROOT, env=_human_env(fake_gh), stdin=subprocess.DEVNULL,
+                                         capture_output=True, text=True, timeout=10)
+                    self.assertEqual(res.returncode, code, res.stdout + res.stderr)
+                    self.assertEqual("not a Hosting site recorded" in res.stdout, code == 1)
+
     def test_non_interactive_accepts_antigravity_and_gemini_secrets(self) -> None:
         for secret_name in ("ANTIGRAVITY_OAUTH_TOKEN_B64", "GEMINI_API_KEY"):
             with self.subTest(secret=secret_name), tempfile.TemporaryDirectory() as tmpdir:

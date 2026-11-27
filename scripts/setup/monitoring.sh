@@ -152,6 +152,10 @@ run_audit() {
 
   val_url="$(get_var MONITOR_TARGET_URL)"
   note "MONITOR_TARGET_URL=${val_url:-$default_target_url (default)}"
+  recorded_sites="$(python3 scripts/instance_local.py site-urls)"
+  if [ -n "$val_url" ] && [ -n "$recorded_sites" ] && ! grep -qxF "${val_url%/}" <<<"$recorded_sites"; then
+    miss "MONITOR_TARGET_URL ($val_url) is not a Hosting site recorded by make setup"
+  fi
 
   val_reporter="$(get_var ERROR_REPORTER)"
   val_endpoint="$(get_var ERROR_COLLECTOR_ENDPOINT)"

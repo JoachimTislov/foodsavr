@@ -41,6 +41,45 @@ class WizardTest(TestCase):
         self.assertEqual(output.getvalue(), "Local development files ready.\n")
         scaffold.assert_not_called()
 
+    def cloud_setup(self):
+        setup = wizard.Setup.__new__(wizard.Setup)
+        setup.listing, setup.cloud, setup.firebase, setup.project, setup.repo = False, True, True, "example-project", "o/r"
+        return setup
+
+    def test_declining_the_session_archive_records_the_choice(self):
+        setup = self.cloud_setup()
+        with patch.object(wizard, "load_instance_local", return_value={}), \
+                patch.object(wizard, "confirm", return_value=False), \
+                patch.object(wizard, "save_instance_local") as save, \
+                patch.object(wizard, "run") as run, \
+                patch.dict(os.environ, {"AGENT_SESSION_PROJECT": ""}), redirect_stdout(StringIO()):
+            self.assertTrue(setup.session_archive())
+        save.assert_called_once_with({"sessionArchive": {"enabled": False}})
+        run.assert_not_called()
+        with patch.object(wizard, "load_instance_local", return_value={"sessionArchive": {"enabled": False}}), \
+                patch.object(wizard, "run") as run, patch.dict(os.environ, {"AGENT_SESSION_PROJECT": ""}):
+            self.assertTrue(setup.session_archive())
+        run.assert_not_called()
+
+    def test_session_archive_provisions_then_backfills(self):
+        setup = self.cloud_setup()
+        calls = []
+
+        def fake_run(*args, **_):
+            calls.append(args[1:3] + args[3:4])
+            return 1 if "--check" in args and len(calls) == 1 else 0
+
+        local = {"sessionArchive": {"project": "example-agents", "billingAccount": "000000-000000-000000"}}
+        with patch.object(wizard, "load_instance_local", return_value=local), patch.object(wizard, "run", side_effect=fake_run), \
+                redirect_stdout(StringIO()):
+            self.assertTrue(setup.session_archive())
+        self.assertEqual(calls, [
+            ("sessions", "provision-archive", "--check"),
+            ("sessions", "provision-archive", "--apply"),
+            ("sessions", "archive", "--all"),
+            ("sessions", "provision-archive", "--check"),
+        ])
+
     def test_terraform_listing_only_plans(self):
         output = StringIO()
         with patch.object(wizard, "run", return_value=2) as run, redirect_stdout(output):

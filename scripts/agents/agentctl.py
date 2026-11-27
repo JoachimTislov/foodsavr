@@ -881,8 +881,14 @@ def provision_archive_command(args: argparse.Namespace) -> int:
         raise ValueError("archiving is not configured: set AGENT_SESSION_PROJECT (or sessionArchive.project in .agents/instance.local.json; make setup)")
     steps = sa.provision_steps(config)
     printable = {step.name: " ".join(shlex.quote(part) for part in step.command) for step in steps}
+    if args.check:
+        gcloud = sa.Gcloud()
+        missing = [step.name for step in steps
+                   if not ((checked := gcloud.run(step.check[1:], timeout=60)).returncode == 0 and step.done(checked.stdout or ""))]
+        print(f"missing: {', '.join(missing)}" if missing else f"ready: gs://{sa.bucket_name(config)}")
+        return 1 if missing else 0
     if not args.apply:
-        print("# Owner-only step (ADR 0003): review, then run `make session-archive` (or `agentctl sessions provision-archive --apply --link-billing`).")
+        print("# Owner-only step (ADR 0003): review, then run `make setup` (or `make session-archive`, `agentctl sessions provision-archive --apply --link-billing`).")
         print("# Each step is skipped when its check shows it is already done.")
         print("\n".join(printable.values()))
         return 0
@@ -895,7 +901,7 @@ def provision_archive_command(args: argparse.Namespace) -> int:
             print(f"exists: {step.name}")
             continue
         if step.owner and not (args.link_billing and config.get("billingAccount")):
-            reason = "set AGENT_SESSION_BILLING_ACCOUNT or sessionArchive.billingAccount in .agents/instance.local.json" if not config.get("billingAccount") else "run `make session-archive`"
+            reason = "set AGENT_SESSION_BILLING_ACCOUNT or sessionArchive.billingAccount in .agents/instance.local.json (make setup)" if not config.get("billingAccount") else "run `make setup`"
             print(f"blocked: {step.name}: billing is not linked to {config['project']}; owner: {reason}")
             return 3
         result = gcloud.run(step.command[1:], timeout=180)
@@ -4721,6 +4727,7 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_parser.add_argument("--json", action="store_true")
     provision_parser = session_commands.add_parser("provision-archive", help="OWNER ONLY (ADR 0003): print or run the gcloud commands that create the archive bucket")
     provision_parser.add_argument("--apply", action="store_true", help="run the missing steps (default: print them)")
+    provision_parser.add_argument("--check", action="store_true", help="exit 1 while a step is missing; changes nothing")
     provision_parser.add_argument("--link-billing", action="store_true", help="OWNER ONLY: link the configured billing account to the archive project")
     session_commit_parser = session_commands.add_parser("commits", help="list commits linked by the Agent-Session trailer")
     session_commit_parser.add_argument("session_id")

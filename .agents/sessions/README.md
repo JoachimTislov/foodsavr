@@ -73,7 +73,7 @@ bucket (default `<project>-sessions`) and billing account come from
 `sessionArchive` section of the gitignored `.agents/instance.local.json`.
 Use a dedicated billed project so the app's Firebase projects stay on Spark.
 No secret is involved: access is your own `gcloud auth login`. Owner setup is
-one step: `make session-archive`.
+one step of `make setup` (also `make session-archive`).
 
 ```sh
 scripts/agents/agentctl sessions archive [--session ID | --all] [--dry-run] [--json]  # --all backfills; also runs on `sessions register --status completed` (--no-archive skips)

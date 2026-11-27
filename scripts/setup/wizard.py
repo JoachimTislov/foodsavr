@@ -454,6 +454,9 @@ class Setup:
             "firebase-infrastructure": self.firebase_infrastructure,
             "anonymous-sign-in": self.anonymous_sign_in,
             "facebook-sign-in": self.facebook_sign_in,
+            "social-sign-in": self.social_sign_in,
+            "web-monitoring": self.web_monitoring,
+            "session-archive": self.session_archive,
             "fork-actions": self.fork_actions,
         }
         if ordered_steps and (len(ordered_steps) != len(steps) or set(ordered_steps) != set(steps)):
@@ -896,6 +899,76 @@ class Setup:
             return True
 
         return self.step("Firebase app configuration", ready(), repair, f"Check registered apps at {url}.", ready)
+
+    def social_sign_in(self):
+        """Google and Facebook sign-in beyond the provider switch: SHA fingerprints, domains, Meta URLs."""
+        if not self.firebase:
+            return True
+        script = "scripts/setup/social_auth.sh"
+
+        def ready():
+            return run(script, "--check", env={**os.environ, "FIREBASE_PROJECT": self.project}, quiet=True) == 0
+
+        return self.step(
+            "Social sign-in", ready(), lambda: run(script, env={**os.environ, "FIREBASE_PROJECT": self.project}) == 0,
+            "Run scripts/human/meta/create-app-credentials.sh and "
+            "scripts/human/google/create-web-client-secret.sh, then make setup.", ready,
+        )
+
+    def web_monitoring(self):
+        """Monitoring variables (MONITOR_TARGET_URL and the healing loop) in GitHub."""
+        if not self.cloud:
+            return True
+        script = "scripts/setup/monitoring.sh"
+
+        def ready():
+            # Without a terminal the script only audits.
+            try:
+                return subprocess.run([script], cwd=ROOT, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                      stderr=subprocess.DEVNULL).returncode == 0
+            except OSError:
+                return False
+
+        return self.step("Web monitoring", ready(), lambda: run(script) == 0, "Run make setup again.", ready)
+
+    def session_archive(self):
+        """Agent session transcripts in Cloud Storage, in a dedicated billed project (optional)."""
+        if not self.firebase:
+            return True
+        section = load_instance_local().get("sessionArchive") or {}
+        if section.get("enabled") is False and not os.environ.get("AGENT_SESSION_PROJECT"):
+            return True
+        agentctl = "scripts/agents/agentctl"
+
+        def ready():
+            return bool(section.get("project") or os.environ.get("AGENT_SESSION_PROJECT")) and run(
+                agentctl, "sessions", "provision-archive", "--check", quiet=True,
+            ) == 0
+
+        def provision():
+            nonlocal section
+            if not (section.get("project") or os.environ.get("AGENT_SESSION_PROJECT")):
+                if not confirm("Archive agent session transcripts in Cloud Storage (needs a billed project)?"):
+                    section = {"enabled": False}
+                    save_instance_local({"sessionArchive": section})
+                    return True
+                project = input("Archive project ID (created when missing, e.g. <name>-agents): ").strip()
+                if not PROJECT_ID.fullmatch(project):
+                    print("Use 6-30 lowercase letters, digits and hyphens.")
+                    return False
+                run("gcloud", "billing", "accounts", "list")
+                billing = input("Billing account ID to link: ").strip()
+                if not billing:
+                    return False
+                section = {"project": project, "billingAccount": billing}
+                save_instance_local({"sessionArchive": section})
+            if run(agentctl, "sessions", "provision-archive", "--apply", "--link-billing") != 0:
+                return False
+            run(agentctl, "sessions", "archive", "--all")
+            return True
+
+        return self.step("Session archive", ready(), provision, "Run make setup again.",
+                         lambda: section.get("enabled") is False or ready())
 
     def fork_actions(self):
         if not self.cloud or not self.github["is_fork"]:
