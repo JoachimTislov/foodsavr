@@ -3,6 +3,6 @@
 # are per-event files under .agents/events/. The union attribute only serves branches that predate that.
 .agents/ledger.jsonl merge=union
 .agents/sessions/index.jsonl merge=union
-specs/source-of-truth/sync-ledger.jsonl merge=union
+specs/sync-ledger.jsonl merge=union
 log/implementation-rationale.jsonl merge=union
 log/review-thread-followups.jsonl merge=union

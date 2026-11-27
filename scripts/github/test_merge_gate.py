@@ -229,7 +229,7 @@ class PlanTest(unittest.TestCase):
         under_tiered = pr(
             42,
             head="ccccccc",
-            files=["specs/source-of-truth/decisions/0009-example.md"],
+            files=["specs/decisions/0009-example.md"],
             reviews=[
                 {
                     "state": "COMMENTED",
@@ -249,7 +249,7 @@ class PlanTest(unittest.TestCase):
         deep_ok = pr(
             43,
             head="ddddddd",
-            files=["specs/source-of-truth/decisions/0009-example.md"],
+            files=["specs/decisions/0009-example.md"],
             reviews=[
                 {
                     "state": "COMMENTED",

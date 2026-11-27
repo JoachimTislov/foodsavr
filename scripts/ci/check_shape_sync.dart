@@ -1,5 +1,5 @@
 // Validates the shaped spec artifacts against the code, per ADR 0004
-// (specs/source-of-truth/decisions/0004-truth-in-shapes.md).
+// (specs/decisions/0004-truth-in-shapes.md).
 //
 // Checks:
 // 1. Every registry entry with status built/stub/built-skeleton has an anchor
@@ -20,9 +20,7 @@ void fail(String message) {
 }
 
 void checkAnchors() {
-  final reg = File(
-    '$repo/specs/source-of-truth/registries/services.yaml',
-  ).readAsStringSync();
+  final reg = File('$repo/specs/registries/services.yaml').readAsStringSync();
   final anchors = <String>[];
   final entries = <Map<String, String>>[];
   for (final line in reg.split('\n')) {
@@ -68,7 +66,7 @@ void checkAnchors() {
 }
 
 void checkSchemas() {
-  final schemaDir = Directory('$repo/specs/source-of-truth/schemas');
+  final schemaDir = Directory('$repo/specs/schemas');
   for (final entity in schemaDir.listSync()) {
     if (entity is! File || !entity.path.endsWith('.schema.json')) continue;
     final schema =

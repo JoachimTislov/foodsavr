@@ -1,5 +1,5 @@
 // Selects the tests to run for a CI trigger, per ADR 0002
-// (specs/source-of-truth/decisions/0002-intent-gated-specs-optimized-verification.md):
+// (specs/decisions/0002-intent-gated-specs-optimized-verification.md):
 // hash-based caching + relational (import) selection + core-workflow pinning.
 //
 // Inputs (env or defaults):

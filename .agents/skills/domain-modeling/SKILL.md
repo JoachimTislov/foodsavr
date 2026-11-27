@@ -11,7 +11,7 @@ Actively build and sharpen the project's domain model as you design. This is the
 
 ## File structure
 
-FoodSavr is a single context. The glossary is `specs/source-of-truth/glossary.md`; ADRs are `specs/source-of-truth/decisions/NNNN-slug.md`. Both are spec files: create the glossary, or a new ADR, only with explicit owner intent (ADR 0002), and log the change in the spec's `status.md` sync ledger.
+FoodSavr is a single context. The glossary is `specs/glossary.md`; ADRs are `specs/decisions/NNNN-slug.md`. Both are spec files: create the glossary, or a new ADR, only with explicit owner intent (ADR 0002), and log the change in the spec's `status.md` sync ledger.
 
 ## During the session
 

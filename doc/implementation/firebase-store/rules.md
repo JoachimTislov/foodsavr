@@ -1,6 +1,6 @@
 # Cloud Firestore Security Rules for foodsavr
 
-> This document describes an earlier design. The tracked `firestore.rules` and [ADR 0010](../../../specs/source-of-truth/decisions/0010-track-firestore-rules-during-test-phase.md) are authoritative.
+> This document describes an earlier design. The tracked `firestore.rules` and [ADR 0010](../../../specs/decisions/0010-track-firestore-rules-during-test-phase.md) are authoritative.
 
 ### Summary
 

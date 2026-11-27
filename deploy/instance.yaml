@@ -6,8 +6,8 @@
 # locally; both written by `make setup`). Without an overlay every cloud
 # environment is unprovisioned, so forks deploy nothing until set up.
 #
-# Shape: specs/source-of-truth/schemas/deployment-instance.schema.json
-# Why:   specs/source-of-truth/deployment-levels.md, ADR 0005
+# Shape: specs/schemas/deployment-instance.schema.json
+# Why:   specs/deployment-levels.md, ADR 0005
 # Tool:  dart run packages/foodsavr_deploy/bin/levels.dart <validate|plan|poll|env>
 #
 # Levels are a shared, ordered ladder; each environment (flavor) sits at one

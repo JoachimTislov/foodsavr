@@ -18,10 +18,10 @@ The count finds files; the conventions below are what the history does not show.
 |---|---|
 | `assets/translations/en.json`, `nb.json` | Each lane owns one namespace slot: a new top-level namespace or a new sub-object inside an existing one, inserted at a named **anchor** (directly after a named block). Anchors sit at least 7 lines from every other lane's anchor and every locked hunk, so rebases never touch adjacent lines. Same anchor in every locale; `make check` runs the locale check. |
 | `lib/register_module.dart`, `lib/main.dart` (DI and startup) | One owning lane per batch. Other lanes construct their objects where they are used, or wait. |
-| `specs/source-of-truth/status.md`, `data-model.md`, `schemas/*.json`, `contracts/*` | One owning lane per file per batch. A shape change ships in the PR that changes the code (ADR 0004), so two lanes that change one schema are serialized, never parallel. |
+| `specs/status.md`, `data-model.md`, `schemas/*.json`, `contracts/*` | One owning lane per file per batch. A shape change ships in the PR that changes the code (ADR 0004), so two lanes that change one schema are serialized, never parallel. |
 | `pubspec.yaml`, `pubspec.lock` | One lane per batch adds or bumps dependencies. |
 | `test/support/`, `test/helpers/` (shared fakes) | The lane that creates a fake owns it for the batch. Other lanes keep fakes local to their test file and move to the shared one after it merges. |
-| `specs/source-of-truth/sync-ledger.jsonl` | Append-only. A rebase conflict keeps both sides in timestamp order; `python3 scripts/agents/check_logs.py` validates. |
+| `specs/sync-ledger.jsonl` | Append-only. A rebase conflict keeps both sides in timestamp order; `python3 scripts/agents/check_logs.py` validates. |
 | `.agents/events/`, `.agents/ledger.jsonl`, `.agents/sessions/index.jsonl` | Not hot (#397): every agent log record is its own event file, so lanes never share a log file. The two legacy files are frozen; a lane that appends to one is a defect. |
 
 ## Hot files without a seam

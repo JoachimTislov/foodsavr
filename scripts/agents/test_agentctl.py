@@ -2436,7 +2436,7 @@ class TraceabilityTest(unittest.TestCase):
             {"session_id": "claude-code:a", "started_at": new, "prs": ["#1"]}, {"session_id": "claude-code:a", "started_at": new, "prs": ["#2"]}])
         self.assertEqual(logs.check(root, [".agents/sessions/index.jsonl"]), [])
         attributes = (ROOT / ".gitattributes").read_text()
-        for log in (".agents/ledger.jsonl", ".agents/sessions/index.jsonl", "specs/source-of-truth/sync-ledger.jsonl"):
+        for log in (".agents/ledger.jsonl", ".agents/sessions/index.jsonl", "specs/sync-ledger.jsonl"):
             self.assertIn(f"{log} merge=union", attributes)
 
     # projection

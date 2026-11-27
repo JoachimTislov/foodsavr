@@ -1,6 +1,6 @@
 # ADR Format
 
-ADRs live in `specs/source-of-truth/decisions/` and use sequential numbering: `0001-slug.md`, `0002-slug.md`, etc. A new ADR needs explicit owner intent (ADR 0002).
+ADRs live in `specs/decisions/` and use sequential numbering: `0001-slug.md`, `0002-slug.md`, etc. A new ADR needs explicit owner intent (ADR 0002).
 
 ## Template
 
@@ -22,7 +22,7 @@ Only include these when they add genuine value. Most ADRs won't need them.
 
 ## Numbering
 
-Scan `specs/source-of-truth/decisions/` for the highest existing number and increment by one.
+Scan `specs/decisions/` for the highest existing number and increment by one.
 
 ## When to offer an ADR
 

@@ -42,7 +42,7 @@ class LocalCiTest(unittest.TestCase):
         self.assertEqual(ci.groups_for(["lib/main.dart", ".agents/events/2026/11/x.jsonl"]), ["dart"])
         self.assertEqual(ci.groups_for([".agents/events/2026/11/x.jsonl"]), [])
         self.assertEqual(ci.groups_for([".agents/events/2026/11/x.jsonl", ".agents/skills/x/SKILL.md"]), ["agents"])
-        self.assertEqual(ci.groups_for(["specs/source-of-truth/status.md"]), ["agents", "docs"])
+        self.assertEqual(ci.groups_for(["specs/status.md"]), ["agents", "docs"])
         self.assertEqual(ci.groups_for([".github/workflows/merge-gate.yml"]), ["agents", "workflows"])
         self.assertEqual(ci.groups_for(["Makefile"]), ["agents"])
         self.assertEqual(ci.groups_for(["README.md"]), ["docs"])

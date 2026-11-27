@@ -8,7 +8,7 @@ metadata:
 
 # FoodSavr Flutter standards
 
-The single source of truth for how FoodSavr code is written. `code-review` applies it on the Standards axis. Where it conflicts with [architecture.md](../../../specs/source-of-truth/architecture.md), the spec wins and the conflict is a sync finding.
+The single source of truth for how FoodSavr code is written. `code-review` applies it on the Standards axis. Where it conflicts with [architecture.md](../../../specs/architecture.md), the spec wins and the conflict is a sync finding.
 
 Stack: Dart, Flutter (SDK >=3.32.0), Firebase Auth/Firestore, GetIt + `injectable`, `watch_it`, `logger`, `easy_localization`. Library deep-dives: `get-it-expert`, `watch-it-expert`; translations: `localization`.
 

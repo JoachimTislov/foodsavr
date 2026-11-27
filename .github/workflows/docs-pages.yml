@@ -5,7 +5,7 @@ on:
     branches: [daily, weekly, stable]
     paths: &docs-paths
       - 'doc/**'
-      - 'specs/source-of-truth/**'
+      - 'specs/**'
       - 'assets/logos/**'
       - '*.md'
       - 'mkdocs.yml'

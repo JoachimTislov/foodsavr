@@ -1,5 +1,5 @@
 # Feature module catalog, plans and limits (ADR 0008).
-# Shape: specs/source-of-truth/contracts/feature-registry.schema.json
+# Shape: specs/contracts/feature-registry.schema.json
 # Spec-ahead: no code reads this yet. The app will bundle this table so
 # resolution works offline; Remote Config only switches modules off.
 # Dependencies are technical starting points; adjust them in implementation.

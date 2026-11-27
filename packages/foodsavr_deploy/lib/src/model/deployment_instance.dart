@@ -9,7 +9,7 @@ import 'trigger.dart';
 /// recommend moving along it, and the environments (flavors) that each sit
 /// at one level of that ladder.
 ///
-/// Shape: specs/source-of-truth/schemas/deployment-instance.schema.json.
+/// Shape: specs/schemas/deployment-instance.schema.json.
 /// Manifest: deploy/instance.yaml.
 class DeploymentInstance {
   const DeploymentInstance({

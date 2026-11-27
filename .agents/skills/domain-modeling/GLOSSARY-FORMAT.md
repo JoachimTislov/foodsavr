@@ -31,4 +31,4 @@ _Avoid_: Client, buyer, account
 
 ## Location
 
-FoodSavr is a single context: one glossary at `specs/source-of-truth/glossary.md`. Creating it is a new spec file and needs explicit owner intent (ADR 0002).
+FoodSavr is a single context: one glossary at `specs/glossary.md`. Creating it is a new spec file and needs explicit owner intent (ADR 0002).

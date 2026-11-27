@@ -5,7 +5,7 @@
   "references": {"issues": [], "prs": []},
   "context": {
     "queries": ["source of truth sync status"],
-    "files": ["AGENTS.md", ".agents/tracker.md", "specs/source-of-truth/status.md"],
+    "files": ["AGENTS.md", ".agents/tracker.md", "specs/status.md"],
     "skills": ["flutter-standards", "tdd", "localization"]
   },
   "steps": [
