@@ -8,12 +8,13 @@ name: Agent Ops
 #   Agent-written code runs only in the read-only `implement` job; the
 #   `implement-publish` job, on a fresh runner, applies the verified patch, commits it
 #   with an Agent-Session trailer, and opens a draft PR.
-# - review (pull_request_target, or dispatch): classifies and reviews non-draft,
+# - review (pull_request_target, trusted `@foodsavr-agent review` PR comments, or
+#   dispatch): classifies and reviews non-draft,
 #   same-repository PRs at their adaptive review tier (exempt, fast, balanced, deep,
 #   human) and posts a head-bound attestation review (<!-- agent-review: ... -->)
 #   consumed by the merge gate (ADR 0006). Automatic reviews are off when the
-#   repository variable AGENT_AUTO_REVIEW_ENABLED is `false`; dispatch still
-#   reviews. Untrusted PR code is never checked out or
+#   repository variable AGENT_AUTO_REVIEW_ENABLED is `false`; dispatch and trusted
+#   PR-comment requests still review. Untrusted PR code is never checked out or
 #   executed; the jobs check out the default branch and fetch PR metadata and diff
 #   text via the GitHub API. `review` reads untrusted PR text and holds provider
 #   credentials but only a read-only token; `review-publish` holds write permissions
@@ -31,6 +32,8 @@ name: Agent Ops
 on:
   issues:
     types: [labeled]
+  issue_comment:
+    types: [created]
   pull_request_target:
     types: [opened, ready_for_review, synchronize, reopened]
   schedule:
@@ -75,21 +78,29 @@ on:
 
 run-name: >-
   ${{ format('Agent Ops: {0}',
-    (github.event_name == 'pull_request_target' || inputs.operation == 'review') && format('review #{0}', github.event.pull_request.number || inputs.pr) ||
+    (github.event_name == 'pull_request_target' || github.event_name == 'issue_comment' || inputs.operation == 'review') && format('review #{0}', github.event.pull_request.number || github.event.issue.number || inputs.pr) ||
     (github.event_name == 'issues' || inputs.operation == 'implement') && format('implement #{0}', github.event.issue.number || inputs.issue) ||
     (github.event_name == 'schedule' || inputs.operation == 'audit') && 'audit' ||
     'incident') }}
 
 # One group per operation and item, named as before the consolidation: a review of
 # one PR cancels only that PR's older review, and issue, audit and incident runs
-# never cancel each other.
+# never cancel each other. The group mirrors the `review` job's eligibility: an
+# ineligible review event (a foreign comment, or a push while automatic review is
+# disabled, on a draft, from a fork, or by Dependabot) gets a unique group so a run
+# that will only skip can never cancel an active review (#531).
 concurrency:
   group: >-
-    ${{ (github.event_name == 'pull_request_target' || inputs.operation == 'review') && format('agent-review-{0}', github.event.pull_request.number || inputs.pr) ||
-    (github.event_name == 'issues' || inputs.operation == 'implement') && format('agent-implement-{0}{1}', github.event.issue.number || inputs.issue, (github.event_name == 'issues' && github.event.label.name != 'triage/ready-for-agent') && format('-label-{0}', github.run_id) || '') ||
-    (github.event_name == 'schedule' || inputs.operation == 'audit') && 'agent-system-audit' ||
+    ${{ (github.event_name == 'workflow_dispatch' && inputs.operation == 'review') && format('agent-review-{0}', inputs.pr) ||
+    (github.event_name == 'issue_comment') && ((github.event.issue.pull_request && contains(github.event.comment.body, '@foodsavr-agent review') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) && format('agent-review-{0}', github.event.issue.number) || format('agent-review-skip-{0}-{1}', github.event.issue.number, github.run_id)) ||
+    (github.event_name == 'pull_request_target') && ((vars.AGENT_AUTO_REVIEW_ENABLED != 'false' && !github.event.pull_request.draft && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') && format('agent-review-{0}', github.event.pull_request.number) || format('agent-review-skip-{0}-{1}', github.event.pull_request.number, github.run_id)) ||
+    (github.event_name == 'issues' || (github.event_name == 'workflow_dispatch' && inputs.operation == 'implement')) && format('agent-implement-{0}{1}', github.event.issue.number || inputs.issue, (github.event_name == 'issues' && github.event.label.name != 'triage/ready-for-agent') && format('-label-{0}', github.run_id) || '') ||
+    (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.operation == 'audit')) && 'agent-system-audit' ||
     'agent-incident' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request_target' || inputs.operation == 'review' }}
+  cancel-in-progress: >-
+    ${{ (github.event_name == 'workflow_dispatch' && inputs.operation == 'review') ||
+    (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@foodsavr-agent review') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
+    (github.event_name == 'pull_request_target' && vars.AGENT_AUTO_REVIEW_ENABLED != 'false' && !github.event.pull_request.draft && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') }}
 
 permissions:
   contents: read
@@ -98,7 +109,7 @@ env:
   ISSUE: ${{ github.event.issue.number || inputs.issue }}
   BRANCH: agent/issue-${{ github.event.issue.number || inputs.issue }}
   HEALING_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.healing_mode == true }}
-  PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
+  PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || inputs.pr }}
 
 jobs:
   # --- implement ----------------------------------------------------------------
@@ -247,6 +258,10 @@ jobs:
       - name: Apply patch
         id: patch
         run: |
+          # The healing checker must come from the trusted checkout, captured before
+          # the model patch is applied: a patch to the checker itself must not decide
+          # whether the patch is safe (#531).
+          cp scripts/monitoring/check_healing_patch.py "$RUNNER_TEMP/check_healing_patch.py"
           patch="$(jq -r '.patch // empty' .agents/state/result.json 2>/dev/null || true)"
           session="$(jq -r '.session_ids[0] // empty' .agents/state/result.json 2>/dev/null || true)"
           echo "session=${session}" >> "$GITHUB_OUTPUT"
@@ -290,7 +305,7 @@ jobs:
         run: |
           git add --update
           if [ "$HEALING_MODE" = "true" ]; then
-            python3 scripts/monitoring/check_healing_patch.py --git-cached
+            python3 "$RUNNER_TEMP/check_healing_patch.py" --git-cached
           fi
           git diff --cached --binary > .agents/state/final.patch
 
@@ -350,9 +365,11 @@ jobs:
           ARTIFACTS: ${{ runner.temp }}/agent
         run: |
           title="$(gh issue view "$ISSUE" --json title --jq .title)"
+          trusted_checker="$RUNNER_TEMP/check_healing_patch.py"
+          cp scripts/monitoring/check_healing_patch.py "$trusted_checker"
           git apply --index "$ARTIFACTS/final.patch"
           if [ "$HEALING_MODE" = "true" ]; then
-            python3 scripts/monitoring/check_healing_patch.py --git-cached
+            python3 "$trusted_checker" --git-cached
           fi
           bot="${APP_SLUG}[bot]"
           bot_id="$(gh api "/users/${bot}" --jq .id)"
@@ -445,6 +462,10 @@ jobs:
     name: Adaptive PR review
     if: >-
       (github.event_name == 'workflow_dispatch' && inputs.operation == 'review') ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       contains(github.event.comment.body, '@foodsavr-agent review') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
       (github.event_name == 'pull_request_target' &&
        vars.AGENT_AUTO_REVIEW_ENABLED != 'false' &&
        !github.event.pull_request.draft &&
@@ -510,7 +531,10 @@ jobs:
               "repos/${GITHUB_REPOSITORY}/compare/${base_sha}...${head_sha}" \
               > ".agents/state/pr-${PR_NUMBER}.diff" || rm -f ".agents/state/pr-${PR_NUMBER}.diff"
           fi
-          touch ".agents/state/pr-${PR_NUMBER}.diff"
+          if [ ! -f ".agents/state/pr-${PR_NUMBER}.diff" ]; then
+            echo "::error::Could not fetch the immutable PR diff; refusing to run or attest a review."
+            exit 1
+          fi
           python3 scripts/github/pr_review.py classify \
             --pr "$PR_NUMBER" \
             --pr-json ".agents/state/pr-${PR_NUMBER}-raw.json" \
@@ -823,10 +847,7 @@ jobs:
   review-wake-gate:
     name: Wake the merge gate
     needs: review-publish
-    if: >-
-      needs.review-publish.result == 'success' &&
-      (github.event_name == 'workflow_dispatch' ||
-       contains(github.event.pull_request.labels.*.name, 'merge/auto'))
+    if: needs.review-publish.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -835,6 +856,20 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Decide from the PR's labels as they are now, not as the review event
+          # captured them: a maintainer may add merge/auto during the review. When
+          # the label read fails, wake the gate anyway; it re-checks merge/auto
+          # itself, and the 30-minute schedule stays the recovery path.
+          if [ "${{ github.event_name }}" != workflow_dispatch ]; then
+            if labels="$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" --json labels --jq '.labels[].name' 2>/dev/null)"; then
+              if ! grep -Fxq merge/auto <<<"$labels"; then
+                echo "merge/auto is not set at wake time; the scheduled gate run remains the recovery path."
+                exit 0
+              fi
+            else
+              echo "::warning::Could not read the PR's current labels; the gate re-checks merge/auto itself."
+            fi
+          fi
           gh workflow run merge-gate.yml --repo "${{ github.repository }}" --ref "${{ github.event.repository.default_branch }}" ||
             echo "::warning::Could not dispatch the merge gate; the schedule will run it."
 

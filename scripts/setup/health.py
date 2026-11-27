@@ -16,6 +16,9 @@ import re
 import subprocess
 import tomllib
 from typing import Any, Callable
+
+# Pages searched for one operation of a shared workflow (30 runs per page).
+RUN_PAGE_BUDGET = 5
 import urllib.error
 import urllib.request
 
@@ -96,12 +99,22 @@ class Live:
         return proc.stdout.strip() if proc.returncode == 0 else None
 
     def latest_run(self, workflow: str, event: str | None, branch: str, run_name: str | None = None) -> dict[str, Any] | None:
-        query = f"repos/{self.repo}/actions/workflows/{workflow}/runs?status=completed&per_page={30 if run_name else 1}"
-        if event:
-            query += f"&event={event}&branch={branch}"
-        out = self._api(query, ".workflow_runs")
-        runs = json.loads(out) if out and out != "null" else []
-        return next((r for r in runs if not run_name or run_name in str(r.get("display_title") or "")), None)
+        # A shared workflow interleaves other operations; when the wanted one is older
+        # than the first page, keep paging within a budget instead of reporting none.
+        per_page = 30 if run_name else 1
+        page = 1
+        while True:
+            query = f"repos/{self.repo}/actions/workflows/{workflow}/runs?status=completed&per_page={per_page}&page={page}"
+            if event:
+                query += f"&event={event}&branch={branch}"
+            out = self._api(query, ".workflow_runs")
+            runs = json.loads(out) if out and out != "null" else []
+            match = next((r for r in runs if not run_name or run_name in str(r.get("display_title") or "")), None)
+            if match is not None:
+                return match
+            if not run_name or len(runs) < per_page or page >= RUN_PAGE_BUDGET:
+                return None
+            page += 1
 
     def annotations(self, run_id: int) -> list[str]:
         jobs = self._api(f"repos/{self.repo}/actions/runs/{run_id}/jobs", ".jobs[].id") or ""

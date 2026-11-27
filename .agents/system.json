@@ -45,6 +45,7 @@
       ],
       "webMonitorWorkflow": "ops-maintenance.yml",
       "webMonitorRunName": "Ops & Maintenance: web-monitor",
+      "postDeployProbeJob": "Probe live web app",
       "transcriptArchive": {
         "configFile": ".agents/sessions/archive.json",
         "verifyBucket": true

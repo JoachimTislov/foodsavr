@@ -56,7 +56,14 @@ class AuditTests(unittest.TestCase):
             "runs": [{"name": "Validation", "conclusion": "failure", "run_attempt": 2,
                       "run_started_at": first, "updated_at": last, "maven_429": True},
                      {"name": "Agent review", "conclusion": "cancelled", "run_attempt": 1,
-                      "event": "workflow_dispatch"}],
+                      "event": "workflow_dispatch"},
+                     # A checks-only Pull Request run (weekly agent check) contributes
+                     # no duration; only the executed Validation-suite span counts.
+                     {"name": "Pull Request", "conclusion": "success", "run_attempt": 1,
+                      "run_started_at": first, "updated_at": "2026-11-24T04:00:00Z"},
+                     {"name": "Pull Request", "conclusion": "success", "run_attempt": 1,
+                      "run_started_at": "2026-11-24T05:00:00Z",
+                      "updated_at": "2026-11-24T08:30:00Z", "validation_hours": 1.0}],
             "sessions": [{"session_id": "codex:a", "provider": "openai", "harness": "codex",
                           "issues": ["#42"], "status": "completed"}],
             "ledger": [{"run_id": "r", "status": "unavailable"}],
@@ -71,11 +78,32 @@ class AuditTests(unittest.TestCase):
             "review.codex.approved-share": 1, "review.codex.hollow-share": 1,
             "review.redispatched": 1, "ci.maven-429": 1, METRIC: 1,
             "ci.agent-review.cancel-rate": 1, "ci.validation.rerun-rate": 1,
-            "ci.validation.median-hours": 2, "agent.provider.openai": 1, "agent.harness.codex": 1,
+            "ci.validation.median-hours": 1.5, "agent.provider.openai": 1, "agent.harness.codex": 1,
             "agent.quota-or-unavailable-runs": 1, "agent.closed-lanes-without-delivery": 1,
             "agent.commits-missing-trailer": 1,
         }
         self.assertEqual({key: metrics[key] for key in expected}, expected)
+
+    def test_checks_only_runs_do_not_count_as_validation_durations(self):
+        def job(name, conclusion, started=None, ended=None):
+            return {"name": name, "conclusion": conclusion, "started_at": started, "completed_at": ended}
+
+        checks_only = [  # Weekly agent check / operation=checks dispatch.
+            job("Decide whether to run CI", "success", "2026-11-24T01:00:00Z", "2026-11-24T01:20:00Z"),
+            job("Agent system validation", "success", "2026-11-24T01:20:00Z", "2026-11-24T01:25:00Z"),
+            job("Detect changed areas", "skipped"),
+            job("Web smoke test", "skipped"),
+            job("Validation status (result)", "skipped"),
+        ]
+        self.assertIsNone(audit.validation_hours(checks_only))
+        reuse_only = [job("Validation status (result)", "success", "2026-11-24T01:00:00Z", "2026-11-24T01:01:00Z")]
+        self.assertIsNone(audit.validation_hours(reuse_only))
+        validating = [
+            job("Detect changed areas", "success", "2026-11-24T01:00:00Z", "2026-11-24T01:05:00Z"),
+            job("Web smoke test", "success", "2026-11-24T01:05:00Z", "2026-11-24T01:35:00Z"),
+            job("Validation status (result)", "success", "2026-11-24T01:35:00Z", "2026-11-24T01:36:00Z"),
+        ]
+        self.assertEqual(audit.validation_hours(validating), 0.6)
 
     def test_baseline_then_all_recommendation_statuses(self):
         metrics = {METRIC: .7, "ci.maven-429": 3, "pr.42.rebases": 1, "pr.42.force-pushes": 1}

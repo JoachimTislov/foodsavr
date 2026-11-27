@@ -184,7 +184,10 @@ def glob_re(pattern: str) -> re.Pattern[str]:
     out = ""
     i = 0
     while i < len(pattern):
-        if pattern.startswith("**", i):
+        if pattern.startswith("**/", i):
+            out += "(?:.*/)?"
+            i += 3
+        elif pattern.startswith("**", i):
             out += ".*"
             i += 2
         elif pattern[i] == "*":
@@ -219,8 +222,26 @@ def git(*args: str) -> str:
 
 def changed_files(base: str) -> list[str]:
     merge_base = git("merge-base", base, "HEAD")
-    committed = git("diff", "--name-only", merge_base, "HEAD").splitlines()
-    dirty = [line[3:].split(" -> ")[-1] for line in git("status", "--porcelain").splitlines()]
+    # NUL-delimited output: Git's default quoting would turn a path like
+    # `assets/café.png` into a quoted escape sequence no path filter can match.
+    committed_raw = subprocess.run(
+        ["git", "diff", "--name-only", "-z", merge_base, "HEAD"],
+        cwd=ROOT, capture_output=True, check=True,
+    ).stdout
+    committed = [os.fsdecode(path) for path in committed_raw.split(b"\0") if path]
+    status_raw = subprocess.run(
+        ["git", "status", "--porcelain", "-z"],
+        cwd=ROOT, capture_output=True, check=True,
+    ).stdout
+    entries = [os.fsdecode(entry) for entry in status_raw.split(b"\0") if entry]
+    dirty: list[str] = []
+    index = 0
+    while index < len(entries):
+        entry = entries[index]
+        dirty.append(entry[3:])
+        # With -z a rename or copy is two NUL entries: `XY <new>` then `<old>`;
+        # skip the original path so only the destination counts as changed.
+        index += 2 if "R" in entry[:2] or "C" in entry[:2] else 1
     return sorted(set(committed + dirty))
 
 

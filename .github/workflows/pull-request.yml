@@ -128,7 +128,10 @@ jobs:
           else
             base="$BEFORE"
           fi
-          # A new branch or unknown base puts every suite in scope.
+          # A new branch or unknown base puts every suite in scope. pipefail: when the
+          # classifier fails before writing its decisions, this preflight check must
+          # fail instead of passing tee's exit status.
+          set -o pipefail
           python3 scripts/ci/local_ci.py --ci-filters "$base" HEAD | tee -a "$GITHUB_OUTPUT"
 
       - name: "Preflight: review dependency changes"
@@ -164,7 +167,7 @@ jobs:
             GITHUB_OUTPUT="$tmp" scripts/ci/already_tested.sh \
               --require-job '^Check & Test$' --substantive-job '^Check & Test$' \
               --pr-reuse-jobs '^(Decide whether to run CI|Check & Test)$' \
-              pull-request.yml ':(glob)**/*.dart' lib packages test assets/translations \
+              pull-request.yml ':(glob)**/*.dart' lib packages test assets \
               pubspec.yaml pubspec.lock analysis_options.yaml integration_test test_driver
             if grep -q '^skip=true$' "$tmp"; then echo false; else echo true; fi
           }
@@ -205,7 +208,12 @@ jobs:
               [ "$DART" = true ] && run="$(check_and_test)"
               validate=true
               if [ "$train" != true ]; then
-                run_release=true agents="$AGENTS"
+                run_release=true
+                # Agent validation is a develop-PR and weekly-schedule check, not a
+                # documented release prerequisite: release.yml gates stable releases on
+                # Check & Test and Validation only, so the agent job stays off stable
+                # push runs and cannot block a release by itself (#531).
+                [ "$REF" != refs/heads/stable ] && agents="$AGENTS"
                 # stable publishes the site from release.yml, which builds it there.
                 [ "$REF" != refs/heads/stable ] && docs="$DOCS"
               fi
@@ -399,7 +407,7 @@ jobs:
           sha: ${{ github.event.pull_request.head.sha || github.sha }}
           pr: ${{ github.event.pull_request.number }}
 
-  # Deployment levels (ADR 0005, specs/source-of-truth/deployment-levels.md): validate
+  # Deployment levels (ADR 0005, specs/deployment-levels.md): validate
   # deploy/ manifests and test packages/foodsavr_deploy. The scheduled usage poll is
   # the deployment-poll operation of ops-maintenance.yml.
   deploy-levels:

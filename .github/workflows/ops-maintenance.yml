@@ -14,7 +14,7 @@ name: Ops & Maintenance
 #   MONITOR_TARGET_URL is unset instead of probing upstream Hosting. The post-deploy
 #   probe runs in release.yml right after each Hosting deploy.
 # - deployment-poll (daily 05:23 UTC, or dispatch): deployment levels (ADR 0005,
-#   specs/source-of-truth/deployment-levels.md). Polls usage of every cloud
+#   specs/deployment-levels.md). Polls usage of every cloud
 #   environment in deploy/instance.yaml against its current level's limits
 #   (KEDA-style triggers) and keeps ONE open issue labelled `deployment-level` up to
 #   date while any environment recommends warn or promote. Recommend-only: nothing
@@ -251,6 +251,7 @@ jobs:
       - name: Checkout trusted monitor scripts
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
       - uses: ./.github/actions/web-probe
         with:

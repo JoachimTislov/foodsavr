@@ -29,6 +29,11 @@ BOT = "github-actions[bot]"
 OWNER_WAIT_LABELS = {"risk/security", "triage/needs-info", "triage/ready-for-human"}
 REVIEW_OUTCOMES = ("approved", "blocked", "skipped", "capped", "hollow")
 FAILURES = {"failure", "timed_out", "startup_failure", "action_required"}
+# Validation-suite jobs of pull-request.yml (#496): a run that executed none of the
+# substantive ones (weekly agent check, `operation=checks` dispatch, reuse-only run)
+# never validated, so its duration must not dilute ci.validation.median-hours.
+VALIDATION_SUBSTANTIVE_JOBS = frozenset({"Web smoke test", "Android smoke test", "Firestore security rules"})
+VALIDATION_SUITE_JOBS = VALIDATION_SUBSTANTIVE_JOBS | {"Detect changed areas", "Validation status (result)"}
 
 
 def fingerprint(value):
@@ -178,9 +183,15 @@ def ci_metrics(runs):
         metrics[f"{prefix}.rerun-rate"] = rate(sum(r["run_attempt"] > 1 for r in group), len(group))
     metrics["ci.maven-429"] = sum(run.get("maven_429", False) for run in runs)
     metrics["ci.logs-unavailable"] = sum(run.get("log_unavailable", False) for run in runs)
-    # PR verification, including Validation, runs in `Pull Request` since #496.
-    durations = [hours(run["run_started_at"], run["updated_at"])
-                 for run in groups["Pull Request"] + groups["Validation"] if run.get("run_started_at")]
+    # PR verification, including Validation, runs in `Pull Request` since #496. Only
+    # runs that executed a substantive Validation job count (validation_hours is
+    # collected in collect_details); checks-only runs are excluded so a one-minute
+    # agent check cannot masquerade as a faster Validation (#531). The retired
+    # `Validation` workflow ran Validation on every run, so whole-run durations stay.
+    durations = [run["validation_hours"] for run in groups["Pull Request"]
+                 if run.get("validation_hours") is not None]
+    durations += [hours(run["run_started_at"], run["updated_at"])
+                  for run in groups["Validation"] if run.get("run_started_at")]
     metrics["ci.validation.median-hours"] = round(statistics.median(durations), 4) if durations else None
     return metrics
 
@@ -397,6 +408,22 @@ def job_log(repo, job_id):
     return ("" if logs.returncode else logs.stdout), "HTTP 403" in logs.stderr
 
 
+def validation_hours(jobs) -> float | None:
+    """Executed Validation-suite duration for one `Pull Request` run.
+
+    None when no substantive Validation job ran (weekly agent check, `operation=checks`
+    dispatch, or a reuse-only run), so checks-only runs stay out of the median (#531).
+    """
+    executed = [job for job in jobs
+                if job.get("name") in VALIDATION_SUITE_JOBS
+                and job.get("conclusion") not in (None, "skipped")
+                and job.get("started_at") and job.get("completed_at")]
+    if not any(job["name"] in VALIDATION_SUBSTANTIVE_JOBS for job in executed):
+        return None
+    return hours(min(job["started_at"] for job in executed),
+                 max(job["completed_at"] for job in executed))
+
+
 def collect_details(repo, data, start, end):
     runs = []
     # GitHub filters by creation date. Include a one-day overlap for in-flight runs.
@@ -409,6 +436,14 @@ def collect_details(repo, data, start, end):
                     if in_window(run["updated_at"], start, end))
         day_start = day_end
     runs = list({run["id"]: run for run in runs}.values())
+    # Measure Validation itself, not the whole shared workflow: a Pull Request run
+    # that skipped every substantive Validation job (the weekly agent-system check,
+    # an `operation=checks` dispatch) is checks-only and must not count (#531).
+    for run in runs:
+        if run["name"] != "Pull Request":
+            continue
+        run["validation_hours"] = validation_hours(
+            pages(repo, f"actions/runs/{run['id']}/jobs", field="jobs"))
     data["runs"] = runs
     rebases = Counter()
     held = set()

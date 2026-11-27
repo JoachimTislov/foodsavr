@@ -45,6 +45,15 @@ class LocalCiTest(unittest.TestCase):
         self.assertFalse(ci.glob_re("*.md").match("doc/a.md"))
         self.assertTrue(ci.glob_re(".agents/**").match(".agents/skills/x/SKILL.md"))
         self.assertFalse(ci.glob_re("lib/**").match("library.txt"))
+        # `**/` matches zero directories, like GitHub's matcher: root-level
+        # dependency files must select the dependency-review suite (#531).
+        self.assertTrue(ci.glob_re("android/**/build.gradle*").match("android/build.gradle"))
+        self.assertTrue(ci.glob_re("android/**/build.gradle*").match("android/app/build.gradle.kts"))
+        self.assertTrue(ci.glob_re("**/package.json").match("package.json"))
+        self.assertTrue(ci.glob_re("**/package.json").match("web/package.json"))
+        self.assertTrue(ci.ci_filters(["android/build.gradle"])["deps"])
+        self.assertTrue(ci.ci_filters(["package.json"])["deps"])
+        self.assertTrue(ci.ci_filters(["package-lock.json"])["deps"])
 
     def test_groups_for_changed_files(self):
         self.assertEqual(ci.groups_for(["lib/main.dart"]), ["dart"])
@@ -85,6 +94,46 @@ class LocalCiTest(unittest.TestCase):
             match = re.search(rf"--target '{name}:([^']+)'", text)
             self.assertIsNotNone(match, name)
             self.assertEqual(set(match.group(1).split(",")), pathspecs(ci.CI_FILTERS[name]))
+
+    def test_check_and_test_reuse_scope_covers_the_dart_group(self):
+        # A synchronize that changes only `assets/logo.png` must rerun Check & Test:
+        # the reuse scope keeps every dart-group path area, `assets` included (#531).
+        text = workflow_text("pull-request.yml")
+        block = text.split("check_and_test() {", 1)[1].split("if grep -q", 1)[0]
+        invocation = block.replace("\\\n", " ").split()
+        scope = invocation[invocation.index("pull-request.yml") + 1:]
+        for area in ("lib", "packages", "test", "assets", "pubspec.yaml", "pubspec.lock",
+                     "analysis_options.yaml", "integration_test", "test_driver"):
+            self.assertIn(area, scope)
+        self.assertNotIn("assets/translations", scope)
+
+    def test_changed_files_reads_literal_paths_and_rename_destinations(self):
+        # `git diff`/`git status` NUL output: a non-ASCII path must arrive as the
+        # literal name, never as Git's quoted escape sequence, and a staged rename
+        # must count its destination (#531).
+        import subprocess
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
+            for argv in (["git", "config", "user.email", "t@t"], ["git", "config", "user.name", "t"]):
+                subprocess.run(argv, cwd=root, check=True)
+            (root / "assets").mkdir()
+            (root / "assets" / "keep.txt").write_text("v1", encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "base"], cwd=root, check=True)
+            base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True,
+                                  text=True, capture_output=True).stdout.strip()
+            (root / "assets" / "café.png").write_bytes(b"png")
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "non-ascii"], cwd=root, check=True)
+            subprocess.run(["git", "mv", "assets/keep.txt", "assets/kept.txt"], cwd=root, check=True)
+            (root / "package.json").write_text("{}", encoding="utf-8")
+            with patch.object(ci, "ROOT", root):
+                files = ci.changed_files(base)
+        self.assertIn("assets/café.png", files)
+        self.assertIn("assets/kept.txt", files)
+        self.assertIn("package.json", files)
+        self.assertFalse(any("\\" in file or '"' in file for file in files), files)
 
     def test_release_push_paths_are_the_union_of_its_filters(self):
         union = set().union(*ci.RELEASE_FILTERS.values())

@@ -96,6 +96,7 @@
             },
             "webMonitorWorkflow": { "type": "string", "minLength": 1 },
             "webMonitorRunName": { "type": "string", "minLength": 1 },
+            "postDeployProbeJob": { "type": "string", "minLength": 1 },
             "transcriptArchive": {
               "type": "object",
               "additionalProperties": false,

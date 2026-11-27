@@ -26,16 +26,19 @@ def gh_json(*args: str) -> object:
 def passed_jobs(repo: str, workflow: str, sha: str, exclude_run: str = "") -> list[str]:
     runs = gh_json(
         "run", "list", "--repo", repo, "--workflow", workflow, "--commit", sha,
-        "--event", "pull_request", "--status", "completed", "--json", "databaseId",
+        "--event", "pull_request", "--status", "completed", "--limit", "100", "--json", "databaseId",
     ) or []
-    names: set[str] = set()
+    conclusions: dict[str, str] = {}
     for run in runs:
         run_id = str(run.get("databaseId", ""))
         if not run_id or run_id == exclude_run:
             continue
         payload = gh_json("api", f"repos/{repo}/actions/runs/{run_id}/jobs?per_page=100") or {}
-        names.update(job["name"] for job in payload.get("jobs", []) if job.get("conclusion") == "success")
-    return sorted(names)
+        for job in payload.get("jobs", []):
+            name, conclusion = job.get("name"), job.get("conclusion")
+            if name and conclusion != "skipped" and name not in conclusions:
+                conclusions[name] = conclusion
+    return sorted(name for name, conclusion in conclusions.items() if conclusion == "success")
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -76,7 +76,7 @@ on:
       - ".github/workflows/release.yml"
       - ".github/actions/setup-flutter-app/**"
       - "doc/**"
-      - "specs/source-of-truth/**"
+      - "specs/**"
       - "assets/logos/**"
       - "*.md"
       - "mkdocs.yml"
@@ -461,6 +461,7 @@ jobs:
           echo "::warning::$msg"
           echo "Skipped: $msg" >> "$GITHUB_STEP_SUMMARY"
           echo "ready=false" >> "$GITHUB_OUTPUT"
+          exit 1
 
       - name: Checkout code
         if: steps.config.outputs.ready == 'true'
