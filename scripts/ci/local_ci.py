@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Run the CI checks for the areas a branch changes, locally, before pushing.
 
-Groups mirror CI workflows (ADR 0006). `agents` and `docs` are the exact
-commands their workflows run; `dart` is kept equal to ci-checks.yml by
+Groups mirror the suites of pull-request.yml (ADR 0006). `agents` and `docs` are
+the exact commands their jobs run; `dart` is kept equal to the `Check & Test` job by
 test_local_ci.py. A passing group is cached per clean tree.
+
+The workflow decides which suites run with `--ci-filters`, from the same group paths
+(`paths`, not `local_paths`) and the CI-only filters below, so CI and this mirror
+cannot select different suites for one change.
 """
 
 from __future__ import annotations
@@ -55,14 +59,12 @@ GROUPS: dict[str, Group] = {
         paths=[
             ".agents/**", "AGENTS.md", "CLAUDE.md", "GEMINI.md", "scripts/agents/**", "scripts/github/**",
             "scripts/secrets/**", "scripts/monitoring/**", "scripts/ci/*.py", "web/about/**", ".githooks/**", ".agents/github/**",
-            ".github/workflows/github-labels.yml", ".github/workflows/merge-gate.yml",
-            ".github/workflows/promote.yml", "Makefile", "make/**", "scripts/web/**",
-            ".github/workflows/firebase-hosting.yml",
-            ".github/workflows/web-monitor.yml", ".github/workflows/fault-intake.yml",
+            ".github/workflows/ops-maintenance.yml", ".github/workflows/merge-gate.yml",
+            ".github/workflows/release.yml", "Makefile", "make/**", "scripts/web/**",
             "specs/**", "docs/**", "doc/**",
-            ".github/workflows/agent-system.yml", ".claude/**", ".gemini/**", ".github/agents/**",
-            ".github/instructions/**", ".github/copilot-instructions.md", ".github/workflows/agent-implement.yml",
-            ".github/workflows/agent-review.yml", "scripts/human/**", "scripts/setup/agent_router.sh",
+            ".github/workflows/pull-request.yml", ".claude/**", ".gemini/**", ".github/agents/**",
+            ".github/instructions/**", ".github/copilot-instructions.md", ".github/workflows/agent-ops.yml",
+            "scripts/human/**", "scripts/setup/agent_router.sh",
             "scripts/setup/setupctl.py", "scripts/setup/test_*.py",
             "log/**", "logs/**", "**/*.jsonl", "**/*.log", "!.agents/events/**",
         ],
@@ -95,7 +97,7 @@ GROUPS: dict[str, Group] = {
     ),
     "docs": Group(
         paths=["doc/**", "specs/**", "assets/logos/**", "*.md", "mkdocs.yml", "scripts/docs/**",
-               ".github/workflows/docs-pages.yml"],
+               "scripts/ci/local_ci.py", ".github/workflows/pull-request.yml", ".github/workflows/release.yml"],
         commands=[
             ["{python}", "scripts/docs/integration_index.py", "--check"],
             ["{python}", "scripts/docs/prepare.py"],
@@ -119,25 +121,62 @@ GROUPS: dict[str, Group] = {
         ],
     ),
     "release": Group(
-        paths=["scripts/release/**", ".github/workflows/build-android.yml",
-               ".github/workflows/android-drive-test.yml", ".github/workflows/release-gated.yml"],
+        paths=["scripts/release/**", ".github/workflows/release.yml", ".github/workflows/manual-tools.yml"],
         commands=[
             ["node", "--test", "scripts/release/release_gate.test.cjs"],
             ["python3", "-m", "unittest", "discover", "-s", "scripts/release", "-p", "*_test.py"],
         ],
     ),
     "infra": Group(
-        paths=["scripts/infra/**", "deploy/**", "packages/foodsavr_deploy/**",
-               "infra/terraform/**", ".github/workflows/deployment-level.yml",
-               # test_bootstrap.py runs these scripts from a copied fixture tree.
-               "scripts/setup/setupctl.py", "scripts/github/promote_release.py",
-               "scripts/github/release_topology.py", "scripts/github/checks.py"],
+        # The `Validate manifests and test levels CLI` job runs for `paths`.
+        paths=["deploy/**", "packages/foodsavr_deploy/**", "scripts/infra/**", "infra/terraform/**",
+               ".github/workflows/release.yml", ".github/workflows/pull-request.yml",
+               ".github/workflows/ops-maintenance.yml"],
+        # test_bootstrap.py runs these scripts from a copied fixture tree.
+        local_paths=("scripts/setup/setupctl.py", "scripts/github/promote_release.py",
+                     "scripts/github/release_topology.py", "scripts/github/checks.py"),
         commands=[
             ["python3", "-m", "unittest", "discover", "-s", "scripts/infra", "-p", "test_*.py"],
         ],
     ),
     "workflows": Group(paths=[".github/workflows/**", ".github/actions/**"], commands=[["actionlint"]]),
 }
+
+
+# Path filters of pull-request.yml that have no local group: the CI-only suites
+# (CI_ONLY) and dependency review. Validation targets mirror the `--target` scopes
+# that already_tested.sh reuses in the `Detect changed areas` job; Android smoke and
+# integration have none because they run only on manual dispatch.
+CI_FILTERS: dict[str, list[str]] = {
+    "web": ["lib/**", "packages/**", "web/**", "assets/**", "pubspec.yaml", "pubspec.lock", "test/e2e/**"],
+    "rules": ["firestore-rules/**", "firestore.rules"],
+    "deps": ["pubspec.yaml", "pubspec.lock", "packages/*/pubspec.yaml", "**/package.json", "**/package-lock.json",
+             "scripts/docs/requirements.txt", "android/**/build.gradle*", "android/gradle/**",
+             ".github/workflows/pull-request.yml"],
+}
+# Push path filters of release.yml (hosting: develop and channels; web: channels; docs:
+# stable). Its `on.push.paths` is their union, so pushes that touch none boot nothing.
+RELEASE_FILTERS: dict[str, list[str]] = {
+    "hosting": ["lib/**", "web/**", "assets/**", "pubspec.yaml", "pubspec.lock", "packages/**",
+                ".github/workflows/release.yml", "scripts/web/**", "deploy/instance.yaml"],
+    "web": ["lib/**", "packages/**", "web/**", "assets/**", "pubspec.yaml", "pubspec.lock",
+            ".github/workflows/release.yml", ".github/actions/setup-flutter-app/**"],
+    "docs": GROUPS["docs"].paths,
+}
+# Groups whose suites pull-request.yml runs; `workflows` (actionlint) is local only.
+CI_GROUPS = ("agents", "docs", "dart", "release", "infra")
+
+
+def release_filters(files: list[str]) -> dict[str, bool]:
+    """Push path decisions of release.yml for changed files."""
+    return {name: any(path_matches(patterns, f) for f in files) for name, patterns in RELEASE_FILTERS.items()}
+
+
+def ci_filters(files: list[str]) -> dict[str, bool]:
+    """Suite decisions of pull-request.yml for changed files (workflow `paths` only)."""
+    decisions = {name: any(path_matches(GROUPS[name].paths, f) for f in files) for name in CI_GROUPS}
+    decisions.update({name: any(path_matches(patterns, f) for f in files) for name, patterns in CI_FILTERS.items()})
+    return decisions
 
 
 def glob_re(pattern: str) -> re.Pattern[str]:
@@ -186,7 +225,7 @@ def changed_files(base: str) -> list[str]:
 
 
 def ci_flutter_version() -> str | None:
-    match = re.search(r"flutter-version:\s*([\d.]+)", (ROOT / ".github/workflows/ci-checks.yml").read_text())
+    match = re.search(r"flutter-version:\s*([\d.]+)", (ROOT / ".github/workflows/pull-request.yml").read_text())
     return match.group(1) if match else None
 
 
@@ -395,7 +434,26 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--list", action="store_true", help="print the plan without running")
     parser.add_argument("--no-cache", action="store_true")
     parser.add_argument("--pre-push", action="store_true", help="git pre-push hook mode")
+    parser.add_argument("--ci-filters", nargs=2, metavar=("BASE", "HEAD"),
+                        help="print name=true|false for each pull-request.yml suite filter over BASE...HEAD "
+                             "(all true when BASE is empty, all zeros or unknown)")
+    parser.add_argument("--release-filters", nargs=2, metavar=("BEFORE", "HEAD"),
+                        help="the same for the release.yml push operations")
     args = parser.parse_args(argv)
+    if args.ci_filters or args.release_filters:
+        base, head = args.ci_filters or args.release_filters
+        decide = ci_filters if args.ci_filters else release_filters
+        try:
+            if not base.strip("0"):
+                raise subprocess.CalledProcessError(1, "git")  # new branch: no previous commit
+            git("rev-parse", "--verify", "--quiet", f"{base}^{{commit}}")
+            decisions = decide(git("diff", "--name-only", "--no-renames", f"{base}...{head}").splitlines())
+        except subprocess.CalledProcessError:
+            # Unknown base: every suite is in scope.
+            decisions = {name: True for name in decide([])}
+        for name, value in decisions.items():
+            print(f"{name}={str(value).lower()}")
+        return 0
     if args.make_check:
         return make_check(args.make_check)
     if args.flutter_bin:

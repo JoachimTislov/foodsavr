@@ -46,12 +46,12 @@ Ask only the decisions that cannot be inferred:
 
 1. **Setup profile**:
    - `local-dev` — Zero cloud accounts or secrets; run Flutter app, emulators, and tests locally.
-   - `fork-agents` — Own GitHub repo/fork + split rulesets + autonomous CI agent workflows (`agent-implement.yml`, `merge-gate.yml`).
+   - `fork-agents` — Own GitHub repo/fork + split rulesets + autonomous CI agent workflows (`agent-ops.yml`, `merge-gate.yml`).
    - `full-cloud` — Everything in `fork-agents` + Firebase/GCP Hosting + scoped WIF (`github-deploy-live` + `github-telemetry-ro`).
 2. **Fork confirmation** (only when `github.needs_fork == true` and profile != `local-dev`):
    - Explain that GitHub Secrets are exclusive to the repository owner, so operating CI/agents requires forking to `<login>/foodsavr`. Confirm before planning the fork step.
 3. **Release branch topology** (only when profile != `local-dev`):
-   - `single` (Recommended for forks and personal setups) — `develop` only; deploys trigger on `develop` and `promote.yml` cleanly no-ops.
+   - `single` (Recommended for forks and personal setups) — `develop` only; deploys trigger on `develop` and the `release.yml` promote operation cleanly no-ops.
    - `two-stage` — `develop -> release`.
    - `full-channels` — `develop -> nightly -> beta -> stable -> release` (upstream FoodSavr default).
 4. **Firebase billing plan** (only when profile == `full-cloud`):

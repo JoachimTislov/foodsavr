@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Post the `Validation result` commit status for validation.yml.
+"""Post the `Validation result` commit status for pull-request.yml.
 
 A commit status (not a check run) is used because GitHub counts a skipped
 required check run as passing, while a status that is never posted stays
@@ -26,9 +26,11 @@ START_DESCRIPTION = "Validation running"
 SUCCESS_DESCRIPTION = "Validation passed"
 FAILURE_DESCRIPTION = "Validation failed"
 
-# The gate job must succeed; downstream jobs may be skipped by its path decision.
-GATE_JOB = "changes"
-# Ordering-only dependency; its outcome says nothing about the validation.
+# Both gate jobs must succeed: `gate` (Stage 1 preflight and suite decisions) and
+# `changes` (the Validation targets). Downstream jobs may be skipped by their path
+# decision; a failed or skipped gate is a failure, never a pass.
+GATE_JOBS = ("gate", "changes")
+# Ordering-only dependency of the former Validation workflow; says nothing about validation.
 IGNORED_JOBS = frozenset({"validation-start"})
 
 
@@ -50,7 +52,7 @@ def decide_final(results: dict[str, str]) -> tuple[str, str] | None:
     values = set(results.values())
     if "cancelled" in values:
         return None
-    if results.get(GATE_JOB) != "success":
+    if any(results.get(job) != "success" for job in GATE_JOBS):
         return "failure", FAILURE_DESCRIPTION
     if values - {"success", "skipped"}:
         return "failure", FAILURE_DESCRIPTION

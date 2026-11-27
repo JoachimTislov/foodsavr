@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the web app and deploy it to Firebase Hosting.
 
-One implementation for `.github/workflows/firebase-hosting.yml` and for
+One implementation for the hosting jobs of `.github/workflows/release.yml` and for
 `make deploy-web` (the manual bypass), so the two cannot drift.
 
 Workflow steps (configuration comes from the environment the workflow sets):

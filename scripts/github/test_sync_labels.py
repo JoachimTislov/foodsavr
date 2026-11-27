@@ -34,7 +34,7 @@ class LabelRulesTest(unittest.TestCase):
                 "is_pull_request": True,
                 "labels": [{"name": "area/web"}],
             },
-            [".github/workflows/agent-system.yml", "lib/auth.dart"],
+            [".github/workflows/pull-request.yml", "lib/auth.dart"],
             [{"status": "completed", "conclusion": "success"}],
             [],
             self.config,

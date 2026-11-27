@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # One-time setup: authorize gcloud for Drive and provision the repository
-# secrets needed by android-drive-test.yml. The APK workflow remains manual.
+# secrets needed by manual-tools.yml (android-drive-test). The APK workflow remains manual.
 
 command -v gcloud >/dev/null || { echo 'gcloud CLI is required.' >&2; exit 1; }
 command -v gh >/dev/null || { echo 'GitHub CLI (gh) is required.' >&2; exit 1; }

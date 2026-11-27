@@ -95,12 +95,13 @@ class Live:
         proc = self._run(["gh", "api", path, "--jq", jq])
         return proc.stdout.strip() if proc.returncode == 0 else None
 
-    def latest_run(self, workflow: str, event: str | None, branch: str) -> dict[str, Any] | None:
-        query = f"repos/{self.repo}/actions/workflows/{workflow}/runs?status=completed&per_page=1"
+    def latest_run(self, workflow: str, event: str | None, branch: str, run_name: str | None = None) -> dict[str, Any] | None:
+        query = f"repos/{self.repo}/actions/workflows/{workflow}/runs?status=completed&per_page={30 if run_name else 1}"
         if event:
             query += f"&event={event}&branch={branch}"
-        out = self._api(query, ".workflow_runs[0]")
-        return json.loads(out) if out and out != "null" else None
+        out = self._api(query, ".workflow_runs")
+        runs = json.loads(out) if out and out != "null" else []
+        return next((r for r in runs if not run_name or run_name in str(r.get("display_title") or "")), None)
 
     def annotations(self, run_id: int) -> list[str]:
         jobs = self._api(f"repos/{self.repo}/actions/runs/{run_id}/jobs", ".jobs[].id") or ""
@@ -195,7 +196,7 @@ def _single(check: dict[str, Any], ctx: Context, config: dict[str, Any]) -> Resu
     if ctx.live is None:
         return NOT_PROBED
     if kind == "workflow-run":
-        run = ctx.live.latest_run(check["workflow"], check.get("event"), ctx.integration_branch)
+        run = ctx.live.latest_run(check["workflow"], check.get("event"), ctx.integration_branch, check.get("run_name"))
         if run is None:
             return False, "no completed run"
         marked = [m for m in ctx.live.annotations(run["id"]) if check.get("marker") and check["marker"] in m]

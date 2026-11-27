@@ -140,6 +140,12 @@ def pr_metrics(data, start, end):
     return metrics
 
 
+def is_review_run(run):
+    """Adaptive review runs: the Agent Ops review operation, or the retired Agent review workflow."""
+    return run["name"] == "Agent review" or (
+        run["name"] == "Agent Ops" and str(run.get("display_title") or "").startswith("Agent Ops: review"))
+
+
 def review_metrics(reviews, runs):
     per_provider = defaultdict(list)
     for review in reviews:
@@ -156,8 +162,7 @@ def review_metrics(reviews, runs):
                                          row["summary"])))) for row in group)
         for outcome in REVIEW_OUTCOMES:
             metrics[f"review.{provider}.{outcome}-share"] = rate(counts[outcome], len(group))
-    metrics["review.redispatched"] = sum(run["event"] == "workflow_dispatch" for run in runs
-                                        if run["name"] == "Agent review")
+    metrics["review.redispatched"] = sum(run["event"] == "workflow_dispatch" for run in runs if is_review_run(run))
     return metrics
 
 
@@ -173,8 +178,9 @@ def ci_metrics(runs):
         metrics[f"{prefix}.rerun-rate"] = rate(sum(r["run_attempt"] > 1 for r in group), len(group))
     metrics["ci.maven-429"] = sum(run.get("maven_429", False) for run in runs)
     metrics["ci.logs-unavailable"] = sum(run.get("log_unavailable", False) for run in runs)
-    durations = [hours(run["run_started_at"], run["updated_at"]) for run in groups["Validation"]
-                 if run.get("run_started_at")]
+    # PR verification, including Validation, runs in `Pull Request` since #496.
+    durations = [hours(run["run_started_at"], run["updated_at"])
+                 for run in groups["Pull Request"] + groups["Validation"] if run.get("run_started_at")]
     metrics["ci.validation.median-hours"] = round(statistics.median(durations), 4) if durations else None
     return metrics
 

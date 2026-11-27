@@ -12,7 +12,7 @@ analyzer:
     - build/**
     - android/**
     # Standalone pure Dart package (not an app dependency); analyzed by
-    # .github/workflows/deployment-level.yml after its own `dart pub get`.
+    # .github/actions/deploy-levels-check after its own `dart pub get`.
     - packages/foodsavr_deploy/**
 include: package:flutter_lints/flutter.yaml
 

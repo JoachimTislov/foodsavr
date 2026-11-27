@@ -31,3 +31,19 @@ test('selects only runs on the triggering branch in single topology', () => {
   const stable = paths.map(path => run(path, {id: 2, conclusion: 'failure'}));
   assert.equal(decision([...develop, ...stable], paths, 'develop'), 'ready');
 });
+
+test('a release waits for the consolidated Pull Request run of the commit', async () => {
+  const {PATHS, evaluate} = require('./release_gate.cjs');
+  assert.deepEqual(PATHS, ['.github/workflows/pull-request.yml']);
+  const outputs = {};
+  const runs = [run('.github/workflows/pull-request.yml'), run('.github/workflows/release.yml', {status: 'in_progress', conclusion: null})];
+  const github = {paginate: async () => runs, rest: {actions: {listWorkflowRunsForRepo: () => {}}}};
+  const context = {repo: {owner: 'o', repo: 'r'}, sha: 'abc', ref: 'refs/heads/stable'};
+  const core = {setOutput: (k, v) => { outputs[k] = v; }, setFailed: msg => { outputs.failed = msg; }, info: () => {}};
+  await evaluate({github, context, core});
+  assert.deepEqual(outputs, {release_web: 'true'});
+  runs[0] = run('.github/workflows/pull-request.yml', {conclusion: 'failure'});
+  delete outputs.release_web;
+  await evaluate({github, context, core});
+  assert.match(outputs.failed, /blocked/);
+});

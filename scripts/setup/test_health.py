@@ -23,7 +23,7 @@ class FakeLive:
     def http_status(self, url):
         return self.statuses.get(url, 200)
 
-    def latest_run(self, workflow, event, branch):
+    def latest_run(self, workflow, event, branch, run_name=None):
         return self.run
 
     def annotations(self, run_id):

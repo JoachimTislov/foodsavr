@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -391,11 +392,22 @@ class DeployTest(unittest.TestCase):
             self.assertIn("**/*.js.map", hosting["ignore"])
 
 
+RELEASE = ROOT / ".github/workflows/release.yml"
+
+
+def hosting_jobs() -> str:
+    """The plan (environment resolution) and hosting-deploy jobs of release.yml."""
+    text = RELEASE.read_text()
+    jobs = text[text.index("\njobs:\n"):]
+    parts = re.split(r"(?m)^(?=  [a-z][a-z0-9-]*:\n)", jobs)
+    return "".join(p for p in parts if p.startswith(("  plan:", "  hosting-deploy:")))
+
+
 class WorkflowContractTest(unittest.TestCase):
-    """firebase-hosting.yml delegates to this script instead of inlining the logic."""
+    """release.yml's hosting jobs delegate to this script instead of inlining the logic."""
 
     def test_workflow_calls_the_script(self):
-        text = (ROOT / ".github/workflows/firebase-hosting.yml").read_text()
+        text = hosting_jobs()
         for command in ("deploy_web.py build", "deploy_web.py guard", "deploy_web.py deploy"):
             self.assertIn(command, text)
         self.assertNotIn("flutter build web", text)
@@ -410,7 +422,7 @@ class WorkflowContractTest(unittest.TestCase):
                     self.assertNotRegex(text, r"(?m)^\s+CHANNEL:\s")
 
     def test_missing_config_skips_and_names_the_bypass_and_fix(self):
-        text = (ROOT / ".github/workflows/firebase-hosting.yml").read_text()
+        text = hosting_jobs()
         self.assertIn("make deploy-web ENV=$FLAVOR${RELEASE_CHANNEL:+ CHANNEL=$RELEASE_CHANNEL}", text)
         self.assertIn("make setup", text)
         self.assertIn('>> "$GITHUB_STEP_SUMMARY"', text)
@@ -418,20 +430,20 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertNotIn("exit 1", config)
 
     def test_deploys_only_with_a_service_account_of_the_resolved_project(self):
-        text = (ROOT / ".github/workflows/firebase-hosting.yml").read_text()
+        text = hosting_jobs()
         self.assertIn('"${DEPLOY_SA##*@}" != "$PROJECT_ID.iam.gserviceaccount.com"', text)
-        steps = text[text.index("- name: Checkout code", text.index("deploy:")):]
+        steps = text[text.index("- name: Checkout code", text.index("hosting-deploy:")):]
         for step in steps.split("- name: ")[1:]:
             self.assertIn("steps.config.outputs.ready == 'true'", step, step.splitlines()[0])
 
     def test_release_channels_trigger_and_resolve_through_the_manifest(self):
-        text = (ROOT / ".github/workflows/firebase-hosting.yml").read_text()
-        self.assertIn("branches: [develop, daily, weekly, stable]", text)
+        self.assertIn("branches: [develop, daily, weekly, stable]", RELEASE.read_text())
+        text = hosting_jobs()
         self.assertIn('levels.dart env --channel "$channel"', text)
         self.assertIn("PROVISIONED=false", text)
 
     def test_explicit_environment_never_falls_back_to_its_default_site(self):
-        text = (ROOT / ".github/workflows/firebase-hosting.yml").read_text()
+        text = hosting_jobs()
         explicit = text[text.index('elif ! dart run bin/levels.dart env --env "$env_name" --channel "$channel"'):]
         explicit = explicit[:explicit.index("\n          fi\n")]
         self.assertIn("::error::", explicit)

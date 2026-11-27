@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the Android test APK and upload it to Google Drive.
 #
-# One implementation for .github/workflows/android-drive-test.yml and the
+# One implementation for .github/workflows/manual-tools.yml (android-drive-test) and the
 # manual bypass `make android-apk LOCAL=1`, so the two cannot drift.
 #
 #   android_drive.sh build    derive native Android config, build the APK

@@ -171,10 +171,12 @@ class SubprocessGhClient:
             [
                 "workflow",
                 "run",
-                "agent-implement.yml",
+                "agent-ops.yml",
                 *self._repo_args(),
                 "--ref",
                 ref,
+                "-f",
+                "operation=implement",
                 "-f",
                 f"issue={number}",
                 "-f",
@@ -413,7 +415,7 @@ def process_events(
                 gh.dispatch_healing(created_num, ref=ref)
                 gh.comment_issue(
                     created_num,
-                    f"<!-- healing-attempt:1 -->\nDispatched bounded autonomous healing (`agent-implement.yml`, `healing_mode=true`) on ref `{ref}`.\n",
+                    f"<!-- healing-attempt:1 -->\nDispatched bounded autonomous healing (`agent-ops.yml` implement, `healing_mode=true`) on ref `{ref}`.\n",
                 )
                 action = "created_and_dispatched"
         elif dispatch:
@@ -439,7 +441,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--environment", default="production")
     parser.add_argument("--deployment-level", default="firebase-spark")
     parser.add_argument("--repo", default=None, help="GitHub owner/repo override")
-    parser.add_argument("--dispatch", action="store_true", help="Dispatch agent-implement.yml for eligible code_faults")
+    parser.add_argument("--dispatch", action="store_true", help="Dispatch the agent-ops.yml implement operation for eligible code_faults")
     parser.add_argument("--dry-run", action="store_true", help="Do not mutate GitHub issues or dispatch workflows")
     parser.add_argument("--max-open", type=int, default=3)
     parser.add_argument("--max-attempts", type=int, default=1)

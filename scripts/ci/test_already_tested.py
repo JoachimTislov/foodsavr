@@ -167,7 +167,7 @@ else:
                     "--target", "web:lib,web",
                     "--target", "android:lib,android",
                     "--target", "rules:firestore.rules",
-                    "validation.yml",
+                    "pull-request.yml",
                     "lib", "web", "android", "firestore.rules",
                 ],
             )
@@ -210,12 +210,109 @@ else:
                 [
                     "--require-job", r"Validation status \(result\)",
                     "--target", "web:lib,web",
-                    "validation.yml",
+                    "pull-request.yml",
                     "lib", "web",
                 ],
             )
             self.assertEqual(outputs["skip"], "false")
             self.assertEqual(outputs["skip_web"], "false")
+
+    def _two_heads(self, root: Path) -> tuple[Path, str, str]:
+        _, work = self._init_repo(root)
+        (work / "lib").mkdir()
+        (work / "docs").mkdir()
+        (work / "lib/app.dart").write_text("void main() {}\n", encoding="utf-8")
+        (work / "docs/a.md").write_text("v1\n", encoding="utf-8")
+        _git(work, "add", ".")
+        _git(work, "commit", "-m", "v1")
+        before = _git(work, "rev-parse", "HEAD")
+        (work / "docs/a.md").write_text("v2\n", encoding="utf-8")
+        _git(work, "add", ".")
+        _git(work, "commit", "-m", "v2")
+        new = _git(work, "rev-parse", "HEAD")
+        _git(work, "push", "origin", "develop")
+        return work, before, new
+
+    PR_REUSE = ["--require-job", "^Check & Test$", "--substantive-job", "^Check & Test$",
+                "--pr-reuse-jobs", "^(Decide whether to run CI|Check & Test)$", "pull-request.yml", "lib"]
+
+    def test_pr_reuse_jobs_follow_the_suite_not_the_whole_run(self):
+        # #496: one workflow holds several suites; only the gate and Check & Test decide reuse.
+        cases = {
+            "reused through an earlier reuse (skipped)": (
+                [("Decide whether to run CI", "success"), ("Check & Test", "skipped"),
+                 ("Build documentation", "failure")], "true"),
+            "green": ([("Decide whether to run CI", "success"), ("Check & Test", "success")], "true"),
+            "failed suite": ([("Decide whether to run CI", "success"), ("Check & Test", "failure")], "false"),
+            "failed preflight": ([("Decide whether to run CI", "failure"), ("Check & Test", "skipped")], "false"),
+            "cancelled suite": ([("Decide whether to run CI", "success"), ("Check & Test", "cancelled")], "false"),
+            "no gate job": ([("Build documentation", "success")], "false"),
+        }
+        for label, (jobs, expected) in cases.items():
+            with self.subTest(label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                work, before, new = self._two_heads(root)
+                bin_dir = root / "bin"
+                bin_dir.mkdir()
+                self._install_fake_gh(
+                    bin_dir,
+                    runs_by_commit={before: [301]},
+                    jobs_by_run={301: [{"name": n, "conclusion": c} for n, c in jobs]},
+                )
+                outputs = self._run_script(
+                    work, bin_dir, "pull_request",
+                    {"action": "synchronize", "before": before, "pull_request": {"head": {"sha": new}}},
+                    self.PR_REUSE,
+                )
+                self.assertEqual(outputs["skip"], expected)
+
+    def test_push_reuse_requires_the_suites_own_job(self):
+        # A green docs-only job in the shared workflow must not stand in for Check & Test.
+        for jobs, expected in (
+            ([("Decide whether to run CI", "success"), ("Build documentation", "success")], "false"),
+            ([("Decide whether to run CI", "success"), ("Check & Test", "success")], "true"),
+        ):
+            with self.subTest(jobs=jobs), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                work, _, new = self._two_heads(root)
+                bin_dir = root / "bin"
+                bin_dir.mkdir()
+                self._install_fake_gh(
+                    bin_dir,
+                    runs_by_commit={new: [401]},
+                    jobs_by_run={401: [{"name": n, "conclusion": c} for n, c in jobs]},
+                )
+                outputs = self._run_script(
+                    work, bin_dir, "push", {"before": new, "commits": []},
+                    ["--require-job", "^Check & Test$", "--substantive-job", "^Check & Test$",
+                     "pull-request.yml", "lib"],
+                    sha=new,
+                )
+                self.assertEqual(outputs["skip"], expected)
+
+    def test_push_only_reuse_needs_a_validation_target_job(self):
+        for jobs, expected in (
+            ([("Validation status (result)", "success"), ("Check & Test", "success")], "false"),
+            ([("Validation status (result)", "success"), ("Web smoke test", "success")], "true"),
+        ):
+            with self.subTest(jobs=jobs), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                work, _, new = self._two_heads(root)
+                bin_dir = root / "bin"
+                bin_dir.mkdir()
+                self._install_fake_gh(
+                    bin_dir,
+                    runs_by_commit={new: [501]},
+                    jobs_by_run={501: [{"name": n, "conclusion": c} for n, c in jobs]},
+                )
+                outputs = self._run_script(
+                    work, bin_dir, "push", {"before": new, "commits": []},
+                    ["--push-only-reuse", "--require-job", r"Validation status \(result\)",
+                     "--substantive-job", "^(Web smoke test|Android smoke test|Firestore security rules)$",
+                     "--target", "web:lib", "pull-request.yml", "lib"],
+                    sha=new,
+                )
+                self.assertEqual(outputs["skip"], expected)
 
     def test_speculative_train_tree_match_skips_pr_and_fails_closed_on_fork_or_mismatch(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -262,7 +359,7 @@ else:
                 "--require-job", r"Validation status \(result\)",
                 "--target", "web:lib,web",
                 "--target", "android:lib,android",
-                "validation.yml",
+                "pull-request.yml",
                 "lib", "web", "android",
             ]
 
@@ -363,7 +460,7 @@ else:
             )
             self.assertEqual(diff_out["skip"], "false")
 
-            # 4. ci-checks.yml skipped-only run (only "Decide whether to run CI") -> fail closed
+            # 4. pull-request.yml skipped-only run (only "Decide whether to run CI") -> fail closed
             self._install_fake_gh(
                 bin_dir,
                 runs_by_commit={},
@@ -382,11 +479,11 @@ else:
                         "head": {"sha": pr_sha, "repo": {"full_name": "owner/repo"}},
                     },
                 },
-                ["ci-checks.yml", "lib"],
+                ["pull-request.yml", "lib"],
             )
             self.assertEqual(ci_skipped_out["skip"], "false")
 
-            # 5. ci-checks.yml executed run ("Check & Test") -> skip=true
+            # 5. pull-request.yml executed run ("Check & Test") -> skip=true
             self._install_fake_gh(
                 bin_dir,
                 runs_by_commit={},
@@ -410,7 +507,7 @@ else:
                         "head": {"sha": pr_sha, "repo": {"full_name": "owner/repo"}},
                     },
                 },
-                ["ci-checks.yml", "lib"],
+                ["pull-request.yml", "lib"],
             )
             self.assertEqual(ci_ok_out["skip"], "true")
 

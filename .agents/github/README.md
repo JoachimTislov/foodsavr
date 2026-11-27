@@ -1,7 +1,7 @@
 # GitHub automation
 
 `.agents/github/labels.json` is the source of truth for repository labels and
-classification rules. The `github-labels.yml` workflow checks out the trusted
+classification rules. The `labels` job of `ops-maintenance.yml` checks out the trusted
 default branch and reacts to issue, pull-request, and selected workflow-run
 events.
 

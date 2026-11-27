@@ -1,0 +1,38 @@
+name: Deployment levels check
+description: >-
+  Validate the deploy/ manifests and test packages/foodsavr_deploy and the infrastructure
+  bootstrap (ADR 0005). Used by pull-request.yml on deploy changes and by the scheduled
+  deployment-poll operation of ops-maintenance.yml before it polls. Requires an earlier
+  actions/checkout step and DEPLOY_INSTANCE in the job environment.
+
+outputs:
+  environments:
+    description: JSON list of the cloud environments in the manifest
+    value: ${{ steps.envs.outputs.json }}
+
+runs:
+  using: composite
+  steps:
+    - uses: dart-lang/setup-dart@v1
+    - shell: bash
+      working-directory: packages/foodsavr_deploy
+      run: |
+        dart pub get
+        dart format --output=none --set-exit-if-changed .
+        dart analyze --fatal-infos
+        dart test
+    - name: Test infrastructure bootstrap
+      shell: bash
+      run: python3 -m unittest discover -s scripts/infra -p 'test_*.py' -v
+    - name: Validate manifests
+      shell: bash
+      working-directory: packages/foodsavr_deploy
+      run: |
+        for m in ../../deploy/instance.yaml ../../deploy/examples/*.yaml; do
+          dart run bin/levels.dart validate "$m"
+        done
+    - name: List cloud environments
+      id: envs
+      shell: bash
+      working-directory: packages/foodsavr_deploy
+      run: echo "json=$(dart run bin/levels.dart environments --cloud --json)" >> "$GITHUB_OUTPUT"

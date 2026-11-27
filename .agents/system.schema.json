@@ -95,6 +95,7 @@
               "items": { "type": "string", "minLength": 1 }
             },
             "webMonitorWorkflow": { "type": "string", "minLength": 1 },
+            "webMonitorRunName": { "type": "string", "minLength": 1 },
             "transcriptArchive": {
               "type": "object",
               "additionalProperties": false,
@@ -112,6 +113,7 @@
           "required": ["promoteWorkflow"],
           "properties": {
             "promoteWorkflow": { "type": "string", "minLength": 1 },
+            "promoteRunName": { "type": "string", "minLength": 1 },
             "detectOrphanedWorkflows": { "type": "boolean" }
           }
         }

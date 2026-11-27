@@ -27,8 +27,9 @@
 #                   account of that environment's project (live)
 #   site            per environment channel: https://<site>.web.app answers 200 (live)
 #   workflow-run    the latest completed run of `workflow` (optionally `event` on the
-#                   integration branch) succeeded and has no annotation containing
-#                   `marker` (live)
+#                   integration branch; optionally the latest whose title contains
+#                   `run_name`, for one operation of a shared workflow) succeeded and
+#                   has no annotation containing `marker` (live)
 #   script          `argv` exits 0; skipped when the probe value at `skip_when.path`
 #                   equals `skip_when.equals` (live)
 #   registry        registered GitHub-sink secrets (scripts/secrets/registry.toml)
@@ -173,7 +174,7 @@ fix = "make deploy-web ENV={env} CHANNEL={channel} YES=1"
 id = "hosting-cd"
 profiles = ["full-cloud"]
 kind = "workflow-run"
-workflow = "firebase-hosting.yml"
+workflow = "release.yml"
 event = "push"
 marker = "nothing was deployed"
 detail = "latest Hosting push run on {branch} deployed"
@@ -183,7 +184,8 @@ fix = "make setup"
 id = "web-monitor"
 profiles = ["full-cloud"]
 kind = "workflow-run"
-workflow = "web-monitor.yml"
+workflow = "ops-maintenance.yml"
+run_name = "Ops & Maintenance: web-monitor"
 declined_step = "web-monitoring"
 detail = "latest Web Monitor run passed"
 fix = "make monitoring"

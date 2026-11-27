@@ -17,7 +17,7 @@ Run `make setup`.
 
 ## Actions event policy
 
-GitHub blocks `pull_request_target` in public repositories from 2026-12-02 unless the repository has an Actions event policy. Owner action: run `make setup-event-policy` (or Settings -> Actions -> Policies). It allows `pull_request_target` for exactly `agent-review.yml`, `merge-gate.yml` and `github-labels.yml`; `make setup-verify PROFILE=fork-agents` checks it.
+GitHub blocks `pull_request_target` in public repositories from 2026-12-02 unless the repository has an Actions event policy. Owner action: run `make setup-event-policy` (or Settings -> Actions -> Policies). It allows `pull_request_target` for exactly `agent-ops.yml`, `merge-gate.yml` and `ops-maintenance.yml`; `make setup-verify PROFILE=fork-agents` checks it.
 
 ## Live state
 

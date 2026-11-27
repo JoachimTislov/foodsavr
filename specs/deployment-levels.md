@@ -43,10 +43,10 @@ a ratio above 1 means paying. Budgets alert; they do not cap spend.
   `TF_STATE_BACKEND=auto|local|gcs` selects storage without automatic migration.
   Missing web API-key IDs are discovered from Firebase; Actions variables
   are suffixed per environment.
-- `.github/workflows/firebase-hosting.yml` — resolves the environment and site
+- `.github/workflows/release.yml` (hosting) — resolves the environment and site
   from the pushed channel, builds for that environment's Firebase project and
   honors its configured GitHub Environment approval gates.
-- `.github/workflows/deployment-level.yml` — polls each provisioned cloud environment.
+- `.github/workflows/ops-maintenance.yml` (deployment-poll) — polls each provisioned cloud environment.
 - `scripts/setup/wizard.py` (`make setup`) — creates an unprovisioned production
   project and writes its identity into the manifest, then applies Terraform per
   environment. Production is applied only once its identity is merged on the

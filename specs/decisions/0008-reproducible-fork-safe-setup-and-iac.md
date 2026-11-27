@@ -6,6 +6,8 @@ Accepted (explicit owner intent, November 22, 2026). Amends [ADR 0003](0003-auto
 
 The November 23, 2026 amendment to [ADR 0007](0007-develop-integration-branch-and-fast-forward-deploy.md#amendment--november-23-2026) defines the current branch names.
 
+Workflow files named below were consolidated on November 27, 2026 (#496): `ci-checks.yml`, `validation.yml`, `agent-system.yml`, `traceability.yml`, the `docs-pages.yml` build and the `deployment-level.yml` PR check are jobs of `pull-request.yml`; `promote.yml`, `build-web.yml`, `build-android.yml`, `release-gated.yml`, `firebase-hosting.yml` and the Pages publish are operations of `release.yml`; `agent-implement.yml`, `agent-review.yml`, `agent-audit.yml` and `agent-incident.yml` are operations of `agent-ops.yml`; `fault-intake.yml`, `web-monitor.yml`, `github-labels.yml` and the `deployment-level.yml` poll are operations of `ops-maintenance.yml`; `android-drive-test.yml` is a tool of `manual-tools.yml`. See [ci-workflows.md](../ci-workflows.md).
+
 ## Context
 
 FoodSavr's operational state (GitHub rulesets, Actions variables, channel branches, labels, WIF bindings, secrets, and CI harness auth) grew across imperative bash scripts, committed upstream defaults (`JoachimTislov/foodsavr`, `my-foodsavr-store`), and write-only secrets. That created three problems:

@@ -2,7 +2,7 @@
 
 > Running or steering the project? Read [For humans](doc/humans.md): the manual processes and nothing else.
 
-[![Project Status: WIP – Work in Progress](https://img.shields.io/badge/status-WIP-orange.svg)](https://wip.badge.style) [![Format, Analyze, Check Localizations and Run Tests](https://github.com/JoachimTislov/foodsavr/actions/workflows/ci-checks.yml/badge.svg)](https://github.com/JoachimTislov/foodsavr/actions/workflows/ci-checks.yml) [![codecov](https://codecov.io/gh/JoachimTislov/foodsavr/branch/main/graph/badge.svg)](https://codecov.io/gh/JoachimTislov/foodsavr)
+[![Project Status: WIP – Work in Progress](https://img.shields.io/badge/status-WIP-orange.svg)](https://wip.badge.style) [![Pull Request](https://github.com/JoachimTislov/foodsavr/actions/workflows/pull-request.yml/badge.svg)](https://github.com/JoachimTislov/foodsavr/actions/workflows/pull-request.yml) [![codecov](https://codecov.io/gh/JoachimTislov/foodsavr/branch/main/graph/badge.svg)](https://codecov.io/gh/JoachimTislov/foodsavr)
 
 `FoodSavr` is a mobile application designed to help you reduce food 
 waste, save time, and manage your grocery expenses efficiently. By tracking 

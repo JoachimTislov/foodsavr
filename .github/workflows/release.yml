@@ -1,0 +1,701 @@
+name: Release
+
+# Release promotion and delivery (#496), replacing promote, build-web, build-android,
+# release-gated, firebase-hosting and the docs-pages publish. Each operation is a job
+# gated on its own event; the former workflow_run chains are job dependencies now.
+#
+# - promote (schedule or dispatch): periodic and manual fast-forward promotions along
+#   the configured release topology (ADR 0007, ADR 0008, vars.RELEASE_TOPOLOGY):
+#     single        - develop only (cleanly no-ops)
+#     two-stage     - develop -> stable (1st & 15th 06:00 UTC or manual)
+#     full-channels - develop -> daily (04:00 UTC) -> weekly (Mon 05:00 UTC)
+#                     -> stable (1st & 15th 06:00 UTC)
+#   The script fetches only the branches each step needs; a missing channel branch is
+#   reported and skipped on schedule and fails a manual run. A missing gate token fails
+#   both (no silent green); `make promote` is the manual bypass. Never creates merge
+#   commits and never force-pushes. Pushing with the Release-Gate GitHub App token (or
+#   legacy MERGE_GATE_TOKEN) triggers this workflow on the advanced channel.
+# - build-web (daily, weekly, stable pushes touching web paths, or dispatch): the
+#   `web-build` artifact. On stable it feeds the gated release candidate.
+# - build-android (dispatch only): the development debug APK.
+# - release gate (stable pushes after build-web): waits for the Pull Request workflow
+#   run of the same commit (Check & Test and Validation) and publishes the
+#   `release-web-candidate` artifact from this run's web build.
+# - hosting (develop, daily, weekly, stable pushes touching hosting paths, or
+#   dispatch): builds the web app for one environment of deploy/instance.yaml and
+#   deploys it to that environment's Firebase project and Hosting site. Project, web
+#   app, site and environment come from the manifest (`levels env --channel`), so
+#   forks only edit the manifest. Deployments are disabled unless the owner explicitly
+#   sets FIREBASE_HOSTING_ENABLED=true. Once enabled, a push to a release channel
+#   deploys live to the environment that declares the channel: develop, daily and
+#   weekly to their own sites in the `test` project, stable to `production` (ADR
+#   0007). Previews are manual only: Actions -> Release -> Run workflow on a branch
+#   (operation: hosting, target: preview) deploys a short-lived channel (default 4h)
+#   named after the branch and comments on its PR; environment `auto` picks staging,
+#   else test, whichever the manifest declares. A post-deploy web probe follows.
+#   Build and deploy logic lives in scripts/web/deploy_web.py, shared with the manual
+#   bypass `make deploy-web ENV=<env> [CHANNEL=<channel>] [TARGET=live|preview]`,
+#   which runs the same steps with your own firebase login. When an environment is
+#   not provisioned, or its deploy configuration is missing or belongs to another
+#   project, the run skips that deploy with a step summary naming the bypass and the
+#   fix (`make setup`); it never fails the pipeline and never deploys to a different
+#   project. Storage budget (scripts/web/hosting_storage_guard.py, before each
+#   deploy): previews are deleted oldest-first above 8 GB and skipped if they would
+#   not fit; live deploys may also delete live versions older than the 3 latest to
+#   stay under 10 GB. Auth is keyless (Workload Identity Federation, see
+#   infra/terraform/gcp).
+#   Variables:
+#     FIREBASE_HOSTING_ENABLED        explicit owner opt-in; unset/false skips all deploys
+#     WEB_ACCESS_CODE                 optional public code compiled into the hosted app
+#   Variables set by scripts/infra/apply.sh (non-production environments use a
+#   suffix, e.g. GCP_DEPLOY_SERVICE_ACCOUNT_TEST):
+#     GCP_WORKLOAD_IDENTITY_PROVIDER  required to deploy (missing skips the deploy)
+#     GCP_DEPLOY_SERVICE_ACCOUNT      required to deploy; must belong to the project
+#     RECAPTCHA_ENTERPRISE_SITE_KEY   optional; App Check web site key (public)
+#     ANDROID_APK_URL                 optional; /android redirects here
+#   Secrets:
+#     WEB_ENV_B64                     optional; Base64 assets/.env (served publicly)
+#                                     See assets/.env.example and scripts/secrets/registry.toml.
+# - docs-publish (stable pushes touching docs paths, or dispatch): builds the
+#   documentation site and publishes it to GitHub Pages.
+
+on:
+  push:
+    branches: [develop, daily, weekly, stable]
+    # Union of the hosting, web build and docs filters (scripts/ci/local_ci.py
+    # RELEASE_FILTERS); the plan job narrows it per operation.
+    paths:
+      - "lib/**"
+      - "packages/**"
+      - "web/**"
+      - "assets/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - "scripts/web/**"
+      - "deploy/instance.yaml"
+      - ".github/workflows/release.yml"
+      - ".github/actions/setup-flutter-app/**"
+      - "doc/**"
+      - "specs/source-of-truth/**"
+      - "assets/logos/**"
+      - "*.md"
+      - "mkdocs.yml"
+      - "scripts/docs/**"
+      - "scripts/ci/local_ci.py"
+      - ".github/workflows/pull-request.yml"
+  schedule:
+    # Daily cut: develop -> daily
+    - cron: '0 4 * * *'
+    # Weekly cut (Mondays): daily -> weekly
+    - cron: '0 5 * * 1'
+    # Stable production cut (1st & 15th): weekly -> stable
+    - cron: '0 6 1,15 * *'
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Release operation to run
+        type: choice
+        required: true
+        options: [promote, build-web, build-android, hosting, docs-publish]
+      promote_channel:
+        description: "promote: target release channel to fast-forward"
+        type: choice
+        options: [daily, weekly, stable]
+        default: stable
+      promote_source:
+        description: "promote: source branch (default follows active RELEASE_TOPOLOGY)"
+        type: choice
+        options: [default, develop, daily, weekly]
+        default: default
+      dry_run:
+        description: "promote: preview promotion without pushing"
+        type: boolean
+        default: false
+      target:
+        description: "hosting: preview (short-lived channel for this branch) or live"
+        type: choice
+        options: [preview, live]
+        default: preview
+      environment:
+        description: "hosting: environment; auto = the one deploying this branch (live) or staging, else test (preview)"
+        type: choice
+        options: [auto, test, production, staging]
+        default: auto
+      channel:
+        description: "hosting: release channel whose Hosting site a live deploy replaces; auto = this branch"
+        type: choice
+        options: [auto, develop, daily, weekly, stable]
+        default: auto
+      expires:
+        description: "hosting: preview lifetime (e.g. 2h, 12h, 1d; max 30d)"
+        type: string
+        default: 4h
+
+run-name: >-
+  ${{ format('Release: {0}',
+    github.event_name == 'schedule' && 'promote' ||
+    github.event_name == 'workflow_dispatch' && inputs.operation ||
+    format('push {0}', github.ref_name)) }}
+
+permissions:
+  contents: read
+
+# No workflow-level concurrency: a scheduled promotion and a channel push must never
+# cancel or replace each other. Each operation keeps its former group at job level.
+
+env:
+  # Instance state: the repository is stateless (ADR 0008); the levels CLI
+  # merges this overlay over deploy/instance.yaml. Unset on a fresh fork.
+  DEPLOY_INSTANCE: ${{ vars.DEPLOY_INSTANCE }}
+  FIREBASE_TOOLS: firebase-tools@15
+  TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'live' }}
+
+jobs:
+  plan:
+    name: Plan release operations
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.operation != 'promote')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      web_build: ${{ steps.ops.outputs.web_build }}
+      android_build: ${{ steps.ops.outputs.android_build }}
+      docs: ${{ steps.ops.outputs.docs }}
+      hosting: ${{ steps.ops.outputs.hosting }}
+      ready: ${{ steps.env.outputs.ready }}
+      flavor: ${{ steps.env.outputs.FLAVOR }}
+      channel: ${{ steps.env.outputs.CHANNEL }}
+      suffix: ${{ steps.env.outputs.VAR_SUFFIX }}
+      project_id: ${{ steps.env.outputs.PROJECT_ID }}
+      web_app_id: ${{ steps.env.outputs.WEB_APP_ID }}
+      site_id: ${{ steps.env.outputs.SITE_ID }}
+      github_environment: ${{ steps.env.outputs.GH_ENVIRONMENT }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Changed paths
+        id: paths
+        if: github.event_name == 'push'
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: python3 scripts/ci/local_ci.py --release-filters "$BEFORE" HEAD | tee -a "$GITHUB_OUTPUT"
+
+      - name: Decide operations
+        id: ops
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          OPERATION: ${{ inputs.operation }}
+          BRANCH: ${{ github.ref_name }}
+          HOSTING: ${{ steps.paths.outputs.hosting }}
+          WEB: ${{ steps.paths.outputs.web }}
+          DOCS: ${{ steps.paths.outputs.docs }}
+        run: |
+          hosting=false web_build=false android_build=false docs=false
+          if [ "$EVENT_NAME" = push ]; then
+            hosting="$HOSTING"
+            case "$BRANCH" in daily|weekly|stable) web_build="$WEB" ;; esac
+            [ "$BRANCH" = stable ] && docs="$DOCS"
+          else
+            case "$OPERATION" in
+              hosting) hosting=true ;;
+              build-web) web_build=true ;;
+              build-android) android_build=true ;;
+              docs-publish) docs=true ;;
+            esac
+          fi
+          {
+            echo "hosting=$hosting"
+            echo "web_build=$web_build"
+            echo "android_build=$android_build"
+            echo "docs=$docs"
+          } | tee -a "$GITHUB_OUTPUT"
+
+      - name: Set up Dart
+        if: steps.ops.outputs.hosting == 'true' && vars.FIREBASE_HOSTING_ENABLED == 'true'
+        uses: dart-lang/setup-dart@v1
+
+      - name: Resolve environment
+        id: env
+        if: steps.ops.outputs.hosting == 'true' && vars.FIREBASE_HOSTING_ENABLED == 'true'
+        working-directory: packages/foodsavr_deploy
+        env:
+          REQUESTED: ${{ inputs.environment || 'auto' }}
+          REQUESTED_CHANNEL: ${{ inputs.channel || 'auto' }}
+          BRANCH: ${{ github.ref_name }}
+          RELEASE_TOPOLOGY: ${{ vars.RELEASE_TOPOLOGY || 'single' }}
+        run: |
+          skip() {
+            echo "::notice::$1"
+            echo "Skipped: $1" >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+          dart pub get
+          out="$RUNNER_TEMP/levels.env"
+          env_name="$REQUESTED"
+          channel="$REQUESTED_CHANNEL"
+          [ "$channel" = auto ] && channel="$BRANCH"
+          if [ "$TARGET" = preview ]; then
+            channel=""
+            if [ "$env_name" = auto ]; then
+              cloud="$(dart run bin/levels.dart environments --cloud)"
+              for candidate in staging test; do
+                if printf '%s\n' "$cloud" | grep -q "^$candidate "; then env_name="$candidate"; break; fi
+              done
+              [ "$env_name" = auto ] && skip "No provisioned staging or test environment for previews. Deploy now: make deploy-web ENV=<env> TARGET=preview."
+            fi
+            dart run bin/levels.dart env --env "$env_name" --format github > "$out"
+          elif [ "$env_name" = auto ]; then
+            code=0
+            dart run bin/levels.dart env --channel "$channel" --format github > "$out" || code=$?
+            if [ "$code" = 3 ] && [ "$RELEASE_TOPOLOGY" = single ] && [ "$BRANCH" = develop ] && [ "$channel" = develop ]; then
+              # Single topology (ADR 0008): develop is the production deployment branch.
+              env_name=production code=0
+              dart run bin/levels.dart env --env production --format github > "$out" || code=$?
+            fi
+            [ "$code" = 3 ] && skip "No environment in deploy/instance.yaml deploys channel $channel."
+            [ "$code" = 0 ] || exit "$code"
+          elif ! dart run bin/levels.dart env --env "$env_name" --channel "$channel" --format github > "$out" 2> "$RUNNER_TEMP/levels.err"; then
+            # A live deploy goes only to a channel the selected environment deploys.
+            valid="$(dart run bin/levels.dart environments --json |
+              jq -r '[.[] | select(.emulator | not) | select(.channels | length > 0) | "environment \(.name) with channel \(.channels | join("|"))"] | join("; ")')"
+            echo "::error::$(cat "$RUNNER_TEMP/levels.err") Nothing was deployed. Valid live deploys: ${valid:-none}."
+            exit 1
+          fi
+          env_name="$(sed -n 's/^FLAVOR=//p' "$out")"
+          channel="$(sed -n 's/^CHANNEL=//p' "$out")"
+          if grep -q '^PROVISIONED=false$' "$out"; then
+            skip "Environment $env_name is not provisioned yet, so nothing was deployed. Fix: run make setup to create its Firebase project, then merge the manifest update."
+          fi
+          grep -q '^PROJECT_ID=' "$out" || skip "Environment $env_name has no cloud (Firebase) identity in deploy/instance.yaml."
+          cat "$out" >> "$GITHUB_OUTPUT"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+          echo "Environment: $env_name${channel:+ (channel $channel)}" >> "$GITHUB_STEP_SUMMARY"
+
+  # --- artifact builds and the gated release candidate ---------------------------
+
+  build-web:
+    name: Build Web
+    needs: plan
+    # Outputs of the operations step survive a failed Hosting resolve later in plan,
+    # so a Hosting misconfiguration never blocks the build (separate workflows before).
+    if: ${{ !cancelled() && needs.plan.outputs.web_build == 'true' }}
+    concurrency:
+      group: release-build-web-${{ github.ref }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Flutter app
+        uses: ./.github/actions/setup-flutter-app
+        with:
+          flutter-version: "3.47.6"
+
+      - name: Generate web platform files
+        run: flutter create . --platforms web
+
+      - name: Build web
+        run: flutter build web --release
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: build/web
+
+      - name: Record provenance
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/provenance
+        with:
+          sha: ${{ github.sha }}
+
+  # Manual only (`make build-remote PLATFORM=android`).
+  build-android:
+    name: Build Android APK (debug)
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.outputs.android_build == 'true' }}
+    concurrency:
+      group: release-build-android-${{ github.ref }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Flutter app
+        uses: ./.github/actions/setup-flutter-app
+        with:
+          flutter-version: "3.47.6"
+          write-dummy-google-services: "true"
+
+      - name: Build development debug APK
+        run: flutter build apk --flavor development --debug
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-debug
+          path: build/app/outputs/flutter-apk/app-development-debug.apk
+
+      - name: Record provenance
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/provenance
+        with:
+          sha: ${{ github.sha }}
+
+  release-gate:
+    name: Evaluate release gate
+    needs: build-web
+    # Only a pushed stable build is a release candidate; dispatched builds are not.
+    if: needs.build-web.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/stable'
+    permissions:
+      actions: read
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 115
+    outputs:
+      release_web: ${{ steps.evaluate.outputs.release_web }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Evaluate validation matrix for commit
+        id: evaluate
+        uses: actions/github-script@v8
+        with:
+          script: |
+            await require('./scripts/release/release_gate.cjs').evaluate({github, context, core});
+
+  release-web:
+    name: Release Web candidate
+    needs: [build-web, release-gate]
+    if: needs.release-gate.outputs.release_web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout released commit (provenance)
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Download web build artifact from this run
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: artifacts/web
+
+      - name: Upload release candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-web-candidate
+          path: artifacts/web
+
+      - name: Record provenance
+        if: ${{ !cancelled() && hashFiles('.github/actions/provenance/action.yml') != '' }}
+        uses: ./.github/actions/provenance
+        with:
+          sha: ${{ github.sha }}
+
+  # --- Firebase Hosting -------------------------------------------------------------
+
+  hosting-deploy:
+    name: Build and deploy to Firebase Hosting
+    needs: plan
+    if: needs.plan.outputs.ready == 'true'
+    # One deploy at a time across all channels, as the former Firebase Hosting workflow.
+    concurrency:
+      group: Firebase Hosting
+      cancel-in-progress: false
+    environment: ${{ needs.plan.outputs.github_environment || needs.plan.outputs.flavor }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    env:
+      PROJECT_ID: ${{ needs.plan.outputs.project_id }}
+      WEB_APP_ID: ${{ needs.plan.outputs.web_app_id }}
+      SITE_ID: ${{ needs.plan.outputs.site_id }}
+      FLAVOR: ${{ needs.plan.outputs.flavor }}
+      # Not CHANNEL: subosito/flutter-action reads that from the environment and
+      # lets it override its `channel` input.
+      RELEASE_CHANNEL: ${{ needs.plan.outputs.channel }}
+      WIF_PROVIDER: ${{ vars[format('GCP_WORKLOAD_IDENTITY_PROVIDER{0}', needs.plan.outputs.suffix)] }}
+      DEPLOY_SA: ${{ vars[format('GCP_DEPLOY_SERVICE_ACCOUNT{0}', needs.plan.outputs.suffix)] }}
+    steps:
+      - name: Check deploy configuration
+        id: config
+        env:
+          SUFFIX: ${{ needs.plan.outputs.suffix }}
+        run: |
+          bypass="Deploy now: make deploy-web ENV=$FLAVOR${RELEASE_CHANNEL:+ CHANNEL=$RELEASE_CHANNEL}."
+          fix="Fix the pipeline: make setup (or make infra-gcp-apply ENV=$FLAVOR)."
+          if [ -z "$WIF_PROVIDER" ] || [ -z "$DEPLOY_SA" ]; then
+            msg="GCP_WORKLOAD_IDENTITY_PROVIDER$SUFFIX/GCP_DEPLOY_SERVICE_ACCOUNT$SUFFIX are missing, so nothing was deployed to $PROJECT_ID. $bypass $fix"
+          elif [ "${DEPLOY_SA##*@}" != "$PROJECT_ID.iam.gserviceaccount.com" ]; then
+            msg="GCP_DEPLOY_SERVICE_ACCOUNT$SUFFIX belongs to another project than $PROJECT_ID, so nothing was deployed. $bypass $fix"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "::warning::$msg"
+          echo "Skipped: $msg" >> "$GITHUB_STEP_SUMMARY"
+          echo "ready=false" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout code
+        if: steps.config.outputs.ready == 'true'
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Authenticate to Google Cloud (keyless)
+        if: steps.config.outputs.ready == 'true'
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SA }}
+
+      - name: Set up Flutter
+        if: steps.config.outputs.ready == 'true'
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.6
+          channel: stable
+          cache: true
+
+      - name: Build web
+        if: steps.config.outputs.ready == 'true'
+        env:
+          WEB_ENV_B64: ${{ secrets.WEB_ENV_B64 }}
+          ANDROID_APK_URL: ${{ vars.ANDROID_APK_URL }}
+          RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars[format('RECAPTCHA_ENTERPRISE_SITE_KEY{0}', needs.plan.outputs.suffix)] }}
+          WEB_ACCESS_CODE: ${{ vars.WEB_ACCESS_CODE }}
+          FIREBASE_PLAN: ${{ vars.FIREBASE_PLAN }}
+          ERROR_REPORTER: ${{ vars.ERROR_REPORTER }}
+          ERROR_COLLECTOR_ENDPOINT: ${{ vars.ERROR_COLLECTOR_ENDPOINT }}
+        run: python3 scripts/web/deploy_web.py build
+
+      - name: Upload web source maps (Blaze)
+        if: ${{ steps.config.outputs.ready == 'true' && env.TARGET == 'live' && vars.FIREBASE_PLAN == 'blaze' }}
+        run: python3 scripts/web/deploy_web.py sourcemaps
+
+      - name: Check Hosting storage budget
+        id: budget
+        if: steps.config.outputs.ready == 'true'
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: python3 scripts/web/deploy_web.py guard
+
+      - name: Deploy preview channel
+        if: ${{ steps.config.outputs.ready == 'true' && env.TARGET == 'preview' && steps.budget.outputs.fits == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+          EXPIRES: ${{ inputs.expires }}
+        run: python3 scripts/web/deploy_web.py deploy
+
+      - name: Deploy live
+        if: ${{ steps.config.outputs.ready == 'true' && env.TARGET == 'live' }}
+        run: python3 scripts/web/deploy_web.py deploy
+
+  # Post-deploy probe of the live site, formerly Web Monitor on workflow_run of
+  # Firebase Hosting: it ran whenever that workflow succeeded, including runs whose
+  # deploy was skipped. Monitor scripts come from the default branch, as before.
+  post-deploy-probe:
+    name: Probe live web app
+    needs: [plan, hosting-deploy]
+    if: >-
+      !cancelled() &&
+      needs.plan.result == 'success' && needs.plan.outputs.hosting == 'true' &&
+      (needs.hosting-deploy.result == 'success' || needs.hosting-deploy.result == 'skipped') &&
+      vars.MONITOR_TARGET_URL != ''
+    concurrency:
+      group: web-monitor-refs/heads/${{ github.event.repository.default_branch }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+      actions: write
+      pull-requests: read
+    steps:
+      - name: Checkout trusted monitor scripts
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: ./.github/actions/web-probe
+        with:
+          target-url: ${{ vars.MONITOR_TARGET_URL }}
+          deployed-sha: ${{ github.sha }}
+          firebase-plan: ${{ vars.FIREBASE_PLAN }}
+          auto-heal-enabled: ${{ vars.AUTO_HEAL_ENABLED }}
+          app-id: ${{ vars.AGENT_APP_ID || secrets.AGENT_APP_ID }}
+          app-private-key: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
+          github-token: ${{ github.token }}
+
+  # --- documentation ------------------------------------------------------------------
+
+  docs-build:
+    name: Build documentation
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.outputs.docs == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: scripts/docs/requirements.txt
+      - name: Install documentation tools
+        run: python -m pip install -r scripts/docs/requirements.txt
+      - name: Build and check documentation
+        env:
+          LOCAL_CI_PYTHON: python
+        run: python scripts/ci/local_ci.py --group docs
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/stable'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/docs-site
+      - name: Record provenance
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/provenance
+        with:
+          sha: ${{ github.sha }}
+
+  docs-deploy:
+    name: Publish documentation
+    needs: docs-build
+    if: github.ref == 'refs/heads/stable'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Deploy documentation
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # --- promotion ------------------------------------------------------------------------
+
+  promote:
+    name: Fast-forward release channel
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.operation == 'promote')
+    concurrency:
+      group: promote-release-channels
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      RELEASE_TOPOLOGY: ${{ vars.RELEASE_TOPOLOGY || 'single' }}
+    steps:
+      - name: Skip cleanly in single-branch topology
+        if: env.RELEASE_TOPOLOGY == 'single'
+        run: |
+          echo "RELEASE_TOPOLOGY=single; no release channel promotions needed."
+          echo "Skipped: RELEASE_TOPOLOGY=single (no channel promotion branches)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check Release-Gate App configuration
+        if: env.RELEASE_TOPOLOGY != 'single'
+        id: app-config
+        env:
+          RELEASE_GATE_APP_ID: ${{ vars.RELEASE_GATE_APP_ID || secrets.RELEASE_GATE_APP_ID }}
+          RELEASE_GATE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_GATE_APP_PRIVATE_KEY }}
+        run: |
+          if [ -n "$RELEASE_GATE_APP_ID" ] && [ -n "$RELEASE_GATE_APP_PRIVATE_KEY" ]; then
+            if ! printf '%s\n' "$RELEASE_GATE_APP_PRIVATE_KEY" | grep -q -- '-----BEGIN .*PRIVATE KEY-----'; then
+              echo "::error::RELEASE_GATE_APP_PRIVATE_KEY is not a valid PEM private key. Re-upload the GitHub App .pem file with scripts/secrets/rotate.py RELEASE_GATE_APP_PRIVATE_KEY."
+              exit 1
+            fi
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mint Release-Gate App token
+        id: gate-app
+        if: env.RELEASE_TOPOLOGY != 'single' && steps.app-config.outputs.configured == 'true'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.RELEASE_GATE_APP_ID || secrets.RELEASE_GATE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_GATE_APP_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        if: env.RELEASE_TOPOLOGY != 'single'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Promote release channel (fast-forward only)
+        if: env.RELEASE_TOPOLOGY != 'single'
+        env:
+          # Must not be GITHUB_TOKEN for --apply: its pushes trigger no deployment workflows.
+          GATE_TOKEN: ${{ steps.gate-app.outputs.token || secrets.MERGE_GATE_TOKEN }}
+          FALLBACK_READ_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          SCHEDULE_CRON: ${{ github.event.schedule }}
+          TARGET_CHANNEL: ${{ inputs.promote_channel }}
+          SOURCE_BRANCH: ${{ inputs.promote_source }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=(--repo "${{ github.repository }}" --topology "$RELEASE_TOPOLOGY")
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            args+=(--schedule "$SCHEDULE_CRON")
+          else
+            args+=(--target-branch "$TARGET_CHANNEL")
+            if [ -n "$SOURCE_BRANCH" ] && [ "$SOURCE_BRANCH" != "default" ]; then
+              args+=(--source-branch "$SOURCE_BRANCH")
+            fi
+          fi
+
+          if [ "$DRY_RUN" != "true" ]; then
+            if [ -z "$GATE_TOKEN" ]; then
+              # Enabled (topology is not single) but unable to publish: fail instead of a silent green.
+              echo "::error::Configure RELEASE_GATE_APP_ID/RELEASE_GATE_APP_PRIVATE_KEY (or legacy MERGE_GATE_TOKEN). Nothing was promoted. Promote now: make promote CHANNEL=<channel> APPLY=1."
+              exit 1
+            fi
+            export GH_TOKEN="$GATE_TOKEN"
+            args+=(--apply)
+            if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+              args+=(--strict-pending)
+            fi
+          else
+            export GH_TOKEN="${GATE_TOKEN:-$FALLBACK_READ_TOKEN}"
+          fi
+
+          python3 scripts/github/promote_release.py "${args[@]}"
+          echo "The release workflow deploys each advanced channel to the environment that declares it in deploy/instance.yaml (daily/weekly: test sites, stable: production)." >> "$GITHUB_STEP_SUMMARY"

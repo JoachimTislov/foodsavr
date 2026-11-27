@@ -33,7 +33,7 @@ class CheckHealingPatchTest(unittest.TestCase):
 
     def test_rejects_sensitive_and_unallowlisted_paths(self):
         disallowed = [
-            ".github/workflows/agent-implement.yml",
+            ".github/workflows/agent-ops.yml",
             ".agents/policies/agent-implement.json",
             "infra/terraform/main.tf",
             "firestore-rules/firestore.rules",

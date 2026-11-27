@@ -1,0 +1,402 @@
+name: Ops & Maintenance
+
+# Scheduled operations and repository maintenance (#496), each gated on its own event:
+#
+# - labels (issues opened/edited/reopened; pull_request_target opened, edited,
+#   ready_for_review, converted_to_draft, never synchronize or closed): synchronize
+#   GitHub labels from trusted default-branch rules.
+# - fault-intake (repository_dispatch monitoring_fault, every 6 h at :43, or
+#   dispatch): normalizes push webhooks and pull telemetry pollers (Firebase Spark
+#   Firestore / Blaze Cloud Logging via WIF) into deduplicated GitHub issues and
+#   bounded healing dispatches.
+# - web-monitor (every 6 h at :13, or dispatch): synthetic probe for live web health
+#   (.github/actions/web-probe). Fork-safe (ADR 0008): skips cleanly when
+#   MONITOR_TARGET_URL is unset instead of probing upstream Hosting. The post-deploy
+#   probe runs in release.yml right after each Hosting deploy.
+# - deployment-poll (daily 05:23 UTC, or dispatch): deployment levels (ADR 0005,
+#   specs/source-of-truth/deployment-levels.md). Polls usage of every cloud
+#   environment in deploy/instance.yaml against its current level's limits
+#   (KEDA-style triggers) and keeps ONE open issue labelled `deployment-level` up to
+#   date while any environment recommends warn or promote. Recommend-only: nothing
+#   here changes infrastructure, billing or levels. A future gated `promote` job
+#   would run `levels plan` + apply.sh behind a GitHub Environment with required
+#   reviewers (ADR 0003); it does not exist. Variables per environment (production
+#   plain, others suffixed, e.g. GCP_DEPLOY_SERVICE_ACCOUNT_STAGING; set by
+#   scripts/infra/apply.sh): GCP_WORKLOAD_IDENTITY_PROVIDER,
+#   GCP_DEPLOY_SERVICE_ACCOUNT; polling is skipped with a warning when missing. The
+#   deploy service account needs roles/monitoring.viewer and
+#   roles/firebaseauth.viewer (infra/terraform). The manifest and CLI checks also run
+#   on PRs in pull-request.yml.
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+  pull_request_target:
+    types: [opened, edited, ready_for_review, converted_to_draft]
+  repository_dispatch:
+    types: [monitoring_fault]
+  schedule:
+    # fault-intake
+    - cron: "43 */6 * * *"
+    # web-monitor
+    - cron: "13 */6 * * *"
+    # deployment-poll
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Operation to run
+        type: choice
+        required: true
+        options: [fault-intake, web-monitor, deployment-poll]
+      source:
+        description: "fault-intake: telemetry source or poll mode"
+        type: choice
+        options: [auto-poll, spark-firestore, blaze-cloud-logging, payload]
+        default: auto-poll
+      payload_json:
+        description: "fault-intake: optional JSON payload (used when source=payload)"
+        type: string
+        required: false
+        default: ""
+      dispatch_healing:
+        description: "fault-intake: dispatch the agent-ops.yml implement operation for eligible code_fault events"
+        type: boolean
+        required: false
+        default: false
+      target_url:
+        description: "web-monitor: target URL to probe (defaults to MONITOR_TARGET_URL)"
+        required: false
+        type: string
+      dry_run:
+        description: "fault-intake, web-monitor: do not create/update issues or dispatch workflows"
+        type: boolean
+        required: false
+        default: false
+
+run-name: >-
+  ${{ format('Ops & Maintenance: {0}',
+    (github.event_name == 'issues' || github.event_name == 'pull_request_target') && format('labels #{0}', github.event.pull_request.number || github.event.issue.number) ||
+    github.event_name == 'workflow_dispatch' && inputs.operation ||
+    (github.event_name == 'repository_dispatch' || github.event.schedule == '43 */6 * * *') && 'fault-intake' ||
+    github.event.schedule == '13 */6 * * *' && 'web-monitor' ||
+    'deployment-poll') }}
+
+# One group per operation (and per issue or PR for labels), named as before the
+# consolidation; only label sync cancels its own older run.
+concurrency:
+  group: >-
+    ${{ (github.event_name == 'issues' || github.event_name == 'pull_request_target') && format('Synchronize GitHub labels-{0}', github.event.pull_request.number || github.event.issue.number) ||
+    (github.event_name == 'repository_dispatch' || github.event.schedule == '43 */6 * * *' || inputs.operation == 'fault-intake') && format('fault-intake-{0}', github.ref) ||
+    (github.event.schedule == '13 */6 * * *' || inputs.operation == 'web-monitor') && format('web-monitor-{0}', github.ref) ||
+    format('deployment-level-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name == 'issues' || github.event_name == 'pull_request_target' }}
+
+permissions:
+  contents: read
+
+env:
+  # Instance state: the repository is stateless (ADR 0008); the levels CLI
+  # merges this overlay over deploy/instance.yaml. Unset on a fresh fork.
+  DEPLOY_INSTANCE: ${{ vars.DEPLOY_INSTANCE }}
+
+jobs:
+  labels:
+    name: Synchronize GitHub labels
+    if: github.event_name == 'issues' || github.event_name == 'pull_request_target'
+    permissions:
+      contents: read
+      checks: read
+      issues: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout trusted label rules
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Synchronize labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "issues" ]; then
+            python3 scripts/github/sync_labels.py --repo "${{ github.repository }}" --number "${{ github.event.issue.number }}" --apply
+          else
+            python3 scripts/github/sync_labels.py --repo "${{ github.repository }}" --number "${{ github.event.pull_request.number }}" --apply
+          fi
+
+  intake:
+    name: Normalize and route faults
+    if: >-
+      (github.event_name == 'repository_dispatch' || (github.event_name == 'schedule' && github.event.schedule == '43 */6 * * *') || (github.event_name == 'workflow_dispatch' && inputs.operation == 'fault-intake')) &&
+      (github.event_name != 'schedule' || vars.TELEMETRY_POLL_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      actions: write
+      id-token: write
+    env:
+      TELEMETRY_SA: ${{ vars.GCP_TELEMETRY_SERVICE_ACCOUNT || vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+      HAS_WIF_CONFIG: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && (vars.GCP_TELEMETRY_SERVICE_ACCOUNT != '' || vars.GCP_DEPLOY_SERVICE_ACCOUNT != '') }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Check agent App configuration
+        id: app-config
+        env:
+          AGENT_APP_ID: ${{ vars.AGENT_APP_ID || secrets.AGENT_APP_ID }}
+          AGENT_APP_PRIVATE_KEY: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
+        run: |
+          if [ -n "$AGENT_APP_ID" ] && [ -n "$AGENT_APP_PRIVATE_KEY" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mint agent App token
+        id: app
+        if: steps.app-config.outputs.configured == 'true'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.AGENT_APP_ID || secrets.AGENT_APP_ID }}
+          private-key: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
+
+      - name: Write push payload (repository_dispatch)
+        if: github.event_name == 'repository_dispatch'
+        env:
+          CLIENT_PAYLOAD: ${{ toJson(github.event.client_payload) }}
+        run: |
+          printf '%s\n' "$CLIENT_PAYLOAD" > "$RUNNER_TEMP/intake-payload.json"
+
+      - name: Write manual payload (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch' && inputs.source == 'payload'
+        env:
+          PAYLOAD_JSON: ${{ inputs.payload_json }}
+        run: |
+          if [ -z "$PAYLOAD_JSON" ]; then
+            echo "::error::payload_json is required when source=payload"
+            exit 1
+          fi
+          printf '%s\n' "$PAYLOAD_JSON" > "$RUNNER_TEMP/intake-payload.json"
+
+      - name: Authenticate to Google Cloud for telemetry polling (WIF)
+        id: gcp-auth
+        if: >-
+          env.HAS_WIF_CONFIG == 'true' &&
+          (github.event_name == 'schedule' ||
+           (github.event_name == 'workflow_dispatch' && inputs.source != 'payload'))
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.TELEMETRY_SA }}
+          token_format: access_token
+
+      - name: Poll Firebase telemetry (Spark Firestore / Blaze Cloud Logging)
+        if: >-
+          github.event_name == 'schedule' ||
+          (github.event_name == 'workflow_dispatch' && inputs.source != 'payload')
+        env:
+          ACCESS_TOKEN: ${{ steps.gcp-auth.outputs.access_token }}
+          FIREBASE_PLAN: ${{ vars.FIREBASE_PLAN }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          INPUT_SOURCE: ${{ inputs.source }}
+        run: |
+          project="${FIREBASE_PROJECT_ID}"
+          if [ "$HAS_WIF_CONFIG" != "true" ] || [ -z "$ACCESS_TOKEN" ] || [ -z "$project" ]; then
+            echo "::warning::GCP WIF telemetry polling or FIREBASE_PROJECT_ID is not configured; skipping pull poll."
+            printf '{"events": []}\n' > "$RUNNER_TEMP/intake-payload.json"
+            exit 0
+          fi
+          plan="auto"
+          if [ "$INPUT_SOURCE" = "spark-firestore" ]; then plan="spark"; fi
+          if [ "$INPUT_SOURCE" = "blaze-cloud-logging" ]; then plan="blaze"; fi
+          python3 scripts/monitoring/poll_firebase_telemetry.py \
+            --plan "$plan" \
+            --project "$project" \
+            --out "$RUNNER_TEMP/intake-payload.json"
+
+      - name: Run Fault Intake pipeline
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          INPUT_DISPATCH: ${{ inputs.dispatch_healing }}
+          AUTO_HEAL_ENABLED: ${{ vars.AUTO_HEAL_ENABLED }}
+          FIREBASE_PLAN: ${{ vars.FIREBASE_PLAN }}
+        run: |
+          args=(--input "$RUNNER_TEMP/intake-payload.json" --deployment-level "firebase-${FIREBASE_PLAN:-spark}" --ref "${{ github.event.repository.default_branch }}")
+          if [ "$DRY_RUN" = "true" ]; then
+            args+=(--dry-run)
+          elif [ "$INPUT_DISPATCH" = "true" ] || [ "$AUTO_HEAL_ENABLED" = "true" ]; then
+            args+=(--dispatch)
+          fi
+          python3 scripts/monitoring/fault_intake.py "${args[@]}"
+
+  web-monitor:
+    name: Probe live web app
+    if: >-
+      ((github.event_name == 'schedule' && github.event.schedule == '13 */6 * * *') || (github.event_name == 'workflow_dispatch' && inputs.operation == 'web-monitor')) &&
+      (inputs.target_url != '' || vars.MONITOR_TARGET_URL != '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+      actions: write
+      pull-requests: read
+    steps:
+      - name: Checkout trusted monitor scripts
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/web-probe
+        with:
+          target-url: ${{ inputs.target_url || vars.MONITOR_TARGET_URL }}
+          dry-run: ${{ inputs.dry_run && 'true' || '' }}
+          firebase-plan: ${{ vars.FIREBASE_PLAN }}
+          auto-heal-enabled: ${{ vars.AUTO_HEAL_ENABLED }}
+          app-id: ${{ vars.AGENT_APP_ID || secrets.AGENT_APP_ID }}
+          app-private-key: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
+          github-token: ${{ github.token }}
+
+  deployment-check:
+    name: Validate manifests and test levels CLI
+    if: >-
+      ((github.event_name == 'schedule' && github.event.schedule == '23 5 * * *') || (github.event_name == 'workflow_dispatch' && inputs.operation == 'deployment-poll')) &&
+      (github.event_name != 'schedule' || vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      environments: ${{ steps.check.outputs.environments }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - id: check
+        uses: ./.github/actions/deploy-levels-check
+
+  deployment-poll:
+    name: Poll ${{ matrix.env.name }}
+    needs: deployment-check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/foodsavr_deploy
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        env: ${{ fromJSON(needs.deployment-check.outputs.environments) }}
+    env:
+      ENV_NAME: ${{ matrix.env.name }}
+      WIF_PROVIDER: ${{ vars[format('GCP_WORKLOAD_IDENTITY_PROVIDER{0}', matrix.env.varSuffix)] }}
+      TELEMETRY_SA: ${{ vars[format('GCP_TELEMETRY_SERVICE_ACCOUNT{0}', matrix.env.varSuffix)] || vars[format('GCP_DEPLOY_SERVICE_ACCOUNT{0}', matrix.env.varSuffix)] }}
+    steps:
+      - name: Skip without telemetry WIF configuration
+        if: ${{ env.WIF_PROVIDER == '' || env.TELEMETRY_SA == '' }}
+        working-directory: .
+        run: |
+          echo "::warning::Workload Identity variables missing for $ENV_NAME; run make infra-gcp-apply ENV=$ENV_NAME; poll by hand with make deployment-poll ENV=$ENV_NAME. Skipping poll."
+          echo "Poll skipped for $ENV_NAME: no Workload Identity variables." >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v6
+        if: ${{ env.WIF_PROVIDER != '' && env.TELEMETRY_SA != '' }}
+        with:
+          persist-credentials: false
+
+      - uses: dart-lang/setup-dart@v1
+        if: ${{ env.WIF_PROVIDER != '' && env.TELEMETRY_SA != '' }}
+
+      - name: Authenticate to Google Cloud (keyless)
+        id: auth
+        if: ${{ env.WIF_PROVIDER != '' && env.TELEMETRY_SA != '' }}
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.TELEMETRY_SA }}
+          token_format: access_token
+
+      - name: Restore poll state
+        if: ${{ env.WIF_PROVIDER != '' && env.TELEMETRY_SA != '' }}
+        uses: actions/cache@v4
+        with:
+          path: .deployment-level/${{ matrix.env.name }}
+          key: deployment-level-${{ matrix.env.name }}-${{ github.run_id }}
+          restore-keys: deployment-level-${{ matrix.env.name }}-
+
+      - name: Poll
+        if: ${{ env.WIF_PROVIDER != '' && env.TELEMETRY_SA != '' }}
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          dart pub get
+          state="$GITHUB_WORKSPACE/.deployment-level/$ENV_NAME/state.json"
+          dart run bin/levels.dart poll --env "$ENV_NAME" --state "$state" \
+            --summary "$RUNNER_TEMP/summary.md" --json > "$RUNNER_TEMP/poll.json"
+          cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p "$RUNNER_TEMP/out"
+          cp "$RUNNER_TEMP/poll.json" "$RUNNER_TEMP/out/$ENV_NAME.json"
+          cp "$RUNNER_TEMP/summary.md" "$RUNNER_TEMP/out/$ENV_NAME.md"
+
+      - name: Upload result
+        if: ${{ env.WIF_PROVIDER != '' && env.TELEMETRY_SA != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-level-${{ matrix.env.name }}
+          path: ${{ runner.temp }}/out/
+
+  deployment-report:
+    name: Update deployment-level issue
+    needs: deployment-poll
+    if: ${{ always() && needs.deployment-poll.result != 'cancelled' && needs.deployment-poll.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: deployment-level-*
+          merge-multiple: true
+          path: results
+      - name: Open or update the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          shopt -s nullglob
+          files=(results/*.json)
+          [ ${#files[@]} -gt 0 ] || { echo "No poll results."; exit 0; }
+          alert=false
+          {
+            echo "Recommend-only report from the [deployment-poll run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID). Act via \`levels plan\` and an owner-approved manifest change (ADR 0005)."
+            echo
+            for f in "${files[@]}"; do
+              action=$(jq -r .recommendation.action "$f")
+              case "$action" in warn|promote) alert=true ;; esac
+              cat "${f%.json}.md"
+              echo
+            done
+          } > body.md
+          number=$(gh issue list --label deployment-level --state open --json number --jq '.[0].number // empty')
+          if [ "$alert" != true ]; then
+            echo "No environment recommends warn or promote."
+            [ -n "$number" ] && gh issue comment "$number" --body "All environments back within limits; see run $GITHUB_RUN_ID."
+            exit 0
+          fi
+          gh label create deployment-level --color FBCA04 --description "Deployment level recommendations (ADR 0005)" 2>/dev/null || true
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --body-file body.md
+          else
+            gh issue create --title "Deployment level recommendation" --label deployment-level --body-file body.md
+          fi

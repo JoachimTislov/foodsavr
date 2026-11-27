@@ -1,24 +1,37 @@
-name: Android test APK to Google Drive
+name: Manual Tools
+
+# On-demand developer utilities (#496), dispatch only. Pick the tool; each job runs
+# only for its own tool.
+#
+# - android-drive-test: builds the installable test APK for a ref and uploads it to
+#   Google Drive (scripts/release/android_drive.sh; `make android-apk`).
 
 on:
   workflow_dispatch:
     inputs:
+      tool:
+        description: Tool to run
+        type: choice
+        required: true
+        options: [android-drive-test]
       ref:
-        description: Git ref to build
+        description: "android-drive-test: git ref to build"
         required: false
         default: stable
         type: string
 
+run-name: "${{ format('Manual Tools: {0}', inputs.tool) }}"
+
 permissions:
   contents: read
 
-concurrency:
-  group: android-drive-test
-  cancel-in-progress: false
-
 jobs:
-  build-and-upload:
+  android-drive-test:
     name: Build and upload test APK
+    if: inputs.tool == 'android-drive-test'
+    concurrency:
+      group: android-drive-test
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:

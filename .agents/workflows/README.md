@@ -111,7 +111,7 @@ AGENT_POLICY_FILE=.agents/policies/agent-implement.json \
 
 The run ends `awaiting_acceptance` with `changes.patch` (new files included);
 verification belongs to whoever applies the patch.
-`.github/workflows/agent-implement.yml` does this when the owner labels an
+The `implement` operation of `.github/workflows/agent-ops.yml` does this when the owner labels an
 issue: an unprivileged job runs the provider and verifies the patch (analyze,
 localization, tests), and a separate job applies it, commits with the
 `Agent-Session` trailer, opens a draft PR, and comments on the issue. It uses
@@ -160,7 +160,7 @@ jq --arg json .agents/state/pr-42.json --arg md .agents/state/pr-42.md \
 scripts/agents/agentctl workflow run .agents/state/workflows/integrate-pr-42.json --execute --provider auto
 ```
 
-`.github/workflows/agent-review.yml` runs this classification and review pipeline
+The `review` operation of `.github/workflows/agent-ops.yml` runs this classification and review pipeline
 automatically on non-draft, non-fork pull requests and posts a head-bound
 review attestation (`<!-- agent-review: ... -->`), while
 `.github/workflows/merge-gate.yml` and `scripts/github/merge_gate.py` enforce
