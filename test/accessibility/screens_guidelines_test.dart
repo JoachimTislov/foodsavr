@@ -205,7 +205,16 @@ void main() {
           }
           // The test font is wider than the real one; layout overflow is
           // not what these tests cover.
-          tester.takeException();
+          final exception = tester.takeException();
+          if (screen == _Screen.productForm) {
+            // The test font is wider than the real one; a RenderFlex overflow
+            // is expected under the test font.
+            if (exception != null) {
+              expect(exception.toString(), contains('overflowed'));
+            }
+          } else {
+            expect(exception, isNull);
+          }
           expect(rendered(screen), findsWidgets);
 
           await expectLater(
