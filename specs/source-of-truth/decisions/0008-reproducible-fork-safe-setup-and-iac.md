@@ -96,3 +96,12 @@ Owner directive: tracked files hold no instance state. Project ids, Hosting site
 - `lib/firebase_options.dart` reads compile-time defines; setup writes them to `.agents/state/firebase.defines.json` (CI: `FIREBASE_DEFINES_<ENV>`). The production apply gate requires the production identity in the published `DEPLOY_INSTANCE`, replacing the merged-manifest check.
 - The session archive reads its project, bucket and billing account from `AGENT_SESSION_*` or `sessionArchive` in the local state.
 - Workflows drop `github.repository == '<upstream>'` fallbacks; unset variables skip cleanly.
+
+## Amendment — November 27, 2026: declared health, no manual checks
+
+Owner directive: operators and agents work on deterministic abstractions, not on agents connecting loose pieces. A check done by hand once becomes automation, so it never has to be done by hand again.
+
+- **One declaration.** [`scripts/setup/health.toml`](../../../scripts/setup/health.toml) lists every condition of a ready instance per profile: local files, GitHub apps and policy, published environments, per-environment WIF, live Hosting sites, a CD run that actually deployed (a green run that skipped counts as failed), web monitoring, social sign-in and the session archive. Each check names the one command that fixes it.
+- **One interpreter.** [`scripts/setup/health.py`](../../../scripts/setup/health.py) evaluates the declaration, with one evaluator per `kind`. `make setup-verify` (`setupctl verify`) and the final `make setup` step (Platform health) print the same report. Offline, the live checks report "not probed" and never count as healthy.
+- **Extend, don't scatter.** A new manual check is a new `[[check]]` entry. A new `kind` is added only when no existing kind fits. Health logic lives nowhere else.
+- **Keep the CLIs.** Domain CLIs stay usable on their own (`social_auth.sh`, `monitoring.sh`, `agentctl`, `rotate.py`, `make deploy-web`). Health calls their `--check` modes and names them as the fix, and `make setup` runs them in sequence. It does not replace them.

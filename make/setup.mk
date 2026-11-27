@@ -6,7 +6,7 @@ setup: ## Run guided setup (LIST=1 lists remaining steps)
 setup-probe: ## Inspect setup prerequisites
 	@python3 scripts/setup/setupctl.py probe
 
-setup-verify: ## Check the selected setup profile
+setup-verify: ## Check setup and live platform health (scripts/setup/health.toml)
 	@python3 scripts/setup/setupctl.py verify --profile $(or $(PROFILE),local-dev)
 
 infra-github-plan: ## Preview GitHub infrastructure changes

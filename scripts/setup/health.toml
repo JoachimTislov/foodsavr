@@ -1,0 +1,203 @@
+# Setup and platform health: the single list of what a ready instance has.
+# `make setup-verify` (setupctl verify) and the final `make setup` step evaluate it
+# with scripts/setup/health.py. Add a check here when you find yourself checking
+# something by hand; add a new `kind` to health.py only when no existing kind fits.
+#
+# Check fields:
+#   id        unique, kebab-case; per-item checks append the item (e.g. site-<site>)
+#   profiles  setup profiles that need it: local-dev, fork-agents, full-cloud
+#   kind      evaluator in health.py (see the kinds below)
+#   detail    what the check proves (templated)
+#   fix       the one command that repairs it (templated; prefer make targets)
+#   advisory  true: reported as a note, never blocks readiness
+#
+# Templates: {profile} {repo} {topology} {branch} and, for per-environment kinds,
+# {env} {suffix} {project} {channel} {site}.
+#
+# Kinds:
+#   probe           every `fields` path (dotted, into the setupctl probe) is truthy
+#   branches        the release topology's branches exist on GitHub
+#   github          every `names` entry is an Actions variable or secret
+#   github-any      at least one `names` entry is an Actions variable or secret
+#   event-policy    the pull_request_target policy matches setupctl's desired policy
+#   environments    DEPLOY_INSTANCE publishes at least one provisioned environment
+#   wif             per environment: the suffixed WIF provider and a deploy service
+#                   account of that environment's project (live)
+#   site            per environment channel: https://<site>.web.app answers 200 (live)
+#   workflow-run    the latest completed run of `workflow` (optionally `event` on the
+#                   integration branch) succeeded and has no annotation containing
+#                   `marker` (live)
+#   script          `argv` exits 0; skipped when the probe value at `skip_when.path`
+#                   equals `skip_when.equals` (live)
+#   registry        registered GitHub-sink secrets (scripts/secrets/registry.toml)
+#                   referenced by .github/workflows but not set (live)
+
+[groups]
+# CI harness logins; any one enables agent runs, two or more enable failover.
+harness = ["CLAUDE_CODE_OAUTH_TOKEN", "CODEX_AUTH_JSON_B64", "ANTIGRAVITY_OAUTH_TOKEN_B64", "GEMINI_API_KEY"]
+
+# --- local -------------------------------------------------------------------
+
+[[check]]
+id = "local-stubs"
+profiles = ["local-dev", "fork-agents", "full-cloud"]
+kind = "probe"
+fields = ["local_files.dotenv", "local_files.google_services"]
+detail = "assets/.env and android/app/google-services.json"
+fix = "python3 scripts/setup/setupctl.py scaffold-local --profile {profile}"
+
+[[check]]
+id = "git-hooks"
+profiles = ["local-dev", "fork-agents", "full-cloud"]
+kind = "probe"
+fields = ["local_files.hooks_configured"]
+detail = "core.hooksPath == .githooks"
+fix = "make hooks"
+
+# --- GitHub ------------------------------------------------------------------
+
+[[check]]
+id = "gh-auth"
+profiles = ["fork-agents", "full-cloud"]
+kind = "probe"
+fields = ["github.authenticated"]
+detail = "gh signed in"
+fix = "gh auth login"
+
+[[check]]
+id = "repo-admin"
+profiles = ["fork-agents", "full-cloud"]
+kind = "probe"
+fields = ["github.is_admin"]
+detail = "admin on {repo}"
+fix = "make setup-fork"
+
+[[check]]
+id = "terraform-cli"
+profiles = ["fork-agents", "full-cloud"]
+kind = "probe"
+fields = ["tools.terraform"]
+detail = "terraform binary installed"
+fix = "Install Terraform >= 1.7"
+
+[[check]]
+id = "channel-branches"
+profiles = ["fork-agents", "full-cloud"]
+kind = "branches"
+detail = "topology={topology}"
+fix = "make setup-branches REPO={repo} TOPOLOGY={topology}"
+
+[[check]]
+id = "agent-app"
+profiles = ["fork-agents", "full-cloud"]
+kind = "github"
+names = ["AGENT_APP_ID", "AGENT_APP_PRIVATE_KEY"]
+detail = "agent GitHub App"
+fix = "scripts/human/github/create-agent-app.sh --role agent --repo {repo}"
+
+[[check]]
+id = "release-gate"
+profiles = ["fork-agents", "full-cloud"]
+kind = "github"
+names = ["RELEASE_GATE_APP_ID", "RELEASE_GATE_APP_PRIVATE_KEY"]
+detail = "release-gate GitHub App"
+fix = "scripts/human/github/create-agent-app.sh --role release-gate --repo {repo}"
+
+[[check]]
+id = "actions-event-policy"
+profiles = ["fork-agents", "full-cloud"]
+kind = "event-policy"
+detail = "pull_request_target limited to the trusted workflows"
+fix = "make setup-event-policy REPO={repo}"
+
+[[check]]
+id = "harness-auth"
+profiles = ["fork-agents", "full-cloud"]
+kind = "github-any"
+names = "@harness"
+detail = "at least one CI harness login"
+fix = "make setup"
+
+[[check]]
+id = "workflow-secrets"
+profiles = ["fork-agents", "full-cloud"]
+kind = "registry"
+advisory = true
+detail = "registered secrets the workflows reference but are unset (optional features stay off)"
+fix = "make secrets-rotate NAMES=<name>"
+
+# --- Firebase and Google Cloud -------------------------------------------------
+
+[[check]]
+id = "gcloud-cli"
+profiles = ["full-cloud"]
+kind = "probe"
+fields = ["tools.gcloud"]
+detail = "gcloud binary installed"
+fix = "Install the Google Cloud SDK"
+
+[[check]]
+id = "deploy-instance"
+profiles = ["full-cloud"]
+kind = "environments"
+detail = "DEPLOY_INSTANCE publishes a provisioned environment"
+fix = "make setup"
+
+[[check]]
+id = "gcp-wif"
+profiles = ["full-cloud"]
+kind = "wif"
+detail = "GCP_WORKLOAD_IDENTITY_PROVIDER{suffix} + GCP_DEPLOY_SERVICE_ACCOUNT{suffix} in {project}"
+fix = "make infra-gcp-apply ENV={env}"
+
+# --- live platform -------------------------------------------------------------
+
+[[check]]
+id = "site"
+profiles = ["full-cloud"]
+kind = "site"
+detail = "https://{site}.web.app serves the {channel} build"
+fix = "make deploy-web ENV={env} CHANNEL={channel} YES=1"
+
+[[check]]
+id = "hosting-cd"
+profiles = ["full-cloud"]
+kind = "workflow-run"
+workflow = "firebase-hosting.yml"
+event = "push"
+marker = "nothing was deployed"
+detail = "latest Hosting push run on {branch} deployed"
+fix = "make setup"
+
+[[check]]
+id = "web-monitor"
+profiles = ["full-cloud"]
+kind = "workflow-run"
+workflow = "web-monitor.yml"
+detail = "latest Web Monitor run passed"
+fix = "make monitoring"
+
+[[check]]
+id = "monitoring"
+profiles = ["full-cloud"]
+kind = "script"
+argv = ["scripts/setup/monitoring.sh", "--check"]
+detail = "web monitoring configured"
+fix = "make monitoring"
+
+[[check]]
+id = "social-auth"
+profiles = ["full-cloud"]
+kind = "script"
+argv = ["scripts/setup/social_auth.sh", "--check"]
+detail = "Google and Facebook sign-in configured"
+fix = "make social-auth-setup"
+
+[[check]]
+id = "session-archive"
+profiles = ["full-cloud"]
+kind = "script"
+argv = ["scripts/agents/agentctl", "sessions", "provision-archive", "--check"]
+skip_when = { path = "local_config.sessionArchive.enabled", equals = false }
+detail = "agent session archive provisioned"
+fix = "make setup"
