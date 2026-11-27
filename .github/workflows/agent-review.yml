@@ -4,7 +4,8 @@ name: Agent review
 # tier (exempt, fast, balanced, deep, human) and posts a head-bound attestation
 # review (<!-- agent-review: ... -->) consumed by the merge gate (ADR 0006).
 # Automatic reviews are off when the repository variable
-# AGENT_AUTO_REVIEW_ENABLED is `false`; manual dispatch still reviews.
+# AGENT_AUTO_REVIEW_ENABLED is `false`; manual dispatch and trusted
+# `@foodsavr-agent review` comments still review.
 # Untrusted PR code is never checked out or executed; the workflow checks out
 # the default branch and fetches PR metadata and diff text via the GitHub API.
 #
@@ -15,7 +16,9 @@ name: Agent review
 
 on:
   pull_request_target:
-    types: [opened, ready_for_review, synchronize, reopened]
+    types: [opened, ready_for_review]
+  issue_comment:
+    types: [created]
   workflow_dispatch:
     inputs:
       pr:
@@ -23,24 +26,43 @@ on:
         required: true
 
 concurrency:
-  group: agent-review-${{ github.event.pull_request.number || inputs.pr }}
+  # Ineligible issue_comment events get their own group so unrelated comments never cancel an active review.
+  group: >-
+    ${{
+      format(
+        'agent-review-{0}{1}',
+        github.event.pull_request.number || github.event.issue.number || inputs.pr,
+        (github.event_name == 'issue_comment' &&
+         !(github.event.issue.pull_request != null &&
+           contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) &&
+           (contains(github.event.comment.body, '@foodsavr-agent review') ||
+            (vars.AGENT_APP_SLUG != '' && contains(github.event.comment.body, format('@{0} review', vars.AGENT_APP_SLUG))))))
+        && format('-{0}', github.run_id) || ''
+      )
+    }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 env:
-  PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
+  PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || inputs.pr }}
 
 jobs:
   review:
     name: Adaptive PR review
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (vars.AGENT_AUTO_REVIEW_ENABLED != 'false' &&
+      (github.event_name == 'pull_request_target' &&
+       vars.AGENT_AUTO_REVIEW_ENABLED != 'false' &&
        !github.event.pull_request.draft &&
        !github.event.pull_request.head.repo.fork &&
-       github.actor != 'dependabot[bot]')
+       github.actor != 'dependabot[bot]') ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) &&
+       (contains(github.event.comment.body, '@foodsavr-agent review') ||
+        (vars.AGENT_APP_SLUG != '' && contains(github.event.comment.body, format('@{0} review', vars.AGENT_APP_SLUG)))))
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:

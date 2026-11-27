@@ -151,6 +151,55 @@ class AntigravityParserAndProbeTest(unittest.TestCase):
             self.assertEqual(snap_ok.min_remaining_percent(NOW), 60.0)
             self.assertTrue(any("fetchAvailableModels" in c for c in calls))
 
+    def test_ignores_third_party_claude_and_gpt_quota_buckets(self):
+        reset_time = hu.iso_utc(NOW + timedelta(hours=4))
+        summary_payload = {
+            "groups": [
+                {
+                    "label": "Gemini Models",
+                    "buckets": [
+                        {"bucketId": "gemini-weekly", "label": "Weekly", "window": "weekly", "remainingFraction": 0.77, "resetTime": reset_time},
+                        {"bucketId": "gemini-5h", "label": "5-Hour", "window": "5h", "remainingFraction": 0.68, "resetTime": reset_time},
+                    ],
+                },
+                {
+                    "label": "Claude and GPT models",
+                    "buckets": [
+                        {"bucketId": "3p-weekly", "label": "Weekly", "window": "weekly", "remainingFraction": 0.0, "resetTime": reset_time},
+                        {"bucketId": "3p-5h", "label": "5-Hour", "window": "5h", "disabled": True},
+                    ],
+                },
+            ]
+        }
+        windows = hu.parse_antigravity_quota_summary(summary_payload, now=NOW)
+        self.assertEqual([w.id for w in windows], ["gemini-weekly", "gemini-5h"])
+        snap = hu.HarnessUsageSnapshot("antigravity", "ok", tuple(windows), fetched_at=hu.iso_utc(NOW))
+        self.assertFalse(snap.exhausted(NOW))
+        self.assertEqual(snap.min_remaining_percent(NOW), 68.0)
+
+        models_payload = {
+            "models": {
+                "gemini-3-pro": {
+                    "modelProvider": "MODEL_PROVIDER_GOOGLE",
+                    "quotaInfo": {"remainingFraction": 0.68, "resetTime": reset_time},
+                    "weeklyQuotaInfo": {"remainingFraction": 0.77, "resetTime": reset_time},
+                },
+                "claude-sonnet-4-6": {
+                    "modelProvider": "MODEL_PROVIDER_ANTHROPIC",
+                    "quotaInfo": {},
+                    "weeklyQuotaInfo": {"remainingFraction": 0.0, "resetTime": reset_time},
+                },
+                "gpt-oss-120b-medium": {
+                    "modelProvider": "MODEL_PROVIDER_OPENAI",
+                    "quotaInfo": {"remainingFraction": 0.0, "resetTime": reset_time},
+                },
+            }
+        }
+        model_windows = hu.parse_antigravity_available_models(models_payload, now=NOW)
+        by_id = {w.id: w for w in model_windows}
+        self.assertEqual(by_id["antigravity-5h"].used_percent, 32.0)
+        self.assertEqual(by_id["antigravity-weekly"].used_percent, 23.0)
+
 
 class CodexParserAndProbeTest(unittest.TestCase):
     def test_parse_codex_rate_limits_prefers_codex_bucket_and_free_monthly_label(self):
@@ -247,6 +296,36 @@ class ClaudeParserAndProbeTest(unittest.TestCase):
             snap = hu.probe_claude(timeout=3.0, env=env, now=NOW)
             self.assertEqual(snap.status, "ok")
             self.assertEqual(snap.min_remaining_percent(NOW), 85.0)
+
+    def test_probe_claude_falls_back_to_oauth_usage_api_when_cli_omits_rate_limits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bin_dir = Path(tmp) / "bin"
+            bin_dir.mkdir()
+            script = (
+                f"#!{sys.executable}\n"
+                "import json, sys\n"
+                "for line in sys.stdin:\n"
+                "    msg = json.loads(line)\n"
+                "    if msg.get('type') == 'control_request':\n"
+                "        resp = {'type': 'control_response', 'response': {'request_id': msg['request_id'], 'subtype': 'success', 'response': {'rate_limits_available': False, 'rate_limits': None}}}\n"
+                "        print(json.dumps(resp), flush=True)\n"
+                "        break\n"
+            )
+            _write_exec(bin_dir / "claude", script)
+            env = {"PATH": str(bin_dir), "HOME": tmp, "CLAUDE_CODE_OAUTH_TOKEN": "oauth-secret"}
+            seen: list[tuple[str, str]] = []
+
+            def fake_get(url: str, token: str, timeout: float) -> dict:
+                seen.append((url, token))
+                return {
+                    "five_hour": {"utilization": 8.0, "resets_at": "2026-11-22T16:00:00Z"},
+                    "seven_day": {"utilization": 42.0, "resets_at": "2026-11-28T00:00:00Z"},
+                }
+
+            snap = hu.probe_claude(timeout=3.0, env=env, now=NOW, http_get=fake_get)
+            self.assertEqual(snap.status, "ok")
+            self.assertEqual(seen, [(hu.CLAUDE_OAUTH_USAGE_URL, "oauth-secret")])
+            self.assertEqual(snap.min_remaining_percent(NOW), 58.0)
 
 
 class RankingTest(unittest.TestCase):
