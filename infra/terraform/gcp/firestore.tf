@@ -19,7 +19,7 @@ locals {
 resource "google_firestore_database" "default" {
   provider                = google-beta
   name                    = "(default)"
-  location_id             = var.region
+  location_id             = var.firestore_location != "" ? var.firestore_location : var.region
   type                    = "FIRESTORE_NATIVE"
   delete_protection_state = "DELETE_PROTECTION_ENABLED"
   deletion_policy         = "ABANDON"
@@ -51,8 +51,12 @@ resource "google_firebaserules_ruleset" "firestore" {
 }
 
 # The provider cannot repoint a release, so a new ruleset replaces it (delete,
-# then create a few seconds later). `make deploy-firestore-rules` remains the
-# manual bypass; the next apply releases the tracked file again.
+# then create a few seconds later). Because google_firebaserules_ruleset.firestore
+# has create_before_destroy = true and this release references its .name,
+# Terraform's graph creates the replacement ruleset before destroying the
+# existing release (if ruleset creation fails, the live release stays intact).
+# `make deploy-firestore-rules` remains the manual bypass; the next apply
+# releases the tracked file again.
 resource "google_firebaserules_release" "firestore" {
   provider = google-beta
   name     = "cloud.firestore"

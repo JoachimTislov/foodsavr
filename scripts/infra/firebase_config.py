@@ -142,6 +142,12 @@ def reconcile(client: Client, sites: list[str], apply: bool) -> int:
         print(f"Firebase Auth: add authorized domain {domain}")
     if not apply:
         return 2
+    if domains:
+        config = client.auth_config() or config
+        _, domains = changes(config, project, sites)
+    if not fields and not domains:
+        print("Firebase Auth: sign-in methods and authorized domains are in sync.")
+        return 0
     mask, body = patch_body(config, fields, domains)
     client.call(f"{IDENTITY_TOOLKIT.format(project=project)}/config?updateMask={mask}", "PATCH", body)
     print("Firebase Auth: updated.")

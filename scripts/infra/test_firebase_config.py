@@ -111,12 +111,33 @@ class AdoptFirebaseTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.run_adopt(['firestore.googleapis.com'], {'https://firestore.googleapis.com/': forbidden}, [])
 
+    def test_firestore_location_reads_existing_database_location_id(self):
+        for enabled, responses, expected in (
+            (['firestore.googleapis.com'], {f'https://firestore.googleapis.com/v1/{DB}': {'name': DB, 'locationId': 'eur3'}}, 'eur3'),
+            (['firestore.googleapis.com'], {}, ''),
+            ([], {}, ''),
+        ):
+            with self.subTest(expected=expected):
+                out = StringIO()
+                services = [{'config': {'name': name}} for name in enabled]
+                with (
+                    patch.object(adopt, 'command_json', return_value=services),
+                    patch.object(adopt, 'urlopen', FakeApi(responses)),
+                    patch.dict(os.environ, {'GOOGLE_OAUTH_ACCESS_TOKEN': 'tok'}),
+                    patch.object(sys, 'stdout', out),
+                ):
+                    adopt.firestore_location(PROJECT)
+                self.assertEqual(out.getvalue().strip(), expected)
+
 
 class SafePlanTests(unittest.TestCase):
-    def safe(self, changes):
-        plan = {'variables': {'local_recovery': {'value': True}}, 'resource_changes': changes}
+    def safe(self, changes, *, recovery='true', variables=None):
+        plan = {
+            'variables': {'local_recovery': {'value': True}} if variables is None else variables,
+            'resource_changes': changes,
+        }
         with patch.object(sys, 'stdin', StringIO(json.dumps(plan))), patch.object(sys, 'stdout', StringIO()) as out:
-            adopt.safe_plan('true')
+            adopt.safe_plan(recovery)
         return out.getvalue().strip()
 
     def test_rules_replacement_is_allowed_but_removals_are_not(self):
@@ -127,6 +148,17 @@ class SafePlanTests(unittest.TestCase):
         for address in ('google_firebaserules_release.firestore', 'google_firestore_database.default'):
             with self.subTest(address=address), self.assertRaises(ValueError):
                 self.safe([{'address': address, 'change': {'actions': ['delete']}}])
+
+    def test_firebase_adoption_imports_do_not_classify_gcs_plan_as_local_recovery(self):
+        self.assertEqual(self.safe([
+            {'address': 'google_firestore_database.default', 'change': {'actions': ['no-op'], 'importing': {'id': DB}}},
+            {'address': 'google_firestore_index.composite["products"]', 'change': {'actions': ['no-op'], 'importing': {'id': INDEX}}},
+        ], recovery='false', variables={}), 'false')
+        # Deletes and replacements are still rejected on non-recovery saved plans.
+        with self.assertRaises(ValueError):
+            self.safe([
+                {'address': 'google_firestore_database.default', 'change': {'actions': ['delete', 'create'], 'importing': {'id': DB}}},
+            ], recovery='false', variables={})
 
 
 class AuthSettingsTests(unittest.TestCase):
@@ -152,12 +184,33 @@ class AuthSettingsTests(unittest.TestCase):
                 with patch.object(sys, 'stdout', out):
                     self.assertEqual(fc.reconcile(fc.Client(PROJECT, 'tok', api), self.sites, apply), expected)
                 methods = [r.get_method() for r in api.requests]
-                self.assertEqual(methods, ['GET', 'PATCH'] if apply else ['GET'])
+                self.assertEqual(methods, ['GET', 'GET', 'PATCH'] if apply else ['GET'])
                 self.assertNotIn('hash-secret', out.getvalue())
                 if apply:
-                    sent = json.loads(api.requests[1].data)
+                    sent = json.loads(api.requests[-1].data)
                     self.assertNotIn('hashConfig', json.dumps(sent))
                     self.assertIn('demo-proj-daily.web.app', sent['authorizedDomains'])
+
+    def test_apply_re_reads_authorized_domains_before_patch_to_keep_concurrent_additions(self):
+        reads = [
+            {'signIn': {'email': {'enabled': True, 'passwordRequired': True}, 'anonymous': {'enabled': True}},
+             'authorizedDomains': ['localhost']},
+            {'signIn': {'email': {'enabled': True, 'passwordRequired': True}, 'anonymous': {'enabled': True}},
+             'authorizedDomains': ['localhost', 'demo-proj--pr-99.web.app']},
+        ]
+        requests = []
+
+        def opener(request, timeout=None):
+            requests.append(request)
+            body = reads.pop(0) if request.get_method() == 'GET' and reads else {}
+            return BytesIO(json.dumps(body).encode())
+
+        with patch.object(sys, 'stdout', StringIO()):
+            self.assertEqual(fc.reconcile(fc.Client(PROJECT, 'tok', opener), self.sites, True), 0)
+        self.assertEqual([r.get_method() for r in requests], ['GET', 'GET', 'PATCH'])
+        sent = json.loads(requests[-1].data)
+        self.assertIn('demo-proj--pr-99.web.app', sent['authorizedDomains'])
+        self.assertIn('demo-proj-daily.web.app', sent['authorizedDomains'])
 
     def test_in_sync_config_needs_no_change(self):
         config = {'signIn': {'email': {'enabled': True, 'passwordRequired': True}, 'anonymous': {'enabled': True}},

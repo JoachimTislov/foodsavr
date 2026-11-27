@@ -352,6 +352,19 @@ def firebase_resources(directory, project, indexes_file, account=""):
     print(android)
 
 
+def firestore_location(project, account=""):
+    """Print the existing (default) Firestore database's locationId, or '' when none exists."""
+    account_arg = (f"--account={account}",) if account else ()
+    enabled = {item["config"]["name"] for item in command_json(
+        "gcloud", *account_arg, "services", "list", "--enabled", f"--project={project}", "--format=json")}
+    if "firestore.googleapis.com" not in enabled:
+        print("")
+        return
+    database = f"projects/{project}/databases/(default)"
+    info = google_get(project, f"https://firestore.googleapis.com/v1/{database}", "the Firestore database", missing_ok=True)
+    print(info.get("locationId", ""))
+
+
 def app_check_mode(project, account=""):
     """Print ENFORCED when the live project already enforces App Check on Firestore
     or Storage, else UNENFORCED, so an apply without an explicit choice keeps it."""
@@ -368,27 +381,42 @@ def app_check_mode(project, account=""):
 # Replacements that keep the live service working: rulesets are immutable and
 # abandoned, and the rules release is recreated for the new ruleset.
 REPLACEABLE = {"google_firebaserules_ruleset.firestore", "google_firebaserules_release.firestore"}
+# Routine imports from main.tf and adopt_firebase.tf that apply on GCS as well
+# as local state; only adopt.py gcp imports mark a plan as local state recovery.
+ROUTINE_IMPORT_PREFIXES = (
+    "google_firebase_web_app.web",
+    "google_apikeys_key.web",
+    "google_firestore_database.default",
+    "google_firestore_index.composite",
+    "google_firebaserules_release.firestore",
+    "google_firebase_app_check_play_integrity_config.android",
+    "google_identity_platform_default_supported_idp_config.idp",
+)
+
+
+def _is_recovery_import(item):
+    if item["change"].get("importing") is None:
+        return False
+    address = item.get("address", "")
+    return not any(address == p or address.startswith(f"{p}[") for p in ROUTINE_IMPORT_PREFIXES)
 
 
 def safe_plan(recovery="true"):
     plan = json.load(sys.stdin)
     variables = plan.get("variables", {})
     changes = plan.get("resource_changes", [])
-    recovery = recovery == "true" or (
-        variables.get("local_recovery", {}).get("value") in (True, "true")
-        or variables.get("deploy_service_account_id", {}).get("value") == "github-hosting-deploy"
-        or any(item["change"].get("importing") is not None for item in changes)
-    )
-    if not recovery:
-        print("false")
-        return
     for item in changes:
         actions = item["change"]["actions"]
         if item["address"] in REPLACEABLE and "create" in actions:
             continue
         if "delete" in actions:
             raise ValueError(f"Plan would remove or replace {item['address']}. Reconcile its state before applying.")
-    print("true")
+    recovery = recovery == "true" or (
+        variables.get("local_recovery", {}).get("value") in (True, "true")
+        or variables.get("deploy_service_account_id", {}).get("value") == "github-hosting-deploy"
+        or any(_is_recovery_import(item) for item in changes)
+    )
+    print("true" if recovery else "false")
 
 
 if __name__ == "__main__":
@@ -400,6 +428,8 @@ if __name__ == "__main__":
             gcp_resources(*args)
         elif task == "firebase":
             firebase_resources(*args)
+        elif task == "firestore-location":
+            firestore_location(*args)
         elif task == "app-check-mode":
             app_check_mode(*args)
         elif task == "safe-plan":

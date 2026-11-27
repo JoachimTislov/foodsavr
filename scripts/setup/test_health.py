@@ -138,3 +138,28 @@ class HealthTest(TestCase):
     def test_local_dev_needs_no_github(self):
         report = evaluate(probe(), profile="local-dev")
         self.assertEqual(set(checks(report)), {"local-stubs", "git-hooks"})
+
+    def test_script_checks_bind_to_target_repository_and_reject_mismatched_checkout(self):
+        recorded = []
+
+        class RecordingLive(FakeLive):
+            def script(self, argv, env=None):
+                recorded.append((list(argv), dict(env or {})))
+                return True, ""
+
+        state = probe()
+        report = evaluate(state, RecordingLive(run={"id": 1, "conclusion": "success", "html_url": "u"}))
+        self.assertTrue(report["ready"])
+        fc_call = next(argv for argv, _ in recorded if "scripts/infra/firebase_config.py" in argv)
+        self.assertEqual(
+            fc_call,
+            ["python3", "scripts/infra/firebase_config.py", "check", "--project", "demo-test", "--sites", '["demo-test-daily"]'],
+        )
+        self.assertTrue(all(env.get("GH_REPO") == "o/r" and "DEPLOY_INSTANCE" in env for _, env in recorded))
+
+        mismatched = probe()
+        mismatched["origin_repo"] = "other/repo"
+        report = checks(evaluate(mismatched, RecordingLive(run={"id": 1, "conclusion": "success", "html_url": "u"})))
+        self.assertFalse(report["firebase-config"]["ok"])
+        self.assertIn("checkout is bound to other/repo", report["firebase-config"]["detail"])
+        self.assertFalse(report["monitoring"]["ok"])

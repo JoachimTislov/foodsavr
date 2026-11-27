@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -69,9 +70,15 @@ class Live:
         self.repo, self.root = repo, root
         self._run = run or self._subprocess
 
-    def _subprocess(self, argv: list[str], timeout: int = 180) -> subprocess.CompletedProcess[str]:
+    def _subprocess(
+        self,
+        argv: list[str],
+        timeout: int = 180,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        run_env = {**os.environ, "GH_REPO": self.repo, **(env or {})} if self.repo else ({**os.environ, **(env or {})} if env else None)
         try:
-            return subprocess.run(argv, cwd=self.root, text=True, capture_output=True, timeout=timeout, check=False)
+            return subprocess.run(argv, cwd=self.root, env=run_env, text=True, capture_output=True, timeout=timeout, check=False)
         except (OSError, subprocess.TimeoutExpired) as exc:
             return subprocess.CompletedProcess(argv, 127, "", str(exc))
 
@@ -102,8 +109,11 @@ class Live:
             messages += (self._api(f"repos/{self.repo}/check-runs/{job}/annotations", ".[].message") or "").splitlines()
         return [m for m in messages if m.strip()]
 
-    def script(self, argv: list[str]) -> tuple[bool, str]:
-        proc = self._run(argv)
+    def script(self, argv: list[str], env: dict[str, str] | None = None) -> tuple[bool, str]:
+        try:
+            proc = self._run(argv, env=env)
+        except TypeError:
+            proc = self._run(argv)
         lines = [line.strip() for line in (proc.stdout + proc.stderr).splitlines() if line.strip()]
         return proc.returncode == 0, lines[-1] if lines else ""
 
@@ -140,6 +150,24 @@ def _workflow_refs() -> set[str]:
     return {m for path in WORKFLOWS.glob("*.y*ml") for m in SECRET_REF.findall(path.read_text(encoding="utf-8"))}
 
 
+def _script_env(ctx: Context) -> dict[str, str]:
+    gh = ctx.github
+    env: dict[str, str] = {}
+    if gh.get("target_repo"):
+        env["GH_REPO"] = str(gh["target_repo"])
+    deploy_instance = (gh.get("variables") or {}).get("DEPLOY_INSTANCE")
+    if deploy_instance:
+        env["DEPLOY_INSTANCE"] = str(deploy_instance)
+    return env
+
+
+def _run_script(live: Live, argv: list[str], env: dict[str, str]) -> tuple[bool, str]:
+    try:
+        return live.script(argv, env=env)
+    except TypeError:
+        return live.script(argv)
+
+
 def _single(check: dict[str, Any], ctx: Context, config: dict[str, Any]) -> Result:
     kind, gh = check["kind"], ctx.github
     if kind == "probe":
@@ -173,7 +201,13 @@ def _single(check: dict[str, Any], ctx: Context, config: dict[str, Any]) -> Resu
         marked = [m for m in ctx.live.annotations(run["id"]) if check.get("marker") and check["marker"] in m]
         return run.get("conclusion") == "success" and not marked, f"{marked[0] if marked else run.get('conclusion')} ({run.get('html_url')})"
     if kind == "script":
-        ok, last = ctx.live.script(check["argv"])
+        target_repo = gh.get("target_repo")
+        checkout_repo = ctx.probe.get("origin_repo") or lookup(ctx.probe, "local_config.repo")
+        if target_repo and checkout_repo and target_repo.casefold() != str(checkout_repo).casefold():
+            return False, f"checkout is bound to {checkout_repo}, not {target_repo}; run from a {target_repo} checkout"
+        if check["id"] == "firebase-config":
+            return False, "no provisioned environment in DEPLOY_INSTANCE"
+        ok, last = _run_script(ctx.live, check["argv"], _script_env(ctx))
         return ok, "passes" if ok else f"{' '.join(check['argv'])}: {last}"
     raise ValueError(f"health.toml: unknown kind {kind!r} in {check['id']}")
 
@@ -188,6 +222,13 @@ def _items(check: dict[str, Any], ctx: Context) -> list[tuple[str, dict[str, str
             (f"{check['id']}-{site}", {"env": env, "channel": channel, "site": site, "project": e["project"]})
             for env, e in envs.items() for channel, site in e["channels"].items()
         ]
+    if check["kind"] == "script" and check["id"] == "firebase-config" and envs:
+        items: list[tuple[str, dict[str, str]]] = []
+        for env, e in envs.items():
+            sites = sorted({site for site in e["channels"].values() if site and site != e["project"]})
+            name = check["id"] if len(envs) == 1 else f"{check['id']}-{env}"
+            items.append((name, {"env": env, "project": e["project"], "sites": json.dumps(sites)}))
+        return items
     return [(check["id"], {})]
 
 
@@ -199,6 +240,14 @@ def _per_item(check: dict[str, Any], ctx: Context, values: dict[str, str]) -> Re
         return bool(provider) and account.endswith(f"@{values['project']}.iam.gserviceaccount.com"), account or "unset"
     if ctx.live is None:
         return NOT_PROBED
+    if check["kind"] == "script":
+        target_repo = ctx.github.get("target_repo")
+        checkout_repo = ctx.probe.get("origin_repo") or lookup(ctx.probe, "local_config.repo")
+        if target_repo and checkout_repo and target_repo.casefold() != str(checkout_repo).casefold():
+            return False, f"checkout is bound to {checkout_repo}, not {target_repo}; run from a {target_repo} checkout"
+        argv = [*check["argv"], "--project", values["project"], "--sites", values["sites"]]
+        ok, last = _run_script(ctx.live, argv, _script_env(ctx))
+        return ok, "passes" if ok else f"{' '.join(argv)}: {last}"
     status = ctx.live.http_status(f"https://{values['site']}.web.app")
     return status == 200, f"HTTP {status or 'no response'}"
 
