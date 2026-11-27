@@ -226,13 +226,16 @@ class _UrlModalHeader extends StatelessWidget {
           Icon(icon, size: 22, color: iconColor ?? colorScheme.primary),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              title,
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
+            child: Semantics(
+              header: true,
+              child: Text(
+                title,
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
           ),
           if (showBadge) ...[

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:js_interop';
 
 import 'package:web/web.dart' as web;
@@ -14,9 +15,12 @@ void bindHashRouteListener(void Function(String targetPath) onTarget) {
     web.window.removeEventListener('hashchange', _activeListener);
   }
   final listener = ((web.Event _) {
-    final target = PublicRoutes.resolveHashRoute(Uri.base);
+    final currentUri = Uri.tryParse(web.window.location.href) ?? Uri.base;
+    final target = PublicRoutes.resolveHashRoute(currentUri);
     if (target != null) {
-      onTarget(target);
+      // Defer past the browser's synchronous popstate notification so Flutter
+      // Web's BrowserPlatformLocation does not overwrite the new route.
+      Timer.run(() => onTarget(target));
     }
   }).toJS;
   _activeListener = listener;

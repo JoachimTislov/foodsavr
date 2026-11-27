@@ -28,8 +28,16 @@ test('login and signup show the LettMat brand and implicit agreement', async ({ 
     .locator('flt-semantics-host')
     .getByText('Privacy Policy', { exact: true })
     .dispatchEvent('click');
-  await expect(page.getByText('Privacy Notice', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Back' }).dispatchEvent('click');
+  const privacyDialog = page.getByRole('dialog');
+  await expect(privacyDialog).toBeVisible();
+  await expect(
+    privacyDialog.getByText('Privacy Notice', { exact: true }),
+  ).toBeVisible();
+  await privacyDialog
+    .getByRole('button', { name: 'Close' })
+    .first()
+    .dispatchEvent('click');
+  await expect(privacyDialog).toBeHidden();
 
   await page.getByRole('button', { name: 'Sign up' }).dispatchEvent('click');
   await expect(page.getByText(/By creating an account, you agree to our/)).toBeVisible();
