@@ -74,6 +74,7 @@ Settings are a fixed-width, centered column; exports and connections live in it.
 - As a user, I want a section per social provider showing connection status, so that I can connect or disconnect Google and Facebook in place.
 - As a user, I want camera access as an optional settings toggle, so that I can grant or revoke deliberately.
 - As a user, I want "Delete Account" placed with account actions, not under "About", so that destructive and informational settings are separate.
+- As a user, I want account and legal flows such as "Delete Account", terms of service, and privacy notice to open as small modals like "New Shopping List", each reachable through the URL state, so that they are consistent, linkable from outside (for example the Facebook app's policy links), and render a sensible default state directly.
 - As a user, I want the export section to offer all, some, or one section, inventory, or shopping list, so that mobile gets fast taps and PC gets granular control.
 
 ## Platform behavior
