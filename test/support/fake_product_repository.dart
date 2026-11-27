@@ -9,6 +9,10 @@ class FakeProductRepository implements IProductRepository {
   final List<Product> added = [];
   final List<Product> updated = [];
   Object? addError;
+  Object? getError;
+  Object? updateError;
+  Object? Function(String id)? getErrorForId;
+  Object? Function(Product entity)? updateErrorForEntity;
   int _nextId = 1;
 
   FakeProductRepository([List<Product>? initial])
@@ -29,6 +33,8 @@ class FakeProductRepository implements IProductRepository {
 
   @override
   Future<void> update(Product entity) async {
+    final error = updateErrorForEntity?.call(entity) ?? updateError;
+    if (error != null) throw error;
     final index = products.indexWhere((p) => p.id == entity.id);
     if (index < 0) throw StateError('No document to update: ${entity.id}');
     products[index] = entity;
@@ -37,6 +43,8 @@ class FakeProductRepository implements IProductRepository {
 
   @override
   Future<Product?> get(String id) async {
+    final error = getErrorForId?.call(id) ?? getError;
+    if (error != null) throw error;
     for (final product in products) {
       if (product.id == id) return product;
     }

@@ -204,18 +204,26 @@ class ProductService {
       );
       if (lookup is OffOffline) break;
       if (lookup case OffFound(product: final data)) {
-        final current = await _productRepository.get(entry.productId);
-        // Skip a placeholder that was deleted or edited in the meantime.
-        if (current != null && current.name == entry.barcode) {
-          final updated = current.copyWith(
-            name: data.name ?? current.name,
-            imageUrl: data.imageUrl ?? current.imageUrl,
-            tags: {...current.tags, ...data.tags}.toList(),
+        try {
+          final current = await _productRepository.get(entry.productId);
+          // Skip a placeholder that was deleted or edited in the meantime.
+          if (current != null && current.name == entry.barcode) {
+            final updated = current.copyWith(
+              name: data.name ?? current.name,
+              imageUrl: data.imageUrl ?? current.imageUrl,
+              tags: {...current.tags, ...data.tags}.toList(),
+            );
+            _validateOrThrow(updated);
+            await _productRepository.update(updated);
+            _invalidateCache();
+            resolved++;
+          }
+        } catch (error, stack) {
+          _logger.w(
+            'Failed to update queued product ${entry.productId}',
+            error: error,
+            stackTrace: stack,
           );
-          _validateOrThrow(updated);
-          await _productRepository.update(updated);
-          _invalidateCache();
-          resolved++;
         }
       }
       await _lookupQueue.remove(entry);

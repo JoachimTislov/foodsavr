@@ -145,4 +145,55 @@ void main() {
     expect(repository.added, isEmpty);
     expect(queue.length, 0);
   });
+
+  test(
+    'replay drops an entry when repository.get throws and continues with next entries',
+    () async {
+      final first = await service.addOrIncrementByBarcode(
+        userId: 'u1',
+        barcode: '111111',
+      );
+      final second = await service.addOrIncrementByBarcode(
+        userId: 'u1',
+        barcode: '222222',
+      );
+      expect(queue.length, 2);
+
+      offClient.next = found;
+      // Simulate permission-denied / unreadable first product (e.g. user switch)
+      repository.getErrorForId = (id) =>
+          id == first.product.id ? StateError('Permission denied') : null;
+
+      expect(await service.replayQueuedLookups(), 1);
+
+      expect(queue.length, 0);
+      expect(repository.updated, hasLength(1));
+      expect(repository.updated.first.id, second.product.id);
+    },
+  );
+
+  test(
+    'replay drops an entry when repository.update throws and continues with next entries',
+    () async {
+      final first = await service.addOrIncrementByBarcode(
+        userId: 'u1',
+        barcode: '111111',
+      );
+      final second = await service.addOrIncrementByBarcode(
+        userId: 'u1',
+        barcode: '222222',
+      );
+      expect(queue.length, 2);
+
+      offClient.next = found;
+      repository.updateErrorForEntity = (entity) =>
+          entity.id == first.product.id ? StateError('Update failed') : null;
+
+      expect(await service.replayQueuedLookups(), 1);
+
+      expect(queue.length, 0);
+      expect(repository.updated, hasLength(1));
+      expect(repository.updated.first.id, second.product.id);
+    },
+  );
 }
