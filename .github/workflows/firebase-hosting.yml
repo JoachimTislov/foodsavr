@@ -186,7 +186,9 @@ jobs:
       WEB_APP_ID: ${{ needs.resolve.outputs.web_app_id }}
       SITE_ID: ${{ needs.resolve.outputs.site_id }}
       FLAVOR: ${{ needs.resolve.outputs.flavor }}
-      CHANNEL: ${{ needs.resolve.outputs.channel }}
+      # Not CHANNEL: subosito/flutter-action reads that from the environment and
+      # lets it override its `channel` input.
+      RELEASE_CHANNEL: ${{ needs.resolve.outputs.channel }}
       WIF_PROVIDER: ${{ vars[format('GCP_WORKLOAD_IDENTITY_PROVIDER{0}', needs.resolve.outputs.suffix)] }}
       DEPLOY_SA: ${{ vars[format('GCP_DEPLOY_SERVICE_ACCOUNT{0}', needs.resolve.outputs.suffix)] }}
     steps:
@@ -195,7 +197,7 @@ jobs:
         env:
           SUFFIX: ${{ needs.resolve.outputs.suffix }}
         run: |
-          bypass="Deploy now: make deploy-web ENV=$FLAVOR${CHANNEL:+ CHANNEL=$CHANNEL}."
+          bypass="Deploy now: make deploy-web ENV=$FLAVOR${RELEASE_CHANNEL:+ CHANNEL=$RELEASE_CHANNEL}."
           fix="Fix the pipeline: make setup (or make infra-gcp-apply ENV=$FLAVOR)."
           if [ -z "$WIF_PROVIDER" ] || [ -z "$DEPLOY_SA" ]; then
             msg="GCP_WORKLOAD_IDENTITY_PROVIDER$SUFFIX/GCP_DEPLOY_SERVICE_ACCOUNT$SUFFIX are missing, so nothing was deployed to $PROJECT_ID. $bypass $fix"

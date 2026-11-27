@@ -333,7 +333,7 @@ class DeployTest(unittest.TestCase):
                 }) as manifest:
             settings, suffix = dw.local_settings(namespace)
         manifest.assert_called_once_with("test", "daily")
-        self.assertEqual((settings["SITE_ID"], settings["CHANNEL"], suffix), ("p-daily", "daily", "_TEST"))
+        self.assertEqual((settings["SITE_ID"], settings["RELEASE_CHANNEL"], suffix), ("p-daily", "daily", "_TEST"))
 
     def test_live_deploy_refuses_a_channel_the_environment_does_not_deploy(self):
         with patch.object(dw, "environment_channels", return_value=CHANNELS):
@@ -401,9 +401,17 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertNotIn("flutter build web", text)
         self.assertNotIn("hosting:channel:deploy", text)
 
+    def test_no_flutter_workflow_exports_the_actions_channel_variable(self):
+        # flutter-action's setup.sh prefers an inherited CHANNEL over its `channel` input.
+        for path in sorted((ROOT / ".github").rglob("*.yml")):
+            text = path.read_text()
+            if "subosito/flutter-action" in text:
+                with self.subTest(path=path.name):
+                    self.assertNotRegex(text, r"(?m)^\s+CHANNEL:\s")
+
     def test_missing_config_skips_and_names_the_bypass_and_fix(self):
         text = (ROOT / ".github/workflows/firebase-hosting.yml").read_text()
-        self.assertIn("make deploy-web ENV=$FLAVOR${CHANNEL:+ CHANNEL=$CHANNEL}", text)
+        self.assertIn("make deploy-web ENV=$FLAVOR${RELEASE_CHANNEL:+ CHANNEL=$RELEASE_CHANNEL}", text)
         self.assertIn("make setup", text)
         self.assertIn('>> "$GITHUB_STEP_SUMMARY"', text)
         config = text[text.index("- name: Check deploy configuration"):text.index("- name: Checkout code", text.index("Check deploy configuration"))]
