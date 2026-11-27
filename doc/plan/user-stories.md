@@ -1,5 +1,7 @@
 # User stories
 
+> Historical backlog material. The canonical user-intent spec is [specs/source-of-truth/user-stories.md](../../specs/source-of-truth/user-stories.md); where the two differ, the spec wins. Wishlist stories here (recipes, meal plans, groups) are not canonical intent until separately owner-gated.
+
 This document details the intended user interactions and functional goals for `foodsavr`.
 These stories guide the development of the application and help ensure that all features provide clear benefits to the end user.
 
