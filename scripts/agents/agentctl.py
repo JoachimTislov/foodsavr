@@ -525,6 +525,9 @@ def runs(args: argparse.Namespace) -> int:
     return 0
 
 
+CONTEXT_FILE_LIMIT = 12000
+
+
 def resolve_workflow_context(workflow: dict[str, Any], database: Path, limit: int = 8) -> str:
     """Resolve bounded, repository-backed context before handing work to a harness."""
     connection = fresh_catalog(database)
@@ -534,7 +537,10 @@ def resolve_workflow_context(workflow: dict[str, Any], database: Path, limit: in
         for relative in context_data.get("files", []):
             path = repository_path(relative, require_file=True)
             content = path.read_text(encoding="utf-8", errors="replace")
-            sections.append(f"FILE {relative}\n{content[:12000]}")
+            if len(content) > CONTEXT_FILE_LIMIT:
+                content = (f"{content[:CONTEXT_FILE_LIMIT]}\n"
+                           f"[truncated: {CONTEXT_FILE_LIMIT} of {len(content)} characters shown]")
+            sections.append(f"FILE {relative}\n{content}")
         for term in context_data.get("queries", []):
             rows = connection.execute(
                 "SELECT path, snippet(document_search, 1, '[', ']', '…', 20) AS snippet "
