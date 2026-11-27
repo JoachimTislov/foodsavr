@@ -1,0 +1,1 @@
+{"commits": ["46329d1ba1ce9a9b4281d056fdf03af6e66bdba5"], "event": "fix(deploy): rename Hosting job env CHANNEL to RELEASE_CHANNEL; local web build and storage guard verified against foodsavr-test, no deploy", "session_id": "t3-code:5219c97c-e684-4b85-98bc-cf61160139fa", "stream": "ledger", "timestamp": "2026-11-27T16:46:55+00:00"}
