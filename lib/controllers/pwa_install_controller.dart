@@ -59,19 +59,26 @@ class PwaInstallController extends ChangeNotifier {
   /// Whether a native install prompt is currently active.
   bool get isPrompting => _isPrompting;
 
+  /// Whether the app is running in Firefox on desktop, which lacks native PWA
+  /// installation support and requires honest guidance rather than a broken
+  /// install trigger.
+  bool get isFirefoxDesktop => platformHint == PwaPlatformHint.firefoxDesktop;
+
   /// Whether the app can be installed (supported web runtime and not yet installed).
   bool get canInstall => isSupported && !isInstalled;
 
   /// Whether the inline install banner should be shown.
+  ///
+  /// Always hides once the app is installed (fulfilled intent) or dismissed.
   bool get shouldShowBanner => canInstall && !_isBannerDismissed;
 
   /// Triggers the browser's native install prompt if available.
   ///
   /// Returns [PwaPromptResult.unavailable] when the browser requires manual
-  /// installation steps (such as iOS Safari "Add to Home Screen"), allowing the
-  /// UI to present the guided installation sheet.
+  /// installation steps (such as iOS Safari, Firefox Android, or Firefox
+  /// desktop guidance), allowing the UI to present the tailored sheet.
   Future<PwaPromptResult> requestInstall() async {
-    if (!canInstall || _isPrompting) {
+    if (!canInstall || _isPrompting || isFirefoxDesktop) {
       return PwaPromptResult.unavailable;
     }
     if (!canPromptNatively) {

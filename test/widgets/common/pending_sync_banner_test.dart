@@ -71,4 +71,84 @@ void main() {
     await tester.pump();
     expect(find.byIcon(Icons.cloud_sync_outlined), findsNothing);
   });
+
+  testWidgets(
+    'dismisses pending sync banner and re-shows after sync finishes and new work queues',
+    (tester) async {
+      final sync = SyncStatus.withTimeout(
+        Logger(level: Level.off),
+        Duration.zero,
+      );
+      final queue = BarcodeLookupQueue.memory();
+      await tester.pumpWidget(
+        EasyLocalization(
+          supportedLocales: const [Locale('en')],
+          path: 'assets/translations',
+          fallbackLocale: const Locale('en'),
+          assetLoader: loader,
+          child: Builder(
+            builder: (context) => MaterialApp(
+              localizationsDelegates: context.localizationDelegates,
+              supportedLocales: context.supportedLocales,
+              locale: context.locale,
+              home: Scaffold(
+                body: PendingSyncBanner(syncStatus: sync, lookupQueue: queue),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final firstAck = Completer<void>();
+      await tester.runAsync(() async {
+        await sync.queue(() => firstAck.future);
+        await queue.enqueue(
+          const QueuedBarcodeLookup(
+            productId: 'p1',
+            barcode: '123',
+            languageCode: 'en',
+          ),
+        );
+      });
+      await tester.pump();
+      expect(find.text('2 changes waiting to sync'), findsOneWidget);
+
+      // Dismiss hides the banner immediately.
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pump();
+      expect(find.text('2 changes waiting to sync'), findsNothing);
+
+      // Dropping from 2 to 1 keeps the banner dismissed during the same batch.
+      await tester.runAsync(() async {
+        firstAck.complete();
+        await pumpEventQueue();
+      });
+      await tester.pump();
+      expect(find.byIcon(Icons.cloud_sync_outlined), findsNothing);
+
+      // Reaching 0 clears the fulfilled state and resets dismissal.
+      await tester.runAsync(() async {
+        await queue.remove(queue.entries.single);
+        await pumpEventQueue();
+      });
+      await tester.pump();
+      expect(find.byIcon(Icons.cloud_sync_outlined), findsNothing);
+
+      // A subsequent offline item displays the banner again.
+      final secondAck = Completer<void>();
+      await tester.runAsync(() async {
+        await sync.queue(() => secondAck.future);
+      });
+      await tester.pump();
+      expect(find.text('1 change waiting to sync'), findsOneWidget);
+
+      await tester.runAsync(() async {
+        secondAck.complete();
+        await pumpEventQueue();
+      });
+      await tester.pump();
+      expect(find.byIcon(Icons.cloud_sync_outlined), findsNothing);
+    },
+  );
 }

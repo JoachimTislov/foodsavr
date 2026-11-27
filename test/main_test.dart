@@ -150,7 +150,7 @@ void main() {
           find.byType(MaterialApp),
         );
 
-        expect(materialApp.title, 'FoodSavr');
+        expect(materialApp.title, 'LettMat');
         expect(materialApp.theme, isNotNull);
         expect(materialApp.darkTheme, isNotNull);
       });

@@ -29,6 +29,7 @@ import 'utils/config.dart';
 import 'utils/env_loader.dart';
 import 'utils/app_check_storage.dart';
 import 'utils/app_locales.dart';
+import 'utils/startup_loader.dart';
 
 const dummyOptions = FirebaseOptions(
   apiKey: 'AIzaSyDummyKeyForDemoOnly',
@@ -168,6 +169,10 @@ void main() async {
       ? WebAccess(Config.webAccessCode, getIt<SharedPreferencesWithCache>())
       : null;
 
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    dismissStartupLoader();
+  });
+
   runApp(
     EasyLocalization(
       supportedLocales: supportedAppLocales,
@@ -201,7 +206,7 @@ class MyApp extends StatelessWidget {
         localizationsDelegates: context.localizationDelegates,
         supportedLocales: context.supportedLocales,
         locale: context.locale,
-        title: 'FoodSavr',
+        title: 'LettMat',
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: getIt<ThemeNotifier>().themeMode,

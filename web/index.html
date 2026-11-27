@@ -19,8 +19,8 @@
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="description" content="FoodSavr helps you reduce food waste by providing features such as meal planning, recipe suggestions, and food storage management assistance.">
-  <meta name="application-name" content="FoodSavr">
+  <meta name="description" content="LettMat helps you reduce food waste with pantry tracking, expiry alerts, and simpler meal planning.">
+  <meta name="application-name" content="LettMat">
   <meta name="theme-color" content="#13c8ec">
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#13c8ec">
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#101f22">
@@ -29,14 +29,204 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="FoodSavr">
+  <meta name="apple-mobile-web-app-title" content="LettMat">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>FoodSavr</title>
+  <title>LettMat</title>
   <link rel="manifest" href="manifest.json">
+
+  <script>
+    (function () {
+      const THEME_KEYS = [
+        'app_theme_mode',
+        'flutter.app_theme_mode',
+        'flutter.theme_mode',
+      ];
+      const LIGHT_BG = '#f6f8f8';
+      const DARK_BG = '#101f22';
+
+      function readStoredThemeMode() {
+        try {
+          if (!window.localStorage) return null;
+          for (let i = 0; i < THEME_KEYS.length; i++) {
+            const raw = window.localStorage.getItem(THEME_KEYS[i]);
+            if (raw === null || raw === '') continue;
+            let value = raw;
+            try {
+              const parsed = JSON.parse(raw);
+              if (typeof parsed === 'string') {
+                value = parsed;
+              }
+            } catch (_) {}
+            const normalized = String(value).trim().toLowerCase();
+            if (
+              normalized === 'dark' ||
+              normalized === 'light' ||
+              normalized === 'system'
+            ) {
+              return normalized;
+            }
+          }
+        } catch (_) {}
+        return null;
+      }
+
+      function resolveStartupTheme() {
+        const stored = readStoredThemeMode();
+        if (stored === 'dark') return 'dark';
+        if (stored === 'light') return 'light';
+        try {
+          if (
+            window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches
+          ) {
+            return 'dark';
+          }
+        } catch (_) {}
+        return 'light';
+      }
+
+      const resolved = resolveStartupTheme();
+      const isDark = resolved === 'dark';
+      const root = document.documentElement;
+      root.classList.toggle('dark', isDark);
+      root.dataset.theme = resolved;
+      root.style.backgroundColor = isDark ? DARK_BG : LIGHT_BG;
+      root.style.colorScheme = resolved;
+
+      window.lettmatTheme = {
+        resolveStartupTheme: resolveStartupTheme,
+        getTheme: function () {
+          return document.documentElement.dataset.theme || 'light';
+        },
+      };
+    })();
+  </script>
+
+  <style>
+    :root {
+      --lm-primary: #13c8ec;
+      --lm-bg: #f6f8f8;
+      --lm-title: #0f172a;
+      --lm-subtitle: #64748b;
+      --lm-caption: #94a3b8;
+      --lm-ring-track: #e2e8f0;
+    }
+
+    :root.dark {
+      --lm-bg: #101f22;
+      --lm-title: #ffffff;
+      --lm-subtitle: #94a3b8;
+      --lm-caption: #64748b;
+      --lm-ring-track: #334155;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: var(--lm-bg);
+    }
+
+    #lettmat-startup-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--lm-bg);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      transition: opacity 220ms ease-out;
+    }
+
+    #lettmat-startup-loader.lm-loader-hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .lm-loader-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .lm-loader-badge {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background-color: var(--lm-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .lm-loader-brand {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .lm-loader-title {
+      margin: 0;
+      font-size: 24px;
+      line-height: 32px;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      color: var(--lm-title);
+    }
+
+    .lm-loader-subtitle {
+      margin: 0;
+      font-size: 14px;
+      line-height: 20px;
+      font-weight: 500;
+      color: var(--lm-subtitle);
+    }
+
+    .lm-loader-progress {
+      padding-top: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .lm-loader-ring {
+      width: 32px;
+      height: 32px;
+      box-sizing: border-box;
+      border-radius: 9999px;
+      border: 3px solid var(--lm-ring-track);
+      border-top-color: var(--lm-primary);
+      animation: lm-spin 1s linear infinite;
+    }
+
+    @keyframes lm-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #lettmat-startup-loader {
+        transition: none;
+      }
+      .lm-loader-ring {
+        animation: none;
+      }
+    }
+  </style>
 
   <script>
     (function () {
@@ -62,16 +252,28 @@
         return false;
       }
 
-      function detectPlatformHint() {
+      function detectPlatformHint(uaOverride, platformOverride, maxTouchPointsOverride) {
         try {
-          const ua = (window.navigator && window.navigator.userAgent) || '';
-          const platform = (window.navigator && window.navigator.platform) || '';
+          const ua =
+            typeof uaOverride === 'string'
+              ? uaOverride
+              : (window.navigator && window.navigator.userAgent) || '';
+          const platform =
+            typeof platformOverride === 'string'
+              ? platformOverride
+              : (window.navigator && window.navigator.platform) || '';
           const maxTouchPoints =
-            (window.navigator && window.navigator.maxTouchPoints) || 0;
+            typeof maxTouchPointsOverride === 'number'
+              ? maxTouchPointsOverride
+              : (window.navigator && window.navigator.maxTouchPoints) || 0;
           const isIOS =
             /iPad|iPhone|iPod/.test(ua) ||
             (platform === 'MacIntel' && maxTouchPoints > 1);
           if (isIOS) return 'ios';
+          const isFirefox = /Firefox\//i.test(ua) && !/Seamonkey\//i.test(ua);
+          if (isFirefox) {
+            return /Android/i.test(ua) ? 'firefox-android' : 'firefox-desktop';
+          }
           const isSafari =
             /^((?!chrome|android|crios|fxios|edgios).)*safari/i.test(ua);
           if (isSafari) return 'macos-safari';
@@ -116,6 +318,7 @@
         platformHint: function () {
           return detectPlatformHint();
         },
+        detectPlatformHint: detectPlatformHint,
         promptInstall: async function () {
           if (!deferredPrompt) return 'unavailable';
           const promptEvent = deferredPrompt;
@@ -279,6 +482,84 @@
   </script>
 </head>
 <body>
+  <div
+    id="lettmat-startup-loader"
+    role="status"
+    aria-live="polite"
+    aria-label="Loading LettMat"
+  >
+    <div class="lm-loader-stack">
+      <div class="lm-loader-badge" aria-hidden="true">
+        <svg
+          width="40"
+          height="40"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M6.05 8.05c-2.73 2.73-2.73 7.15-.02 9.88 1.47-3.4 4.09-6.24 7.36-7.93-2.77 2.34-4.71 5.61-5.39 9.32 2.6 1.23 5.8.78 7.95-1.37C19.43 14.47 20 4 20 4S9.53 4.57 6.05 8.05z"
+            fill="#0f172a"
+          />
+        </svg>
+      </div>
+      <div class="lm-loader-brand">
+        <h1 class="lm-loader-title">LettMat</h1>
+        <p class="lm-loader-subtitle">Less waste, easier meals.</p>
+      </div>
+      <div class="lm-loader-progress">
+        <div class="lm-loader-ring" aria-hidden="true"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      let dismissed = false;
+      let observer = null;
+
+      function dismissStartupLoader() {
+        if (dismissed) return;
+        dismissed = true;
+        if (observer) {
+          try {
+            observer.disconnect();
+          } catch (_) {}
+          observer = null;
+        }
+        const loader = document.getElementById('lettmat-startup-loader');
+        if (!loader) return;
+        loader.classList.add('lm-loader-hidden');
+        const reducedMotion =
+          window.matchMedia &&
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reducedMotion) {
+          loader.remove();
+        } else {
+          window.setTimeout(function () {
+            if (loader.parentNode) {
+              loader.parentNode.removeChild(loader);
+            }
+          }, 260);
+        }
+      }
+
+      window.lettmatDismissStartupLoader = dismissStartupLoader;
+      window.addEventListener('flutter-first-frame', dismissStartupLoader, {
+        once: true,
+      });
+
+      if (typeof MutationObserver === 'function' && document.body) {
+        observer = new MutationObserver(function () {
+          if (document.querySelector('flutter-view, flt-glass-pane')) {
+            window.requestAnimationFrame(function () {
+              dismissStartupLoader();
+            });
+          }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+      }
+    })();
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 {
-  "name": "FoodSavr",
-  "short_name": "FoodSavr",
+  "name": "LettMat",
+  "short_name": "LettMat",
   "id": "./",
   "start_url": "./",
   "scope": "./",
@@ -12,7 +12,7 @@
   ],
   "background_color": "#f6f8f8",
   "theme_color": "#13c8ec",
-  "description": "FoodSavr helps you reduce food waste by providing features such as meal planning, recipe suggestions, and food storage management assistance.",
+  "description": "LettMat helps you reduce food waste with pantry tracking, expiry alerts, and simpler meal planning.",
   "orientation": "portrait-primary",
   "prefer_related_applications": false,
   "categories": [

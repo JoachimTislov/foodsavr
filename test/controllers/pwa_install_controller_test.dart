@@ -193,6 +193,41 @@ void main() {
       expect(reloaded.isBannerDismissed, isFalse);
       expect(reloaded.shouldShowBanner, isTrue);
     });
+
+    test('parses platform hints including Firefox Android and Desktop', () {
+      expect(parsePwaPlatformHint('ios'), PwaPlatformHint.ios);
+      expect(parsePwaPlatformHint('macos-safari'), PwaPlatformHint.macosSafari);
+      expect(
+        parsePwaPlatformHint('firefox-android'),
+        PwaPlatformHint.firefoxAndroid,
+      );
+      expect(
+        parsePwaPlatformHint('firefox-desktop'),
+        PwaPlatformHint.firefoxDesktop,
+      );
+      expect(parsePwaPlatformHint('unsupported'), PwaPlatformHint.unsupported);
+      expect(parsePwaPlatformHint('standard'), PwaPlatformHint.standard);
+      expect(parsePwaPlatformHint(null), PwaPlatformHint.standard);
+    });
+
+    test(
+      'flags Firefox desktop and never invokes native prompt on it',
+      () async {
+        final bridge = _FakePwaBridge(
+          canPrompt: true,
+          platformHint: PwaPlatformHint.firefoxDesktop,
+        );
+        final controller = PwaInstallController(bridge: bridge, prefs: prefs);
+        addTearDown(controller.dispose);
+
+        expect(controller.isFirefoxDesktop, isTrue);
+        expect(controller.shouldShowBanner, isTrue);
+
+        final result = await controller.requestInstall();
+        expect(result, PwaPromptResult.unavailable);
+        expect(bridge.promptCallCount, 0);
+      },
+    );
   });
 
   group('PwaInstallBanner & PwaInstallSheet widgets', () {
@@ -212,15 +247,15 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Install FoodSavr'), findsOneWidget);
+        expect(find.text('Install LettMat'), findsOneWidget);
         expect(find.text('Install'), findsOneWidget);
 
         await tester.tap(find.text('Install'));
         await tester.pumpAndSettle();
 
         expect(bridge.promptCallCount, 1);
-        expect(find.text('FoodSavr installed successfully.'), findsOneWidget);
-        expect(find.text('Install FoodSavr'), findsNothing);
+        expect(find.text('LettMat installed successfully.'), findsOneWidget);
+        expect(find.text('Install LettMat'), findsNothing);
       });
     });
 
@@ -263,6 +298,81 @@ void main() {
       },
     );
 
+    testWidgets('shows Firefox Android installation instructions in sheet', (
+      tester,
+    ) async {
+      final bridge = _FakePwaBridge(
+        canPrompt: false,
+        platformHint: PwaPlatformHint.firefoxAndroid,
+      );
+      final controller = PwaInstallController(bridge: bridge, prefs: prefs);
+      addTearDown(controller.dispose);
+
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          _wrapWithLocalization(PwaInstallBanner(controller: controller)),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Install LettMat'), findsOneWidget);
+        await tester.tap(find.text('Install'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Tap the menu button (three dots) in Firefox.'),
+          findsOneWidget,
+        );
+        expect(
+          find.text('Choose "Install" or "Add to Home screen" and confirm.'),
+          findsOneWidget,
+        );
+      });
+    });
+
+    testWidgets(
+      'shows honest dismissible notice and guide on Firefox Desktop',
+      (tester) async {
+        final bridge = _FakePwaBridge(
+          canPrompt: false,
+          platformHint: PwaPlatformHint.firefoxDesktop,
+        );
+        final controller = PwaInstallController(bridge: bridge, prefs: prefs);
+        addTearDown(controller.dispose);
+
+        await tester.runAsync(() async {
+          await tester.pumpWidget(
+            _wrapWithLocalization(PwaInstallBanner(controller: controller)),
+          );
+          await tester.pumpAndSettle();
+
+          expect(
+            find.text('App install unavailable in Firefox'),
+            findsOneWidget,
+          );
+          expect(find.text('Learn more'), findsOneWidget);
+          expect(find.text('Install'), findsNothing);
+
+          await tester.tap(find.text('Learn more'));
+          await tester.pumpAndSettle();
+
+          expect(find.text('Installing on Firefox Desktop'), findsOneWidget);
+          expect(
+            find.textContaining('does not natively support'),
+            findsWidgets,
+          );
+
+          await tester.tap(find.text('Close'));
+          await tester.pumpAndSettle();
+
+          await tester.tap(find.byIcon(Icons.close));
+          await tester.pumpAndSettle();
+
+          expect(find.text('App install unavailable in Firefox'), findsNothing);
+          expect(controller.isBannerDismissed, isTrue);
+        });
+      },
+    );
+
     testWidgets('dismiss button hides the install banner', (tester) async {
       final bridge = _FakePwaBridge();
       final controller = PwaInstallController(bridge: bridge, prefs: prefs);
@@ -274,14 +384,40 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Install FoodSavr'), findsOneWidget);
+        expect(find.text('Install LettMat'), findsOneWidget);
 
         await tester.tap(find.byIcon(Icons.close));
         await tester.pumpAndSettle();
 
-        expect(find.text('Install FoodSavr'), findsNothing);
+        expect(find.text('Install LettMat'), findsNothing);
         expect(controller.isBannerDismissed, isTrue);
       });
     });
+
+    testWidgets(
+      'automatically hides banner when app transitions to installed mode',
+      (tester) async {
+        final bridge = _FakePwaBridge(isInstalled: false);
+        final controller = PwaInstallController(bridge: bridge, prefs: prefs);
+        addTearDown(controller.dispose);
+
+        await tester.runAsync(() async {
+          await tester.pumpWidget(
+            _wrapWithLocalization(PwaInstallBanner(controller: controller)),
+          );
+          await tester.pumpAndSettle();
+
+          expect(find.text('Install LettMat'), findsOneWidget);
+
+          bridge.isInstalled = true;
+          bridge.emitChange();
+          await Future<void>.delayed(Duration.zero);
+          await tester.pumpAndSettle();
+
+          expect(find.text('Install LettMat'), findsNothing);
+          expect(controller.isBannerDismissed, isFalse);
+        });
+      },
+    );
   });
 }
