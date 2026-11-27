@@ -176,13 +176,10 @@ class SeedingService {
         userId: 'global',
         isGlobal: true,
         category: data['category'] as String?,
+        barcode: data['barcode'] as String?,
       );
 
-      await postToFirestore(
-        'global_products',
-        id.toString(),
-        product.toFirestoreRest(),
-      );
+      await postToFirestore('global_products', id, product.toFirestoreRest());
     }
   }
 

@@ -5,7 +5,7 @@ One implementation for the hosting jobs of `.github/workflows/release.yml` and f
 `make deploy-web` (the manual bypass), so the two cannot drift.
 
 Workflow steps (configuration comes from the environment the workflow sets):
-  build        write web config and assets/.env, build web into build/web
+  build        write web config, build web (with the bundled web env) into build/web
   sourcemaps   upload web source maps to Crashlytics (Blaze, live only)
   guard        keep Hosting storage in budget; sets `channel` and `fits`
   deploy       deploy a preview channel or live
@@ -23,14 +23,19 @@ Manual bypass:
 
 Environment: PROJECT_ID, WEB_APP_ID, SITE_ID, FLAVOR (the manifest
 environment, e.g. test or production), TARGET (live|preview), BRANCH, EXPIRES,
-FIREBASE_TOOLS, WEB_ENV_B64 or WEB_ENV_FILE (assets/.env, served publicly;
-empty when neither is set), ANDROID_APK_URL, RECAPTCHA_ENTERPRISE_SITE_KEY,
+FIREBASE_TOOLS, WEB_ENV_B64 or WEB_ENV_FILE (dotenv content; none when neither
+is set), ANDROID_APK_URL, RECAPTCHA_ENTERPRISE_SITE_KEY,
 FIREBASE_PLAN, ERROR_REPORTER, ERROR_COLLECTOR_ENDPOINT.
 
 Every hosted build uses the app's remote-backend flavor (`production`) and
 selects its Firebase project with `--dart-define=DEPLOY_ENVIRONMENT=<env>`
 (lib/main.dart), so a test deploy never ships production options and a
 production deploy never falls back to the test project.
+
+The web env is compiled into the app as `--dart-define=BUNDLED_ENV_B64=...`
+(lib/utils/env_loader.dart). assets/.env is empty during the build, so Hosting
+serves no standalone env file. The values still ship to every browser: only
+public client configuration belongs in them. They are never printed.
 """
 
 from __future__ import annotations
@@ -96,7 +101,7 @@ def check_expires(expires: str) -> str:
 
 
 def build_defines(environment: str, recaptcha: str = "", reporter: str = "", endpoint: str = "", *,
-                  access_code: str = "", legal_environment: str = "") -> list[str]:
+                  access_code: str = "", legal_environment: str = "", env_b64: str = "") -> list[str]:
     defines = [f"--dart-define=FLAVOR={APP_FLAVOR}", f"--dart-define=DEPLOY_ENVIRONMENT={environment}"]
     if access_code:
         defines.append(f"--dart-define=WEB_ACCESS_CODE={access_code}")
@@ -110,6 +115,8 @@ def build_defines(environment: str, recaptcha: str = "", reporter: str = "", end
         defines.append(f"--dart-define=ERROR_REPORTER={reporter}")
     if endpoint:
         defines.append(f"--dart-define=ERROR_COLLECTOR_ENDPOINT={endpoint}")
+    if env_b64:
+        defines.append(f"--dart-define=BUNDLED_ENV_B64={env_b64}")
     return defines
 
 
@@ -127,48 +134,77 @@ def required(name: str) -> str:
     return value
 
 
-def write_dotenv() -> None:
-    target = ROOT / "assets/.env"
-    target.parent.mkdir(parents=True, exist_ok=True)
+def web_env_b64() -> str:
+    """The web env from WEB_ENV_B64 or WEB_ENV_FILE as one Base64 line; empty when there is none."""
     encoded, source = os.environ.get("WEB_ENV_B64", ""), os.environ.get("WEB_ENV_FILE", "")
+    content = b""
     if encoded:
         try:
-            decoded = base64.b64decode(encoded.replace("\r", "").replace("\n", ""), validate=True)
+            content = base64.b64decode("".join(encoded.split()), validate=True)
         except ValueError:
             fail("WEB_ENV_B64 is not valid Base64")
-        target.write_bytes(decoded)
     elif source:
         source_path = Path(source)
         if not source_path.is_file():
             fail(f"WEB_ENV_FILE {source} does not exist")
-        if not target.exists() or not source_path.samefile(target):
-            shutil.copyfile(source_path, target)
-    else:
-        warn("No assets/.env source (WEB_ENV_B64 or WEB_ENV_FILE); deploying with an empty assets/.env.")
+        content = source_path.read_bytes()
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        fail("the web env is not valid UTF-8")
+    if not text.strip():
+        warn("No web env (WEB_ENV_B64 or WEB_ENV_FILE is absent or empty); building without one.")
+        return ""
+    return base64.b64encode(content).decode("ascii")
+
+
+@contextmanager
+def blank_dotenv():
+    """Keep assets/.env present (pubspec.yaml bundles it) but empty, then restore it."""
+    with preserved(("assets/.env",)):
+        target = ROOT / "assets/.env"
+        target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("")
+        yield
+
+
+def run_redacted(cmd: list[str], hidden: str) -> None:
+    """Run cmd, masking `hidden`: Flutter can echo compiler command lines, defines included.
+
+    A failure reports only the exit code, because CalledProcessError prints the command.
+    """
+    with subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                          text=True, errors="replace") as process:
+        for line in process.stdout:
+            print(line.replace(hidden, "<redacted>") if hidden else line, end="", flush=True)
+    if process.returncode != 0:
+        fail(f"{' '.join(cmd[:3])} failed with exit code {process.returncode}")
 
 
 def cmd_build() -> None:
     project, app = required("PROJECT_ID"), required("WEB_APP_ID")
     environment, target = required("FLAVOR"), os.environ.get("TARGET", "live")
+    env_b64 = web_env_b64()
     revision = build_revision()
     config = run(firebase("apps:sdkconfig", "WEB", app, "--project", project, "--json"), capture_output=True, text=True)
     run(["python3", "scripts/web/write_web_config.py"], input=config.stdout, text=True,
         env={**os.environ, "DEPLOY_ENVIRONMENT": environment})
-    write_dotenv()
-    run(["flutter", "pub", "get"])
-    run(["dart", "run", "build_runner", "build", "--delete-conflicting-outputs"])
-    run(["flutter", "create", ".", "--platforms", "web"])
-    defines = build_defines(
-        environment,
-        os.environ.get("RECAPTCHA_ENTERPRISE_SITE_KEY", ""),
-        os.environ.get("ERROR_REPORTER", ""),
-        os.environ.get("ERROR_COLLECTOR_ENDPOINT", ""),
-        access_code=os.environ.get("WEB_ACCESS_CODE", ""),
-        # ADR 0009: each environment ships its own legal documents.
-        legal_environment=environment,
-    )
-    run(["flutter", "build", "web", *build_flags(os.environ.get("FIREBASE_PLAN", ""), target), *defines])
+    with blank_dotenv():
+        run(["flutter", "pub", "get"])
+        run(["dart", "run", "build_runner", "build", "--delete-conflicting-outputs"])
+        run(["flutter", "create", ".", "--platforms", "web"])
+        defines = build_defines(
+            environment,
+            os.environ.get("RECAPTCHA_ENTERPRISE_SITE_KEY", ""),
+            os.environ.get("ERROR_REPORTER", ""),
+            os.environ.get("ERROR_COLLECTOR_ENDPOINT", ""),
+            access_code=os.environ.get("WEB_ACCESS_CODE", ""),
+            # ADR 0009: each environment ships its own legal documents.
+            legal_environment=environment,
+            env_b64=env_b64,
+        )
+        run_redacted(["flutter", "build", "web", *build_flags(os.environ.get("FIREBASE_PLAN", ""), target), *defines],
+                     env_b64)
     write_release_metadata(ROOT / "build/web", revision)
     write_landing_config(ROOT / "build/web/about/config.js", environment)
 
@@ -411,7 +447,7 @@ def cmd_local(args: argparse.Namespace) -> int:
     settings, suffix = local_settings(args)
     print(f"Environment {args.env}: project {settings['PROJECT_ID']}, site {settings['SITE_ID'] or settings['PROJECT_ID']}, "
           f"channel {settings['RELEASE_CHANNEL'] or 'none'}, "
-          f"target {args.target}, assets/.env from {args.web_env_file or 'nothing (empty)'}")
+          f"target {args.target}, web env from {args.web_env_file or 'nothing (empty)'}")
     if args.plan:
         print("Plan only: no build, no deploy.")
         return 0
@@ -456,7 +492,7 @@ def main(argv: list[str] | None = None) -> int:
     local.add_argument("--target", choices=TARGETS, default="live")
     local.add_argument("--expires", default="4h", help="preview lifetime, e.g. 4h, 1d, 2w")
     local.add_argument("--branch", default="", help="branch naming the preview channel (default: current)")
-    local.add_argument("--web-env-file", default="", help="file copied to assets/.env (served publicly); default empty")
+    local.add_argument("--web-env-file", default="", help="dotenv file compiled into the web app (public to every browser); default none")
     local.add_argument("--yes", action="store_true", help="confirm a live deploy without prompting")
     local.add_argument("--plan", action="store_true", help="resolve and print the settings, then stop")
     args = parser.parse_args(argv)
