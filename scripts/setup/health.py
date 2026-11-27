@@ -215,9 +215,13 @@ def evaluate(ctx: Context, config: dict[str, Any] | None = None) -> dict[str, An
         skip = check.get("skip_when")
         if skip and lookup(ctx.probe, skip["path"]) == skip["equals"]:
             continue
+        declined = check.get("declined_step") in (lookup(ctx.probe, "local_config.declinedSteps") or [])
         for name, values in _items(check, ctx):
-            ok, extra = _per_item(check, ctx, values) if values else _single(check, ctx, config)
             text = {**base, **values}
+            if declined:
+                notes.append(f"{name}: declined in make setup (resume: {check['fix'].format(**text)})")
+                continue
+            ok, extra = _per_item(check, ctx, values) if values else _single(check, ctx, config)
             detail = check["detail"].format(**text) + (f": {extra}" if extra else "")
             if check.get("advisory"):
                 if not ok:

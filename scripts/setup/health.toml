@@ -10,6 +10,8 @@
 #   detail    what the check proves (templated)
 #   fix       the one command that repairs it (templated; prefer make targets)
 #   advisory  true: reported as a note, never blocks readiness
+#   declined_step  make setup step id the owner may decline (declinedSteps in
+#             .agents/instance.local.json); when declined, the check becomes a note
 #
 # Templates: {profile} {repo} {topology} {branch} and, for per-environment kinds,
 # {env} {suffix} {project} {channel} {site}.
@@ -174,6 +176,7 @@ id = "web-monitor"
 profiles = ["full-cloud"]
 kind = "workflow-run"
 workflow = "web-monitor.yml"
+declined_step = "web-monitoring"
 detail = "latest Web Monitor run passed"
 fix = "make monitoring"
 
@@ -182,6 +185,7 @@ id = "monitoring"
 profiles = ["full-cloud"]
 kind = "script"
 argv = ["scripts/setup/monitoring.sh", "--check"]
+declined_step = "web-monitoring"
 detail = "web monitoring configured"
 fix = "make monitoring"
 
@@ -190,6 +194,7 @@ id = "social-auth"
 profiles = ["full-cloud"]
 kind = "script"
 argv = ["scripts/setup/social_auth.sh", "--check"]
+declined_step = "social-sign-in"
 detail = "Google and Facebook sign-in configured"
 fix = "make social-auth-setup"
 

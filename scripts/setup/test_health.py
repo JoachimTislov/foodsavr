@@ -119,6 +119,22 @@ class HealthTest(TestCase):
         self.assertNotIn("workflow-secrets", checks(report))
         self.assertTrue(report["ready"])
 
+    def test_declined_step_becomes_a_note(self):
+        state = probe()
+        state["local_config"] = {"declinedSteps": ["social-sign-in"]}
+        live = FakeLive(run={"id": 1, "conclusion": "success", "html_url": "u"},
+                        scripts={"scripts/setup/social_auth.sh": (False, "9 items")})
+        report = evaluate(state, live)
+        self.assertNotIn("social-auth", checks(report))
+        self.assertTrue(any(note.startswith("social-auth: declined") for note in report["notes"]))
+        self.assertTrue(report["ready"])
+
+    def test_declined_steps_name_real_wizard_steps(self):
+        source = (health.ROOT / "scripts/setup/wizard.py").read_text(encoding="utf-8")
+        for check in health.load()["check"]:
+            if "declined_step" in check:
+                self.assertIn(f'"{check["declined_step"]}"', source, check["id"])
+
     def test_local_dev_needs_no_github(self):
         report = evaluate(probe(), profile="local-dev")
         self.assertEqual(set(checks(report)), {"local-stubs", "git-hooks"})
