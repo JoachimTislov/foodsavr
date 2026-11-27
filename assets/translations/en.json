@@ -24,7 +24,15 @@
 			"user_disabled": "The user account has been disabled.",
 			"user_not_found": "No user found for that email.",
 			"weak_password": "The password provided is too weak.",
-			"wrong_password": "Wrong password provided for that user."
+			"wrong_password": "Wrong password provided for that user.",
+			"google_unavailable": "Google sign-in is unavailable. You can sign in with email instead.",
+			"google_failed": "Google sign-in failed. Try again or sign in with email.",
+			"guest_unavailable": "Guest access is not available here yet. Create an account or sign in instead.",
+			"guest_failed": "Could not continue as guest. Try again or sign in with email.",
+			"popup_blocked": "Your browser blocked the sign-in window. Allow pop-ups for this site and try again.",
+			"web_storage_unsupported": "Your browser is blocking site storage. Allow cookies and site data, then try again.",
+			"network": "Could not reach the sign-in service. Check your connection and try again.",
+			"account_exists": "An account with this email already uses another sign-in method. Sign in with that method instead."
 		},
 		"form": {
 			"email": {
@@ -42,8 +50,8 @@
 		},
 		"header": {
 			"create_account": "Create Account",
-			"sign_in_subtitle": "Sign in to manage your inventory.",
-			"sign_up_subtitle": "Sign up to start saving time and money.",
+			"sign_in_subtitle": "Sign in to LettMat to manage your inventory.",
+			"sign_up_subtitle": "Join LettMat and start saving food and money.",
 			"welcome_back": "Welcome Back"
 		},
 		"landing": {
@@ -63,15 +71,18 @@
 		"submit": {
 			"register": "Register"
 		},
-		"terms": {
-			"prefix": "I agree to the ",
-			"required": "You must agree to the Terms of Service and Privacy Notice."
-		},
 		"toggle": {
 			"already_have_account": "Already have an account?",
 			"login": "Login",
 			"no_account": "Don't have an account?",
 			"sign_up": "Sign up"
+		},
+		"brand": "LettMat",
+		"legal": {
+			"sign_in_prefix": "By signing in, you agree to our ",
+			"sign_up_prefix": "By creating an account, you agree to our ",
+			"terms": "Terms of Service",
+			"privacy": "Privacy Policy"
 		}
 	},
 	"collection": {

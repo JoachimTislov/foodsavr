@@ -154,23 +154,44 @@ class AuthService implements IAuthService {
     return _authenticate(() => _firebaseAuth.signInWithCredential(credential));
   }
 
+  /// Throws [FirebaseAuthException] with `google-sdk-unavailable` when the
+  /// native SDK is missing or has no usable client ID.
   Future<OAuthCredential> _googleCredential() async {
-    await (_googleSignInInitialization ??= _initializeGoogleSignIn());
     final GoogleSignInAccount googleUser;
     try {
+      await (_googleSignInInitialization ??= _initializeGoogleSignIn());
       googleUser = await _googleSignIn.authenticate();
-    } on GoogleSignInException catch (e) {
-      if (e.code == GoogleSignInExceptionCode.canceled) {
-        throw FirebaseAuthException(
-          code: 'ERROR_ABORTED_BY_USER',
-          message: 'Sign in aborted by user',
-        );
-      }
-      rethrow;
+    } on GoogleSignInException catch (e, stack) {
+      final code = switch (e.code) {
+        GoogleSignInExceptionCode.canceled => 'ERROR_ABORTED_BY_USER',
+        GoogleSignInExceptionCode.clientConfigurationError ||
+        GoogleSignInExceptionCode.providerConfigurationError =>
+          'google-sdk-unavailable',
+        _ => null,
+      };
+      if (code == null) rethrow;
+      Error.throwWithStackTrace(
+        FirebaseAuthException(code: code, message: e.description),
+        stack,
+      );
+    } on MissingPluginException catch (_, stack) {
+      _throwGoogleUnavailable(stack);
+    } on UnimplementedError catch (_, stack) {
+      _throwGoogleUnavailable(stack);
     }
 
-    return GoogleAuthProvider.credential(
-      idToken: googleUser.authentication.idToken,
+    // Without a server client ID, Google returns an account but no ID token.
+    final idToken = googleUser.authentication.idToken;
+    if (idToken == null || idToken.isEmpty) {
+      _throwGoogleUnavailable(StackTrace.current);
+    }
+    return GoogleAuthProvider.credential(idToken: idToken);
+  }
+
+  Never _throwGoogleUnavailable(StackTrace stack) {
+    Error.throwWithStackTrace(
+      FirebaseAuthException(code: 'google-sdk-unavailable'),
+      stack,
     );
   }
 

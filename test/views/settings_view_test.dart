@@ -187,7 +187,6 @@ void main() async {
       when(() => mockAuthController.isLogin).thenReturn(true);
       when(() => mockAuthController.successMessage).thenReturn(null);
       when(() => mockAuthController.rememberMe).thenReturn(false);
-      when(() => mockAuthController.agreedToTerms).thenReturn(false);
       getIt.registerSingleton<UserController>(mockAuthController);
 
       final groceryStoreAuthService = _MockGroceryStoreAuthService();

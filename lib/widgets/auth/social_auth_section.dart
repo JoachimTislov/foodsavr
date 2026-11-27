@@ -7,14 +7,16 @@ class SocialAuthSection extends StatelessWidget {
   final bool isLoading;
   final VoidCallback? onGooglePressed;
   final VoidCallback? onFacebookPressed;
-  final bool showTopDivider;
+
+  /// Whether an "or" divider separates what follows.
+  final bool showDivider;
 
   const SocialAuthSection({
     super.key,
     required this.isLoading,
     this.onGooglePressed,
     this.onFacebookPressed,
-    this.showTopDivider = true,
+    this.showDivider = true,
   });
 
   @override
@@ -38,20 +40,22 @@ class SocialAuthSection extends StatelessWidget {
           textColor: colorScheme.onSurface,
           onPressed: isLoading ? null : onFacebookPressed,
         ),
-        const SizedBox(height: 24.0),
-        Row(
-          children: [
-            const Expanded(child: Divider()),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Text(
-                'common.or'.tr(),
-                style: Theme.of(context).textTheme.labelLarge,
+        if (showDivider) ...[
+          const SizedBox(height: 24.0),
+          Row(
+            children: [
+              const Expanded(child: Divider()),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Text(
+                  'common.or'.tr(),
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
               ),
-            ),
-            const Expanded(child: Divider()),
-          ],
-        ),
+              const Expanded(child: Divider()),
+            ],
+          ),
+        ],
       ],
     );
   }

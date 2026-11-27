@@ -24,7 +24,15 @@
 			"user_disabled": "Brukerkontoen er deaktivert.",
 			"user_not_found": "Ingen bruker funnet for denne e-posten.",
 			"weak_password": "Passordet er for svakt.",
-			"wrong_password": "Feil passord oppgitt for denne brukeren."
+			"wrong_password": "Feil passord oppgitt for denne brukeren.",
+			"google_unavailable": "Innlogging med Google er utilgjengelig. Du kan logge inn med e-post i stedet.",
+			"google_failed": "Innlogging med Google mislyktes. Prøv igjen eller logg inn med e-post.",
+			"guest_unavailable": "Gjestetilgang er ikke tilgjengelig her ennå. Opprett en konto eller logg inn i stedet.",
+			"guest_failed": "Kunne ikke fortsette som gjest. Prøv igjen eller logg inn med e-post.",
+			"popup_blocked": "Nettleseren blokkerte innloggingsvinduet. Tillat popup-vinduer for dette nettstedet og prøv igjen.",
+			"web_storage_unsupported": "Nettleseren blokkerer lagring for nettstedet. Tillat informasjonskapsler og nettstedsdata, og prøv igjen.",
+			"network": "Kunne ikke nå innloggingstjenesten. Sjekk tilkoblingen og prøv igjen.",
+			"account_exists": "En konto med denne e-posten bruker allerede en annen innloggingsmetode. Logg inn med den i stedet."
 		},
 		"form": {
 			"email": {
@@ -42,8 +50,8 @@
 		},
 		"header": {
 			"create_account": "Opprett konto",
-			"sign_in_subtitle": "Logg inn for å administrere lageret ditt.",
-			"sign_up_subtitle": "Registrer deg for å begynne å spare tid og penger.",
+			"sign_in_subtitle": "Logg inn på LettMat for å administrere lageret ditt.",
+			"sign_up_subtitle": "Bli med i LettMat, og begynn å spare mat og penger.",
 			"welcome_back": "Velkommen tilbake"
 		},
 		"landing": {
@@ -63,15 +71,18 @@
 		"submit": {
 			"register": "Registrer"
 		},
-		"terms": {
-			"prefix": "Jeg godtar ",
-			"required": "Du må godta vilkårene for bruk og personvernerklæringen."
-		},
 		"toggle": {
 			"already_have_account": "Har du allerede en konto?",
 			"login": "Logg inn",
 			"no_account": "Har du ikke en konto?",
 			"sign_up": "Registrer deg"
+		},
+		"brand": "LettMat",
+		"legal": {
+			"sign_in_prefix": "Ved å logge inn godtar du ",
+			"sign_up_prefix": "Ved å opprette en konto godtar du ",
+			"terms": "vilkårene for bruk",
+			"privacy": "personvernerklæringen"
 		}
 	},
 	"collection": {
