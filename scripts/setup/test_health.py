@@ -1,4 +1,6 @@
 import json
+import re
+import subprocess
 from unittest import TestCase
 
 import health
@@ -163,3 +165,47 @@ class HealthTest(TestCase):
         self.assertFalse(report["firebase-config"]["ok"])
         self.assertIn("checkout is bound to other/repo", report["firebase-config"]["detail"])
         self.assertFalse(report["monitoring"]["ok"])
+
+
+class LatestRunPaginationTest(TestCase):
+    """Live.latest_run pages through shared-workflow history instead of one window."""
+
+    @staticmethod
+    def _live_with_pages(pages):
+        calls = []
+
+        def fake_run(argv, **kwargs):
+            path = argv[argv.index("api") + 1]
+            calls.append(path)
+            match = re.search(r"[?&]page=(\d+)", path)
+            page = int(match.group(1))
+            # `gh api --jq .workflow_runs` prints the filtered list itself.
+            return subprocess.CompletedProcess(argv, 0, json.dumps(pages.get(page, [])), "")
+
+        return health.Live("o/r", run=fake_run), calls
+
+    def test_run_name_found_on_a_later_page(self):
+        pages = {
+            1: [{"id": 30 - i, "display_title": f"Ops & Maintenance: labels #{i}"} for i in range(30)],
+            2: [{"id": 1, "display_title": "Ops & Maintenance: web-monitor", "conclusion": "success"}],
+        }
+        live, calls = self._live_with_pages(pages)
+        run = live.latest_run("ops-maintenance.yml", None, "develop", "Ops & Maintenance: web-monitor")
+        self.assertEqual(run["id"], 1)
+        self.assertEqual(len(calls), 2)
+
+    def test_exhausted_history_reports_no_run(self):
+        pages = {
+            1: [{"id": 30 - i, "display_title": f"Ops & Maintenance: labels #{i}"} for i in range(30)],
+            2: [],
+        }
+        live, calls = self._live_with_pages(pages)
+        self.assertIsNone(live.latest_run("ops-maintenance.yml", None, "develop", "Ops & Maintenance: web-monitor"))
+        self.assertEqual(len(calls), 2)
+
+    def test_run_without_name_reads_only_the_latest_run(self):
+        pages = {1: [{"id": 7, "conclusion": "success"}]}
+        live, calls = self._live_with_pages(pages)
+        run = live.latest_run("release.yml", "push", "stable")
+        self.assertEqual(run["id"], 7)
+        self.assertEqual(len(calls), 1)

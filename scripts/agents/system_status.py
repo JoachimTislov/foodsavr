@@ -109,6 +109,8 @@ def validate_system_manifest(manifest: Any, source: Path | str) -> list[str]:
                 errors.append(f"{source}: spec.observability.{field} must be a non-empty string")
         if "webMonitorRunName" in obs and not _non_empty_str(obs.get("webMonitorRunName")):
             errors.append(f"{source}: spec.observability.webMonitorRunName must be a non-empty string")
+        if "postDeployProbeJob" in obs and not _non_empty_str(obs.get("postDeployProbeJob")):
+            errors.append(f"{source}: spec.observability.postDeployProbeJob must be a non-empty string")
         if not _non_empty_str_list(obs.get("wifVarsAllOf")):
             errors.append(f"{source}: spec.observability.wifVarsAllOf must be a non-empty array of strings")
         archive = obs.get("transcriptArchive")
@@ -213,23 +215,93 @@ def _component(
     }
 
 
-def _latest_run_conclusion(runs_payload: Any, run_name: str | None = None) -> tuple[str | None, int | None]:
-    """Latest run, or the latest whose display title contains `run_name` (one operation of a shared workflow)."""
+# One page of shared-workflow history fetched while searching for one operation,
+# and the bounded number of pages searched before the result counts as unknown.
+RUNS_PAGE = 30
+RUNS_PAGE_BUDGET = 5
+# Bounded number of newest completed runs scanned for an executed post-deploy probe job.
+PROBE_SCAN_BUDGET = 10
+
+
+def _matching_runs(runs_payload: Any, run_name: str | None) -> list[dict[str, Any]]:
     if not isinstance(runs_payload, dict):
-        return None, None
+        return []
     runs = runs_payload.get("workflow_runs")
     if not isinstance(runs, list) or not runs:
+        return []
+    return [r for r in runs if isinstance(r, dict) and (not run_name or run_name in str(r.get("display_title") or ""))]
+
+
+def _latest_matching_run(runs_payload: Any, run_name: str | None) -> dict[str, Any] | None:
+    """Latest run, or the latest whose display title contains `run_name` (one operation of a shared workflow)."""
+    matching = _matching_runs(runs_payload, run_name)
+    return matching[0] if matching else None
+
+
+def _latest_run_conclusion(runs_payload: Any, run_name: str | None = None) -> tuple[str | None, int | None]:
+    first = _latest_matching_run(runs_payload, run_name)
+    if first is None:
         return None, None
-    matching = [r for r in runs if isinstance(r, dict) and (not run_name or run_name in str(r.get("display_title") or ""))]
-    if not matching:
-        return None, None
-    first = matching[0]
     return first.get("conclusion") or first.get("status"), first.get("id")
 
 
-def _runs_endpoint(workflow: str, run_name: str | None) -> str:
+def _runs_page_endpoint(workflow: str, run_name: str | None, page: int = 1) -> str:
     # A shared workflow runs other operations in between; look further back for this one.
-    return f"repos/{{owner}}/{{repo}}/actions/workflows/{workflow}/runs?per_page={30 if run_name else 1}"
+    return f"repos/{{owner}}/{{repo}}/actions/workflows/{workflow}/runs?per_page={RUNS_PAGE if run_name else 1}&page={page}"
+
+
+def _search_named_run(
+    root: Path,
+    gh_api: Callable[[Path, str], tuple[bool, Any, str]],
+    workflow: str,
+    run_name: str,
+    first_result: tuple[bool, Any, str],
+) -> tuple[bool, Any, str]:
+    """Find the latest run of one shared-workflow operation, across pages within a budget.
+
+    Returns the page payload holding the newest matching run, or an empty run list
+    when the searched history holds none: the caller must then report unknown, not
+    healthy (#531).
+    """
+    ok, payload, err = first_result
+    page = 1
+    while ok:
+        if _matching_runs(payload, run_name):
+            return True, payload, ""
+        runs = _matching_runs(payload, None)
+        if len(runs) < RUNS_PAGE or page >= RUNS_PAGE_BUDGET:
+            return True, {"workflow_runs": []}, ""
+        page += 1
+        ok, payload, err = gh_api(root, _runs_page_endpoint(workflow, run_name, page))
+    return False, None, err
+
+
+def _latest_probe_observation(
+    root: Path,
+    gh_api: Callable[[Path, str], tuple[bool, Any, str]],
+    runs_result: tuple[bool, Any, str] | None,
+    job_name: str,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Latest executed post-deploy probe job across shared-workflow runs (the job result, never the run conclusion)."""
+    if not runs_result or not runs_result[0]:
+        return None, None
+    payload = runs_result[1]
+    if not isinstance(payload, dict):
+        return None, None
+    scanned = 0
+    for run in payload.get("workflow_runs") or []:
+        if not isinstance(run, dict) or run.get("status") != "completed" or not run.get("id"):
+            continue
+        if scanned >= PROBE_SCAN_BUDGET:
+            break
+        scanned += 1
+        ok_jobs, jobs_payload, _ = gh_api(root, f"repos/{{owner}}/{{repo}}/actions/runs/{run['id']}/jobs?per_page=100")
+        if not ok_jobs or not isinstance(jobs_payload, dict):
+            continue
+        for job in jobs_payload.get("jobs") or []:
+            if isinstance(job, dict) and job.get("name") == job_name and job.get("conclusion") not in (None, "skipped"):
+                return run, str(job.get("conclusion"))
+    return None, None
 
 
 def _extract_repo_remote_state(
@@ -254,8 +326,11 @@ def _extract_repo_remote_state(
         "workflows": f"{repo_endpoint}/{WORKFLOWS_ENDPOINT}",
         "rulesets": "repos/{owner}/{repo}/rulesets?per_page=100",
         "merge_runs": f"repos/{{owner}}/{{repo}}/actions/workflows/{merge_wf}/runs?per_page=1",
-        "monitor_runs": _runs_endpoint(monitor_wf, obs.get("webMonitorRunName")),
-        "promote_runs": _runs_endpoint(promote_wf, delivery.get("promoteRunName")),
+        "monitor_runs": _runs_page_endpoint(monitor_wf, obs.get("webMonitorRunName")),
+        "promote_runs": _runs_page_endpoint(promote_wf, delivery.get("promoteRunName")),
+        # Post-deploy probes moved from web-monitor.yml into this workflow (#496):
+        # its newest completed runs are scanned for an executed probe job.
+        "probe_runs": f"repos/{{owner}}/{{repo}}/actions/workflows/{promote_wf}/runs?per_page={RUNS_PAGE}",
     }
     if delivery.get("detectOrphanedWorkflows", True):
         endpoints["default_tree"] = f"{repo_endpoint}/{DEFAULT_BRANCH_TREE_ENDPOINT}"
@@ -264,6 +339,16 @@ def _extract_repo_remote_state(
         futures = {key: pool.submit(gh_api, root, ep) for key, ep in endpoints.items()}
         for key, fut in futures.items():
             results[key] = fut.result()
+
+    # A shared workflow interleaves other operations; when the first page holds no run
+    # of the wanted one, keep searching pages within a budget so unrelated runs cannot
+    # hide the latest operation (#531).
+    for key, workflow, run_name in (
+        ("monitor_runs", monitor_wf, obs.get("webMonitorRunName")),
+        ("promote_runs", promote_wf, delivery.get("promoteRunName")),
+    ):
+        if run_name:
+            results[key] = _search_named_run(root, gh_api, workflow, run_name, results[key])
 
     # Expand active branch rulesets to inspect required status checks.
     ruleset_details: list[dict[str, Any]] = []
@@ -531,37 +616,62 @@ def observe_agent_system(
             components.append(_remote_unavailable("observability", "web-monitor", "WebMonitorHealthy", "GitHubAPIError", var_err))
         else:
             auto_heal = variables.get(obs["autoHealVar"], "")
-            ok_mon, mon_runs, _ = raw["monitor_runs"]
-            conclusion, run_id = _latest_run_conclusion(mon_runs, obs.get("webMonitorRunName")) if ok_mon else (None, None)
-            reasons = []
-            msgs = []
-            if conclusion in {"failure", "timed_out", "startup_failure"}:
-                reasons.append("LiveProbeFailed")
-                msgs.append(f"latest {obs['webMonitorWorkflow']} run {run_id} failed")
-            if auto_heal != "true":
-                reasons.append("AutoHealDisabled")
-                msgs.append(f"{obs['autoHealVar']}={auto_heal or 'unset'}")
-            if reasons:
-                status = "Failing" if "LiveProbeFailed" in reasons else "Degraded"
-                rem_items: list[dict[str, str]] = []
-                if "LiveProbeFailed" in reasons:
-                    rem_items.append({"owner": "agent", "action": f"Inspect `gh run view {run_id} --log-failed` and triage filed heal issue"})
-                if auto_heal != "true":
-                    rem_items.append({"owner": "owner", "action": "Run `make monitoring` in a terminal to enable AUTO_HEAL_ENABLED"})
-                comp = _component(
-                    "observability", "web-monitor", "0/1", status, ",".join(reasons),
-                    "; ".join(msgs), condition_type="WebMonitorHealthy",
-                    owner="owner" if auto_heal != "true" and "LiveProbeFailed" not in reasons else "agent",
-                    remediation="; ".join(item["action"] for item in rem_items),
-                )
-                comp["remediations"] = rem_items
-                components.append(comp)
+            ok_mon, mon_runs, mon_err = raw["monitor_runs"]
+            if not ok_mon:
+                components.append(_remote_unavailable("observability", "web-monitor", "WebMonitorHealthy", "GitHubAPIError", mon_err))
             else:
-                components.append(_component(
-                    "observability", "web-monitor", "1/1", "Ready", "Healthy",
-                    f"{obs['autoHealVar']}=true; latest run={conclusion or 'none'}.",
-                    condition_type="WebMonitorHealthy",
-                ))
+                # Web health observations: the scheduled web-monitor run and the
+                # post-deploy probe job, which moved from web-monitor.yml into
+                # release.yml (#496). The newest observation decides, so a later
+                # post-deploy probe can fail or clear an earlier scheduled result.
+                observations: list[tuple[dict[str, Any], str, str]] = []
+                scheduled = _latest_matching_run(mon_runs, obs.get("webMonitorRunName"))
+                if scheduled:
+                    observations.append((scheduled, str(scheduled.get("conclusion") or scheduled.get("status")), "scheduled web-monitor run"))
+                probe_run, probe_conclusion = _latest_probe_observation(
+                    root, gh_api, raw.get("probe_runs"),
+                    str(obs.get("postDeployProbeJob", "Probe live web app")))
+                if probe_run:
+                    observations.append((probe_run, probe_conclusion, "post-deploy probe"))
+                if not observations:
+                    components.append(_component(
+                        "observability", "web-monitor", "0/1", "Unknown", "NoProbeRun",
+                        f"No {obs['webMonitorWorkflow']} web-monitor or post-deploy probe run found within the search budget.",
+                        condition_type="WebMonitorHealthy", owner="owner",
+                        remediation="Check that the scheduled web-monitor operation and the release post-deploy probe still run.",
+                    ))
+                else:
+                    latest_run, conclusion, kind = max(
+                        observations,
+                        key=lambda item: str(item[0].get("updated_at") or item[0].get("run_started_at") or item[0].get("created_at") or ""),
+                    )
+                    reasons: list[str] = []
+                    msgs: list[str] = []
+                    rem_items: list[dict[str, str]] = []
+                    if conclusion in {"failure", "timed_out", "startup_failure"}:
+                        reasons.append("LiveProbeFailed")
+                        msgs.append(f"latest {kind} {latest_run.get('id')} ended with {conclusion}")
+                        rem_items.append({"owner": "agent", "action": f"Inspect `gh run view {latest_run.get('id')} --log-failed` and triage filed heal issue"})
+                    if auto_heal != "true":
+                        reasons.append("AutoHealDisabled")
+                        msgs.append(f"{obs['autoHealVar']}={auto_heal or 'unset'}")
+                        rem_items.append({"owner": "owner", "action": "Run `make monitoring` in a terminal to enable AUTO_HEAL_ENABLED"})
+                    if reasons:
+                        status = "Failing" if "LiveProbeFailed" in reasons else "Degraded"
+                        comp = _component(
+                            "observability", "web-monitor", "0/1", status, ",".join(reasons),
+                            "; ".join(msgs), condition_type="WebMonitorHealthy",
+                            owner="owner" if auto_heal != "true" and "LiveProbeFailed" not in reasons else "agent",
+                            remediation="; ".join(item["action"] for item in rem_items),
+                        )
+                        comp["remediations"] = rem_items
+                        components.append(comp)
+                    else:
+                        components.append(_component(
+                            "observability", "web-monitor", "1/1", "Ready", "Healthy",
+                            f"{obs['autoHealVar']}=true; latest {kind} {latest_run.get('id')} passed.",
+                            condition_type="WebMonitorHealthy",
+                        ))
 
         # 8. observability/fault-intake
         if variables is None:
@@ -647,14 +757,25 @@ def observe_agent_system(
         else:
             required_branches = [default_branch, *TOPOLOGY_CHANNELS[topology]]
             missing_branches = [branch for branch in required_branches if branch not in branch_names]
-            ok_pr, pr_runs, _ = raw["promote_runs"]
-            conclusion, run_id = _latest_run_conclusion(pr_runs, delivery.get("promoteRunName")) if ok_pr else (None, None)
+            ok_pr, pr_runs, pr_err = raw["promote_runs"]
+            promote_run = _latest_matching_run(pr_runs, delivery.get("promoteRunName")) if ok_pr else None
+            conclusion = (promote_run.get("conclusion") or promote_run.get("status")) if promote_run else None
+            run_id = promote_run.get("id") if promote_run else None
             if missing_branches:
                 components.append(_component(
                     "delivery", "promote-channels", "0/1", "Failed", "MissingReleaseBranch",
                     f"Missing branch(es) on origin: {', '.join(missing_branches)} (latest promote run={conclusion or 'none'}).",
                     condition_type="ReleasePipelineReady", owner="owner",
                     remediation=f"Create missing branch(es) on origin: {', '.join(missing_branches)}.",
+                ))
+            elif not ok_pr:
+                components.append(_remote_unavailable("delivery", "promote-channels", "ReleasePipelineReady", "GitHubAPIError", pr_err))
+            elif TOPOLOGY_CHANNELS[topology] and promote_run is None:
+                components.append(_component(
+                    "delivery", "promote-channels", "0/1", "Unknown", "NoPromoteRun",
+                    f"No {delivery['promoteWorkflow']} run for '{delivery.get('promoteRunName', 'promotion')}' found within the search budget.",
+                    condition_type="ReleasePipelineReady", owner="owner",
+                    remediation="Run `make promote` or wait for the scheduled promotion so a promotion run exists.",
                 ))
             elif TOPOLOGY_CHANNELS[topology] and conclusion in {"failure", "timed_out", "startup_failure"}:
                 components.append(_component(

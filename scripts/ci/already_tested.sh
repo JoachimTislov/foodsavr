@@ -246,6 +246,35 @@ has_non_skipped_run() {
 }
 
 if [ "$push_only_reuse" = "true" ]; then
+  if [ "${#targets[@]}" -gt 0 ]; then
+    run_ids=$(gh run list --repo "$repo" --workflow "$wf" --commit "$sha" --event push \
+      --status completed --limit 100 --json databaseId --jq '.[].databaseId' 2>/dev/null || true)
+    all_reusable=true
+    target_lines=()
+    for spec in "${targets[@]}"; do
+      name="${spec%%:*}"
+      case "$name" in
+        web) job_re='^(Web smoke test|Android smoke test)$' ;;
+        rules) job_re='^Firestore security rules$' ;;
+        *) job_re='a^' ;;
+      esac
+      reusable=false
+      for run_id in $run_ids; do
+        jobs_json=$(gh api "repos/$repo/actions/runs/$run_id/jobs" 2>/dev/null || true)
+        if printf '%s' "$jobs_json" | jq -e --arg re "$job_re" \
+          '[.jobs[] | select(.conclusion == "success" and (.name | test($re; "i")))] | length > 0' >/dev/null 2>&1; then
+          reusable=true
+          break
+        fi
+      done
+      target_lines+=("skip_${name}=${reusable}")
+      [ "$reusable" = true ] || all_reusable=false
+    done
+    printf 'skip=%s\n' "$all_reusable" >> "$out"
+    printf '%s\n' "${target_lines[@]}" >> "$out"
+    echo "already_tested: skip=$all_reusable (per-target push evidence)" >&2
+    exit 0
+  fi
   if has_non_skipped_run "$sha" push; then
     skip true "workflow $wf already succeeded on a push run for commit $sha"
   fi

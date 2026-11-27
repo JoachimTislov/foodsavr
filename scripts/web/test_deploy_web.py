@@ -421,13 +421,17 @@ class WorkflowContractTest(unittest.TestCase):
                 with self.subTest(path=path.name):
                     self.assertNotRegex(text, r"(?m)^\s+CHANNEL:\s")
 
-    def test_missing_config_skips_and_names_the_bypass_and_fix(self):
+    def test_missing_config_fails_and_names_the_bypass_and_fix(self):
+        # #531: an enabled Hosting deployment with invalid configuration fails the
+        # job instead of skipping green; the bypass and fix stay in the diagnostic.
         text = hosting_jobs()
         self.assertIn("make deploy-web ENV=$FLAVOR${RELEASE_CHANNEL:+ CHANNEL=$RELEASE_CHANNEL}", text)
         self.assertIn("make setup", text)
         self.assertIn('>> "$GITHUB_STEP_SUMMARY"', text)
         config = text[text.index("- name: Check deploy configuration"):text.index("- name: Checkout code", text.index("Check deploy configuration"))]
-        self.assertNotIn("exit 1", config)
+        self.assertIn("exit 1", config)
+        # Only the invalid-config path fails; the valid path exits before it.
+        self.assertLess(config.index("exit 0"), config.index("exit 1"))
 
     def test_deploys_only_with_a_service_account_of_the_resolved_project(self):
         text = hosting_jobs()

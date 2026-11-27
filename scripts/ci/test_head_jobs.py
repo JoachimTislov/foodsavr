@@ -53,6 +53,30 @@ class HeadJobsTest(unittest.TestCase):
             self.assertEqual(head_jobs.main(["--workflow", "pull-request.yml", "--sha", "abc"]), 0)
         self.assertEqual(stdout.getvalue(), "")
 
+    def test_latest_executed_result_wins_and_the_run_window_is_wide(self):
+        # A newer failure on the same head must override the older success, and the
+        # lookup must page past the 20-run default window so label/edit runs that
+        # skipped do not displace reusable results (#531).
+        jobs = {
+            14: [("Check & Test", "failure")],
+            11: [("Check & Test", "success"), ("Build documentation", "success")],
+        }
+        limits = []
+
+        def run(argv, **_kwargs):
+            if argv[1:3] == ["run", "list"]:
+                limits.append(argv[argv.index("--limit") + 1])
+                out = json.dumps([{"databaseId": r} for r in (14, 11)])
+            else:
+                run_id = int(argv[2].split("/")[5])
+                out = json.dumps({"jobs": [{"name": n, "conclusion": c} for n, c in jobs.get(run_id, [])]})
+            return subprocess.CompletedProcess(argv, 0, out, "")
+
+        with patch.object(head_jobs.subprocess, "run", side_effect=run):
+            names = head_jobs.passed_jobs("o/r", "pull-request.yml", "abc")
+        self.assertEqual(names, ["Build documentation"])
+        self.assertEqual(limits, ["100"])
+
 
 if __name__ == "__main__":
     unittest.main()

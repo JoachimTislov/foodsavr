@@ -199,6 +199,91 @@ class TestObserveAgentSystem(unittest.TestCase):
         self.assertIn("[owner] control-plane/decision-router:", table)
         self.assertNotIn("ci-runners", table)
 
+    def test_web_monitor_searches_pages_and_reports_unknown_when_no_probe_exists(self) -> None:
+        # 30 unrelated operations must not hide the web-monitor run, and an exhausted
+        # search must report Unknown, never Healthy (#531).
+        label_runs = [{"id": 9000 + i, "conclusion": "success", "status": "completed",
+                       "display_title": f"Ops & Maintenance: labels #{i}"} for i in range(30, 0, -1)]
+
+        for second_page, expected_reason, expected_status in (
+            ({"workflow_runs": [{"id": 7001, "conclusion": "failure", "status": "completed",
+                                 "display_title": "Ops & Maintenance: web-monitor"}]},
+             "LiveProbeFailed", "Failing"),
+            ({"workflow_runs": []}, "NoProbeRun", "Unknown"),
+        ):
+            with self.subTest(expected_reason=expected_reason):
+
+                def gh(root: Path, endpoint: str) -> tuple[bool, Any, str]:
+                    if "ops-maintenance.yml/runs" in endpoint:
+                        if "&page=2" in endpoint:
+                            return True, second_page, ""
+                        return True, {"workflow_runs": label_runs}, ""
+                    return _healthy_gh_api(root, endpoint)
+
+                report = ss.observe_agent_system(
+                    ROOT, _load_repo_manifest(), _healthy_local(),
+                    gh_api=gh, gcloud_bucket_check=_healthy_bucket,
+                )
+                component = next(c for c in report["status"]["components"] if c["name"] == "web-monitor")
+                self.assertEqual(component["reason"], expected_reason)
+                self.assertEqual(component["status"], expected_status)
+
+    def test_post_deploy_probe_supersedes_the_scheduled_observation(self) -> None:
+        # The probe moved from web-monitor.yml into release.yml's `Probe live web app`
+        # job (#496): its job result, not the Release run conclusion, decides when it
+        # is the newest observation.
+        scheduled = {"id": 6100, "status": "completed", "run_started_at": "2026-11-24T01:00:00Z",
+                     "updated_at": "2026-11-24T01:30:00Z",
+                     "display_title": "Ops & Maintenance: web-monitor"}
+        probe_run = {"id": 6200, "conclusion": "success", "status": "completed",
+                     "run_started_at": "2026-11-24T02:00:00Z", "updated_at": "2026-11-24T02:40:00Z",
+                     "display_title": "Release: push stable"}
+
+        for scheduled_conclusion, probe_conclusion, expected in (
+            ("success", "failure", ("Failing", "LiveProbeFailed")),
+            ("failure", "success", ("Ready", "Healthy")),
+            ("failure", None, ("Failing", "LiveProbeFailed")),  # No probe job ran: scheduled decides.
+        ):
+            with self.subTest(scheduled=scheduled_conclusion, probe=probe_conclusion):
+
+                def gh(root: Path, endpoint: str) -> tuple[bool, Any, str]:
+                    if "/actions/runs/6200/jobs" in endpoint:
+                        jobs = [] if probe_conclusion is None else [
+                            {"name": "Probe live web app", "conclusion": probe_conclusion},
+                        ]
+                        return True, {"jobs": jobs}, ""
+                    if "ops-maintenance.yml/runs" in endpoint:
+                        run = dict(scheduled, conclusion=scheduled_conclusion)
+                        return True, {"workflow_runs": [run]}, ""
+                    if "release.yml/runs" in endpoint and "&page=" not in endpoint:
+                        return True, {"workflow_runs": [probe_run]}, ""
+                    return _healthy_gh_api(root, endpoint)
+
+                report = ss.observe_agent_system(
+                    ROOT, _load_repo_manifest(), _healthy_local(),
+                    gh_api=gh, gcloud_bucket_check=_healthy_bucket,
+                )
+                component = next(c for c in report["status"]["components"] if c["name"] == "web-monitor")
+                self.assertEqual((component["status"], component["reason"]), expected)
+
+    def test_missing_promote_run_reports_unknown_not_healthy(self) -> None:
+        # Unrelated Release operations must not stand in for a promotion, and their
+        # hiding one must not read as healthy (#531).
+        def gh(root: Path, endpoint: str) -> tuple[bool, Any, str]:
+            if "release.yml/runs" in endpoint and "&page=" in endpoint:
+                return True, {"workflow_runs": [
+                    {"id": 8888, "conclusion": "success", "status": "completed",
+                     "display_title": "Release: push stable"}]}, ""
+            return _healthy_gh_api(root, endpoint)
+
+        report = ss.observe_agent_system(
+            ROOT, _load_repo_manifest(), _healthy_local(),
+            gh_api=gh, gcloud_bucket_check=_healthy_bucket,
+        )
+        component = next(c for c in report["status"]["components"] if c["name"] == "promote-channels")
+        self.assertEqual(component["status"], "Unknown")
+        self.assertEqual(component["reason"], "NoPromoteRun")
+
     def test_unhealthy_remote_matrix_and_split_owner_agent_remediation(self) -> None:
         def unhealthy_gh(root: Path, endpoint: str) -> tuple[bool, Any, str]:
             if endpoint.startswith("repos/{owner}/{repo}/actions/secrets"):

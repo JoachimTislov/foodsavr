@@ -314,6 +314,46 @@ else:
                 )
                 self.assertEqual(outputs["skip"], expected)
 
+    def test_push_only_reuse_is_decided_per_validation_target(self):
+        # A prior push run that passed Web but never ran rules may reuse Web only;
+        # its overall pass must not set skip for a target it did not test (#531).
+        for jobs, expected in (
+            (
+                {"Validation status (result)": "success", "Web smoke test": "success",
+                 "Firestore security rules": "skipped"},
+                {"skip": "false", "skip_web": "true", "skip_rules": "false"},
+            ),
+            (
+                {"Validation status (result)": "success", "Web smoke test": "success",
+                 "Firestore security rules": "success"},
+                {"skip": "true", "skip_web": "true", "skip_rules": "true"},
+            ),
+            (
+                {"Validation status (result)": "success", "Firestore security rules": "success"},
+                {"skip": "false", "skip_web": "false", "skip_rules": "true"},
+            ),
+        ):
+            with self.subTest(expected=expected), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                work, _, new = self._two_heads(root)
+                bin_dir = root / "bin"
+                bin_dir.mkdir()
+                self._install_fake_gh(
+                    bin_dir,
+                    runs_by_commit={new: [601]},
+                    jobs_by_run={601: [{"name": name, "conclusion": conclusion}
+                                       for name, conclusion in jobs.items()]},
+                )
+                outputs = self._run_script(
+                    work, bin_dir, "push", {"before": new, "commits": []},
+                    ["--push-only-reuse", "--require-job", r"Validation status \(result\)",
+                     "--substantive-job", "^(Web smoke test|Android smoke test|Firestore security rules)$",
+                     "--target", "web:lib", "--target", "rules:firestore.rules",
+                     "pull-request.yml", "lib"],
+                    sha=new,
+                )
+                self.assertEqual(outputs, expected)
+
     def test_speculative_train_tree_match_skips_pr_and_fails_closed_on_fork_or_mismatch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
