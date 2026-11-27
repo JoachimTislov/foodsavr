@@ -10,7 +10,7 @@ Infrastructure is split into two independent Terraform roots with isolated state
 ## Security invariants
 
 1. **No secret values in state**: Terraform manages only non-secret identifiers and IAM bindings. Secrets are synced statelessly via `scripts/secrets/rotate.py`.
-2. **No live kill-switch overrides**: Operational toggles (`FIREBASE_HOSTING_ENABLED`, `AUTO_HEAL_ENABLED`, `AUTO_HEAL_MERGE`, `TELEMETRY_POLL_ENABLED`, `MONITOR_TARGET_URL`) are rejected by variable validation in `infra/terraform/github/variables.tf`.
+2. **No live kill-switch overrides**: Operational toggles (`FIREBASE_HOSTING_ENABLED`, `AUTO_HEAL_ENABLED`, `AUTO_HEAL_MERGE`, `AGENT_AUTO_REVIEW_ENABLED`, `TELEMETRY_POLL_ENABLED`, `MONITOR_TARGET_URL`) are rejected by variable validation in `infra/terraform/github/variables.tf`.
 3. **Split rulesets**: `foodsavr-release-channels-integrity` has zero bypass actors; `foodsavr-release-channels-pr-gate` allows bypass only for repository admins and `${OWNER}-${REPO}-release-gate` (never `${OWNER}-${REPO}-agent`).
 4. **Scoped WIF service accounts**:
    - `github-deploy-live`: deployment write roles bound to `repository + branch + github_environment`, once per release channel in `deploy_branches` (from the manifest's `channels`; the test project binds `develop`, `daily` and `weekly` to `test`, the production project `stable` to `production`). `allow_preview_refs` is refused for `production`.

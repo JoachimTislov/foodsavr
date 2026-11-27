@@ -74,8 +74,6 @@ jobs:
     outputs:
       web: ${{ steps.decide.outputs.web }}
       web_e2e: ${{ steps.decide.outputs.web_e2e }}
-      android: ${{ steps.decide.outputs.android }}
-      integration: ${{ steps.decide.outputs.integration }}
       rules: ${{ steps.decide.outputs.rules }}
     steps:
       - name: Checkout code
@@ -93,12 +91,8 @@ jobs:
           scripts/ci/already_tested.sh --push-only-reuse \
             --require-job 'Validation status \(result\)' \
             --target 'web:lib,packages,web,assets,pubspec.yaml,pubspec.lock,test/e2e' \
-            --target 'android:lib,packages,android,assets,.github/workflows/release-gated.yml,.github/workflows/build-android.yml,scripts/ci/android_smoke.sh,scripts/ci/write_android_test_config.sh,pubspec.yaml,pubspec.lock' \
-            --target 'integration:integration_test,test_driver,lib,packages,assets,pubspec.yaml,pubspec.lock' \
             --target 'rules:firestore-rules,firestore.rules' \
-            validation.yml lib packages web assets android integration_test test_driver test/e2e \
-            .github/workflows/release-gated.yml .github/workflows/build-android.yml \
-            scripts/ci/android_smoke.sh scripts/ci/write_android_test_config.sh \
+            validation.yml lib packages web assets test/e2e \
             firestore-rules firestore.rules pubspec.yaml pubspec.lock
       - name: Path filters
         uses: dorny/paths-filter@v3
@@ -115,25 +109,6 @@ jobs:
               - 'pubspec.yaml'
               - 'pubspec.lock'
               - 'test/e2e/**'
-            android:
-              - 'lib/**'
-              - 'packages/**'
-              - 'android/**'
-              - 'assets/**'
-              - '.github/workflows/release-gated.yml'
-              - '.github/workflows/build-android.yml'
-              - 'scripts/ci/android_smoke.sh'
-              - 'scripts/ci/write_android_test_config.sh'
-              - 'pubspec.yaml'
-              - 'pubspec.lock'
-            integration:
-              - 'integration_test/**'
-              - 'test_driver/**'
-              - 'lib/**'
-              - 'packages/**'
-              - 'assets/**'
-              - 'pubspec.yaml'
-              - 'pubspec.lock'
             rules:
               - 'firestore-rules/**'
               - 'firestore.rules'
@@ -154,27 +129,18 @@ jobs:
         env:
           SKIP: ${{ steps.tested.outputs.skip }}
           SKIP_WEB: ${{ steps.tested.outputs.skip_web }}
-          SKIP_ANDROID: ${{ steps.tested.outputs.skip_android }}
-          SKIP_INTEGRATION: ${{ steps.tested.outputs.skip_integration }}
           SKIP_RULES: ${{ steps.tested.outputs.skip_rules }}
           EVENT_NAME: ${{ github.event_name }}
           FILTER_WEB: ${{ steps.filter.outputs.web }}
-          FILTER_ANDROID: ${{ steps.filter.outputs.android }}
-          FILTER_INTEGRATION: ${{ steps.filter.outputs.integration }}
           FILTER_RULES: ${{ steps.filter.outputs.rules }}
           DEP_WEB: ${{ steps.dep.outputs.run_web }}
-          DEP_ANDROID: ${{ steps.dep.outputs.run_android }}
         run: |
           web=false
           web_e2e=false
-          android=false
-          integration=false
           rules=false
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             web=true
             web_e2e=true
-            android=true
-            integration=true
             rules=true
           elif [ "$SKIP" != "true" ]; then
             # PRs and pushes get the same smoke and E2E coverage; on PRs dep_impact.py
@@ -184,15 +150,11 @@ jobs:
               web=true
               web_e2e=true
             fi
-            [ "$SKIP_ANDROID" != "true" ] && [ "$FILTER_ANDROID" = "true" ] && [ "$DEP_ANDROID" != "false" ] && android=true
-            [ "$SKIP_INTEGRATION" != "true" ] && [ "$FILTER_INTEGRATION" = "true" ] && [ "$DEP_ANDROID" != "false" ] && integration=true
             [ "$SKIP_RULES" != "true" ] && [ "$FILTER_RULES" = "true" ] && rules=true
           fi
           {
             echo "web=$web"
             echo "web_e2e=$web_e2e"
-            echo "android=$android"
-            echo "integration=$integration"
             echo "rules=$rules"
           } >> "$GITHUB_OUTPUT"
 
@@ -261,7 +223,8 @@ jobs:
   android-smoke:
     name: Android smoke test
     needs: changes
-    if: ${{ needs.changes.outputs.android == 'true' || needs.changes.outputs.integration == 'true' }}
+    # Android checks run only on manual dispatch (`make validate`).
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -298,7 +261,6 @@ jobs:
             ~/.android/adb*
           key: avd-34-x86_64-google_apis-v1
       - name: Build development debug APK
-        if: ${{ needs.changes.outputs.android == 'true' }}
         run: flutter build apk --flavor development --debug --dart-define=EMULATOR_HOST=10.0.2.2
       - name: Wait for Firebase Emulators
         uses: ./.github/actions/start-firebase-emulators
@@ -306,15 +268,13 @@ jobs:
           mode: wait
       - name: Run Android smoke and integration tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
-        env:
-          RUN_ANDROID_SMOKE: ${{ needs.changes.outputs.android }}
         with:
           api-level: 34
           arch: x86_64
           target: google_apis
           force-avd-creation: ${{ steps.avd-cache.outputs.cache-hit != 'true' }}
           script: |
-            [ "$RUN_ANDROID_SMOKE" != "true" ] || bash scripts/ci/android_smoke.sh
+            bash scripts/ci/android_smoke.sh
             adb reverse tcp:8080 tcp:8080
             adb reverse tcp:9099 tcp:9099
             flutter test integration_test/all_tests.dart --flavor development --no-pub

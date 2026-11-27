@@ -25,7 +25,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 STATE = ROOT / ".agents/state/local-ci"
-CI_ONLY = "Web/Android smoke, E2E, Android integration, Firestore rules, dependency review"
+CI_ONLY = "Web smoke, E2E, Firestore rules, dependency review (Android checks: manual dispatch)"
 
 AGENT_JSON = [
     ".agents/policies/default.json", ".agents/github/labels.json", ".agents/policies/schema.json",

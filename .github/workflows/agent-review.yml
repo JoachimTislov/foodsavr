@@ -3,6 +3,8 @@ name: Agent review
 # Classifies and reviews non-draft, same-repository PRs at their adaptive review
 # tier (exempt, fast, balanced, deep, human) and posts a head-bound attestation
 # review (<!-- agent-review: ... -->) consumed by the merge gate (ADR 0006).
+# Automatic reviews are off when the repository variable
+# AGENT_AUTO_REVIEW_ENABLED is `false`; manual dispatch still reviews.
 # Untrusted PR code is never checked out or executed; the workflow checks out
 # the default branch and fetches PR metadata and diff text via the GitHub API.
 #
@@ -35,7 +37,8 @@ jobs:
     name: Adaptive PR review
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (!github.event.pull_request.draft &&
+      (vars.AGENT_AUTO_REVIEW_ENABLED != 'false' &&
+       !github.event.pull_request.draft &&
        !github.event.pull_request.head.repo.fork &&
        github.actor != 'dependabot[bot]')
     runs-on: ubuntu-latest

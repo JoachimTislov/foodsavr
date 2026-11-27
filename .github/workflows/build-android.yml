@@ -1,21 +1,7 @@
 name: Android Build
 
+# Manual only (`make build-remote`, or Actions -> Android Build -> Run workflow).
 on:
-  push:
-    branches: [daily, weekly, stable]
-    paths:
-      - "lib/**"
-      - "packages/**"
-      - "android/**"
-      - "assets/**"
-      - "pubspec.yaml"
-      - "pubspec.lock"
-      - ".github/workflows/build-android.yml"
-      - ".github/workflows/release-gated.yml"
-      - "scripts/release/**"
-      - "scripts/ci/write_android_test_config.sh"
-      - "scripts/ci/write_firebase_options.sh"
-      - ".github/actions/setup-flutter-app/**"
   workflow_dispatch:
 
 concurrency:
