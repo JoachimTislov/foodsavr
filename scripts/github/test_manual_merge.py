@@ -28,8 +28,15 @@ def green():
 
 
 def pr(contexts, **kw):
-    base = dict(number=7, state="OPEN", draft=False, base="develop", branch="feat/x", head=HEAD,
-                merge_state="CLEAN", fork=False, contexts=contexts)
+    base = dict(number=7, state="OPEN", draft=False, base="develop", branch="feat/x", head=HEAD, author="owner",
+                author_association="OWNER",
+                merge_state="CLEAN", fork=False, contexts=contexts, review_decision="APPROVED",
+                reviews=[{
+                    "state": "COMMENTED", "body": f'<!-- agent-review: {{"pr": 7, "head_sha": "{HEAD}", '
+                    f'"tier": "fast", "status": "approved"}} -->',
+                    "author": {"login": "github-actions[bot]", "__typename": "Bot"},
+                    "commit": {"oid": HEAD},
+                }])
     base.update(kw)
     return mm.PullRequest(**base)
 
@@ -81,13 +88,29 @@ class DecideTest(unittest.TestCase):
         contexts = green() + [run("Web smoke test", conclusion="SKIPPED", workflow="Validation")]
         self.assertTrue(mm.decide(pr(contexts), ["Web smoke test"]).ok)
 
-    def test_review_tier_only_block_does_not_refuse(self):
-        # The merge gate would block on a missing review attestation and a failing
-        # Agent review run; neither is a required check, so the bypass merges.
+    def test_review_tier_block_requires_explicit_override(self):
+        # Manual merge preserves the review safeguard unless the caller explicitly
+        # authorizes the bypass.
         contexts = green() + [run("Adaptive PR review", conclusion="FAILURE", workflow="Agent review")]
-        verdict = mm.decide(pr(contexts), [])
-        self.assertTrue(verdict.ok, verdict.blockers)
-        self.assertTrue(any("review tier" in n for n in verdict.notes))
+        candidate = pr(contexts, reviews=[], review_decision=None)
+        verdict = mm.decide(candidate, [])
+        self.assertFalse(verdict.ok)
+        self.assertTrue(any("review not approved" in b for b in verdict.blockers))
+        override = mm.decide(candidate, [], override_review=True)
+        self.assertTrue(override.ok, override.blockers)
+        self.assertTrue(any("explicit authorized review override" in n for n in override.notes))
+
+    def test_security_pr_requires_explicit_override(self):
+        candidate = pr(green(), labels={"risk/security"})
+        self.assertFalse(mm.decide(candidate, []).ok)
+        self.assertTrue(mm.decide(candidate, [], override_review=True).ok)
+
+    def test_open_threads_require_explicit_override(self):
+        candidate = pr(green(), open_threads=1)
+        verdict = mm.decide(candidate, [])
+        self.assertFalse(verdict.ok)
+        self.assertIn("unresolved review thread", " ".join(verdict.blockers))
+        self.assertTrue(mm.decide(candidate, [], override_review=True).ok)
 
     def test_failing_optional_check_is_a_note_not_a_blocker(self):
         contexts = green() + [run("Codecov", conclusion="FAILURE", workflow="CI")]
@@ -124,7 +147,7 @@ class FromNodeTest(unittest.TestCase):
                 "commits": {"nodes": [{"commit": {"statusCheckRollup": {"contexts": {"nodes": green()}}}}]}}
         parsed = mm.from_node(node, green())
         self.assertEqual(parsed.head, HEAD)
-        self.assertTrue(mm.decide(parsed, []).ok)
+        self.assertTrue(mm.decide(parsed, [], override_review=True).ok)
 
     def test_no_rollup_means_nothing_reported(self):
         node = {"number": 3, "state": "OPEN", "isDraft": False, "baseRefName": "develop", "headRefOid": HEAD,
@@ -146,7 +169,7 @@ class FromNodeTest(unittest.TestCase):
                                                  page(green()[2:])]) as gh:
             parsed = mm.fetch_pr("owner/repo", 3)
         self.assertEqual(parsed.head, HEAD)
-        self.assertTrue(mm.decide(parsed, []).ok)
+        self.assertTrue(mm.decide(parsed, [], override_review=True).ok)
         first, second = [call.args for call in gh.call_args_list[1:]]
         self.assertIn(f"head={HEAD}", first)
         self.assertEqual(second, (*first, "-f", "cursor=next"))

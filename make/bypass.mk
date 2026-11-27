@@ -8,12 +8,14 @@ APPLY_FLAG = $(if $(filter 1 true yes,$(APPLY)),--apply)
 CURRENT_REF = $$(git rev-parse --abbrev-ref HEAD)
 REPO = $$(gh repo view --json nameWithOwner --jq .nameWithOwner)
 
-# Merge one PR when its required checks and `Validation result` are green, whatever the
-# adaptive review tier says. Bound to the verified head SHA.
-# Usage: make pr-merge PR=<number> [APPLY=1]
+# Merge one PR when required checks, Validation, and review safeguards are green.
+# A maintainer may explicitly override review/thread/security safeguards with an audit
+# reason; checks, Validation, mergeability, and the verified-head binding still apply.
+# Usage: make pr-merge PR=<number> [APPLY=1] [OVERRIDE_REVIEW=1 REASON="..."]
+OVERRIDE_REVIEW_FLAG = $(if $(filter 1 true yes,$(OVERRIDE_REVIEW)),--override-review --reason "$(REASON)")
 pr-merge:
 	@test -n "$(PR)" || { echo "Usage: make pr-merge PR=<number> [APPLY=1]" >&2; exit 1; }
-	@python3 scripts/github/manual_merge.py --pr "$(PR)" $(APPLY_FLAG)
+	@python3 scripts/github/manual_merge.py --pr "$(PR)" $(APPLY_FLAG) $(OVERRIDE_REVIEW_FLAG)
 
 # One reconcile pass of the merge gate (merge-gate.yml) with your own login.
 # Usage: make merge-gate [APPLY=1]

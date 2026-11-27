@@ -62,6 +62,13 @@ def actions(prs, owner="", trusted_bots=gate.DEFAULT_TRUSTED_BOTS, history=()):
 
 
 class PlanTest(unittest.TestCase):
+    def test_report_includes_review_and_threads_for_security_pr(self):
+        candidate = pr(1, labels=(gate.LABEL, "risk/security"), open_threads=2, reviews=[])
+        report = gate.plan([candidate], NOW, history=[]).report[0][2]
+        self.assertIn("risk/security", report)
+        self.assertIn("2 unresolved review thread", report)
+        self.assertTrue(gate.review_blocker(candidate, history=[]) in report)
+
     def test_merges_oldest_green_pr_only(self):
         self.assertEqual(actions([pr(3), pr(2)]), [("merge", 2)])
 
@@ -1096,6 +1103,5 @@ class MainFreezeSafetyTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
 
 

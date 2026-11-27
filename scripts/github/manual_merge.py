@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-"""Manual merge bypass: rebase-merge one PR when everything required is green.
+"""Manual merge: rebase-merge one PR only after explicit human authorization.
 
-The merge gate (scripts/github/merge_gate.py) also demands a head-bound review
-attestation at the adaptive review tier and a `merge/auto` opt-in. This script
-is the human's bypass for exactly those two conditions: it merges when the
-required checks and the `Validation result` status are green on the verified
-head, whatever the review tier says. Anything required that is red, pending or
-missing refuses the merge. The merge is bound to the verified head SHA, so a
-push after verification makes `gh` refuse instead of merging unseen code.
+The merge gate demands a head-bound review attestation, resolved review threads,
+and a `merge/auto` opt-in. This command preserves those safeguards by default.
+`--override-review --reason ...` is a deliberate, authorized human override
+for the review safeguards (including security PRs); required checks, Validation,
+mergeability, and the verified-head binding always remain enforced.
 
 Runs with the caller's own `gh` login. Dry run unless `--apply`.
 """
@@ -25,6 +23,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from branch_governance import default_branch_required_checks  # noqa: E402
 from checks import FAILED, IGNORED_WORKFLOWS, effective_runs, _workflow_name  # noqa: E402
+import pr_review  # noqa: E402
 
 BASE = "develop"
 VALIDATION_CONTEXT = "Validation result"
@@ -35,7 +34,26 @@ QUERY = """
 query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      number state isDraft baseRefName headRefName headRefOid mergeStateStatus isCrossRepository
+      number title body state isDraft baseRefName headRefName headRefOid mergeStateStatus isCrossRepository
+      author { login }
+      authorAssociation
+      reviewDecision labels(first: 50) { nodes { name } }
+      additions deletions changedFiles
+      files(first: 100) { pageInfo { hasNextPage } nodes { path } }
+      reviewThreads(first: 100) {
+        pageInfo { hasNextPage }
+        nodes { isResolved isOutdated }
+      }
+      reviews(last: 30) {
+        nodes {
+          state body submittedAt authorAssociation
+          author { login __typename }
+          commit { oid }
+        }
+      }
+      comments(last: 50) {
+        nodes { body createdAt authorAssociation author { login __typename } }
+      }
     }
   }
 }
@@ -69,7 +87,22 @@ class PullRequest:
     head: str
     merge_state: str
     fork: bool
+    author: str = ""
+    author_association: str = "NONE"
+    title: str = ""
+    body: str = ""
     contexts: list[dict[str, Any]] = field(default_factory=list)
+    review_decision: str | None = None
+    open_threads: int = 0
+    threads_truncated: bool = False
+    labels: set[str] = field(default_factory=set)
+    additions: int = 0
+    deletions: int = 0
+    changed_files: int = 0
+    files: list[str] = field(default_factory=list)
+    files_truncated: bool = False
+    reviews: list[dict[str, Any]] = field(default_factory=list)
+    comments: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -82,6 +115,10 @@ class Verdict:
 
 
 def from_node(node: dict[str, Any], contexts: list[dict[str, Any]]) -> PullRequest:
+    threads = node.get("reviewThreads") or {}
+    files = node.get("files") or {}
+    reviews = ((node.get("reviews") or {}).get("nodes") or [])
+    comments = ((node.get("comments") or {}).get("nodes") or [])
     return PullRequest(
         number=node["number"],
         state=node["state"],
@@ -91,7 +128,22 @@ def from_node(node: dict[str, Any], contexts: list[dict[str, Any]]) -> PullReque
         head=node["headRefOid"],
         merge_state=node.get("mergeStateStatus") or "UNKNOWN",
         fork=bool(node.get("isCrossRepository")),
+        author=(node.get("author") or {}).get("login", ""),
+        author_association=node.get("authorAssociation") or "NONE",
+        title=node.get("title") or "",
+        body=node.get("body") or "",
         contexts=contexts,
+        review_decision=node.get("reviewDecision"),
+        open_threads=sum(1 for t in threads.get("nodes", []) if not t.get("isResolved") and not t.get("isOutdated")),
+        threads_truncated=bool((threads.get("pageInfo") or {}).get("hasNextPage")),
+        labels={n["name"] for n in (node.get("labels") or {}).get("nodes", []) if n.get("name")},
+        additions=int(node.get("additions") or 0),
+        deletions=int(node.get("deletions") or 0),
+        changed_files=int(node.get("changedFiles") or 0),
+        files=[n["path"] for n in files.get("nodes", []) if n.get("path")],
+        files_truncated=bool((files.get("pageInfo") or {}).get("hasNextPage")),
+        reviews=[r for r in reviews if isinstance(r, dict)],
+        comments=[c for c in comments if isinstance(c, dict)],
     )
 
 
@@ -126,8 +178,8 @@ def required_states(contexts: list[dict[str, Any]], required: list[str]) -> dict
     return states
 
 
-def decide(pr: PullRequest, required: list[str]) -> Verdict:
-    """Pure readiness decision; the adaptive review tier is deliberately not an input."""
+def decide(pr: PullRequest, required: list[str], override_review: bool = False) -> Verdict:
+    """Pure readiness decision; only an explicit override skips review safeguards."""
     required = list(dict.fromkeys([*ALWAYS_REQUIRED, *required]))
     blockers: list[str] = []
     notes: list[str] = []
@@ -164,6 +216,44 @@ def decide(pr: PullRequest, required: list[str]) -> Verdict:
             "review); this bypass never uses --admin"
         )
 
+    security = "risk/security" in pr.labels or any(
+        path == prefix or path.startswith(prefix)
+        for path in pr.files
+        for prefix in (".github/workflows/", ".agents/policies/", ".agents/runners/", "infra/terraform/",
+                       "firestore.rules", "firestore-rules/")
+    )
+    review_blockers: list[str] = []
+    if pr.review_decision == "CHANGES_REQUESTED":
+        review_blockers.append("changes requested")
+    if pr.open_threads:
+        review_blockers.append(f"{pr.open_threads} unresolved review thread(s)")
+    if pr.threads_truncated:
+        review_blockers.append("review threads truncated (>100); resolve or inspect manually")
+    if pr.files_truncated:
+        review_blockers.append("file list truncated (>100); inspect manually")
+    if security:
+        review_blockers.append("security-sensitive PR requires explicit review override")
+    if review_blockers and not override_review:
+        blockers.extend(review_blockers)
+    elif override_review:
+        notes.append("explicit authorized review override; review, thread, and security safeguards bypassed")
+    elif not security:
+        classification = pr_review.classify_pr(
+            number=pr.number, title=pr.title, body=pr.body, author=pr.author or "owner", bot=False,
+            author_association=pr.author_association, draft=pr.draft, fork=pr.fork, head_sha=pr.head,
+            labels=pr.labels, files=pr.files, additions=pr.additions, deletions=pr.deletions,
+            changed_files=pr.changed_files, files_truncated=pr.files_truncated, rollup=None,
+        )
+        ok, reason = pr_review.evaluate_review_attestation(
+            pr_number=pr.number, head_sha=pr.head, required_tier=classification.required_tier,
+            escalated=classification.escalated, escalation_reasons=classification.escalation_reasons,
+            reviews=pr.reviews, comments=pr.comments, history=[],
+            pr_author=pr.author or "owner", owner=pr.author or "owner",
+            trusted_bots=pr_review.DEFAULT_TRUSTED_BOTS, current_patch_id=None,
+        )
+        if not ok:
+            blockers.append(f"review not approved: {reason}")
+
     others = sorted(
         {
             _name(c)
@@ -173,7 +263,7 @@ def decide(pr: PullRequest, required: list[str]) -> Verdict:
     )
     if others:
         notes.append("not required, failing: " + ", ".join(others))
-    notes.append("adaptive review tier and merge/auto opt-in bypassed (human merge)")
+    notes.append("merge/auto opt-in bypassed (human merge)")
     return Verdict(not blockers, blockers, notes, pr.head, states)
 
 
@@ -186,6 +276,18 @@ def gh(*args: str) -> str:
 
 def repo_name(explicit: str | None) -> str:
     return explicit or gh("repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner").strip()
+
+
+def authorized_override(repo: str) -> tuple[bool, str]:
+    """Require a repository owner or maintainer-level GitHub identity."""
+    owner, name = repo.split("/", 1)
+    login = gh("api", "user", "--jq", ".login").strip()
+    if login.lower() == owner.lower():
+        return True, login
+    permission = json.loads(gh("api", f"repos/{owner}/{name}/collaborators/{login}/permission")).get("permission")
+    if permission in {"admin", "maintain", "push"}:
+        return True, login
+    return False, login
 
 
 def fetch_pr(repo: str, number: int) -> PullRequest:
@@ -248,11 +350,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--pr", type=int, required=True)
     parser.add_argument("--repo", default=None, help="OWNER/NAME (default: the gh default repository)")
     parser.add_argument("--apply", action="store_true", help="merge; without it only the decision is printed")
+    parser.add_argument(
+        "--override-review", "--override", dest="override_review", action="store_true",
+        help="explicitly bypass review, thread, and security safeguards (requires --reason and maintainer authorization)",
+    )
+    parser.add_argument("--reason", default="", help="required audit reason for --override-review")
     args = parser.parse_args(argv)
     try:
         repo = repo_name(args.repo)
         pr = fetch_pr(repo, args.pr)
-        verdict = decide(pr, ruleset_required(repo))
+        if args.override_review and len(args.reason.strip()) < 10:
+            print("error: --override-review requires --reason with at least 10 characters", file=sys.stderr)
+            return 1
+        if args.override_review:
+            authorized, login = authorized_override(repo)
+            if not authorized:
+                print(f"error: {login} is not authorized to use --override-review", file=sys.stderr)
+                return 1
+        verdict = decide(pr, ruleset_required(repo), override_review=args.override_review)
         print(report(pr, verdict))
         if not verdict.ok:
             print("Refusing to merge.", file=sys.stderr)
@@ -260,7 +375,9 @@ def main(argv: list[str] | None = None) -> int:
         if not args.apply:
             print(f"Dry run: would rebase-merge #{pr.number} at {pr.head[:7]}. Re-run with APPLY=1 to merge.")
             return 0
-        gh("pr", "merge", str(pr.number), "--repo", repo, "--rebase", "--match-head-commit", pr.head)
+        gh("pr", "merge", str(pr.number), "--repo", repo, "--rebase", "--match-head-commit", pr.head,
+           "--subject", f"Manual merge #{pr.number}: {args.reason}" if args.override_review else
+           f"Manual merge #{pr.number}")
         state = json.loads(gh("pr", "view", str(pr.number), "--repo", repo, "--json", "state,mergeCommit"))
         if state["state"] != "MERGED":
             print(f"#{pr.number} is {state['state']}, not merged.", file=sys.stderr)

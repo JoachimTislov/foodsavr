@@ -94,6 +94,14 @@ class EffectiveRunTest(unittest.TestCase):
         self.assertEqual(checks.rollup_state([status("x", "FAILURE"), status("y", "SUCCESS")]), "FAILURE")
         self.assertEqual(len(checks.effective_runs([status("x", "FAILURE"), status("x", "SUCCESS")])), 2)
 
+    def test_review_verdict_status_is_informational(self):
+        self.assertEqual(
+            checks.rollup_state([
+                {"__typename": "StatusContext", "context": "Review verdict", "state": "FAILURE"},
+            ]),
+            None,
+        )
+
     def test_queue_check_uses_effective_run(self):
         q = lambda conclusion, minutes, **kw: run(conclusion, minutes, name=checks.QUEUE_CHECK, **kw)
         self.assertEqual(checks.queue_check_state([q("CANCELLED", 0), q("SUCCESS", 1)]), (True, False))
