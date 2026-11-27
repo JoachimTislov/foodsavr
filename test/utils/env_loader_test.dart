@@ -55,6 +55,51 @@ void main() {
     });
   });
 
+  group('loadEnv with a bundled Base64 environment', () {
+    final asset = _EnvBundle('REMA_API_URL=https://asset.example\n');
+    String encode(String env) => base64.encode(utf8.encode(env));
+
+    test('takes precedence over the env asset', () async {
+      await loadEnv(
+        bundle: asset,
+        bundledEnvB64: encode('REMA_API_URL=https://bundled.example\n'),
+      );
+
+      expect(dotenv.get('REMA_API_URL'), 'https://bundled.example');
+    });
+
+    test('ignores whitespace and decodes UTF-8', () async {
+      final encoded = encode('STORE_NAME=Bj\u00f8rn\n');
+
+      await loadEnv(
+        bundle: asset,
+        bundledEnvB64:
+            ' ${encoded.substring(0, 5)}\r\n${encoded.substring(5)}\n',
+      );
+
+      expect(dotenv.get('STORE_NAME'), 'Bj\u00f8rn');
+      expect(dotenv.maybeGet('REMA_API_URL'), isNull);
+    });
+
+    test('reads the env asset when empty', () async {
+      await loadEnv(bundle: asset, bundledEnvB64: '');
+
+      expect(dotenv.get('REMA_API_URL'), 'https://asset.example');
+    });
+
+    for (final (name, value) in [
+      ('malformed Base64', '!!not-base64!!'),
+      ('malformed UTF-8', base64.encode([0xff, 0xfe, 0xfd])),
+    ]) {
+      test('yields an empty environment for $name', () async {
+        await loadEnv(bundle: asset, bundledEnvB64: value);
+
+        expect(dotenv.isInitialized, isTrue);
+        expect(dotenv.env, isEmpty);
+      });
+    }
+  });
+
   group('startup with an empty env file', () {
     setUp(() async {
       await loadEnv(bundle: _EnvBundle(''));

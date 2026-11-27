@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import base64
 import hashlib
 import json
 import os
@@ -7,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 from unittest.mock import DEFAULT, MagicMock, Mock, call, patch
@@ -198,45 +199,111 @@ class DotenvTest(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def test_empty_when_no_source(self):
-        self.env()
-        with patch.object(dw, "warn"):
-            dw.write_dotenv()
-        self.assertEqual((dw.ROOT / "assets/.env").read_text(), "")
+    def build(self, returncode=0, echo=""):
+        """Run cmd_build with every tool faked; report what the Flutter build saw."""
+        seen = {"dotenv": [], "defines": None}
+        target = dw.ROOT / "assets/.env"
 
-    def test_from_file(self):
+        def run(cmd, **kwargs):
+            if cmd[0] in ("flutter", "dart"):
+                seen["dotenv"].append(target.read_text())
+            return subprocess.CompletedProcess(cmd, 0, "{}", "")
+
+        def popen(cmd, **kwargs):
+            self.assertEqual(cmd[:3], ["flutter", "build", "web"])
+            seen["dotenv"].append(target.read_text())
+            seen["defines"] = [a for a in cmd if a.startswith("--dart-define=BUNDLED_ENV_B64=")]
+            process = MagicMock(returncode=returncode, stdout=iter([echo.format(cmd=" ".join(cmd))]))
+            process.__enter__.return_value = process
+            return process
+
+        output = StringIO()
+        with patch.dict(os.environ, {"PROJECT_ID": "p", "WEB_APP_ID": "w", "FLAVOR": "test"}), \
+                patch.object(dw, "run", side_effect=run), patch.object(dw.subprocess, "Popen", side_effect=popen), \
+                patch.object(dw, "build_revision", return_value=""), patch.object(dw, "write_release_metadata"), \
+                patch.object(dw, "write_landing_config"), redirect_stdout(output), redirect_stderr(output):
+            try:
+                dw.cmd_build()
+            except SystemExit as error:
+                print(error)
+                seen["error"] = str(error)
+        seen["output"] = output.getvalue()
+        return seen
+
+    def dotenv(self, content):
+        target = dw.ROOT / "assets/.env"
+        target.parent.mkdir(exist_ok=True)
+        target.write_text(content)
+        return target
+
+    def assert_bundled(self, seen, content):
+        encoded = base64.b64encode(content).decode()
+        self.assertEqual(seen["defines"], [f"--dart-define=BUNDLED_ENV_B64={encoded}"])
+        self.assertEqual(set(seen["dotenv"]), {""})
+        self.assertNotIn(encoded, seen["output"])
+        self.assertNotIn(content.decode().strip(), seen["output"])
+
+    def test_base64_source_is_bundled_as_one_line(self):
+        self.env(WEB_ENV_B64=" QT1wYXls\r\nb2Fk\nCg==\n")
+        self.assert_bundled(self.build(), b"A=payload\n")
+
+    def test_file_source_is_bundled(self):
         source = Path(self.tmp.name) / "src.env"
-        source.write_text("A=1\n")
+        source.write_text("A=payload\n" * 20)
         self.env(WEB_ENV_FILE=str(source))
-        dw.write_dotenv()
-        self.assertEqual((dw.ROOT / "assets/.env").read_text(), "A=1\n")
+        seen = self.build()
+        self.assert_bundled(seen, b"A=payload\n" * 20)
+        self.assertNotIn("\n", seen["defines"][0])
 
-    def test_missing_file_fails(self):
-        self.env(WEB_ENV_FILE="/nonexistent.env")
-        with self.assertRaises(SystemExit):
-            dw.write_dotenv()
-
-    def test_from_base64(self):
-        self.env(WEB_ENV_B64="QT0x\r\nCg==\n")
-        dw.write_dotenv()
-        self.assertEqual((dw.ROOT / "assets/.env").read_text(), "A=1\n")
-
-    def test_invalid_base64_does_not_overwrite_existing_file(self):
-        target = dw.ROOT / "assets/.env"
-        target.parent.mkdir()
-        target.write_text("A=1\n")
-        self.env(WEB_ENV_B64="!!!!")
-        with self.assertRaisesRegex(SystemExit, "WEB_ENV_B64 is not valid Base64"):
-            dw.write_dotenv()
-        self.assertEqual(target.read_text(), "A=1\n")
-
-    def test_accepts_existing_dotenv_as_the_source(self):
-        target = dw.ROOT / "assets/.env"
-        target.parent.mkdir()
-        target.write_text("A=1\n")
+    def test_assets_dotenv_as_the_source_is_read_before_blanking_and_restored(self):
+        target = self.dotenv("A=payload\n")
         self.env(WEB_ENV_FILE=str(target))
-        dw.write_dotenv()
-        self.assertEqual(target.read_text(), "A=1\n")
+        self.assert_bundled(self.build(), b"A=payload\n")
+        self.assertEqual(target.read_text(), "A=payload\n")
+
+    def test_local_dotenv_is_not_published_without_a_source(self):
+        target = self.dotenv("A=local\n")
+        self.env()
+        seen = self.build()
+        self.assertEqual(seen["defines"], [])
+        self.assertEqual(set(seen["dotenv"]), {""})
+        self.assertEqual(target.read_text(), "A=local\n")
+
+    def test_empty_env_omits_the_define(self):
+        source = Path(self.tmp.name) / "empty.env"
+        source.write_text("\n")
+        for values in ({"WEB_ENV_FILE": str(source)}, {"WEB_ENV_B64": "\n"}, {"WEB_ENV_B64": "Cg=="}):
+            with self.subTest(values=values):
+                self.env(WEB_ENV_FILE="", WEB_ENV_B64="")
+                self.env(**values)
+                seen = self.build()
+                self.assertEqual(seen["defines"], [])
+                self.assertEqual(set(seen["dotenv"]), {""})
+
+    def test_invalid_sources_fail_before_building(self):
+        for values, message in (
+            ({"WEB_ENV_B64": "!!!!"}, "WEB_ENV_B64 is not valid Base64"),
+            ({"WEB_ENV_B64": "//79"}, "not valid UTF-8"),
+            ({"WEB_ENV_FILE": "/nonexistent.env"}, "does not exist"),
+        ):
+            with self.subTest(values=values):
+                target = self.dotenv("A=1\n")
+                self.env(WEB_ENV_FILE="", WEB_ENV_B64="")
+                self.env(**values)
+                seen = self.build()
+                self.assertIn(message, seen["error"])
+                self.assertEqual(seen["dotenv"], [])
+                self.assertEqual(target.read_text(), "A=1\n")
+
+    def test_build_output_and_failure_never_show_the_payload(self):
+        target = self.dotenv("A=local\n")
+        encoded = base64.b64encode(b"A=payload\n").decode()
+        self.env(WEB_ENV_B64=encoded)
+        seen = self.build(returncode=1, echo="Command: {cmd}\n")
+        self.assertIn("flutter build web failed with exit code 1", seen["error"])
+        self.assertIn("BUNDLED_ENV_B64=<redacted>", seen["output"])
+        self.assertNotIn(encoded, seen["output"])
+        self.assertEqual(target.read_text(), "A=local\n")
 
     def test_preserved_restores_and_removes_files(self):
         (dw.ROOT / "lib").mkdir()
