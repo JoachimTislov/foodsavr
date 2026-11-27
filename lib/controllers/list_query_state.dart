@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../constants/product_categories.dart';
 import '../models/product_model.dart';
 import '../utils/view_mode_helper.dart';
 import 'list_query.dart';
@@ -19,7 +20,9 @@ class ListQueryState extends ChangeNotifier {
   Future<void>? _restoring;
 
   String search = '';
-  String? category;
+  String? _category;
+  String? get category => _category;
+  set category(String? value) => _category = ProductCategory.normalize(value);
   String? collectionId;
   ProductStatus? status;
   ListSort sort = ListSort.original;
@@ -42,7 +45,7 @@ class ListQueryState extends ChangeNotifier {
       try {
         final values = jsonDecode(saved);
         if (values is Map<String, dynamic>) {
-          category = _string(values['category']);
+          category = ProductCategory.normalize(values['category']);
           collectionId = _string(values['collection']);
           status = ProductStatus.values.asNameMap()[values['status']];
           sort = ListSort.values.asNameMap()[values['sort']] ?? sort;

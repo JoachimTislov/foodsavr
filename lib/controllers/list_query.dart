@@ -1,3 +1,4 @@
+import '../constants/product_categories.dart';
 import '../models/product_model.dart';
 
 enum ListSort { original, expiry, name }
@@ -26,8 +27,10 @@ class ListQuery {
     final term = search.trim().toLowerCase();
     final members = collectionProductIds[collectionId];
     final today = DateTime.utc(now.year, now.month, now.day);
+    final filterCategory = ProductCategory.normalize(category);
     final results = products.where((product) {
-      return (category == null || product.category == category) &&
+      final productCategory = ProductCategory.normalize(product.category);
+      return (filterCategory == null || productCategory == filterCategory) &&
           (collectionId == null || (members?.contains(product.id) ?? false)) &&
           (status == null ||
               _status(product, today, expiringSoonDays) == status) &&
