@@ -99,4 +99,4 @@ Apply these guardrails when planning or building grocery integrations:
 
 - [Norwegian grocery private API integration plan](../plan/grocery-private-api-integration.md)
 - [Storebox receipt integration research](storebox_integration.md)
-- [Source-of-truth integrations](../../specs/source-of-truth/integrations.md)
+- [Source-of-truth integrations](../../specs/integrations.md)

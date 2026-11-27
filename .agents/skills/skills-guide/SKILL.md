@@ -14,7 +14,7 @@ A **flow** is a path through the skills. Most work travels the **main flow**; **
 
 ## Main flow: idea → ship
 
-1. **`/grilling`** sharpens the idea by interview; in the repo it runs with `domain-modeling`, so resolved terms and decisions land in `specs/source-of-truth/`.
+1. **`/grilling`** sharpens the idea by interview; in the repo it runs with `domain-modeling`, so resolved terms and decisions land in `specs/`.
 2. **Need a runnable answer** (state, logic, a UI to see)? Detour through **`/prototype`**, bridged by **`/handoff`** out and back.
 3. **Multi-session build?** **`/to-spec`**, then **`/to-tickets`** (tracer-bullet tickets with blocking edges), then **`/implement`** per ticket with fresh context, or `/implement` on the whole spec to orchestrate the frontier in parallel. Otherwise `/implement` here.
 

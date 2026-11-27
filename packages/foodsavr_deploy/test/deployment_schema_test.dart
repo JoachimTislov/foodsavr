@@ -7,7 +7,7 @@ void main() {
   test('schema limits Hosting site IDs to 6–30 characters', () {
     final schema = jsonDecode(
       File(
-        '../../specs/source-of-truth/schemas/deployment-instance.schema.json',
+        '../../specs/schemas/deployment-instance.schema.json',
       ).readAsStringSync(),
     );
     final pattern = RegExp(

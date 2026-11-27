@@ -18,7 +18,7 @@ last_verified: 2026-11-21
 
 # Coop online ordering (Mega, Extra, Prix, Obs)
 
-Coop chains offer online ordering in selected stores. The Coop member app has a reverse-engineered API (per Helge Sverre's gist) covering purchase history; online-shop ordering is not covered (unverified). Related existing FoodSavr work: Coop stub in specs/source-of-truth/integrations.md.
+Coop chains offer online ordering in selected stores. The Coop member app has a reverse-engineered API (per Helge Sverre's gist) covering purchase history; online-shop ordering is not covered (unverified). Related existing FoodSavr work: Coop stub in specs/integrations.md.
 
 ## Access
 

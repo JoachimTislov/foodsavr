@@ -32,24 +32,24 @@ markdown_extensions:
 nav:
   - The vision: index.md
   - Specification:
-      - Start here: specs/source-of-truth/INDEX.md
-      - Architecture: specs/source-of-truth/architecture.md
-      - Data model: specs/source-of-truth/data-model.md
-      - Ingestion pipeline: specs/source-of-truth/ingestion-pipeline.md
-      - Integrations: specs/source-of-truth/integrations.md
-      - MCP server: specs/source-of-truth/mcp-server.md
-      - Quality and testing: specs/source-of-truth/qa-testing.md
-      - CI and publishing: specs/source-of-truth/ci-workflows.md
-      - Agent system: specs/source-of-truth/agent-system.md
-      - Implementation status: specs/source-of-truth/status.md
+      - Start here: specs/INDEX.md
+      - Architecture: specs/architecture.md
+      - Data model: specs/data-model.md
+      - Ingestion pipeline: specs/ingestion-pipeline.md
+      - Integrations: specs/integrations.md
+      - MCP server: specs/mcp-server.md
+      - Quality and testing: specs/qa-testing.md
+      - CI and publishing: specs/ci-workflows.md
+      - Agent system: specs/agent-system.md
+      - Implementation status: specs/status.md
       - Decisions:
-          - Source-of-truth sync: specs/source-of-truth/decisions/0001-source-of-truth-sync-loop.md
-          - Intent and verification: specs/source-of-truth/decisions/0002-intent-gated-specs-optimized-verification.md
-          - Agent execution: specs/source-of-truth/decisions/0003-autonomous-execution-boundary.md
-          - Authoritative shapes: specs/source-of-truth/decisions/0004-truth-in-shapes.md
-          - Automated integration: specs/source-of-truth/decisions/0006-automated-integration-of-revertable-changes.md
-          - Develop and fast-forward deploy: specs/source-of-truth/decisions/0007-develop-integration-branch-and-fast-forward-deploy.md
-          - Human docs scope: specs/source-of-truth/decisions/0011-human-docs-cover-manual-processes-only.md
+          - Source-of-truth sync: specs/decisions/0001-source-of-truth-sync-loop.md
+          - Intent and verification: specs/decisions/0002-intent-gated-specs-optimized-verification.md
+          - Agent execution: specs/decisions/0003-autonomous-execution-boundary.md
+          - Authoritative shapes: specs/decisions/0004-truth-in-shapes.md
+          - Automated integration: specs/decisions/0006-automated-integration-of-revertable-changes.md
+          - Develop and fast-forward deploy: specs/decisions/0007-develop-integration-branch-and-fast-forward-deploy.md
+          - Human docs scope: specs/decisions/0011-human-docs-cover-manual-processes-only.md
   - Contributor guides:
       - For humans: doc/humans.md
       - Test strategy: doc/test-strategy.md

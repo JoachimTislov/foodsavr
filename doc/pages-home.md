@@ -5,7 +5,7 @@ need to buy, so you can reduce food waste, save time, and manage grocery
 expenses.
 { .vision-intro }
 
-[Explore the specification](../specs/source-of-truth/INDEX.md){ .md-button .md-button--primary }
+[Explore the specification](../specs/INDEX.md){ .md-button .md-button--primary }
 [Run or steer the project](../doc/humans.md){ .md-button }
 
 ## The problem we want to solve
@@ -39,7 +39,7 @@ eventually, a grocery list that reflects what you actually need.
 
 ## From food inputs to a useful grocery list
 
-The [target architecture](../specs/source-of-truth/architecture.md) treats
+The [target architecture](../specs/architecture.md) treats
 FoodSavr as an adapter: normalize food information from different sources
 into a shared **LineItem**, then reuse that information across the app.
 
@@ -52,7 +52,7 @@ reuse the same core logic.
 ## What works today, and what comes next
 
 FoodSavr is a work in progress. The
-[implementation status](../specs/source-of-truth/status.md) is the source for
+[implementation status](../specs/status.md) is the source for
 what is built and what remains planned.
 
 | Available in the current code | Planned or not yet connected |
@@ -68,14 +68,14 @@ site publishes documentation, not a hosted version of the app.
 
 ## Read the spec, then explore the implementation
 
-The [canonical specification](../specs/source-of-truth/INDEX.md) explains the
+The [canonical specification](../specs/INDEX.md) explains the
 system's architecture, data model, ingestion contracts, and boundaries.
 It takes precedence over older planning and implementation guides.
 
 The specification links directly to authoritative
-[schemas](../specs/source-of-truth/schemas/line-item.schema.json), the
-[service registry](../specs/source-of-truth/registries/services.yaml), and the
-[MCP contract](../specs/source-of-truth/contracts/mcp-tools.yaml). Those files
+[schemas](../specs/schemas/line-item.schema.json), the
+[service registry](../specs/registries/services.yaml), and the
+[MCP contract](../specs/contracts/mcp-tools.yaml). Those files
 remain the source for their structures.
 
 To run or steer the project, read [For humans](../doc/humans.md). For

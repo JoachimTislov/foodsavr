@@ -94,7 +94,7 @@ GROUPS: dict[str, Group] = {
         ],
     ),
     "docs": Group(
-        paths=["doc/**", "specs/source-of-truth/**", "assets/logos/**", "*.md", "mkdocs.yml", "scripts/docs/**",
+        paths=["doc/**", "specs/**", "assets/logos/**", "*.md", "mkdocs.yml", "scripts/docs/**",
                ".github/workflows/docs-pages.yml"],
         commands=[
             ["{python}", "scripts/docs/integration_index.py", "--check"],

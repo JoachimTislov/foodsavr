@@ -5,7 +5,7 @@
 #
 # Start from deploy/examples/firebase-free-web.yaml. Checks prerequisites,
 # lists the steps only a human can do, validates the manifest, then runs
-# scripts/infra/apply.sh. See specs/source-of-truth/deployment-levels.md.
+# scripts/infra/apply.sh. See specs/deployment-levels.md.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"

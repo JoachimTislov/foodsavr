@@ -46,4 +46,4 @@ Triage state labels use the unmanaged `triage/` prefix, created on first use wit
 
 ## Domain docs
 
-Single context. The canonical spec is [specs/source-of-truth/](../specs/source-of-truth/INDEX.md); ADRs live in [specs/source-of-truth/decisions/](../specs/source-of-truth/decisions/) as `NNNN-slug.md`. The domain glossary is `specs/source-of-truth/glossary.md`; create it, or any new spec section, only with explicit owner intent (ADR 0002).
+Single context. The canonical spec is [specs/](../specs/INDEX.md); ADRs live in [specs/decisions/](../specs/decisions/) as `NNNN-slug.md`. The domain glossary is `specs/glossary.md`; create it, or any new spec section, only with explicit owner intent (ADR 0002).

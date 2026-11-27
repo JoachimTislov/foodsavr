@@ -10,7 +10,7 @@ def prepare():
     destination = ROOT / "build/docs-source"
     shutil.rmtree(destination, ignore_errors=True)
     destination.mkdir(parents=True)
-    for directory in ("doc", "specs/source-of-truth", "assets/logos"):
+    for directory in ("doc", "specs", "assets/logos"):
         shutil.copytree(ROOT / directory, destination / directory)
     for filename in ("README.md", "INDEX.md", "TODO.md", "CONTRIBUTING.md", "coding-standards.md"):
         shutil.copy2(ROOT / filename, destination / ("project-overview.md" if filename == "README.md" else filename))

@@ -13,7 +13,7 @@ Surface architectural friction and propose **deepening opportunities**: refactor
 This command is _informed_ by the project's domain model and built on a shared design vocabulary:
 
 - Call the Skill tool with "codebase-design" for the architecture vocabulary (**module**, **interface**, **depth**, **seam**, **adapter**, **leverage**, **locality**) and its principles (the deletion test, "the interface is the test surface", "one adapter = hypothetical seam, two = real"). Use these terms exactly in every suggestion, and don't drift into "component," "service," "API," or "boundary."
-- The domain language in the glossary and `specs/source-of-truth/` gives names to good seams; ADRs in `specs/source-of-truth/decisions/` record decisions this command should not re-litigate.
+- The domain language in the glossary and `specs/` gives names to good seams; ADRs in `specs/decisions/` record decisions this command should not re-litigate.
 
 ## Process
 
@@ -24,7 +24,7 @@ This command is _informed_ by the project's domain model and built on a shared d
 - If the user named a direction (a module, a subsystem, a pain point), take it, and skip the inference below.
 - Otherwise, walk back a good stretch of the commit history (`git log --oneline`) to find the codebase's hot spots, the files and areas that keep coming up, and let those paths pull your attention first. If the changes are scattered with no clear hot spot, widen the net.
 
-Read the glossary (`specs/source-of-truth/glossary.md`, if it exists) and any ADRs in the area you're touching first.
+Read the glossary (`specs/glossary.md`, if it exists) and any ADRs in the area you're touching first.
 
 Then spawn a sub-agent with a fresh context window to walk the codebase. Don't follow rigid heuristics; explore organically and note where you experience friction:
 

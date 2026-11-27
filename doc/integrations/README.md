@@ -1,6 +1,6 @@
 # Integration catalog
 
-Research catalog of external services FoodSavr could ingest from or act on. One file per integration. Research only: nothing here is built or committed to. Built and spec'd integrations live in [specs/source-of-truth/integrations.md](../../specs/source-of-truth/integrations.md) and [registries/services.yaml](../../specs/source-of-truth/registries/services.yaml); this catalog never overrides them.
+Research catalog of external services FoodSavr could ingest from or act on. One file per integration. Research only: nothing here is built or committed to. Built and spec'd integrations live in [specs/integrations.md](../../specs/integrations.md) and [registries/services.yaml](../../specs/registries/services.yaml); this catalog never overrides them.
 
 ## Layout
 

@@ -45,7 +45,7 @@ The AI disclosure names the harness, model, and `Agent-Session` ID.
 
 ## Sections
 
-Skip all preambles and keep prose brief. Use the domain language of `specs/source-of-truth/`.
+Skip all preambles and keep prose brief. Use the domain language of `specs/`.
 
 ### Summary
 

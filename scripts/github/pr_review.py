@@ -212,8 +212,8 @@ def infer_area(file_path: str) -> str:
         return "scripts/docs"
     if norm.startswith("scripts/"):
         return "scripts"
-    if norm.startswith("specs/source-of-truth/decisions/"):
-        return "specs/source-of-truth/decisions"
+    if norm.startswith("specs/decisions/"):
+        return "specs/decisions"
     if norm.startswith("specs/"):
         return "specs"
     if norm.startswith(("docs/", "doc/")):
@@ -245,7 +245,7 @@ def is_doc_or_test_file(file_path: str) -> bool:
     name = Path(norm).name
     if norm.startswith(("docs/", "doc/", "test/", "integration_test/")):
         return True
-    if norm.endswith(".md") and not norm.startswith((".agents/policies/", "specs/source-of-truth/decisions/")):
+    if norm.endswith(".md") and not norm.startswith((".agents/policies/", "specs/decisions/")):
         return True
     if name.startswith("test_") and name.endswith(".py"):
         return True
@@ -269,10 +269,10 @@ def is_critical_path(file_path: str) -> bool:
         "scripts/github/",
         "scripts/agents/",
         "infra/",
-        "specs/source-of-truth/decisions/",
+        "specs/decisions/",
     )):
         return True
-    if norm in {"firestore.rules", "firebase.json", "specs/source-of-truth/data-model.md", "specs/source-of-truth/architecture.md"}:
+    if norm in {"firestore.rules", "firebase.json", "specs/data-model.md", "specs/architecture.md"}:
         return True
     lowered = norm.lower()
     if any(token in lowered for token in ("secret", "auth", "security", "schema", "migration", "permission")):
@@ -327,10 +327,10 @@ def infer_risk_signatures(
             kw in lowered for kw in ("secret", "auth", "security", "permission", "token")
         ):
             signatures.append("security-secrets")
-        if norm.startswith(("infra/", "specs/source-of-truth/decisions/")) or norm in {
+        if norm.startswith(("infra/", "specs/decisions/")) or norm in {
             "firebase.json",
-            "specs/source-of-truth/data-model.md",
-            "specs/source-of-truth/architecture.md",
+            "specs/data-model.md",
+            "specs/architecture.md",
         } or any(kw in lowered for kw in ("schema", "data-model", "migration", "database")):
             signatures.append("schema-data-model")
 

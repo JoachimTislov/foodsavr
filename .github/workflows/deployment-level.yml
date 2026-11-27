@@ -1,6 +1,6 @@
 name: Deployment level
 
-# Deployment levels (ADR 0005, specs/source-of-truth/deployment-levels.md).
+# Deployment levels (ADR 0005, specs/deployment-levels.md).
 # - pull_request: validate deploy/ manifests and test packages/foodsavr_deploy.
 # - schedule / workflow_dispatch: poll usage of every cloud environment in
 #   deploy/instance.yaml against its current level's limits (KEDA-style

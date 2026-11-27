@@ -32,5 +32,5 @@ Rules:
 ## Consequences
 
 - Agents gain mechanical drift checks (schema field vs Dart class field) instead of prose re-reading.
-- `schemas/`, `registries/`, `contracts/` join `specs/source-of-truth/` and the sync loop's domain scope.
+- `schemas/`, `registries/`, `contracts/` join `specs/` and the sync loop's domain scope.
 - Markdown remains the human-readable entrypoint; no information exists only in a shape without a linking doc.

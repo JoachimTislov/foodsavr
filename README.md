@@ -40,7 +40,7 @@ Clone the repository and ask an agent to run `make setup`, or run it yourself. [
 
 ## How to Contribute
 
-Agents start with the [source-of-truth index](specs/source-of-truth/INDEX.md).
+Agents start with the [source-of-truth index](specs/INDEX.md).
 
 Got an idea or want to fix something? Awesome! We have a few guidelines for contributing that are pretty different from most projects, especially regarding AI-assisted code.
 
@@ -60,4 +60,4 @@ software for commercial purposes.
 
 Read the [published vision, specification, and documentation](https://joachimtislov.github.io/foodsavr/).
 
-The canonical spec lives in [`specs/source-of-truth/`](specs/source-of-truth/INDEX.md).
+The canonical spec lives in [`specs/`](specs/INDEX.md).

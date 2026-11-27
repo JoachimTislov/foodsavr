@@ -12,7 +12,7 @@ Human setup and operations prose (`doc/getting_started.md`, `doc/implementation/
 
 1. **Human docs cover manual processes and steering only.** The single human entry point is [doc/humans.md](../../../doc/humans.md): how to start, the complete list of manual processes with one command or script each, how to steer, and where to see live state. It names no framework internals.
 2. **Automated sequences live only in scripts and make targets.** Prose does not restate them; it points at the command.
-3. **Agent-facing knowledge lives in skills and `specs/source-of-truth/`.** Human-facing docs do not duplicate it.
+3. **Agent-facing knowledge lives in skills and `specs/`.** Human-facing docs do not duplicate it.
 4. **The high-level system representation is generated from manifests, not hand-written.** `make agent-status` (from `.agents/system.json`) is the current live view. A generated system overview is follow-up work.
 5. Product vision and research docs are unaffected.
 
