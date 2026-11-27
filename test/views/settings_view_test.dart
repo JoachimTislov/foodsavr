@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:foodsavr/features/third_party_integration/models/connection_model.dart';
 import 'package:foodsavr/features/third_party_integration/models/provider_model.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
@@ -28,6 +29,8 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../helpers/in_memory_preferences_repository.dart';
+
+class _MockUser extends Mock implements User {}
 
 class _MockSecureStorage extends Mock implements SecureStorage {}
 
@@ -473,6 +476,32 @@ void main() async {
         expect(find.byType(CircleAvatar), findsOneWidget);
       });
     });
+
+    testWidgets(
+      'account tile falls back to profile title when displayName is empty or whitespace',
+      (tester) async {
+        final user = _MockUser();
+        when(() => user.displayName).thenReturn('   ');
+        when(() => user.email).thenReturn('');
+        when(() => user.isAnonymous).thenReturn(false);
+        when(() => user.photoURL).thenReturn(null);
+        when(() => mockAuthService.currentUser).thenReturn(user);
+
+        await tester.runAsync(() async {
+          await tester.pumpWidget(
+            EasyLocalization(
+              supportedLocales: const [Locale('en'), Locale('nb')],
+              path: 'assets/translations',
+              fallbackLocale: const Locale('en'),
+              child: const _TestWrapper(child: SettingsView()),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(find.text('Profile'), findsOneWidget);
+        });
+      },
+    );
 
     testWidgets('theme selector shows checkmark on current theme', (
       tester,
