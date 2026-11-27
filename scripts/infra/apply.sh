@@ -8,6 +8,12 @@
 #   [BILLING_ACCOUNT=XXXXXX-XXXXXX-XXXXXX] [RELEASE_TOPOLOGY=full-channels] \
 #   [PLAN_OUT=/path/to/gcp.tfplan] scripts/infra/apply.sh [plan]
 #
+# APP_CHECK_ENFORCEMENT=ENFORCED|UNENFORCED overrides the declared App Check
+# enforcement for Firestore and Storage (rollback: UNENFORCED).
+# Google and Facebook sign-in credentials (GOOGLE_WEB_CLIENT_SECRET,
+# FACEBOOK_APP_ID, FACEBOOK_APP_SECRET) come from the environment or .env and
+# reach Terraform only as TF_VAR_identity_provider_secrets. State and plan
+# files then hold them: both stay 0600 and outside git.
 # TF_STATE_BACKEND=auto|local|gcs controls state storage (default: auto).
 # Auto preserves an existing GCS backend; fresh Spark instances use worktree-safe
 # local state under ${XDG_STATE_HOME:-$HOME/.local/state}/foodsavr/terraform/<owner>/<repo>/gcp-<project>-<env>/terraform.tfstate.
@@ -81,6 +87,23 @@ fi
 printf 'release_topology = "%s"\ntelemetry_branch = "%s"\n' \
   "$topology" "$integration_branch" >>"$tfvars"
 [ -n "${ALLOW_PREVIEW_REFS:-}" ] && printf 'allow_preview_refs = %s\n' "$ALLOW_PREVIEW_REFS" >>"$tfvars"
+[ -n "${APP_CHECK_ENFORCEMENT:-}" ] && printf 'app_check_enforcement = "%s"\n' "$APP_CHECK_ENFORCEMENT" >>"$tfvars"
+printf 'firestore_rules_file = %s\nfirestore_indexes_file = %s\n' \
+  "$(python3 -c 'import json, sys; print(json.dumps(sys.argv[1]))' "$root/firestore.rules")" \
+  "$(python3 -c 'import json, sys; print(json.dumps(sys.argv[1]))' "$root/firestore.indexes.json")" >>"$tfvars"
+hosting_sites="$(sed -n 's/^hosting_sites = //p' "$tfvars")"
+hosting_sites="${hosting_sites:-[]}"
+firebase_config=(python3 "$root/scripts/infra/firebase_config.py")
+# Public client ids in tfvars; secrets only in the environment, never printed.
+providers="$("${firebase_config[@]}" providers)"
+printf 'identity_providers = %s\n' "$providers" >>"$tfvars"
+TF_VAR_identity_provider_secrets="$("${firebase_config[@]}" provider-secrets)"
+export TF_VAR_identity_provider_secrets
+if [ -n "${PLAN_OUT:-}" ]; then
+  case "$(realpath -m "$PLAN_OUT")/" in
+    "$(realpath "$root")"/*) echo "PLAN_OUT must be outside the repository: plans hold sign-in secrets." >&2; exit 1 ;;
+  esac
+fi
 
 account_args=()
 [ -n "${GCLOUD_ACCOUNT:-}" ] && account_args=(--account="$GCLOUD_ACCOUNT")
@@ -233,12 +256,35 @@ if [ "$recovery" = true ] && [ -z "${PLAN_FILE:-}" ]; then
   printf 'deploy_service_account_id = "%s"\nlocal_recovery = true\n' "$deploy_account" >>"$tfvars"
 fi
 
+if [ -z "${PLAN_FILE:-}" ]; then
+  # Existing Firestore, rules release, App Check and sign-in provider configs (read-only lookup).
+  android_app_id="$(python3 "$root/scripts/infra/adopt.py" firebase "$dir" "$PROJECT_ID" "$root/firestore.indexes.json" "${GCLOUD_ACCOUNT:-}")"
+  printf 'android_app_id = "%s"\n' "$android_app_id" >>"$tfvars"
+  # A managed provider whose credentials are missing would be planned for
+  # removal; refuse instead of removing sign-in.
+  for idp in $(terraform -chdir="$dir" state list 2>/dev/null |
+    sed -n 's/^google_identity_platform_default_supported_idp_config\.idp\["\(.*\)"\]$/\1/p'); do
+    if ! python3 -c 'import json, sys; sys.exit(sys.argv[2] not in json.loads(sys.argv[1]))' "$providers" "$idp"; then
+      echo "Terraform manages $idp sign-in but its credentials are missing (see scripts/secrets/registry.toml); add them to .env first." >&2
+      exit 1
+    fi
+  done
+fi
+
 if [ "$action" = plan ]; then
   plan_args=()
   [ -n "${PLAN_OUT:-}" ] && plan_args=("-out=$PLAN_OUT")
   [ "${TF_DETAILED_EXITCODE:-}" = 1 ] && plan_args+=("-detailed-exitcode")
-  terraform -chdir="$dir" plan -input=false -var-file="$tfvars" "${plan_args[@]}"
-  exit 0
+  status=0
+  terraform -chdir="$dir" plan -input=false -var-file="$tfvars" "${plan_args[@]}" || status=$?
+  [ -n "${PLAN_OUT:-}" ] && [ -f "$PLAN_OUT" ] && chmod 600 "$PLAN_OUT"
+  [ "$status" = 0 ] || [ "$status" = 2 ] || exit "$status"
+  # Auth settings outside Terraform: 2 means pending changes.
+  auth=0
+  "${firebase_config[@]}" plan --project "$PROJECT_ID" --sites "$hosting_sites" || auth=$?
+  [ "$auth" = 0 ] || [ "$auth" = 2 ] || exit "$auth"
+  [ "${TF_DETAILED_EXITCODE:-}" = 1 ] && [ "$auth" = 2 ] && exit 2
+  exit "$status"
 fi
 if [ "$recovery" = true ] && [ -z "${PLAN_FILE:-}" ]; then
   PLAN_FILE="$work/local.tfplan"
@@ -261,6 +307,9 @@ if [ -n "${PLAN_FILE:-}" ]; then
   terraform -chdir="$dir" apply "$PLAN_FILE"
 else
   terraform -chdir="$dir" apply -var-file="$tfvars"
+fi
+if [ "$backend" = local ]; then
+  chmod 600 "$state_path" "$state_path.backup" 2>/dev/null || true
 fi
 
 # Per-environment variables: production uses the plain names, others a
@@ -287,3 +336,5 @@ else
   echo "gh not logged in; set these Actions variables manually (suffix '$VAR_SUFFIX'):"
   terraform -chdir="$dir" output
 fi
+
+"${firebase_config[@]}" apply --project "$PROJECT_ID" --sites "$hosting_sites"

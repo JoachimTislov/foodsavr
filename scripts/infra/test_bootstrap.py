@@ -121,6 +121,9 @@ elif name == 'gcloud':
         sys.exit(9)
 elif name == 'terraform':
     directory = pathlib.Path(args[0].split('=', 1)[1])
+    if args[1:3] == ['state', 'list']:
+        print(os.environ.get('FAKE_STATE_LIST', ''))
+        sys.exit(0)
     if args[1:3] == ['show', '-json']:
         print(pathlib.Path(args[3]).read_text())
     with open(os.environ['FAKE_CONFIG_LOG'], 'a') as out:
@@ -130,6 +133,11 @@ elif name == 'terraform':
         if args[1] == 'plan' and any(a.startswith('-var-file=') for a in args):
             var_file = next(a.split('=', 1)[1] for a in args if a.startswith('-var-file='))
             out.write(pathlib.Path(var_file).read_text())
+    if args[1] == 'plan':
+        for arg in args:
+            if arg.startswith('-out='):
+                pathlib.Path(arg[5:]).write_text('plan')
+        sys.exit(int(os.environ.get('FAKE_PLAN_EXIT', '0')))
 elif name == 'gh':
     if args[:2] == ['auth', 'token']:
         print('fake-gh-token')
@@ -156,6 +164,21 @@ elif name == 'gh':
 '''
 
 
+# Stands in for scripts/infra/firebase_config.py: no network in these tests.
+FAKE_FIREBASE_CONFIG = '''import json, os, sys
+with open(os.environ['FAKE_LOG'], 'a') as out:
+    marker = ['<secrets in env>'] if 'TF_VAR_identity_provider_secrets' in os.environ else []
+    out.write(json.dumps(['firebase_config', sys.argv[1:] + marker]) + '\\n')
+action = sys.argv[1]
+if action == 'providers':
+    print(os.environ.get('FAKE_PROVIDERS', '{}'))
+elif action == 'provider-secrets':
+    print(os.environ.get('FAKE_PROVIDER_SECRETS', '{}'))
+elif action == 'plan':
+    sys.exit(int(os.environ.get('FAKE_AUTH_PLAN', '0')))
+'''
+
+
 class BackendTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -176,6 +199,9 @@ class BackendTests(unittest.TestCase):
             (self.root / directory).mkdir(parents=True)
         for name in ['apply.sh', 'apply-github.sh', 'bootstrap_support.py', 'adopt.py']:
             shutil.copy2(HERE / name, self.root / 'scripts/infra' / name)
+        (self.root / 'scripts/infra/firebase_config.py').write_text(FAKE_FIREBASE_CONFIG)
+        for name in ('firestore.rules', 'firestore.indexes.json'):
+            shutil.copy2(REPO / name, self.root / name)
         for name in ('scripts/setup/setupctl.py', 'scripts/setup/health.py', 'scripts/setup/health.toml', 'scripts/instance_local.py', 'scripts/github/promote_release.py', 'scripts/github/release_topology.py', 'scripts/github/checks.py'):
             shutil.copy2(REPO / name, self.root / name)
         for stack in ('gcp', 'github'):
@@ -236,6 +262,53 @@ class BackendTests(unittest.TestCase):
         calls = (self.root / 'calls.jsonl').read_text()
         self.assertNotIn('"create"', calls)
         self.assertNotIn('"update"', calls)
+
+    def test_plan_passes_firebase_inputs_and_keeps_provider_secrets_out_of_files_and_output(self):
+        secret = 'sentinel-provider-secret'
+        result = self.run_plan(
+            FAKE_PROVIDERS='{"facebook.com": {"client_id": "123"}}',
+            FAKE_PROVIDER_SECRETS=json.dumps({'facebook.com': secret}),
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        config = (self.root / 'config.log').read_text()
+        self.assertIn(f'firestore_rules_file = "{self.root}/firestore.rules"', config)
+        self.assertIn('identity_providers = {"facebook.com": {"client_id": "123"}}', config)
+        self.assertIn('android_app_id = ""', config)
+        self.assertNotIn(secret, config + result.stdout + result.stderr)
+        calls = [json.loads(line) for line in (self.root / 'calls.jsonl').read_text().splitlines()]
+        auth_plan = [c for c in calls if c[0] == 'firebase_config' and c[1][0] == 'plan']
+        self.assertEqual(auth_plan, [['firebase_config', ['plan', '--project', 'demo-proj', '--sites', '[]', '<secrets in env>']]])
+        self.assertFalse(any(c[0] == 'firebase_config' and c[1][0] == 'apply' for c in calls))
+
+    def test_pending_auth_changes_count_as_plan_changes_for_detailed_exitcode(self):
+        self.assertEqual(self.run_plan(FAKE_AUTH_PLAN='2').returncode, 0)
+        self.assertEqual(self.run_plan(FAKE_AUTH_PLAN='2', TF_DETAILED_EXITCODE='1').returncode, 2)
+        self.assertEqual(self.run_plan(FAKE_PLAN_EXIT='2', TF_DETAILED_EXITCODE='1').returncode, 2)
+        self.assertEqual(self.run_plan(FAKE_PLAN_EXIT='1').returncode, 1)
+
+    def test_managed_provider_without_credentials_refuses_instead_of_planning_removal(self):
+        result = self.run_plan(
+            FAKE_STATE_LIST='google_identity_platform_default_supported_idp_config.idp["google.com"]',
+            FAKE_PROVIDERS='{}',
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Terraform manages google.com sign-in but its credentials are missing', result.stderr)
+        calls = [json.loads(line) for line in (self.root / 'calls.jsonl').read_text().splitlines()]
+        self.assertFalse(any(name == 'terraform' and args[1] == 'plan' for name, args in calls))
+
+    def test_saved_plan_must_stay_outside_the_repository(self):
+        result = self.run_plan(PLAN_OUT=str(self.root / 'infra/gcp.tfplan'))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('PLAN_OUT must be outside the repository', result.stderr)
+        outside = Path(self.temp.name).parent / f'{self.root.name}-outside.tfplan'
+        self.addCleanup(lambda: outside.unlink(missing_ok=True))
+        result = self.run_plan(PLAN_OUT=str(outside))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(outside.stat().st_mode & 0o777, 0o600)
+
+    def test_app_check_enforcement_override_reaches_tfvars(self):
+        self.assertEqual(self.run_plan(APP_CHECK_ENFORCEMENT='UNENFORCED').returncode, 0)
+        self.assertIn('app_check_enforcement = "UNENFORCED"', (self.root / 'config.log').read_text())
 
     def test_default_falls_back_to_test_when_production_is_unprovisioned(self):
         prod = json.loads(self.env['FAKE_CONFIG'])
@@ -481,6 +554,20 @@ class TerraformRootStructureTests(unittest.TestCase):
             'FIREBASE_OPTIONS_B64',
         ):
             self.assertIn(forbidden, variables_tf)
+
+    def test_gcp_root_keeps_firestore_and_sign_in_safe(self):
+        gcp = REPO / 'infra/terraform/gcp'
+        firestore = (gcp / 'firestore.tf').read_text()
+        auth = (gcp / 'auth.tf').read_text()
+        variables = (gcp / 'variables.tf').read_text()
+        database = firestore.split('resource "google_firestore_database" "default"')[1].split('\nresource ')[0]
+        self.assertIn('prevent_destroy = true', database)
+        self.assertIn('deletion_policy         = "ABANDON"', database)
+        self.assertIn('deletion_policy = "ABANDON"', auth)
+        self.assertNotIn('google_identity_platform_config', auth + firestore)
+        secrets = variables.split('variable "identity_provider_secrets"')[1].split('\nvariable ')[0]
+        self.assertIn('sensitive   = true', secrets)
+        self.assertIn('default     = "ENFORCED"', variables.split('variable "app_check_enforcement"')[1])
 
     def test_gcp_root_splits_deploy_and_telemetry_service_accounts(self):
         gcp_main = (REPO / 'infra/terraform/gcp/main.tf').read_text()

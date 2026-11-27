@@ -81,13 +81,29 @@ variable "web_api_key_id" {
 }
 
 variable "app_check_enforcement" {
-  description = "UNENFORCED | ENFORCED for Firestore, Auth, Storage. Register every client (incl. Android Play Integrity) before ENFORCED."
+  description = "ENFORCED | UNENFORCED for Firestore and Storage. Every client needs a valid App Check token once ENFORCED (web: reCAPTCHA Enterprise key in the build; Android: Play Integrity)."
   type        = string
-  default     = "UNENFORCED"
+  default     = "ENFORCED"
   validation {
     condition     = contains(["UNENFORCED", "ENFORCED"], var.app_check_enforcement)
     error_message = "Must be UNENFORCED or ENFORCED."
   }
+}
+
+variable "app_check_auth_enforcement" {
+  description = "UNENFORCED | ENFORCED for Firebase Authentication (preview; needs the Identity Platform upgrade)."
+  type        = string
+  default     = "UNENFORCED"
+  validation {
+    condition     = contains(["UNENFORCED", "ENFORCED"], var.app_check_auth_enforcement)
+    error_message = "Must be UNENFORCED or ENFORCED."
+  }
+}
+
+variable "android_app_id" {
+  description = "Firebase Android app id (package com.foodsavr.app) for Play Integrity; discovered by scripts/infra/adopt.py firebase. Empty: no Android App Check config."
+  type        = string
+  default     = ""
 }
 
 variable "firebase_plan" {
@@ -151,4 +167,35 @@ variable "local_recovery" {
   description = "Records local recovery provenance in saved plans for apply.sh."
   type        = bool
   default     = false
+}
+
+# apply.sh sets both to the tracked repository files; the defaults serve
+# `terraform validate` in place.
+variable "firestore_rules_file" {
+  description = "Path of the tracked firestore.rules (ADR 0010) released to the (default) database."
+  type        = string
+  default     = ""
+}
+
+variable "firestore_indexes_file" {
+  description = "Path of the tracked firestore.indexes.json whose composite indexes are deployed."
+  type        = string
+  default     = ""
+}
+
+variable "identity_providers" {
+  description = "Sign-in providers to manage (google.com, facebook.com) with their public client ids; apply.sh lists those whose credentials are present."
+  type        = map(object({ client_id = string }))
+  default     = {}
+  validation {
+    condition     = alltrue([for idp in keys(var.identity_providers) : contains(["google.com", "facebook.com"], idp)])
+    error_message = "identity_providers supports google.com and facebook.com."
+  }
+}
+
+variable "identity_provider_secrets" {
+  description = "Client secret per identity_providers key, only via TF_VAR_identity_provider_secrets (never tfvars or argv)."
+  type        = map(string)
+  default     = {}
+  sensitive   = true
 }

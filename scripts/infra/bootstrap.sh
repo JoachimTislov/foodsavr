@@ -29,8 +29,11 @@ cat <<EOF
 
 Human-only steps (once per environment):
   1. Create a Firebase project: https://console.firebase.google.com
-  2. Register a web app (Project settings -> Your apps -> Web) and enable
-     Authentication (Email/Password) and Firestore.
+  2. Register a web app (Project settings -> Your apps -> Web) and open
+     Authentication once (Get started). The apply creates Firestore, releases
+     firestore.rules and enables Email/Password and Anonymous sign-in; Google
+     and Facebook sign-in follow once their credentials are in .env
+     (scripts/human/google, scripts/human/meta).
   3. Put the project id, web app id and your GitHub owner/repo into
      $MANIFEST (template: deploy/examples/firebase-free-web.yaml).
   4. Log in: gcloud auth login && npx -y firebase-tools@15 login

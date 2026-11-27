@@ -29,4 +29,4 @@ Vision: FoodSavr is an adapter, not a duplicate architecture — normalize any f
 - `foodsavr_core` is pure Dart, no Flutter or Firebase imports; both the app and MCP server depend on it, never the reverse.
 - Firestore collections: `products`, `collections` today; users, shopping lists, recipes, meals, groups are spec'd but unbuilt (#195–#197).
 - Feature call sites ask the module resolver, never a plan, a flag or RevenueCat directly (ADR 0008).
-- Firestore rules are tracked in `firestore.rules`; CI tests that file in the Firestore emulator, and deploys are manual until the release pipeline deploys them ([ADR 0010](decisions/0010-track-firestore-rules-during-test-phase.md), superseding #165/#185).
+- Firestore rules are tracked in `firestore.rules`; CI tests that file in the Firestore emulator, and deploys are manual (`make infra-gcp-apply` through Terraform, or the `make deploy-firestore-rules` bypass) until the release pipeline deploys them ([ADR 0010](decisions/0010-track-firestore-rules-during-test-phase.md), superseding #165/#185).

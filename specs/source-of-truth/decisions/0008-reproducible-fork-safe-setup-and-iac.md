@@ -23,7 +23,7 @@ Our governing principle for repository operations is: **humans make decisions, a
 We manage declarative non-secret infrastructure in two separate Terraform roots with isolated state, providers, and permissions:
 
 - **`infra/terraform/github/`** (repository-scoped, `integrations/github` only): manages split `github_repository_ruleset` resources, `github_repository_environment`, `github_actions_variable`, `github_actions_environment_variable`, singular `github_issue_label` resources (sourced from `.agents/github/labels.json`), and `github_branch_default`. Requires only `terraform` and `gh`.
-- **`infra/terraform/gcp/`** (environment-scoped, `google-beta` only): manages GCP APIs, Firebase App Check, scoped Workload Identity Federation (WIF), billing budgets, and optional Blaze-only GCS buckets.
+- **`infra/terraform/gcp/`** (environment-scoped, `google-beta` only): manages GCP APIs, Firebase App Check, the Firestore `(default)` database (never destroyed), its rules release from `firestore.rules` and the indexes of `firestore.indexes.json`, the Google and Facebook sign-in providers, scoped Workload Identity Federation (WIF), billing budgets, and optional Blaze-only GCS buckets. Email/Password and Anonymous sign-in and the authorized domains of the Hosting sites are applied by `scripts/infra/firebase_config.py` from `apply.sh` (the Terraform resource needs billing to create and would replace domains added at runtime).
 
 Local Terraform state (used on Firebase Spark and GitHub-only setups) must live outside git worktrees under `${XDG_STATE_HOME:-$HOME/.local/state}/foodsavr/terraform/<owner>/<repo>/<stack>/terraform.tfstate` so worktree deletion never destroys state. Terraform must never manage its own state bucket, destroy `github_repository`, manage moving channel branches with `prevent_destroy`, or overwrite live operational kill-switches (`FIREBASE_HOSTING_ENABLED`, `AUTO_HEAL_ENABLED`, `AUTO_HEAL_MERGE`, `AGENT_AUTO_REVIEW_ENABLED`, `TELEMETRY_POLL_ENABLED`, `MONITOR_TARGET_URL`).
 
@@ -55,7 +55,7 @@ Missing channel branches are created idempotently via the GitHub Refs API during
 
 ### 5. Secret boundaries and fork-safe configuration
 
-- **Never put secret values in `terraform.tfstate` or LLM context.** Stateless `scripts/secrets/rotate.py` (using declarative `sync_file` + `encode` instead of `shell=True`, explicit `--repo`, and interactive TTY confirmation) pushes secret values directly to GitHub Secrets.
+- **Never put secret values in `terraform.tfstate` or LLM context** (one exception: the 2026-11-27 sign-in provider amendment below). Stateless `scripts/secrets/rotate.py` (using declarative `sync_file` + `encode` instead of `shell=True`, explicit `--repo`, and interactive TTY confirmation) pushes secret values directly to GitHub Secrets.
 - **Keep `FIRESTORE_RULES_B64` and `FIREBASE_OPTIONS_B64` out of fork-exposed `vars.*`.** Only non-sensitive identifiers (`AGENT_APP_ID`, `RELEASE_GATE_APP_ID`, `FIREBASE_APP_ID_ANDROID`, `FACEBOOK_APP_ID`, `FACEBOOK_CLIENT_TOKEN`, `ROUTER_MODEL`) move to GitHub Actions Variables. `ROUTER_BASE_URL` must always pass policy `allow_hosts` validation.
 - **CI vs. local config split**: local tools read gitignored `.agents/instance.local.json` (worktrees read the main checkout's file); CI workflows read GitHub Actions Variables (`vars.*`) and never fall back to upstream defaults (amended November 26, 2026). Scheduled workflows skip cleanly (`exit 0`) when unconfigured so enabling Actions on a fork never triggers failure storms or probes upstream URLs.
 
@@ -105,3 +105,12 @@ Owner directive: operators and agents work on deterministic abstractions, not on
 - **One interpreter.** [`scripts/setup/health.py`](../../../scripts/setup/health.py) evaluates the declaration, with one evaluator per `kind`. `make setup-verify` (`setupctl verify`) and the final `make setup` step (Platform health) print the same report. Offline, the live checks report "not probed" and never count as healthy.
 - **Extend, don't scatter.** A new manual check is a new `[[check]]` entry. A new `kind` is added only when no existing kind fits. Health logic lives nowhere else.
 - **Keep the CLIs.** Domain CLIs stay usable on their own (`social_auth.sh`, `monitoring.sh`, `agentctl`, `rotate.py`, `make deploy-web`). Health calls their `--check` modes and names them as the fix, and `make setup` runs them in sequence. It does not replace them.
+
+## Amendment — November 27, 2026: sign-in provider secrets in gcp state
+
+Owner directive: Terraform configures the Google and Facebook sign-in providers. `google_identity_platform_default_supported_idp_config` requires `client_secret` and does not mark it sensitive, so the gcp state holds both client secrets. This is the only exception to the no-secrets-in-state rule.
+
+- The secrets reach Terraform only as `TF_VAR_identity_provider_secrets` (a `sensitive` variable, redacted in plans) from `.env` (`GOOGLE_WEB_CLIENT_SECRET`, `FACEBOOK_APP_SECRET`); never on the command line, in tfvars or in logs.
+- The gcp state, its backups and saved plans stay `0600`, outside git; GCS state stays in the private project bucket. A leak of any of them rotates the `gcp-terraform-state` group (`scripts/secrets/registry.toml`).
+- A provider without credentials is not managed. Once managed, `apply.sh` refuses to plan without its credentials, so a missing `.env` value never removes sign-in; the providers use `deletion_policy = "ABANDON"`.
+- Creating the Google OAuth web client and the Meta app has no API and stays in `scripts/human/google` and `scripts/human/meta`; `scripts/setup/social_auth.sh` only checks the providers.

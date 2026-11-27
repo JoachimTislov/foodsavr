@@ -1,8 +1,9 @@
 .PHONY: deploy-firestore-rules start-firebase-emulators kill-firebase-emulators view-emulator locale-seed rules-test remote-seed
 
-# Manual deploy of the tracked firestore.rules (ADR 0010) to the Firebase
-# project of one environment in deploy/instance.yaml. Deploys stay manual until
-# the release pipeline deploys rules. Requires a prior `firebase login`.
+# Manual bypass: deploy the tracked firestore.rules (ADR 0010) to the Firebase
+# project of one environment in deploy/instance.yaml. `make infra-gcp-apply`
+# releases the same file through Terraform; the next apply re-releases it.
+# Requires a prior `firebase login`.
 # Usage: make deploy-firestore-rules ENV=production
 FIREBASE_TOOLS ?= firebase-tools@15
 deploy-firestore-rules:

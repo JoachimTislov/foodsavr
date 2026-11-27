@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Idempotently check or enable Firebase Auth Facebook sign-in via Identity Toolkit API."""
+"""Check Firebase Auth Facebook sign-in via the Identity Toolkit API (read-only; Terraform owns it)."""
 
 from __future__ import annotations
 
@@ -66,16 +66,23 @@ def providers_console_url(project: str) -> str:
 def sync_facebook_provider(
     project: str,
     app_id: str,
-    app_secret: str,
+    app_secret: str = "",
     *,
     account: str | None = None,
-    check: bool = False,
+    check: bool = True,
     get_token: Callable[[str | None], str] | None = None,
     open_url: Callable[..., object] | None = None,
 ) -> tuple[bool, str]:
-    """Check or idempotently configure the Firebase Auth Facebook provider."""
+    """Check the Firebase Auth Facebook provider (read-only).
+
+    Terraform owns the provider (infra/terraform/gcp/auth.tf, applied by
+    `make infra-gcp-apply`). The client secret in the API response is
+    discarded unread; only `enabled` and the public app ID are compared.
+    `app_secret` and `check` are kept for callers and ignored.
+    """
     token_fn = identity_toolkit_token if get_token is None else get_token
     url_fn = urlopen if open_url is None else open_url
+    fix = "store FACEBOOK_APP_ID/FACEBOOK_APP_SECRET (scripts/human/meta/create-app-credentials.sh), then run make infra-gcp-apply"
 
     console_url = providers_console_url(project)
     if not project:
@@ -85,109 +92,38 @@ def sync_facebook_provider(
     if not token:
         return False, f"Could not access {PROVIDER_ID} via API; open {console_url}"
 
-    base = f"{IDENTITY_TOOLKIT_BASE}/{project}/defaultSupportedIdpConfigs"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "x-goog-user-project": project,
-    }
-
-    exists = False
-    current: dict[str, object] | None = None
+    url = f"{IDENTITY_TOOLKIT_BASE}/{project}/defaultSupportedIdpConfigs/{PROVIDER_ID}"
+    headers = {"Authorization": f"Bearer {token}", "x-goog-user-project": project}
     try:
-        with url_fn(Request(f"{base}/{PROVIDER_ID}", headers=headers), timeout=20) as response:
-            parsed = json.load(response)
-            if not isinstance(parsed, dict):
-                return False, f"Could not access {PROVIDER_ID} via API; open {console_url}"
-            current = parsed
-            exists = True
+        with url_fn(Request(url, headers=headers), timeout=20) as response:
+            current = json.load(response)
     except HTTPError as error:
         code = error.code
         error.close()
-        if code != 404:
-            return False, f"Could not access {PROVIDER_ID} via API (HTTP {code}); open {console_url}"
+        if code == 404:
+            return False, f"{PROVIDER_ID} is disabled; {fix}"
+        return False, f"Could not access {PROVIDER_ID} via API (HTTP {code}); open {console_url}"
     except (OSError, URLError, ValueError):
         return False, f"Could not access {PROVIDER_ID} via API; open {console_url}"
-
-    if exists and current is not None:
-        enabled = current.get("enabled") is True
-        current_id = current.get("clientId", "")
-        current_secret = current.get("clientSecret")
-        id_matches = (not app_id) or (current_id == app_id)
-        secret_matches = (not app_secret) or (current_secret is None) or (current_secret == app_secret)
-        if enabled and id_matches and secret_matches:
-            return True, f"{PROVIDER_ID} is enabled"
-
-    if check:
-        if exists and current is not None and current.get("enabled") is True:
-            return False, f"{PROVIDER_ID} uses a different app configuration"
-        return False, f"{PROVIDER_ID} is disabled"
-
-    if not app_id or not app_secret:
-        return (
-            False,
-            f"{PROVIDER_ID} is disabled; run scripts/human/meta/create-app-credentials.sh, then re-run",
-        )
-
-    method = "PATCH" if exists else "POST"
-    target = (
-        f"{base}/{PROVIDER_ID}?updateMask=enabled,clientId,clientSecret"
-        if exists
-        else f"{base}?idpId={PROVIDER_ID}"
-    )
-    payload = json.dumps({"enabled": True, "clientId": app_id, "clientSecret": app_secret}).encode("utf-8")
-    write_headers = {**headers, "Content-Type": "application/json"}
-    try:
-        with url_fn(Request(target, data=payload, headers=write_headers, method=method), timeout=20) as response:
-            data = json.load(response)
-            if isinstance(data, dict) and data.get("enabled") is True:
-                return True, f"{PROVIDER_ID} enabled"
-    except HTTPError as error:
-        code = error.code
-        error.close()
-        return False, f"Could not update {PROVIDER_ID} via API (HTTP {code}); open {console_url}"
-    except (OSError, URLError, ValueError):
-        return False, f"Could not update {PROVIDER_ID} via API; open {console_url}"
-    return False, f"Could not update {PROVIDER_ID} via API; open {console_url}"
-
-
-def enable_facebook_provider(
-    project: str,
-    account: str | None,
-    app_id: str,
-    app_secret: str,
-    *,
-    get_token: Callable[[str | None], str] | None = None,
-    open_url: Callable[..., object] | None = None,
-) -> bool:
-    if not project or not app_id or not app_secret:
-        return False
-    ok, _ = sync_facebook_provider(
-        project,
-        app_id,
-        app_secret,
-        account=account,
-        check=False,
-        get_token=get_token,
-        open_url=open_url,
-    )
-    return ok
+    if not isinstance(current, dict):
+        return False, f"Could not access {PROVIDER_ID} via API; open {console_url}"
+    current.pop("clientSecret", None)
+    if current.get("enabled") is not True:
+        return False, f"{PROVIDER_ID} is disabled; {fix}"
+    if app_id and current.get("clientId") != app_id:
+        return False, f"{PROVIDER_ID} uses a different app ID than FACEBOOK_APP_ID; run make infra-gcp-apply"
+    return True, f"{PROVIDER_ID} is enabled"
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("project")
     parser.add_argument("--account", default=os.environ.get("GCLOUD_ACCOUNT"))
-    parser.add_argument("--check", action="store_true")
+    parser.add_argument("--check", action="store_true", help="accepted for compatibility; always read-only")
     args = parser.parse_args(argv)
 
-    app_id, app_secret = load_facebook_credentials(ROOT)
-    ok, message = sync_facebook_provider(
-        args.project,
-        app_id,
-        app_secret,
-        account=args.account,
-        check=args.check,
-    )
+    app_id, _ = load_facebook_credentials(ROOT)
+    ok, message = sync_facebook_provider(args.project, app_id, account=args.account)
     print(message)
     return 0 if ok else 1
 

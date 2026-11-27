@@ -83,7 +83,6 @@ def process(step, listing, verify=None):
 
 
 from facebook_provider import (  # noqa: E402
-    enable_facebook_provider as _enable_facebook_provider,
     identity_toolkit_token,
     load_env_file,
     load_facebook_credentials,
@@ -177,17 +176,6 @@ def anonymous_enabled(project, account):
 def facebook_enabled(project, account):
     data = identity_toolkit_get(project, account, "defaultSupportedIdpConfigs/facebook.com")
     return isinstance(data, dict) and data.get("enabled") is True
-
-
-def enable_facebook_provider(project, account, app_id, app_secret):
-    return _enable_facebook_provider(
-        project,
-        account,
-        app_id,
-        app_secret,
-        get_token=identity_toolkit_token,
-        open_url=urlopen,
-    )
 
 
 def published_project(variables, environment):
@@ -718,10 +706,8 @@ class Setup:
             self.production_created = True
             print(f"Created production project {project} (recorded in the local instance overlay). Next steps:")
             print("  1. Run make setup again: the GitHub configuration step publishes the overlay as DEPLOY_INSTANCE.")
-            print(f"  2. Create the Firestore database at {CONSOLE}/{project}/firestore.")
-            print(f"  3. Enable sign-in providers at {CONSOLE}/{project}/authentication/providers.")
-            print("  4. After the PR is merged, verify the legal texts and account deletion.")
-            print("  5. Run make setup again to apply the production configuration.")
+            print("  2. After the PR is merged, verify the legal texts and account deletion.")
+            print("  3. Run make setup again to apply the production configuration (Firestore, rules, sign-in).")
             return True
 
         def verify():
@@ -815,6 +801,12 @@ class Setup:
             return anonymous_enabled(self.project, account)
 
         def enable():
+            # scripts/infra/firebase_config.py (run by the infrastructure apply) owns the switch.
+            if confirm("Enable Email/Password and Anonymous sign-in now?") and run(
+                "python3", "scripts/infra/firebase_config.py", "apply",
+                env={**os.environ, "ENV": (self.env or {}).get("ENV", "production")},
+            ) == 0:
+                return True
             print(f"Enable Anonymous at {url}.")
             return confirm("Verify Firebase sign-in now?")
 
@@ -850,7 +842,8 @@ class Setup:
                     app_id, app_secret = creds()
             elif not confirm("Enable Facebook sign-in in Firebase Auth?"):
                 return False
-            if app_id and app_secret and enable_facebook_provider(self.project, account, app_id, app_secret):
+            # Terraform owns the provider (infra/terraform/gcp/auth.tf).
+            if app_id and app_secret and self.firebase_infrastructure():
                 return True
             print(f"Enable Facebook at {url}.")
             return confirm("Verify Facebook sign-in now?")
@@ -904,7 +897,7 @@ class Setup:
         return self.step("Firebase app configuration", ready(), repair, f"Check registered apps at {url}.", ready)
 
     def social_sign_in(self):
-        """Google and Facebook sign-in beyond the provider switch: SHA fingerprints, domains, Meta URLs."""
+        """Google and Facebook sign-in: SHA fingerprints and Meta URLs (social_auth.sh), providers (Terraform)."""
         if not self.firebase:
             return True
         script = "scripts/setup/social_auth.sh"
@@ -912,9 +905,12 @@ class Setup:
         def ready():
             return run(script, "--check", env={**os.environ, "FIREBASE_PROJECT": self.project}, quiet=True) == 0
 
+        # social_auth.sh writes google-services.json (the Google web client id);
+        # the infrastructure apply then configures the providers.
         return self.optional_step(
             "social-sign-in", "Social sign-in", "Configure Google and Facebook sign-in now?", ready,
-            lambda: run(script, env={**os.environ, "FIREBASE_PROJECT": self.project}) == 0,
+            lambda: run(script, env={**os.environ, "FIREBASE_PROJECT": self.project}) in (0, 1)
+            and self.firebase_infrastructure() and ready(),
             "Run scripts/human/meta/create-app-credentials.sh and "
             "scripts/human/google/create-web-client-secret.sh, then make setup.",
         )
