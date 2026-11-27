@@ -139,6 +139,28 @@ class LocalCiTest(unittest.TestCase):
         which.assert_called_once()
         self.assertTrue(which.call_args.kwargs["path"].startswith("/pinned/flutter/bin:"))
 
+    def test_staged_runs_only_requested_groups_the_index_touches(self):
+        cases = {
+            ".github/workflows/agent-implement.yml": ["agents"],
+            "mkdocs.yml": ["docs"],
+            "scripts/docs/requirements.txt": ["docs"],
+            "lib/main.dart": [],
+        }
+        for path, expected in cases.items():
+            with self.subTest(path), tempfile.TemporaryDirectory() as directory, \
+                    patch.object(ci, "STATE", Path(directory)), \
+                    patch.object(ci, "git", return_value=path), \
+                    patch.object(ci, "run_group", side_effect=lambda n, _: ci.Result(n, "PASS")) as run:
+                code = ci.main(["--staged", "--no-cache", "--group", "agents", "--group", "docs"])
+                self.assertEqual(code, 0)
+                self.assertEqual([c.args[0] for c in run.call_args_list], expected)
+
+    def test_skipped_requested_group_fails(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(ci, "STATE", Path(directory)), \
+                patch.object(ci, "run_group", return_value=ci.Result("docs", "SKIP", "no tools")):
+            self.assertEqual(ci.main(["--no-cache", "--group", "docs"]), 1)
+            self.assertEqual(ci.main(["--no-cache", "--all"]), 0)
+
     def test_pre_push_skips_branch_deletions(self):
         zero = "0" * 40
         self.assertTrue(ci.pushes_only_deletions(f"(delete) {zero} refs/heads/x abc\n"))

@@ -195,14 +195,9 @@ jobs:
           flutter analyze --fatal-infos --fatal-warnings --no-pub > .agents/state/analyze.log 2>&1; analyze=$?
           dart run scripts/locale/check_localizations.dart > .agents/state/locale.log 2>&1; locale=$?
           flutter test --no-pub > .agents/state/test.log 2>&1; tests=$?
-          agent_checks=0
-          if git status --porcelain | grep -qE '(\.agents/|scripts/agents/|scripts/ci/|\.py$|\.sql$)'; then
-            python3 scripts/ci/local_ci.py --group agents > .agents/state/agents_ci.log 2>&1; agent_checks=$?
-          fi
-          doc_checks=0
-          if git status --porcelain | grep -qE '(\.md$|docs/|specs/)'; then
-            python3 scripts/ci/local_ci.py --group docs > .agents/state/docs_ci.log 2>&1; doc_checks=$?
-          fi
+          # Each group runs only when the staged patch touches its paths in local_ci.py.
+          python3 scripts/ci/local_ci.py --staged --group agents > .agents/state/agents_ci.log 2>&1; agent_checks=$?
+          python3 scripts/ci/local_ci.py --staged --group docs > .agents/state/docs_ci.log 2>&1; doc_checks=$?
           set -e
           state() { [ "$1" = 0 ] && echo passed || echo failed; }
           result=passed; [ "$analyze$locale$tests$agent_checks$doc_checks" = "00000" ] || result=failed

@@ -389,6 +389,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--make-check", metavar="MAKE", help="run the Makefile checks with the Dart CI setup")
     parser.add_argument("--flutter-bin", action="store_true", help="print the Flutter executable matching CI")
     parser.add_argument("--all", action="store_true", help="run every group")
+    parser.add_argument("--staged", action="store_true",
+                        help="run only the groups (among --group, if given) that the staged files touch")
     parser.add_argument("--base", default=os.environ.get("LOCAL_CI_BASE", "origin/develop"))
     parser.add_argument("--list", action="store_true", help="print the plan without running")
     parser.add_argument("--no-cache", action="store_true")
@@ -411,7 +413,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.pre_push and not sys.stdin.isatty() and pushes_only_deletions(sys.stdin.read()):
         return 0
     files: list[str] = []
-    if args.group:
+    if args.staged:
+        files = git("diff", "--cached", "--name-only", "--no-renames").splitlines()
+        names = [name for name in groups_for(files) if not args.group or name in args.group]
+    elif args.group:
         names = args.group
     elif args.all:
         names = list(GROUPS)
@@ -424,7 +429,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             names = groups_for(files)
     changed_workflows = [f for f in files if glob_re(".github/workflows/**").match(f) and (ROOT / f).exists()]
-    print(f"local-ci: {len(files)} changed file(s) vs {args.base}; groups: {', '.join(names) or 'none'}")
+    source = "the index" if args.staged else args.base
+    print(f"local-ci: {len(files)} changed file(s) vs {source}; groups: {', '.join(names) or 'none'}")
     if args.list or not names:
         return 0
     STATE.mkdir(parents=True, exist_ok=True)
@@ -449,7 +455,9 @@ def main(argv: list[str] | None = None) -> int:
         if r.status == "FAIL" and r.output:
             print(f"\n--- {r.group} ---\n" + "\n".join(r.output.splitlines()[-60:]))
     print(f"CI only: {CI_ONLY}")
-    return 1 if any(r.status == "FAIL" for r in results) else 0
+    # A requested group (CI) must actually run; pre-push tolerates missing local tools.
+    failing = {"FAIL", "SKIP"} if args.group else {"FAIL"}
+    return 1 if any(r.status in failing for r in results) else 0
 
 
 if __name__ == "__main__":
