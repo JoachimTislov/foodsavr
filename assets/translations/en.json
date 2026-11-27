@@ -348,23 +348,37 @@
 		"added": "Added {count} items",
 		"alreadyAdded": "This receipt was already added"
 	},
+	"brand": {
+		"name": "LettMat",
+		"tagline": "Less waste, easier meals.",
+		"loading": "Preparing your dashboard…"
+	},
 	"pwa": {
 		"banner": {
 			"install": "Install",
+			"learn_more": "Learn more",
 			"subtitle": "Add to your home screen or desktop for quick access.",
-			"title": "Install FoodSavr"
+			"title": "Install LettMat",
+			"firefox_desktop_title": "App install unavailable in Firefox",
+			"firefox_desktop_subtitle": "Firefox on desktop does not natively support installing web apps. Bookmark LettMat or open it in Chrome or Edge to install."
 		},
 		"guide": {
 			"ios_step1": "Tap the Share button in your browser toolbar.",
 			"ios_step2": "Select \"Add to Home Screen\" and tap Add.",
 			"safari_step1": "Click the Share button in Safari (or File in the menu bar).",
 			"safari_step2": "Choose \"Add to Dock\" and confirm.",
+			"firefox_android_step1": "Tap the menu button (three dots) in Firefox.",
+			"firefox_android_step2": "Choose \"Install\" or \"Add to Home screen\" and confirm.",
+			"firefox_desktop_title": "Installing on Firefox Desktop",
+			"firefox_desktop_subtitle": "Firefox on desktop does not natively support Progressive Web App installation. You can still get quick access to LettMat:",
+			"firefox_desktop_step1": "Bookmark this page (Ctrl+D or Cmd+D) or pin the tab in Firefox for one-click access.",
+			"firefox_desktop_step2": "To install LettMat as a standalone desktop app, open it in Chrome, Edge, or Brave, or use a Firefox web-app extension.",
 			"standard_step1": "Click the install icon in the address bar or open the browser menu.",
-			"standard_step2": "Choose \"Install FoodSavr\" or \"Add to Home screen\".",
-			"subtitle": "Install FoodSavr as an app for a full-screen experience and instant access.",
-			"title": "Install FoodSavr"
+			"standard_step2": "Choose \"Install LettMat\" or \"Add to Home screen\".",
+			"subtitle": "Install LettMat as an app for a full-screen experience and instant access.",
+			"title": "Install LettMat"
 		},
-		"installed_snackbar": "FoodSavr installed successfully."
+		"installed_snackbar": "LettMat installed successfully."
 	},
 	"validation": {
 		"productNameEmpty": "Enter a product name.",

@@ -348,23 +348,37 @@
 		"added": "La til {count} varer",
 		"alreadyAdded": "Denne kvitteringen er allerede lagt til"
 	},
+	"brand": {
+		"name": "LettMat",
+		"tagline": "Mindre matsvinn, enklere måltider.",
+		"loading": "Klargjør dashbordet…"
+	},
 	"pwa": {
 		"banner": {
 			"install": "Installer",
+			"learn_more": "Les mer",
 			"subtitle": "Legg til på hjemskjermen eller skrivebordet for rask tilgang.",
-			"title": "Installer FoodSavr"
+			"title": "Installer LettMat",
+			"firefox_desktop_title": "Appinstallasjon støttes ikke i Firefox",
+			"firefox_desktop_subtitle": "Firefox på datamaskin støtter ikke installasjon av nettapps direkte. Legg til bokmerke eller åpne LettMat i Chrome eller Edge for å installere."
 		},
 		"guide": {
 			"ios_step1": "Trykk på Del-knappen i nettleserens verktøylinje.",
 			"ios_step2": "Velg «Legg til på Hjem-skjerm» og trykk på Legg til.",
 			"safari_step1": "Klikk på Del-knappen i Safari (eller Arkiv i menylinjen).",
 			"safari_step2": "Velg «Legg til i Dock» og bekreft.",
+			"firefox_android_step1": "Trykk på menyknappen (tre prikker) i Firefox.",
+			"firefox_android_step2": "Velg «Installer» eller «Legg til på startskjermen» og bekreft.",
+			"firefox_desktop_title": "Installasjon i Firefox på datamaskin",
+			"firefox_desktop_subtitle": "Firefox på datamaskin har ikke innebygd støtte for installasjon av nettapps (PWA). Du kan likevel få rask tilgang til LettMat:",
+			"firefox_desktop_step1": "Lagre siden som bokmerke (Ctrl+D eller Cmd+D) eller fest fanen i Firefox for rask tilgang.",
+			"firefox_desktop_step2": "For å installere LettMat som en egen skrivebordsapp, åpne siden i Chrome, Edge eller Brave, eller bruk en Firefox-utvidelse for nettapps.",
 			"standard_step1": "Klikk på installeringsikonet i adressefeltet eller åpne nettlesermenyen.",
-			"standard_step2": "Velg «Installer FoodSavr» eller «Legg til på startskjermen».",
-			"subtitle": "Installer FoodSavr som en app for fullskjermsopplevelse og rask tilgang.",
-			"title": "Installer FoodSavr"
+			"standard_step2": "Velg «Installer LettMat» eller «Legg til på startskjermen».",
+			"subtitle": "Installer LettMat som en app for fullskjermsopplevelse og rask tilgang.",
+			"title": "Installer LettMat"
 		},
-		"installed_snackbar": "FoodSavr ble installert."
+		"installed_snackbar": "LettMat ble installert."
 	},
 	"validation": {
 		"productNameEmpty": "Skriv inn et produktnavn.",

@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 
 import '../../controllers/pwa_install_controller.dart';
 import '../../service_locator.dart';
+import 'dismissible_banner.dart';
 
-/// Material 3 banner card that prompts web users to install FoodSavr as a PWA.
+/// Material 3 banner card that prompts web users to install LettMat as a PWA.
 ///
 /// Automatically hides when the app is not running in a web browser, is already
-/// installed in standalone mode, or when the user dismisses the banner.
+/// installed in standalone mode (fulfilled intent), or when the user dismisses
+/// the banner. On Firefox desktop, where native PWA installation is unavailable,
+/// shows an honest informational notice instead of a broken install trigger.
 class PwaInstallBanner extends StatelessWidget {
   final PwaInstallController? controller;
   final EdgeInsetsGeometry? margin;
@@ -30,81 +33,69 @@ class PwaInstallBanner extends StatelessWidget {
     return ListenableBuilder(
       listenable: resolved,
       builder: (context, _) {
-        if (!resolved.shouldShowBanner) {
-          return const SizedBox.shrink();
-        }
-
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
         final textTheme = theme.textTheme;
+        final isFirefoxDesktop = resolved.isFirefoxDesktop;
 
-        return Padding(
-          padding: margin ?? EdgeInsets.zero,
-          child: Material(
-            color: colorScheme.primaryContainer.withValues(alpha: 0.45),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-              side: BorderSide(
-                color: colorScheme.primary.withValues(alpha: 0.25),
-              ),
+        return DismissibleBanner(
+          visible: resolved.shouldShowBanner,
+          onDismiss: resolved.dismissBanner,
+          margin: margin ?? EdgeInsets.zero,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          backgroundColor: colorScheme.primaryContainer.withValues(alpha: 0.45),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: colorScheme.primary.withValues(alpha: 0.25),
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: colorScheme.primary.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(
-                      Icons.install_mobile_outlined,
-                      color: colorScheme.primary,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'pwa.banner.title'.tr(),
-                          style: textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'pwa.banner.subtitle'.tr(),
-                          style: textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton.tonal(
-                    onPressed: resolved.isPrompting
-                        ? null
-                        : () => PwaInstallSheet.handleInstallTap(
-                            context,
-                            resolved,
-                          ),
-                    child: Text('pwa.banner.install'.tr()),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 18),
-                    tooltip: 'common.close'.tr(),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: resolved.dismissBanner,
-                  ),
-                ],
+          ),
+          leading: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: colorScheme.primary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              isFirefoxDesktop
+                  ? Icons.info_outline
+                  : Icons.install_mobile_outlined,
+              color: colorScheme.primary,
+              size: 24,
+            ),
+          ),
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                isFirefoxDesktop
+                    ? 'pwa.banner.firefox_desktop_title'.tr()
+                    : 'pwa.banner.title'.tr(),
+                style: textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
               ),
+              const SizedBox(height: 2),
+              Text(
+                isFirefoxDesktop
+                    ? 'pwa.banner.firefox_desktop_subtitle'.tr()
+                    : 'pwa.banner.subtitle'.tr(),
+                style: textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          action: FilledButton.tonal(
+            onPressed: resolved.isPrompting
+                ? null
+                : () => PwaInstallSheet.handleInstallTap(context, resolved),
+            child: Text(
+              isFirefoxDesktop
+                  ? 'pwa.banner.learn_more'.tr()
+                  : 'pwa.banner.install'.tr(),
             ),
           ),
         );
@@ -115,7 +106,7 @@ class PwaInstallBanner extends StatelessWidget {
 
 /// Modal bottom sheet that guides users through manual PWA installation when
 /// the browser does not expose a native `beforeinstallprompt` dialog (e.g.,
-/// iOS Safari or macOS Safari).
+/// iOS Safari, macOS Safari, Firefox Android, or Firefox desktop).
 class PwaInstallSheet extends StatelessWidget {
   final PwaPlatformHint platformHint;
 
@@ -158,6 +149,7 @@ class PwaInstallSheet extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
+    final isFirefoxDesktop = platformHint == PwaPlatformHint.firefoxDesktop;
 
     final steps = switch (platformHint) {
       PwaPlatformHint.ios => [
@@ -182,6 +174,30 @@ class PwaInstallSheet extends StatelessWidget {
           number: '2',
           icon: Icons.web_asset_outlined,
           text: 'pwa.guide.safari_step2'.tr(),
+        ),
+      ],
+      PwaPlatformHint.firefoxAndroid => [
+        _InstallStep(
+          number: '1',
+          icon: Icons.more_vert,
+          text: 'pwa.guide.firefox_android_step1'.tr(),
+        ),
+        _InstallStep(
+          number: '2',
+          icon: Icons.add_to_home_screen_outlined,
+          text: 'pwa.guide.firefox_android_step2'.tr(),
+        ),
+      ],
+      PwaPlatformHint.firefoxDesktop => [
+        _InstallStep(
+          number: '1',
+          icon: Icons.bookmark_add_outlined,
+          text: 'pwa.guide.firefox_desktop_step1'.tr(),
+        ),
+        _InstallStep(
+          number: '2',
+          icon: Icons.open_in_browser_outlined,
+          text: 'pwa.guide.firefox_desktop_step2'.tr(),
         ),
       ],
       _ => [
@@ -214,14 +230,18 @@ class PwaInstallSheet extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(
-                    Icons.install_mobile_outlined,
+                    isFirefoxDesktop
+                        ? Icons.info_outline
+                        : Icons.install_mobile_outlined,
                     color: colorScheme.onPrimaryContainer,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'pwa.guide.title'.tr(),
+                    isFirefoxDesktop
+                        ? 'pwa.guide.firefox_desktop_title'.tr()
+                        : 'pwa.guide.title'.tr(),
                     style: textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -231,7 +251,9 @@ class PwaInstallSheet extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'pwa.guide.subtitle'.tr(),
+              isFirefoxDesktop
+                  ? 'pwa.guide.firefox_desktop_subtitle'.tr()
+                  : 'pwa.guide.subtitle'.tr(),
               style: textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),

@@ -63,11 +63,7 @@ class WebPwaBridge implements PwaBridge {
   PwaPlatformHint get platformHint {
     try {
       final raw = _window.foodsavrPwa?.platformHint() ?? 'standard';
-      return switch (raw) {
-        'ios' => PwaPlatformHint.ios,
-        'macos-safari' => PwaPlatformHint.macosSafari,
-        _ => PwaPlatformHint.standard,
-      };
+      return parsePwaPlatformHint(raw);
     } catch (_) {
       return PwaPlatformHint.standard;
     }

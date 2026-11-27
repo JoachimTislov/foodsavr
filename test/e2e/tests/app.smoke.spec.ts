@@ -89,8 +89,8 @@ test('PWA manifest, service worker, and install bridge are configured', async ({
     display?: string;
     icons?: { src?: string }[];
   };
-  expect(manifest.name).toBe('FoodSavr');
-  expect(manifest.short_name).toBe('FoodSavr');
+  expect(manifest.name).toBe('LettMat');
+  expect(manifest.short_name).toBe('LettMat');
   expect(manifest.display).toBe('standalone');
   expect(manifest.icons?.length ?? 0).toBeGreaterThanOrEqual(4);
 

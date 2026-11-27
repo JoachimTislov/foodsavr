@@ -4,7 +4,7 @@ enum PwaPlatformHint {
   /// Running on a non-web platform where PWA installation is not applicable.
   unsupported,
 
-  /// Standard desktop/mobile browser (Chrome, Edge, Brave, Firefox, etc.).
+  /// Standard desktop/mobile browser (Chrome, Edge, Brave, etc.).
   standard,
 
   /// iOS or iPadOS browser where installation uses Share -> Add to Home Screen.
@@ -12,7 +12,23 @@ enum PwaPlatformHint {
 
   /// macOS Safari where installation uses File/Share -> Add to Dock.
   macosSafari,
+
+  /// Firefox on Android where installation uses browser menu -> Install / Add to Home screen.
+  firefoxAndroid,
+
+  /// Firefox on desktop where native PWA installation is not supported.
+  firefoxDesktop,
 }
+
+/// Parses a JS platform hint string from `window.foodsavrPwa.platformHint()`.
+PwaPlatformHint parsePwaPlatformHint(String? raw) => switch (raw) {
+  'ios' => PwaPlatformHint.ios,
+  'macos-safari' => PwaPlatformHint.macosSafari,
+  'firefox-android' => PwaPlatformHint.firefoxAndroid,
+  'firefox-desktop' => PwaPlatformHint.firefoxDesktop,
+  'unsupported' => PwaPlatformHint.unsupported,
+  _ => PwaPlatformHint.standard,
+};
 
 /// Outcome of invoking the browser's native PWA installation prompt.
 enum PwaPromptResult {
