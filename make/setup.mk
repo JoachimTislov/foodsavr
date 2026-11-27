@@ -18,7 +18,7 @@ infra-github-apply: ## Apply GitHub infrastructure changes
 infra-gcp-plan: ## Preview Firebase and Google Cloud changes (ENV=<env>)
 	@scripts/infra/apply.sh plan
 
-infra-gcp-apply: ## Apply Firebase, Firestore, Auth and App Check (ENV=<env>; APP_CHECK_ENFORCEMENT=UNENFORCED rolls back)
+infra-gcp-apply: ## Apply Firebase, Firestore, Auth and App Check (ENV=<env>; APP_CHECK_ENFORCEMENT=ENFORCED enforces, UNENFORCED rolls back)
 	@scripts/infra/apply.sh apply
 
 social-auth-setup: ## Configure social sign-in

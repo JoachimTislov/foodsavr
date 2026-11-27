@@ -81,9 +81,9 @@ variable "web_api_key_id" {
 }
 
 variable "app_check_enforcement" {
-  description = "ENFORCED | UNENFORCED for Firestore and Storage. Every client needs a valid App Check token once ENFORCED (web: reCAPTCHA Enterprise key in the build; Android: Play Integrity)."
+  description = "ENFORCED | UNENFORCED for Firestore and Storage. apply.sh keeps the live mode unless APP_CHECK_ENFORCEMENT is set. Every client needs a valid App Check token once ENFORCED (web: reCAPTCHA Enterprise key in the build; Android: Play Integrity)."
   type        = string
-  default     = "ENFORCED"
+  default     = "UNENFORCED"
   validation {
     condition     = contains(["UNENFORCED", "ENFORCED"], var.app_check_enforcement)
     error_message = "Must be UNENFORCED or ENFORCED."

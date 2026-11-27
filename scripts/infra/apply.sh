@@ -8,8 +8,9 @@
 #   [BILLING_ACCOUNT=XXXXXX-XXXXXX-XXXXXX] [RELEASE_TOPOLOGY=full-channels] \
 #   [PLAN_OUT=/path/to/gcp.tfplan] scripts/infra/apply.sh [plan]
 #
-# APP_CHECK_ENFORCEMENT=ENFORCED|UNENFORCED overrides the declared App Check
-# enforcement for Firestore and Storage (rollback: UNENFORCED).
+# APP_CHECK_ENFORCEMENT=ENFORCED|UNENFORCED turns App Check enforcement for
+# Firestore and Storage on or off (rollback: UNENFORCED). Unset keeps the live
+# mode, so a routine apply never changes it.
 # Google and Facebook sign-in credentials (GOOGLE_WEB_CLIENT_SECRET,
 # FACEBOOK_APP_ID, FACEBOOK_APP_SECRET) come from the environment or .env and
 # reach Terraform only as TF_VAR_identity_provider_secrets. State and plan
@@ -260,6 +261,10 @@ if [ -z "${PLAN_FILE:-}" ]; then
   # Existing Firestore, rules release, App Check and sign-in provider configs (read-only lookup).
   android_app_id="$(python3 "$root/scripts/infra/adopt.py" firebase "$dir" "$PROJECT_ID" "$root/firestore.indexes.json" "${GCLOUD_ACCOUNT:-}")"
   printf 'android_app_id = "%s"\n' "$android_app_id" >>"$tfvars"
+  if [ -z "${APP_CHECK_ENFORCEMENT:-}" ]; then
+    enforcement="$(python3 "$root/scripts/infra/adopt.py" app-check-mode "$PROJECT_ID" "${GCLOUD_ACCOUNT:-}")"
+    printf 'app_check_enforcement = "%s"\n' "$enforcement" >>"$tfvars"
+  fi
   # A managed provider whose credentials are missing would be planned for
   # removal; refuse instead of removing sign-in.
   for idp in $(terraform -chdir="$dir" state list 2>/dev/null |

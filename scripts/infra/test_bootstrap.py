@@ -1,5 +1,6 @@
 """Offline regression tests for free-instance bootstrap, split Terraform roots, and state safety."""
 
+import contextlib
 import importlib.util
 import io
 import json
@@ -38,6 +39,40 @@ class DiscoveryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Check Firebase read access') as error:
             support.discover_api_key('p', 'a', 't', opener)
         self.assertNotIn('sensitive', str(error.exception))
+
+
+class AppCheckModeTests(unittest.TestCase):
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location('adopt', HERE / 'adopt.py')
+        self.adopt = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.adopt)
+
+    def mode(self, modes, enabled=('firebaseappcheck.googleapis.com',)):
+        self.adopt.command_json = lambda *argv: [{'config': {'name': name}} for name in enabled]
+
+        def get(project, path, *, missing_ok=False):
+            value = modes.get(path.rsplit('/', 1)[-1])
+            if isinstance(value, Exception):
+                raise value
+            return {'enforcementMode': value} if value else {}
+
+        self.adopt.app_check_get = get
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.adopt.app_check_mode('demo-proj')
+        return out.getvalue().strip()
+
+    def test_live_enforcement_is_kept(self):
+        self.assertEqual(self.mode({'firestore.googleapis.com': 'ENFORCED'}), 'ENFORCED')
+        self.assertEqual(self.mode({'firebasestorage.googleapis.com': 'ENFORCED'}), 'ENFORCED')
+
+    def test_projects_without_enforcement_stay_unenforced(self):
+        self.assertEqual(self.mode({'firestore.googleapis.com': 'UNENFORCED'}), 'UNENFORCED')
+        self.assertEqual(self.mode({}), 'UNENFORCED')
+        self.assertEqual(self.mode({'firestore.googleapis.com': 'ENFORCED'}, enabled=()), 'UNENFORCED')
+
+    def test_an_unreadable_mode_fails_instead_of_guessing(self):
+        with self.assertRaises(ValueError):
+            self.mode({'firestore.googleapis.com': ValueError('denied')})
 
 
 class StatePathTests(unittest.TestCase):
@@ -307,7 +342,13 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(outside.stat().st_mode & 0o777, 0o600)
 
     def test_app_check_enforcement_override_reaches_tfvars(self):
-        self.assertEqual(self.run_plan(APP_CHECK_ENFORCEMENT='UNENFORCED').returncode, 0)
+        self.assertEqual(self.run_plan(APP_CHECK_ENFORCEMENT='ENFORCED').returncode, 0)
+        config = (self.root / 'config.log').read_text()
+        self.assertIn('app_check_enforcement = "ENFORCED"', config)
+        self.assertNotIn('app_check_enforcement = "UNENFORCED"', config)
+
+    def test_plan_without_a_choice_does_not_turn_enforcement_on(self):
+        self.assertEqual(self.run_plan().returncode, 0)
         self.assertIn('app_check_enforcement = "UNENFORCED"', (self.root / 'config.log').read_text())
 
     def test_default_falls_back_to_test_when_production_is_unprovisioned(self):
@@ -567,7 +608,8 @@ class TerraformRootStructureTests(unittest.TestCase):
         self.assertNotIn('google_identity_platform_config', auth + firestore)
         secrets = variables.split('variable "identity_provider_secrets"')[1].split('\nvariable ')[0]
         self.assertIn('sensitive   = true', secrets)
-        self.assertIn('default     = "ENFORCED"', variables.split('variable "app_check_enforcement"')[1])
+        enforcement = variables.split('variable "app_check_enforcement"')[1].split('\nvariable ')[0]
+        self.assertIn('default     = "UNENFORCED"', enforcement)
 
     def test_gcp_root_splits_deploy_and_telemetry_service_accounts(self):
         gcp_main = (REPO / 'infra/terraform/gcp/main.tf').read_text()
