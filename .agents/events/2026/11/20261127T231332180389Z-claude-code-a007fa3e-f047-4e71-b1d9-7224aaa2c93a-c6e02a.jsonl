@@ -1,0 +1,1 @@
+{"commits": ["396b276ae37987c27b29c3bc3fd7b7b383c68ce5"], "event": "feat(auth): LettMat auth rebrand, guest login, implicit legal notice, provider setup errors (#532); full flutter test 555 passed; auth+smoke Playwright passed locally", "session_id": "claude-code:a007fa3e-f047-4e71-b1d9-7224aaa2c93a", "stream": "ledger", "timestamp": "2026-11-27T23:13:32+00:00"}
