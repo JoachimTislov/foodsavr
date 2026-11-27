@@ -254,8 +254,9 @@ if [ "$push_only_reuse" = "true" ]; then
     for spec in "${targets[@]}"; do
       name="${spec%%:*}"
       case "$name" in
-        web) job_re='^(Web smoke test|Android smoke test)$' ;;
-        rules) job_re='^Firestore security rules$' ;;
+        # Release pushes need the full suite: a smoke run on this SHA is not evidence.
+        web) job_re='(^| / )Web full E2E$' ;;
+        rules) job_re='(^| / )Firestore security rules$' ;;
         *) job_re='a^' ;;
       esac
       reusable=false

@@ -115,4 +115,6 @@ jobs:
           AGENT_APP_SLUG: ${{ vars.AGENT_APP_SLUG }}
           MERGE_GATE_FREEZE: ${{ vars.MERGE_GATE_FREEZE }}
           MERGE_TRAIN_DEPTH: ${{ vars.MERGE_TRAIN_DEPTH }}
+          SELF_MANAGED_MERGE: ${{ vars.SELF_MANAGED_MERGE }}
+          AGENT_AUTO_REVIEW_ENABLED: ${{ vars.AGENT_AUTO_REVIEW_ENABLED }}
         run: python3 scripts/github/merge_gate.py --repo "${{ github.repository }}" --apply

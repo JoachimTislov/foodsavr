@@ -31,8 +31,8 @@ If an existing unit test mocks more than one repository/service boundary, it sho
 
 ## CI wiring
 
-- `.github/workflows/pull-request.yml` (`Check & Test`) — format, analyze, localization, unit tests, coverage (existing).
-- `.github/workflows/pull-request.yml` (Validation) — path-filtered Web smoke and Playwright E2E, started by `merge/auto` on PRs and run on release pushes. The Android smoke and integration job (`reactivecircus/android-emulator-runner`, API 34, KVM on `ubuntu-24.04`) runs only on manual dispatch (`make validate`).
+- `.github/workflows/_reusable-dart-checks.yml` (verdict: `Check & Test` in `pull-request.yml`) — format, analyze, localization, unit tests; relational selection on PRs, full suite with coverage on `daily` and dispatch.
+- `.github/workflows/_reusable-web-playwright.yml` (Validation in `pull-request.yml`) — Playwright smoke on PRs (started by `merge/auto`); desktop and mobile E2E on `daily` and dispatch ([tiers](../specs/ci-workflows.md)). The Android smoke and integration job (`reactivecircus/android-emulator-runner`, API 34, KVM on `ubuntu-24.04`) runs only on manual dispatch (`make validate`).
 - Playwright lives in `test/e2e/` (`npm ci && npx playwright test`); smoke specs use the `.smoke.spec.ts` suffix and run in the `smoke` project.
 - `.github/workflows/release.yml` builds and uploads the Flutter `web-build` artifact on release pushes. `pull-request.yml` validates the documentation build and local links on PRs; `release.yml` publishes the vision, spec, and docs to GitHub Pages on `stable`.
 

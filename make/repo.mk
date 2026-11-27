@@ -1,7 +1,7 @@
 .PHONY: hooks ci-local preflight worktree bisect agent-sessions push 
 hooks: ## Install Git hooks
 	@git config core.hooksPath .githooks
-	@echo "pre-push hook installed: runs scripts/ci/local_ci.py"
+	@echo "pre-push hook installed: fast checks (scripts/ci/local_ci.py --pre-push)"
 
 ci-local: ## Run local CI checks
 	@python3 scripts/ci/local_ci.py

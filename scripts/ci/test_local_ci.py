@@ -77,6 +77,47 @@ class LocalCiTest(unittest.TestCase):
         self.assertIn("steps.paths.outputs.deps == 'true'", text)
         self.assertEqual(set(ci.ci_filters([])), set(ci.CI_GROUPS) | set(ci.CI_FILTERS))
 
+    def test_check_names_required_by_the_ruleset_are_unchanged(self):
+        text = workflow_text("pull-request.yml")
+        for name in ("Decide whether to run CI", "Check & Test"):
+            self.assertIn(f"\n    name: {name}\n", text)
+        # A reusable-workflow job reports as `caller / job`, so the required check is a
+        # verdict job that must run (never skip) whenever the suite was selected.
+        verdict = text.split("\n  check:\n", 1)[1].split("\n  agents:\n", 1)[0]
+        self.assertIn("needs: [gate, dart-checks]", verdict)
+        self.assertIn("if: ${{ always() && needs.gate.outputs.run == 'true' }}", verdict)
+        self.assertIn('test "$RESULT" = success', verdict)
+
+    def test_self_managed_merge_validates_non_draft_prs_without_a_label(self):
+        text = workflow_text("pull-request.yml")
+        condition = "(vars.SELF_MANAGED_MERGE == 'true' && !github.event.pull_request.draft)"
+        # The gate env and the failed-preflight condition of `validation-result`.
+        self.assertEqual(text.count(condition), 2)
+        self.assertIn("env.CONTENT_EVENT == 'true' && env.AUTO_VALIDATE != 'true'", text)
+        self.assertIn('validate="$AUTO_VALIDATE"', text)
+        self.assertNotIn("HAS_AUTO", text)
+        # A draft turned ready must start Validation, without cancelling the running suites.
+        self.assertIn("reopened, ready_for_review, edited, labeled]", text)
+        self.assertIn("github.event.action != 'ready_for_review'", text)
+
+    def test_post_deploy_probe_targets_the_deployed_site(self):
+        text = workflow_text("release.yml")
+        self.assertIn("url: ${{ steps.live.outputs.url }}", text)
+        self.assertIn("(needs.hosting-deploy.outputs.url != '' || vars.MONITOR_TARGET_URL != '')", text)
+        self.assertIn("target-url: ${{ needs.hosting-deploy.outputs.url || vars.MONITOR_TARGET_URL }}", text)
+
+    def test_suite_job_names_match_the_reuse_evidence(self):
+        dart = (ROOT / ci.DART_WORKFLOW).read_text()
+        web = (ROOT / ci.WEB_WORKFLOW).read_text()
+        reuse = (ROOT / "scripts/ci/already_tested.sh").read_text()
+        self.assertIn("'Full Dart suite' || 'Relational Dart suite'", dart)
+        self.assertIn("(^| / )Full Dart suite$", workflow_text("pull-request.yml"))
+        self.assertIn("'Web full E2E' || 'Web smoke test'", web)
+        self.assertIn("(^| / )Web full E2E$", reuse)
+        for project in ("smoke", "chromium", "mobile-chrome"):
+            self.assertIn(f"--project={project}", web)
+            self.assertIn(f"name: '{project}'", (ROOT / "test/e2e/playwright.config.ts").read_text())
+
     def test_ci_filters_follow_group_paths_without_local_extras(self):
         decisions = ci.ci_filters([".agents/events/2026/11/x.jsonl", "README.md"])
         self.assertFalse(decisions["agents"])
@@ -103,7 +144,7 @@ class LocalCiTest(unittest.TestCase):
         invocation = block.replace("\\\n", " ").split()
         scope = invocation[invocation.index("pull-request.yml") + 1:]
         for area in ("lib", "packages", "test", "assets", "pubspec.yaml", "pubspec.lock",
-                     "analysis_options.yaml", "integration_test", "test_driver"):
+                     "analysis_options.yaml", "integration_test", "test_driver", ci.DART_WORKFLOW):
             self.assertIn(area, scope)
         self.assertNotIn("assets/translations", scope)
 
@@ -164,8 +205,12 @@ class LocalCiTest(unittest.TestCase):
         for group in ("agents", "docs", "release"):
             self.assertIn(f"scripts/ci/local_ci.py --group {group}", checks)
         self.assertIn("scripts/ci/local_ci.py --group docs", workflow_text("release.yml"))
+        self.assertIn(f"uses: ./{ci.DART_WORKFLOW}", checks)
+        self.assertIn(f"uses: ./{ci.WEB_WORKFLOW}", checks)
+        dart = (ROOT / ci.DART_WORKFLOW).read_text()
         for command in ci.GROUPS["dart"].commands:
-            self.assertIn(" ".join(command), checks)
+            self.assertIn(" ".join(command), dart)
+        self.assertIsNotNone(ci.ci_flutter_version())
 
     def test_make_check_bootstraps_and_cleans_up_after_failure(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(ci, "ROOT", Path(directory)):
@@ -245,6 +290,41 @@ class LocalCiTest(unittest.TestCase):
                 patch.object(ci, "run_group", return_value=ci.Result("docs", "SKIP", "no tools")):
             self.assertEqual(ci.main(["--no-cache", "--group", "docs"]), 1)
             self.assertEqual(ci.main(["--no-cache", "--all"]), 0)
+
+    def test_pre_push_runs_only_change_scoped_static_checks(self):
+        files = ["lib/models/product_model.dart", "scripts/ci/local_ci.py",
+                 ".github/workflows/pull-request.yml"]
+        checks = dict(ci.pre_push_commands(files))
+        self.assertEqual(list(checks), ["logs", "python", "actionlint", "format", "localization", "shape-sync"])
+        self.assertEqual(checks["format"][-1], files[0])
+        self.assertEqual(checks["python"][-1], files[1])
+        self.assertEqual(checks["actionlint"], ["actionlint", files[2]])
+        flat = " ".join(" ".join(command) for command in checks.values())
+        for heavy in ("build_runner", "analyze", "unittest", "mkdocs", "run_tests", "flutter test"):
+            self.assertNotIn(heavy, flat)
+
+    def test_pre_push_scopes_checks_to_what_changed(self):
+        self.assertEqual(ci.pre_push_commands([]), [])
+        self.assertEqual([n for n, _ in ci.pre_push_commands(["README.md"])], ["logs"])
+        self.assertEqual([n for n, _ in ci.pre_push_commands(["assets/translations/en-US.json"])],
+                         ["logs", "localization"])
+        self.assertEqual([n for n, _ in ci.pre_push_commands(["specs/schemas/product.schema.json"])],
+                         ["logs", "shape-sync"])
+        # A deleted Dart file is not formatted but can break keys or registry anchors.
+        self.assertEqual([n for n, _ in ci.pre_push_commands(["lib/services/gone.dart"])],
+                         ["logs", "localization", "shape-sync"])
+
+    def test_pre_push_fails_on_a_dirty_tree_and_never_runs_groups(self):
+        for status, expected in (("", 0), ("?? stray.txt", 1)):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as directory, \
+                    patch.object(ci, "STATE", Path(directory)), \
+                    patch.object(ci, "changed_files", return_value=["README.md"]), \
+                    patch.object(ci, "git", return_value=status), \
+                    patch.object(ci, "run_fast_check", return_value=ci.Result("logs", "PASS")), \
+                    patch.object(ci, "run_group") as run_group, \
+                    patch.object(ci.sys.stdin, "isatty", return_value=True):
+                self.assertEqual(ci.main(["--pre-push"]), expected)
+                run_group.assert_not_called()
 
     def test_pre_push_skips_branch_deletions(self):
         zero = "0" * 40

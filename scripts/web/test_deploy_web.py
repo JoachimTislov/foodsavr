@@ -403,6 +403,24 @@ def hosting_jobs() -> str:
     return "".join(p for p in parts if p.startswith(("  plan:", "  hosting-deploy:")))
 
 
+class LiveUrlOutputTest(unittest.TestCase):
+    def test_only_a_successful_live_deploy_reports_its_site_url(self):
+        for site, expected in (("proj-daily", "https://proj-daily.web.app"), ("", "https://proj.web.app")):
+            with self.subTest(site=site), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "output"
+                env = {"PROJECT_ID": "proj", "SITE_ID": site, "TARGET": "live", "GITHUB_OUTPUT": str(output),
+                       "GITHUB_STEP_SUMMARY": ""}
+                with patch.dict(os.environ, env), patch.object(dw, "run"), redirect_stdout(StringIO()):
+                    dw.cmd_deploy()
+                self.assertEqual(output.read_text(), f"url={expected}\n")
+                output.unlink()
+                failure = subprocess.CalledProcessError(1, "firebase")
+                with patch.dict(os.environ, env), patch.object(dw, "run", side_effect=failure), \
+                        self.assertRaises(subprocess.CalledProcessError):
+                    dw.cmd_deploy()
+                self.assertFalse(output.exists())
+
+
 class WorkflowContractTest(unittest.TestCase):
     """release.yml's hosting jobs delegate to this script instead of inlining the logic."""
 

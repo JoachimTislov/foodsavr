@@ -1,0 +1,138 @@
+name: Reusable web validation
+
+# Web build + Playwright and the Firestore rules tests for pull-request.yml.
+# `smoke` runs on develop PRs and merge-train refs; `full` (smoke, desktop and mobile
+# E2E) runs on release channel pushes and dispatch. The job name states which suite
+# ran: release channels reuse only `Web full E2E` evidence
+# (scripts/ci/already_tested.sh).
+
+on:
+  workflow_call:
+    inputs:
+      suite:
+        description: "smoke or full (smoke + chromium + mobile-chrome)"
+        type: string
+        default: smoke
+      run_web:
+        description: Build the web app and run Playwright
+        type: boolean
+        default: true
+      run_rules:
+        description: Run the Firestore security rules tests
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: ${{ inputs.suite == 'full' && 'Web full E2E' || 'Web smoke test' }}
+    if: inputs.run_web
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Set up Flutter app
+        uses: ./.github/actions/setup-flutter-app
+        with:
+          flutter-version: "3.47.6"
+          dotenv-content: "CI_TEST=1"
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Generate web platform files
+        run: flutter create . --platforms web
+      - name: Start Firebase Emulators (background)
+        uses: ./.github/actions/start-firebase-emulators
+        with:
+          mode: start
+      - name: Build web
+        run: flutter build web --release
+      - name: Serve web build
+        run: |
+          npx -y serve build/web -l 4173 --no-clipboard &
+          for i in $(seq 1 30); do
+            curl -s http://localhost:4173 > /dev/null && break
+            sleep 1
+          done
+      - name: Install Playwright dependencies
+        working-directory: test/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Wait for Firebase Emulators
+        uses: ./.github/actions/start-firebase-emulators
+        with:
+          mode: wait
+      - name: Run Playwright tests
+        working-directory: test/e2e
+        env:
+          SUITE: ${{ inputs.suite }}
+        run: |
+          case "$SUITE" in
+            smoke) projects=(--project=smoke) ;;
+            full) projects=(--project=smoke --project=chromium --project=mobile-chrome) ;;
+            *) echo "::error::Unknown Playwright suite: $SUITE"; exit 1 ;;
+          esac
+          npx playwright test "${projects[@]}"
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-e2e-artifacts
+          path: test/e2e/playwright-report/
+          retention-days: 7
+
+  firestore-rules:
+    name: Firestore security rules
+    if: inputs.run_rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        working-directory: firestore-rules
+        run: npm ci
+      - name: Start Firestore emulator
+        run: |
+          cat > firebase.json <<'EOT'
+          {
+            "firestore": {
+              "rules": "firestore.rules"
+            },
+            "emulators": {
+              "firestore": { "port": 8080 }
+            }
+          }
+          EOT
+          npx -y firebase-tools@15 emulators:start --project demo-project &
+          emulator_up=false
+          for _ in $(seq 1 60); do
+            if curl -s http://localhost:8080 > /dev/null; then emulator_up=true; break; fi
+            sleep 2
+          done
+          if [ "$emulator_up" != true ]; then
+            echo "Firestore emulator did not start" >&2
+            exit 1
+          fi
+      - name: Run rules unit tests
+        working-directory: firestore-rules
+        run: npx jest --ci

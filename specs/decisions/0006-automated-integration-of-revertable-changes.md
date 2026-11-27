@@ -36,6 +36,8 @@ One PR is in flight at a time, so each merged head is exactly what CI tested. Ch
 
 `scripts/ci/local_ci.py` runs the CI checks for the areas a branch changes, through a pre-push hook (`make hooks`). Agent-system and documentation CI call the same script; the Dart group is kept equal to `Check & Test` in `pull-request.yml` and uses CI's pinned Flutter version. Checks that need CI infrastructure (smoke, E2E, integration, rules, dependency review) remain CI-only.
 
+Amendment (2026-11-28): the hook runs only fast, change-scoped checks, and the review attestation requirement is lifted by `SELF_MANAGED_MERGE=true` ([ADR 0008](0008-reproducible-fork-safe-setup-and-iac.md#amendment--november-28-2026-self-managed-merge-and-ci-tiers)).
+
 ### Amends ADR 0003
 
 Merges of opted-in PRs by the merge gate are autonomous. Other default-branch writes keep ADR 0003's boundary.

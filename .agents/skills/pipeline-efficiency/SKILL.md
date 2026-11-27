@@ -7,27 +7,28 @@ metadata:
 
 # Pipeline efficiency
 
-Shift failures left to local commands, path-gate every check so a PR runs only what its change can break, keep release builds and publishes on promotion, and isolate repo-wide CI outages before amplifying them across a queue. `develop` pushes do not re-run Validation (ADR 0007), so the `develop` PR run is the last smoke/E2E check before promotion and is never thinned below the paths a change touches.
+Keep local checks fast and targeted, path-gate every check so a PR runs only what its change can break, keep full suites, release builds and publishes on promotion, and isolate repo-wide CI outages before amplifying them across a queue. `develop` PRs run relational Dart tests and Playwright smoke; the nightly `daily` run is the first full desktop and mobile E2E check (ADR 0008).
 
 ## 1. Local-first preflight
 
-Run the cheapest exact mirror of CI before every push. Install `.githooks/` once per clone with `make hooks`.
+Run targeted checks while working; PR CI is the verification. Install `.githooks/` once per clone with `make hooks`: the pre-push hook runs `check_pr_base.py` and `local_ci.py --pre-push` (clean tree and fast change-scoped static checks; no build_runner, full analyze, docs build or test suites).
 
 1. Verify the branch is current on `origin/develop`:
    ```sh
    python3 scripts/ci/check_pr_base.py
    ```
-2. Run the changed-area CI mirror:
+2. Run the tests your change affects (omit `--run` to list them; pass paths to narrow):
    ```sh
-   python3 scripts/ci/local_ci.py
+   python3 scripts/ci/relevant_tests.py --run
    ```
-3. `local_ci.py` already runs the `agents`, `docs`, `dart`, `release`, `infra` (includes `packages/foodsavr_deploy/**` and `deploy/**`) and `workflows` (`actionlint`) groups for changed paths; there is no separate deploy-manifest group. Run separately only what it cannot:
+   Dart tests need generated code (`make build`); Playwright needs a served web build and the Firebase Emulators.
+3. For a broad change, or to reproduce a red CI suite, run the changed-area CI mirror, `python3 scripts/ci/local_ci.py` (groups `agents`, `docs`, `dart`, `release`, `infra`, `workflows`; one with `--group <name>`). Run separately what neither covers:
    - **`firestore.rules` or `firestore-rules/**`**: start the Firestore emulator and run `npm --prefix firestore-rules test`.
    - **Traceability**: confirm every commit carries an `Agent-Session:` trailer (`scripts/agents/agentctl check-pr --base origin/develop --head HEAD`).
    - **Runner environment**: CI sets `GITHUB_REPOSITORY`; when a suite reads it, run it once with `GITHUB_REPOSITORY=example/test-repo` so local settings do not mask a failure.
 4. Before setting a secret from a local file via `scripts/secrets/rotate.py`, validate the source locally (for example, a valid PEM header and structure for GitHub App private keys). `lib/firebase_options.dart` is tracked in git, not synced to a secret.
 
-Done when every check matching the branch's changed paths exits 0 on a clean tree.
+Done when the pre-push checks and the affected tests exit 0 on a clean tree. `make check` before a Dart commit still applies (project instructions).
 
 ## 2. Circuit-break repo-wide outages
 
@@ -51,13 +52,14 @@ Place each check in the earliest, cheapest tier that still enforces its safety p
 
 | Tier | Target | What belongs here | Keep out of this tier |
 |---|---|---|---|
-| **Local pre-push** | Developer / agent worktree | `check_pr_base.py`, `local_ci.py`, `scripts/infra`, `scripts/release`, `foodsavr_deploy`, `actionlint`, secret format validation | Multi-minute emulator boots |
-| **`develop` PR** | Integration gate | `pull-request.yml`: preflight in `Decide whether to run CI` (PR base, traceability, dependency review), path-filtered `Check & Test` (Dart/Flutter code only), `Validate manifests and test levels CLI` (deploy/infra paths only), `Firestore security rules` (rules paths only), `Agent system validation` (agent/script paths excluding `.agents/events/**`); `Validation` (Web smoke + E2E; Android smoke + integration only on manual dispatch) for app paths, which starts when `merge/auto` is added (before that the `Validation result` status stays pending) | Release APK/Web artifact builds, full site publishes, emulator runs for non-app edits, `synchronize` label churn |
-| **Release channels (`daily`, `weekly`, `stable`)** | Promotion | `develop -> daily` runs the full release `Validation`; `daily -> weekly -> stable` reuse the green `daily` run for the same SHA (`already_tested.sh --push-only-reuse`); `release.yml` builds Web on release pushes that touch its app/build paths (path-filtered) and Android only on manual dispatch; only `stable` publishes GitHub Pages and deploys production | Unverified manual skips |
+| **Local pre-push** | Developer / agent worktree | `check_pr_base.py`, `local_ci.py --pre-push` (clean tree, logs, `py_compile`, `actionlint`, format, localization, shape sync) | build_runner, full analyze, docs build, test suites, emulator boots |
+| **`develop` PR** | Integration gate | `pull-request.yml`: preflight in `Decide whether to run CI` (PR base, traceability, dependency review), path-filtered `Check & Test` (relational Dart tests), `Validate manifests and test levels CLI` (deploy/infra paths only), `Firestore security rules` (rules paths only), `Agent system validation` (agent/script paths excluding `.agents/events/**`); `Validation` (Playwright `smoke` only; Android smoke + integration only on manual dispatch) for app paths, which starts automatically on non-draft PRs with `SELF_MANAGED_MERGE=true`, else when `merge/auto` is added (until then the `Validation result` status stays pending) | Full Dart suite, desktop/mobile E2E, release APK/Web artifact builds, full site publishes, emulator runs for non-app edits, `synchronize` label churn |
+| **Release channels (`daily`, `weekly`, `stable`)** | Promotion | The `daily` push always runs the full Dart suite with coverage and desktop + mobile Playwright; `weekly` and `stable` reuse that evidence for the same SHA (`already_tested.sh --push-only-reuse`, full job names only); `release.yml` builds Web on release pushes that touch its app/build paths (path-filtered) and Android only on manual dispatch; only `stable` publishes GitHub Pages and deploys production | Unverified manual skips, reuse of smoke or relational runs |
 
 When authoring or tightening `.github/workflows/*.yml`:
 
 - **Align path filters across all three layers**: `scripts/ci/local_ci.py` `GROUPS`/`CI_FILTERS`/`RELEASE_FILTERS` (the workflows decide through `--ci-filters`/`--release-filters`), `release.yml` `on.push.paths`, and `scripts/ci/already_tested.sh` pathspecs; `test_local_ci.py` checks them.
+- **Share suites through the reusable workflows**: change Dart steps in `_reusable-dart-checks.yml` and web or rules steps in `_reusable-web-playwright.yml`. Required check names stay in `pull-request.yml`, because a called job reports as `<caller> / <job>`; job names that encode the suite (`Full Dart suite`, `Web full E2E`) are reuse evidence.
 - **Keep non-app edits out of Flutter/Android jobs**: Python-only `scripts/ci/*.py` and `scripts/release/**` changes belong in Python/Node unit checks, not `flutter build apk` or KVM Android Emulator runs.
 - **Keep append-only event logs out of heavy suites**: `.agents/events/**` records are checked by `check_logs.py` in the `Decide whether to run CI` preflight, not the full 300+ test `Agent system validation` suite on unrelated UI/docs PRs.
 - **Trim workflow fan-out**: add a PR check as a job of `pull-request.yml`, never as a new `pull_request` workflow, so one run carries every PR check and `merge-gate.yml` keeps a single `workflow_run` subscription (`Pull Request`); trigger the `labels` job of `ops-maintenance.yml` on `[opened, edited, ready_for_review, converted_to_draft]` rather than every `synchronize`.

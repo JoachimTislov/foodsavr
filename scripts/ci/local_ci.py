@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""Run the CI checks for the areas a branch changes, locally, before pushing.
+"""Run the CI checks for the areas a branch changes, locally.
 
 Groups mirror the suites of pull-request.yml (ADR 0006). `agents` and `docs` are
-the exact commands their jobs run; `dart` is kept equal to the `Check & Test` job by
-test_local_ci.py. A passing group is cached per clean tree.
+the exact commands their jobs run; `dart` is kept equal to `Check & Test`
+(_reusable-dart-checks.yml) by test_local_ci.py. A passing group is cached per clean
+tree.
+
+`--pre-push` runs only fast, change-scoped static checks (`pre_push_commands`).
+build_runner, full analysis, the docs build and the test suites are left to PR CI;
+scripts/ci/relevant_tests.py runs the affected tests on demand.
 
 The workflow decides which suites run with `--ci-filters`, from the same group paths
 (`paths`, not `local_paths`) and the CI-only filters below, so CI and this mirror
@@ -30,6 +35,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 STATE = ROOT / ".agents/state/local-ci"
 CI_ONLY = "Web smoke, E2E, Firestore rules, dependency review (Android checks: manual dispatch)"
+DART_WORKFLOW = ".github/workflows/_reusable-dart-checks.yml"
+WEB_WORKFLOW = ".github/workflows/_reusable-web-playwright.yml"
 
 AGENT_JSON = [
     ".agents/policies/default.json", ".agents/github/labels.json", ".agents/policies/schema.json",
@@ -54,7 +61,7 @@ PYTHON_TEST_DIRS = ("agents", "github", "secrets", "setup", "monitoring", "ci", 
 
 GROUPS: dict[str, Group] = {
     "agents": Group(
-        # Workflow parity is checked for paths; local_paths extend pre-push coverage.
+        # Workflow parity is checked for paths; local_paths extend local coverage.
         local_paths=("scripts/git_bisect.py", "scripts/link_local_files.sh", "scripts/create_worktree.sh"),
         paths=[
             ".agents/**", "AGENTS.md", "CLAUDE.md", "GEMINI.md", "scripts/agents/**", "scripts/github/**",
@@ -64,6 +71,7 @@ GROUPS: dict[str, Group] = {
             "specs/**", "docs/**", "doc/**",
             ".github/workflows/pull-request.yml", ".claude/**", ".gemini/**", ".github/agents/**",
             ".github/instructions/**", ".github/copilot-instructions.md", ".github/workflows/agent-ops.yml",
+            DART_WORKFLOW, WEB_WORKFLOW,
             "scripts/human/**", "scripts/setup/agent_router.sh",
             "scripts/setup/setupctl.py", "scripts/setup/test_*.py",
             "log/**", "logs/**", "**/*.jsonl", "**/*.log", "!.agents/events/**",
@@ -108,7 +116,7 @@ GROUPS: dict[str, Group] = {
     "dart": Group(
         paths=["**.dart", "lib/**", "packages/**", "test/**", "assets/**",
                "scripts/ci/*.dart", "pubspec.yaml", "pubspec.lock",
-               "analysis_options.yaml", "integration_test/**", "test_driver/**"],
+               "analysis_options.yaml", "integration_test/**", "test_driver/**", DART_WORKFLOW],
         commands=[
             ["flutter", "pub", "get"],
             ["dart", "format", "--output=none", "--set-exit-if-changed", "."],
@@ -148,8 +156,9 @@ GROUPS: dict[str, Group] = {
 # that already_tested.sh reuses in the `Detect changed areas` job; Android smoke and
 # integration have none because they run only on manual dispatch.
 CI_FILTERS: dict[str, list[str]] = {
-    "web": ["lib/**", "packages/**", "web/**", "assets/**", "pubspec.yaml", "pubspec.lock", "test/e2e/**"],
-    "rules": ["firestore-rules/**", "firestore.rules"],
+    "web": ["lib/**", "packages/**", "web/**", "assets/**", "pubspec.yaml", "pubspec.lock", "test/e2e/**",
+            WEB_WORKFLOW],
+    "rules": ["firestore-rules/**", "firestore.rules", WEB_WORKFLOW],
     "deps": ["pubspec.yaml", "pubspec.lock", "packages/*/pubspec.yaml", "**/package.json", "**/package-lock.json",
              "scripts/docs/requirements.txt", "android/**/build.gradle*", "android/gradle/**",
              ".github/workflows/pull-request.yml"],
@@ -246,7 +255,7 @@ def changed_files(base: str) -> list[str]:
 
 
 def ci_flutter_version() -> str | None:
-    match = re.search(r"flutter-version:\s*([\d.]+)", (ROOT / ".github/workflows/pull-request.yml").read_text())
+    match = re.search(r"flutter-version:\s*([\d.]+)", (ROOT / DART_WORKFLOW).read_text())
     return match.group(1) if match else None
 
 
@@ -437,6 +446,84 @@ def cache_key(name: str) -> Path | None:
     return STATE / f"pass-{name}-{git('rev-parse', 'HEAD^{tree}')}"
 
 
+# Changes that can break the shaped artifacts or the registry anchors (ADR 0004).
+SHAPE_PATHS = ["lib/models/**", "packages/foodsavr_core/lib/**", "packages/foodsavr_deploy/lib/src/model/**",
+               "specs/schemas/**", "specs/registries/**", "scripts/ci/check_shape_sync.dart"]
+
+
+def pre_push_commands(files: list[str]) -> list[tuple[str, list[str]]]:
+    """Fast static checks for the changed files, as (check name, command)."""
+    if not files:
+        return []
+    existing = [f for f in files if (ROOT / f).is_file()]
+    checks: list[tuple[str, list[str]]] = [("logs", ["python3", "scripts/agents/check_logs.py"])]
+    if python := [f for f in existing if f.endswith(".py")]:
+        checks.append(("python", ["python3", "-m", "py_compile", *python]))
+    if workflows := [f for f in existing if path_matches([".github/workflows/*.yml", ".github/workflows/*.yaml"], f)]:
+        checks.append(("actionlint", ["actionlint", *workflows]))
+    if dart := [f for f in existing if f.endswith(".dart")]:
+        checks.append(("format", ["dart", "format", "--output=none", "--set-exit-if-changed", *dart]))
+    # A deleted Dart file counts too: it can drop translation keys or a registry anchor.
+    deleted_dart = any(f.endswith(".dart") and not (ROOT / f).exists() for f in files)
+    if any(f.endswith(".dart") or f.startswith("assets/translations/") for f in files):
+        checks.append(("localization", ["dart", "run", "scripts/locale/check_localizations.dart"]))
+    if deleted_dart or any(path_matches(SHAPE_PATHS, f) for f in files):
+        checks.append(("shape-sync", ["dart", "run", "scripts/ci/check_shape_sync.dart"]))
+    return checks
+
+
+def run_fast_check(name: str, command: list[str]) -> Result:
+    start = time.monotonic()
+    env = {**os.environ, "PYTHONPYCACHEPREFIX": str(STATE / "pycache")}
+    if command[0] == "actionlint" and not shutil.which("actionlint"):
+        return Result(name, "SKIP", "actionlint not installed")
+    if command[0] != "dart":
+        return run_commands([command], env, False, start, name, {})
+    if not ci_flutter_version() and not shutil.which("dart"):
+        return Result(name, "SKIP", "dart not on PATH and no CI Flutter version is pinned")
+    try:
+        dart_environment(env)
+    except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
+        return Result(name, "SKIP", f"pinned Flutter SDK unavailable: {error}")
+    commands = [command]
+    # `dart run` needs resolved packages; only a fresh worktree pays for this once.
+    if command[1] == "run" and not (ROOT / ".dart_tool/package_config.json").exists():
+        commands.insert(0, ["flutter", "pub", "get"])
+    with dart_workspace() as snapshot:
+        return run_commands(commands, env, False, start, name, snapshot)
+
+
+def report(results: list[Result]) -> None:
+    for r in results:
+        print(f"  {r.group:<14}{r.status:<7}{f'{r.seconds:5.1f}s ' if r.seconds else ''}{r.detail}")
+    for r in results:
+        if r.status == "FAIL" and r.output:
+            print(f"\n--- {r.group} ---\n" + "\n".join(r.output.splitlines()[-60:]))
+
+
+def pre_push(base: str, list_only: bool) -> int:
+    try:
+        files = changed_files(base)
+    except subprocess.CalledProcessError:
+        print(f"local-ci: {base} not found; checking every tracked file")
+        files = git("ls-files").splitlines()
+    checks = pre_push_commands(files)
+    print(f"local-ci pre-push: {len(files)} changed file(s) vs {base}; "
+          f"checks: {', '.join(['clean', *(name for name, _ in checks)])}")
+    if list_only:
+        return 0
+    # Read before any check runs: the checks see the working tree, so it must match HEAD.
+    dirty = git("status", "--porcelain")
+    results = [Result("clean", "FAIL", "commit or remove uncommitted and untracked files", output=dirty)
+               if dirty else Result("clean", "PASS")]
+    STATE.mkdir(parents=True, exist_ok=True)
+    results += [run_fast_check(name, command) for name, command in checks]
+    report(results)
+    print("Left to PR CI: build_runner, full analyze, docs build, test suites "
+          "(affected tests: python3 scripts/ci/relevant_tests.py --run)")
+    return 1 if any(r.status == "FAIL" for r in results) else 0
+
+
 def pushes_only_deletions(stdin: str) -> bool:
     lines = [line.split() for line in stdin.splitlines() if line.strip()]
     return bool(lines) and all(len(p) == 4 and set(p[1]) == {"0"} for p in lines)
@@ -454,7 +541,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--base", default=os.environ.get("LOCAL_CI_BASE", "origin/develop"))
     parser.add_argument("--list", action="store_true", help="print the plan without running")
     parser.add_argument("--no-cache", action="store_true")
-    parser.add_argument("--pre-push", action="store_true", help="git pre-push hook mode")
+    parser.add_argument("--pre-push", action="store_true",
+                        help="git pre-push hook mode: fast change-scoped static checks only")
     parser.add_argument("--ci-filters", nargs=2, metavar=("BASE", "HEAD"),
                         help="print name=true|false for each pull-request.yml suite filter over BASE...HEAD "
                              "(all true when BASE is empty, all zeros or unknown)")
@@ -489,8 +577,10 @@ def main(argv: list[str] | None = None) -> int:
             parser.exit(1, "Flutter executable not found\n")
         print(flutter)
         return 0
-    if args.pre_push and not sys.stdin.isatty() and pushes_only_deletions(sys.stdin.read()):
-        return 0
+    if args.pre_push:
+        if not sys.stdin.isatty() and pushes_only_deletions(sys.stdin.read()):
+            return 0
+        return pre_push(args.base, args.list)
     files: list[str] = []
     if args.staged:
         files = git("diff", "--cached", "--name-only", "--no-renames").splitlines()
@@ -528,11 +618,7 @@ def main(argv: list[str] | None = None) -> int:
             results.append(result)
             if result.status == "PASS" and (key := cache_key(result.group)):
                 key.touch()
-    for r in results:
-        print(f"  {r.group:<10}{r.status:<7}{f'{r.seconds:5.1f}s ' if r.seconds else ''}{r.detail}")
-    for r in results:
-        if r.status == "FAIL" and r.output:
-            print(f"\n--- {r.group} ---\n" + "\n".join(r.output.splitlines()[-60:]))
+    report(results)
     print(f"CI only: {CI_ONLY}")
     # A requested group (CI) must actually run; pre-push tolerates missing local tools.
     failing = {"FAIL", "SKIP"} if args.group else {"FAIL"}

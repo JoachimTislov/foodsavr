@@ -1,0 +1,112 @@
+name: Reusable Dart checks
+
+# `Check & Test` of pull-request.yml. A reusable workflow reports its jobs as
+# `<caller> / <job>`, so the caller keeps the required check name in a verdict job.
+# The job name states which suite ran: release channels reuse only `Full Dart suite`
+# evidence (scripts/ci/already_tested.sh).
+# The commands mirror the `dart` group of scripts/ci/local_ci.py, which also reads
+# the pinned Flutter version from this file.
+
+on:
+  workflow_call:
+    inputs:
+      force_all:
+        description: Run every test instead of the relational selection (ADR 0002)
+        type: boolean
+        default: false
+      upload_coverage:
+        description: Upload coverage/lcov.info to Codecov
+        type: boolean
+        default: false
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  dart:
+    name: ${{ inputs.force_all && 'Full Dart suite' || 'Relational Dart suite' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Flutter app
+        uses: ./.github/actions/setup-flutter-app
+        with:
+          flutter-version: 3.47.6
+          run-pub-get: "false"
+          run-build-runner: "false"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Restore committed analysis options
+        run: git checkout -- analysis_options.yaml
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Cache build_runner state
+        uses: actions/cache@v4
+        with:
+          path: .dart_tool/build
+          key: build-runner-${{ runner.os }}-3.47.6-${{ hashFiles('pubspec.lock', 'lib/**/*.dart', 'packages/**/*.dart') }}
+          restore-keys: |
+            build-runner-${{ runner.os }}-3.47.6-${{ hashFiles('pubspec.lock') }}-
+            build-runner-${{ runner.os }}-3.47.6-
+
+      - name: Build generative code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze code
+        run: flutter analyze --fatal-infos --fatal-warnings --no-pub
+
+      - name: Localization check
+        run: dart run scripts/locale/check_localizations.dart
+
+      - name: "Shape-sync check (ADR 0004)"
+        run: dart run scripts/ci/check_shape_sync.dart
+
+      - name: "Select tests (ADR 0002 relational selection + core pin)"
+        id: select
+        run: |
+          set -o pipefail
+          dart run scripts/ci/select_tests.dart | tee selection.txt
+          echo "files=$(grep '^files=' selection.txt | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
+          echo "reason=$(grep '^reason=' selection.txt | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore test hash cache
+        uses: actions/cache@v4
+        with:
+          path: .test-hashes/
+          key: test-hashes-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}-${{ github.sha }}
+          restore-keys: |
+            test-hashes-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}-
+
+      - name: "Run tests (selected slice incl. foodsavr_core package tests, cached-green skip, core workflows pinned)"
+        run: dart run scripts/ci/run_tests.dart
+        env:
+          SELECTED_FILES: ${{ steps.select.outputs.files }}
+          FORCE_ALL: ${{ inputs.force_all }}
+
+      - name: Upload coverage to Codecov
+        if: inputs.upload_coverage && hashFiles('coverage/lcov.info') != '' && env.CODECOV_TOKEN != ''
+        uses: codecov/codecov-action@v5
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        with:
+          token: ${{ env.CODECOV_TOKEN }}
+          files: coverage/lcov.info
+          fail_ci_if_error: true
+
+      - name: Report skipped Codecov upload
+        if: inputs.upload_coverage && hashFiles('coverage/lcov.info') != '' && env.CODECOV_TOKEN == ''
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: echo '::warning::CODECOV_TOKEN is missing; coverage upload was skipped.'

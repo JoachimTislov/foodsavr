@@ -1,0 +1,1 @@
+{"commits": [], "harness": "claude-code", "issues": ["#532"], "provider": "anthropic", "prs": [], "session_id": "claude-code:8489bf2d-6628-49bf-a0d2-ae082c0ff03f", "sources": [], "started_at": "2026-11-27T23:27:34+00:00", "status": "active", "stream": "sessions", "summary": "CI: reusable workflows, nightly Playwright, fast pre-push, relevant_tests.py, SELF_MANAGED_MERGE (#532)"}
