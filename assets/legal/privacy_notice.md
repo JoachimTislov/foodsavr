@@ -1,55 +1,62 @@
-## Privacy Policy for FoodSavr
+## Privacy Policy for LettMat
 
-**Last Updated:** February 17, 2026
+**Last Updated:** November 27, 2026
 
-FoodSavr ("we," "our," or "us") is committed to protecting the privacy of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our FoodSavr mobile application (the "App").
+LettMat (formerly FoodSavr) ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains what personal data we collect, how we use it, and your rights when you use the LettMat web and mobile applications (the "App").
 
-### 1. Information We Collect
+### 1. Operator & Legal Framework
 
-We collect information to provide and improve our services to you.
+LettMat is operated by its owner as a private person in Norway. Norwegian law and the EU/EEA General Data Protection Regulation (GDPR) apply to the processing of your personal data.
 
-**a. Personal Information You Provide:**
-*   **Account Information:** When you create an account, we collect your email address and password.
-*   **Profile Information:** You may choose to provide additional information such as your name.
-*   **Product Data:** Information about the food products you add to the App, including names, expiration dates, and quantities.
+### 2. Information We Collect
 
-**b. Information Collected Automatically:**
-*   **Usage Data:** We collect information about how you access and use the App, such as the features you use, the time and duration of your activities.
-*   **Device Information:** We may collect information about the device you use to access the App, including device model, operating system, and unique device identifiers.
+**a. Information You Provide:**
+* **Account Information:** Email address, display name, and sign-in credentials managed through Firebase Authentication (including optional Google or Facebook sign-in, or anonymous guest sessions).
+* **Kitchen & Household Data:** Inventories, shopping lists, product names, quantities, expiry dates, and app preferences stored in Cloud Firestore so your data stays synced across your devices.
 
-### 2. How We Use Your Information
+**b. Scanning & Third-Party Lookups:**
+* **Barcode Lookups:** Scanned barcodes are queried against Open Food Facts to retrieve product metadata.
+* **Receipt Scanning:** Receipt photos are processed on-device and are deleted right after scanning.
+* **Grocery Store Connections:** If you connect a supported grocery store in the mobile app, connection tokens are stored locally on your device.
 
-We use the information we collect for various purposes, including:
-*   To provide, maintain, and improve the App's functionality.
-*   To personalize your experience and deliver content tailored to your preferences.
-*   To communicate with you about your account, updates, and promotional offers.
-*   To analyze usage patterns and understand how users interact with the App.
-*   To prevent fraud and ensure the security of the App.
+**c. Technical & Diagnostic Data:**
+* Basic device and runtime error diagnostics needed to keep the App reliable and secure.
 
-### 3. Disclosure of Your Information
+### 3. How We Use Your Information
 
-We may share your information in the following situations:
-*   **With Service Providers:** We may share your information with third-party vendors, consultants, and other service providers who perform services on our behalf.
-*   **For Legal Reasons:** We may disclose your information if required to do so by law or in response to valid requests by public authorities.
-*   **Business Transfers:** In connection with any merger, sale of company assets, or acquisition of all or a portion of our business.
+We use your data only to:
+* Provide, sync, and maintain your inventories, shopping lists, expiry reminders, and preferences.
+* Authenticate your account and protect against unauthorized access or abuse.
+* Diagnose bugs and improve the reliability of the App.
 
-### 4. Data Security
+We do not sell your personal data.
 
-We implement reasonable security measures to protect your personal information from unauthorized access, use, or disclosure. However, no method of transmission over the Internet or electronic storage is 100% secure.
+### 4. Service Providers & Disclosure
 
-### 5. Your Choices
+We rely on trusted infrastructure providers to operate the App:
+* **Google Firebase** (Authentication, Cloud Firestore, Hosting, and App Check) to run sign-in, storage, and security.
+* **Open Food Facts** for public barcode product lookups.
 
-*   **Account Information:** You can review and update your account information by logging into the App.
-*   **Marketing Communications:** You can opt out of receiving promotional communications from us by following the unsubscribe link in those communications.
+We may also disclose information if required by Norwegian or EEA law.
 
-### 6. Children's Privacy
+### 5. Data Security & Retention
 
-The App is not intended for use by children under the age of 13. We do not knowingly collect personal information from children under 13.
+We apply reasonable technical and organizational safeguards to protect your data. Your data is retained for as long as your account remains active, or until you delete it.
 
-### 7. Changes to This Privacy Policy
+### 6. Your Rights & Deleting Your Account
 
-We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page.
+Under the GDPR, you have the right to access, correct, export, or delete your personal data, and to object to or restrict processing.
 
-### 8. Contact Us
+You can permanently delete your account, inventories, shopping lists, and preferences at any time from Settings or directly at `/account/delete` (also reachable at `/delete-account`).
 
-If you have any questions about this Privacy Policy, please contact us at todo@gmail.com.
+### 7. Age Requirements
+
+You must be at least 18 years old to create an account independently, or aged 13–17 with parent or legal guardian consent. LettMat is not intended for children under 13, and we do not knowingly collect personal data from children under 13.
+
+### 8. Changes to This Privacy Policy
+
+We may update this Privacy Policy as LettMat evolves. The latest version is always available in the App and at `/legal/privacy`.
+
+### 9. Contact
+
+For privacy questions or GDPR data requests, contact us at dev.joachim.tislov@gmail.com.

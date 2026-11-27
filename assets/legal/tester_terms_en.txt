@@ -1,7 +1,10 @@
-Draft for human review · FoodSavr tester terms
+LettMat (formerly FoodSavr) · Test Environment Terms of Service
 
-This environment is for testing. You may use real data, but there is no guarantee it will be kept. Test data may be reset at any time. Keep your own copy of anything you need to keep.
+Last updated: November 27, 2026
 
-You must be 18 or older to create an account. Use /delete-account to delete your account.
+This environment is provided for testing LettMat (formerly FoodSavr). You may use real household data, but there is no guarantee it will be kept. Test data may be reset at any time, so keep your own copy of anything you need to retain.
 
-FoodSavr is operated by its owner as a private person in Norway. Norwegian law applies. The dedicated contact mailbox is pending. Draft placeholder: legal-contact@placeholder.invalid.
+You must be at least 18 years old to create an account independently, or aged 13–17 with parent or legal guardian consent. You can delete your account and associated data at any time at /account/delete (also reachable at /delete-account).
+
+LettMat is operated by its owner as a private person in Norway. Norwegian law applies.
+Contact: dev.joachim.tislov@gmail.com

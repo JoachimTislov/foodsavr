@@ -1,9 +1,12 @@
-Draft for human review · FoodSavr test environment
+LettMat (formerly FoodSavr) · Test Environment Privacy Notice
 
-This privacy notice covers the FoodSavr test environment. It may contain real personal data. Norwegian law and the GDPR apply.
+Last updated: November 27, 2026
 
-Firebase handles sign-in and stores information such as your email address, inventory entries, collections and preferences. FoodSavr uses this data to run the app and test its features. Barcode lookups are sent to Open Food Facts. If you connect a supported grocery store in the mobile app, FoodSavr stores the connection tokens on your device.
+This privacy notice covers the LettMat (formerly FoodSavr) test environment. It may contain real personal data. Norwegian law and the EU/EEA General Data Protection Regulation (GDPR) apply.
 
-Test data may be reset. Use /delete-account to delete your account. Contact the operator with questions or requests about your personal data.
+Firebase handles sign-in and stores information such as your email address, inventory entries, shopping lists, collections, and preferences. LettMat uses this data to operate the app and test its features. Barcode lookups are sent to Open Food Facts, and receipt photos are processed on-device and deleted right after scanning. If you connect a supported grocery store in the mobile app, LettMat stores the connection tokens locally on your device.
 
-Operator: the owner of FoodSavr, acting as a private person in Norway. The dedicated contact mailbox is pending. Draft placeholder: legal-contact@placeholder.invalid.
+Test data may be reset at any time. You can permanently delete your account and associated data at /account/delete (also reachable at /delete-account).
+
+Operator: the owner of LettMat, acting as a private person in Norway.
+Contact: dev.joachim.tislov@gmail.com

@@ -1,7 +1,10 @@
-Utkast til manuell gjennomgang · FoodSavrs testvilkår
+LettMat (tidligere FoodSavr) · Vilkår for bruk i testmiljø
 
-Dette miljøet er for testing. Du kan bruke ekte data, men det er ingen garanti for at de blir beholdt. Testdata kan bli slettet når som helst. Ta vare på en egen kopi av opplysninger du vil beholde.
+Sist oppdatert: 27. november 2026
 
-Du må ha fylt 18 år for å opprette en konto. Bruk /delete-account for å slette kontoen din.
+Dette miljøet er til testing av LettMat (tidligere FoodSavr). Du kan bruke ekte husholdningsdata, men det er ingen garanti for at de blir beholdt. Testdata kan bli slettet når som helst, så ta vare på en egen kopi av opplysninger du vil beholde.
 
-FoodSavr drives av eieren som privatperson i Norge. Norsk lov gjelder. En egen kontaktadresse kommer. Plassholder i utkastet: legal-contact@placeholder.invalid.
+Du må være minst 18 år for å opprette en konto selvstendig, eller 13–17 år med samtykke fra forelder eller foresatt. Du kan slette kontoen din og tilhørende data når som helst på /account/delete (også tilgjengelig på /delete-account).
+
+LettMat drives av eieren som privatperson i Norge. Norsk lov gjelder.
+Kontakt: dev.joachim.tislov@gmail.com

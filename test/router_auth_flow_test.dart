@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/controllers/dashboard_controller.dart';
 import 'package:foodsavr/controllers/preferences_controller.dart';
@@ -275,6 +276,7 @@ void main() {
       router.dispose();
       await authService.dispose();
       await getIt.reset();
+      rootBundle.clear();
     });
 
     testWidgets('public routes and deletion sign-in bypass the web code', (
@@ -380,6 +382,67 @@ void main() {
       expect(find.byType(DashboardView), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
     });
+
+    testWidgets(
+      'canonical paths, legacy aliases, and # hash URLs open legal and delete-account modals',
+      (tester) async {
+        tester.view.physicalSize = const Size(1200, 1800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        router.dispose();
+        router = createAppRouter(
+          authService,
+          userController,
+          initialUri: Uri.parse('https://lettmat.app/#/legal/terms'),
+        );
+
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            child: _TestApp(router: router),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(router.routeInformationProvider.value.uri.path, '/legal/terms');
+        expect(find.byType(LegalDocumentView), findsOneWidget);
+
+        for (final (input, expectedPath, isLegal) in const [
+          ('/legal/privacy', '/legal/privacy', true),
+          ('/privacy', '/legal/privacy', true),
+          ('/#/legal/privacy', '/legal/privacy', true),
+          ('/#/privacy', '/legal/privacy', true),
+          ('/legal/terms', '/legal/terms', true),
+          ('/terms', '/legal/terms', true),
+          ('/#/terms', '/legal/terms', true),
+          ('/account/delete', '/account/delete', false),
+          ('/delete-account', '/account/delete', false),
+          ('/#/account/delete', '/account/delete', false),
+          ('/#/delete-account', '/account/delete', false),
+        ]) {
+          router.go(input);
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 500));
+          expect(
+            router.routeInformationProvider.value.uri.path,
+            expectedPath,
+            reason: 'input $input should resolve to $expectedPath',
+          );
+          if (isLegal) {
+            expect(find.byType(LegalDocumentView), findsOneWidget);
+          } else {
+            expect(find.byType(DeleteAccountView), findsOneWidget);
+          }
+          expect(find.byType(Dialog), findsOneWidget);
+        }
+
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
   });
 
   tearDownAll(() {
