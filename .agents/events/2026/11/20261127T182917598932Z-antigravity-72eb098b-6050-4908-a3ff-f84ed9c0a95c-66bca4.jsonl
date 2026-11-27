@@ -1,0 +1,1 @@
+{"commits": ["bd7f4e7fbf20c1461c6dba2b6b2ebb8b6cf20709"], "harness": "antigravity", "issues": [], "provider": "unknown", "prs": ["#530"], "session_id": "antigravity:72eb098b-6050-4908-a3ff-f84ed9c0a95c", "sources": [], "started_at": "2026-11-27T18:28:43+00:00", "status": "active", "stream": "sessions", "summary": "Rebase PR #530 onto develop and resolve all 7 review threads"}
