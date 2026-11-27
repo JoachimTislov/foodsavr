@@ -73,5 +73,15 @@ void main() {
       }),
       isNull,
     );
+    expect(
+      jsonDecode(
+        instanceOverlay(dir.path, {
+          'HOME': dir.path,
+          'FOODSAVR_INSTANCE_LOCAL': '~/instance.local.json',
+        })!,
+      ),
+      _overlay,
+      reason: '~ expands as in scripts/instance_local.py',
+    );
   });
 }

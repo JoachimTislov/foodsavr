@@ -2694,6 +2694,8 @@ class ArchiveTest(unittest.TestCase):
                         AGENT_ARCHIVE_CONFIG=str(self.config_file), FOODSAVR_INSTANCE_LOCAL=str(self.dir / "instance.local.json"), AGENT_SESSION_CACHE=str(self.dir / "cache"),
                         AGENT_KNOWLEDGE_DB=str(self.dir / "k.sqlite3"), CLAUDE_CODE_SESSION_ID=self.native)
         env.pop("CLAUDE_CONFIG_DIR", None)
+        for variable in self.sa.ARCHIVE_ENV.values():  # a developer's exported archive identity must not leak in
+            env.pop(variable, None)
         env.update(extra)
         return env
 
@@ -2927,10 +2929,12 @@ class ArchiveTest(unittest.TestCase):
         self.assertFalse(any(call.startswith(("billing projects link", "storage buckets create", "projects create")) for call in self.calls()))
 
     def test_archive_all_backfills_sessions_without_transcripts(self) -> None:
-        self.index.write_text(json.dumps({"session_id": self.session, "started_at": "2026-11-22T00:00:00+00:00"}) + "\n")
+        aliased = self.session.replace("claude-code:", "claude:", 1)
+        self.index.write_text("".join(json.dumps({"session_id": sid, "started_at": "2026-11-22T00:00:00+00:00"}) + "\n"
+                                      for sid in (aliased, "gemini-cli:unsupported")))
         result = self.cli("sessions", "archive", "--all", "--json")
         summary = json.loads(result.stdout)
-        self.assertEqual(summary["pending"], 1)
+        self.assertEqual(summary["pending"], 1, "the claude alias is archivable; unsupported harnesses stay excluded")
         self.assertEqual(sum(v for k, v in summary.items() if k in ("archived", "skipped")), 1)
 
     def test_doctor_archive_report_and_index_transcript_rule(self) -> None:

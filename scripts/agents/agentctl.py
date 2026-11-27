@@ -826,15 +826,20 @@ def session_archive_command(args: argparse.Namespace, index: Path, root: Path) -
 
 def backfill_archive(args: argparse.Namespace, index: Path, config: Mapping[str, Any]) -> int:
     """Archive every archivable session that has no transcript yet; one failure does not stop the rest."""
-    pending = [r for r in records(index) if str(r.get("session_id", "")).split(":", 1)[0] in sa.ARCHIVABLE and not r.get("transcript")]
+    def harness(session_id: str) -> str:
+        prefix = session_id.split(":", 1)[0]
+        return tr.HARNESS_ALIASES.get(prefix, prefix)
+
+    pending = [r for r in records(index) if harness(str(r.get("session_id", ""))) in sa.ARCHIVABLE and not r.get("transcript")]
     redactor, gcloud = make_redactor(), sa.Gcloud(config.get("project"))
     counts: Counter[str] = Counter()
     results = []
     for record in pending:
         session_id = record["session_id"]
+        redactor.counts.clear()  # the counts are part of each bundle's hashed manifest
         try:
             result = sa.archive(session_id, config, redactor, gcloud=gcloud, dry_run=args.dry_run)
-        except sa.ArchiveError as error:
+        except (sa.ArchiveError, OSError) as error:
             result = {"status": "failed", "session_id": session_id, "reason": str(error)}
         if result["status"] == "archived":
             identity = tr.Identity(session_id, sa.split_session_id(session_id)[0], record.get("provider", "unknown"), [], "archive")

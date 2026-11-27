@@ -44,7 +44,10 @@ if [ -z "$project" ]; then
   echo "No Firebase project: set FIREBASE_PROJECT or run make setup (records the test project locally)." >&2
   exit 2
 fi
-site_url="$(python3 scripts/instance_local.py site-url)"
+# The live Hosting site of the selected project: an explicit FIREBASE_PROJECT
+# uses its default site; otherwise the site setup recorded for the test project.
+site_url="https://$project.web.app"
+[ -n "${FIREBASE_PROJECT:-}" ] || site_url="$(python3 scripts/instance_local.py site-url)"
 site_url="${site_url:-https://$project.web.app}"
 idt="https://identitytoolkit.googleapis.com/admin/v2/projects/$project"
 todo=()
@@ -252,7 +255,7 @@ done
 if [[ "${FACEBOOK_APP_ID:-}" =~ ^[0-9]+$ ]]; then
   dashboard="https://developers.facebook.com/apps/$FACEBOOK_APP_ID"
   if [ -n "${FACEBOOK_APP_SECRET:-}" ]; then
-    meta_args=("$project")
+    meta_args=("$project" --site "${site_url#https://}")
     [ "$check_only" = 0 ] || meta_args+=(--check)
     if ! FACEBOOK_APP_ID="$FACEBOOK_APP_ID" FACEBOOK_APP_SECRET="$FACEBOOK_APP_SECRET" \
       python3 scripts/setup/meta_app_settings.py "${meta_args[@]}"; then

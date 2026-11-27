@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -59,15 +60,21 @@ def section(root: Path, name: str, environ: Mapping[str, str], env_keys: Mapping
 
 
 def deploy_overlay(root: Path, environ: Mapping[str, str] | None = None) -> dict[str, Any]:
-    """Instance overlay of deploy/instance.yaml: DEPLOY_INSTANCE (JSON; CI) or local `deployInstance`."""
+    """Instance overlay of deploy/instance.yaml: DEPLOY_INSTANCE (CI) or local `deployInstance`.
+
+    DEPLOY_INSTANCE must be a JSON object (setup publishes it with json.dumps);
+    anything else raises ValueError instead of silently resolving to no overlay.
+    """
     environ = os.environ if environ is None else environ
     direct = (environ.get("DEPLOY_INSTANCE") or "").strip()
     if direct:
         try:
             data = json.loads(direct)
         except ValueError:
-            return {}
-        return data if isinstance(data, dict) else {}
+            data = None
+        if not isinstance(data, dict):
+            raise ValueError("DEPLOY_INSTANCE must be a JSON object (make setup publishes it)")
+        return data
     found = load(root).get("deployInstance")
     return found if isinstance(found, dict) else {}
 
@@ -85,12 +92,21 @@ def firebase_project(root: Path, environment: str = "test", environ: Mapping[str
 
 def site_url(root: Path, environment: str = "test", channel: str | None = None,
              environ: Mapping[str, str] | None = None) -> str:
-    """https URL of the environment's Hosting site (channel site when given); '' when unset."""
+    """https URL of the environment's Hosting site; '' when unset.
+
+    With `channel`, that channel's site. Without, a site that receives live
+    channel deploys (and so serves the web build, legal pages included): the
+    default site when a channel deploys there, else the first channel site in
+    name order, else the recorded siteId or the default site.
+    """
     env = (deploy_overlay(root, environ).get("environments") or {}).get(environment)
     env = env if isinstance(env, dict) else {}
     channels = env.get("channels") if isinstance(env.get("channels"), dict) else {}
     firebase = env.get("firebase") if isinstance(env.get("firebase"), dict) else {}
-    site = (channels.get(channel) if channel else None) or firebase.get("siteId") or firebase_project(root, environment, environ)
+    project = firebase_project(root, environment, environ)
+    sites = [channels[name] for name in sorted(channels) if channels[name]]
+    live = project if project in sites else next(iter(sites), None)
+    site = (channels.get(channel) if channel else live) or firebase.get("siteId") or project
     return f"https://{site}.web.app" if site else ""
 
 
@@ -134,6 +150,14 @@ def _main(argv: list[str] | None = None) -> int:
     parser.add_argument("--channel", help="release channel for site-url")
     args = parser.parse_args(argv)
     root = Path(__file__).resolve().parents[1]
+    try:
+        return _print(root, args)
+    except ValueError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+
+def _print(root: Path, args: Any) -> int:
     if args.what == "path":
         print(path(root))
     elif args.what == "ci-variables":

@@ -29,9 +29,10 @@ def graph_request(endpoint, token, settings=None):
     return payload
 
 
-def changed_settings(current, project):
-    # The legal pages are served from the project's own Hosting site.
-    website_domain = f"{project}.web.app"
+def changed_settings(current, project, site=None):
+    # The legal pages are routes of the web build, so they live on the site that
+    # receives live deploys (social_auth.sh passes it); default: the project's site.
+    website_domain = site or f"{project}.web.app"
     desired = {
         "website_url": f"https://{website_domain}/",
         "privacy_policy_url": f"https://{website_domain}/privacy",
@@ -46,14 +47,14 @@ def changed_settings(current, project):
     return updates
 
 
-def sync(project, app_id, token, check, request=graph_request):
+def sync(project, app_id, token, check, request=graph_request, site=None):
     endpoint = f"{GRAPH_API}/{app_id}"
 
     def read():
         current = request(endpoint, token)
         if current.get("id") != app_id:
             raise ValueError("Graph returned a different app ID")
-        return changed_settings(current, project)
+        return changed_settings(current, project, site)
 
     updates = read()
     if not updates:
@@ -72,14 +73,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("project")
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--site", help="Hosting site host serving the legal pages (default: <project>.web.app)")
     args = parser.parse_args()
+    if args.site and not re.fullmatch(r"[a-z0-9-]+(\.[a-z0-9-]+)+", args.site):
+        print("--site must be a host name such as example.web.app.", file=sys.stderr)
+        return 1
     app_id = os.environ.get("FACEBOOK_APP_ID", "")
     secret = os.environ.get("FACEBOOK_APP_SECRET", "")
     if not re.fullmatch(r"[0-9]+", app_id) or not secret:
         print("Meta app ID or app secret is missing or invalid.", file=sys.stderr)
         return 1
     try:
-        return sync(args.project, app_id, f"{app_id}|{secret}", args.check)
+        return sync(args.project, app_id, f"{app_id}|{secret}", args.check, site=args.site)
     except (OSError, ValueError):
         # Graph responses and HTTP exceptions may contain credentials or request details.
         print("Meta Graph API could not verify app settings. Check app credentials and access.", file=sys.stderr)
