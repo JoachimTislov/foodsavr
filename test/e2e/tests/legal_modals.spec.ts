@@ -103,10 +103,10 @@ test.describe('URL-backed legal and delete-account modals', () => {
     await waitForDashboard(page);
 
     await page.getByRole('tab', { name: 'Settings' }).click();
-    await expect(page.getByText('ACCOUNT')).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText('ABOUT')).toBeVisible();
+    await expect(page.getByText('ACCOUNT', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('ABOUT', { exact: true })).toBeVisible();
 
-    await page.getByText('Terms of Service').dispatchEvent('click');
+    await page.getByText('Terms of Service', { exact: true }).dispatchEvent('click');
     await expect(page).toHaveURL(/\/legal\/terms$/);
     const termsDialog = page.getByRole('dialog');
     await expect(termsDialog).toBeVisible();
