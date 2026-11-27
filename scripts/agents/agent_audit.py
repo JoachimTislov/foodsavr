@@ -32,7 +32,8 @@ FAILURES = {"failure", "timed_out", "startup_failure", "action_required"}
 # Validation-suite jobs of pull-request.yml (#496): a run that executed none of the
 # substantive ones (weekly agent check, `operation=checks` dispatch, reuse-only run)
 # never validated, so its duration must not dilute ci.validation.median-hours.
-VALIDATION_SUBSTANTIVE_JOBS = frozenset({"Web smoke test", "Android smoke test", "Firestore security rules"})
+VALIDATION_SUBSTANTIVE_JOBS = frozenset(
+    {"Web smoke test", "Web full E2E", "Android smoke test", "Firestore security rules"})
 VALIDATION_SUITE_JOBS = VALIDATION_SUBSTANTIVE_JOBS | {"Detect changed areas", "Validation status (result)"}
 
 
@@ -414,8 +415,10 @@ def validation_hours(jobs) -> float | None:
     None when no substantive Validation job ran (weekly agent check, `operation=checks`
     dispatch, or a reuse-only run), so checks-only runs stay out of the median (#531).
     """
+    # Reusable-workflow jobs are named `<caller> / <job>`.
+    jobs = [job | {"name": str(job.get("name") or "").rsplit(" / ", 1)[-1]} for job in jobs]
     executed = [job for job in jobs
-                if job.get("name") in VALIDATION_SUITE_JOBS
+                if job["name"] in VALIDATION_SUITE_JOBS
                 and job.get("conclusion") not in (None, "skipped")
                 and job.get("started_at") and job.get("completed_at")]
     if not any(job["name"] in VALIDATION_SUBSTANTIVE_JOBS for job in executed):

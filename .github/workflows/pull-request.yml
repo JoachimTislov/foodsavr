@@ -13,8 +13,14 @@ name: Pull Request
 #   build and the deployment-levels CLI, each only for the paths it covers. The
 #   decisions come from scripts/ci/local_ci.py --ci-filters, the same paths
 #   `make check` uses locally.
-# Stage 3: Validation (Web smoke + E2E, Firestore rules), started by `merge/auto` on
-#   PRs and always on pushes. Android smoke + integration run only on manual dispatch
+# Stage 3: Validation (Playwright, Firestore rules), started on PRs by `merge/auto`,
+#   or automatically on every non-draft PR when the repository variable
+#   SELF_MANAGED_MERGE is `true`, and always on pushes. Develop PRs and merge-train refs run the relational Dart
+#   tests and Playwright smoke. `daily` pushes and dispatch run the full Dart suite
+#   with coverage and the full Playwright suite (desktop and mobile); `weekly` and
+#   `stable` reuse that evidence for the same SHA, else run it themselves. The suites
+#   live in _reusable-dart-checks.yml and _reusable-web-playwright.yml. Android smoke
+#   + integration run only on manual dispatch
 #   (`make validate`); `Validation result` succeeds without them. `Validation result`
 #   is a commit status, not a check run: GitHub counts a skipped required check run
 #   as passing, but a status that is never posted stays pending
@@ -27,7 +33,7 @@ name: Pull Request
 on:
   pull_request:
     branches: [develop]
-    types: [opened, synchronize, reopened, edited, labeled]
+    types: [opened, synchronize, reopened, ready_for_review, edited, labeled]
   push:
     branches: [daily, weekly, stable, 'merge-train/**']
   schedule:
@@ -49,7 +55,7 @@ concurrency:
   # A new head cancels the running one. Label and edit events wait for it instead and
   # then reuse its results, so they never cancel a running validation. Dependabot
   # rebases keep the running check: the next run reuses it when nothing in scope changed.
-  cancel-in-progress: ${{ (github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' && github.event.action != 'edited' && github.event.action != 'labeled') || startsWith(github.ref, 'refs/heads/merge-train/') }}
+  cancel-in-progress: ${{ (github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' && github.event.action != 'edited' && github.event.action != 'labeled' && github.event.action != 'ready_for_review') || startsWith(github.ref, 'refs/heads/merge-train/') }}
 
 jobs:
   gate:
@@ -70,11 +76,13 @@ jobs:
       validate: ${{ steps.decide.outputs.validate }}
       web: ${{ steps.decide.outputs.web }}
       rules: ${{ steps.decide.outputs.rules }}
+      full: ${{ steps.decide.outputs.full }}
     env:
       EVENT_NAME: ${{ github.event_name }}
       PR_ACTION: ${{ github.event.action }}
       CONTENT_EVENT: ${{ github.event_name == 'pull_request' && contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) }}
-      HAS_AUTO: ${{ contains(github.event.pull_request.labels.*.name, 'merge/auto') }}
+      # PRs that validate without another opt-in; the others hold `Validation result`.
+      AUTO_VALIDATE: ${{ contains(github.event.pull_request.labels.*.name, 'merge/auto') || (vars.SELF_MANAGED_MERGE == 'true' && !github.event.pull_request.draft) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -83,7 +91,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Post pending Validation result (hold)
-        if: env.CONTENT_EVENT == 'true' && env.HAS_AUTO != 'true'
+        if: env.CONTENT_EVENT == 'true' && env.AUTO_VALIDATE != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -154,7 +162,7 @@ jobs:
           WEB: ${{ steps.paths.outputs.web }}
           RULES: ${{ steps.paths.outputs.rules }}
         run: |
-          run=false run_release=false agents=false docs=false deploy=false validate=false
+          run=false run_release=false agents=false docs=false deploy=false validate=false full=false
           web="${WEB:-false}" rules="${RULES:-false}"
           train=false
           [[ "$REF" == refs/heads/merge-train/* ]] && train=true
@@ -168,7 +176,18 @@ jobs:
               --require-job '^Check & Test$' --substantive-job '^Check & Test$' \
               --pr-reuse-jobs '^(Decide whether to run CI|Check & Test)$' \
               pull-request.yml ':(glob)**/*.dart' lib packages test assets \
-              pubspec.yaml pubspec.lock analysis_options.yaml integration_test test_driver
+              pubspec.yaml pubspec.lock analysis_options.yaml integration_test test_driver \
+              .github/workflows/_reusable-dart-checks.yml
+            if grep -q '^skip=true$' "$tmp"; then echo false; else echo true; fi
+          }
+
+          # weekly and stable reuse only a full suite that passed on a push of this SHA.
+          full_check_and_test() {
+            local tmp
+            tmp="$(mktemp)"
+            GITHUB_OUTPUT="$tmp" scripts/ci/already_tested.sh --push-only-reuse \
+              --require-job '(^| / )Full Dart suite$' --substantive-job '(^| / )Full Dart suite$' \
+              pull-request.yml
             if grep -q '^skip=true$' "$tmp"; then echo false; else echo true; fi
           }
 
@@ -186,9 +205,9 @@ jobs:
               if [ "$CONTENT_EVENT" = true ]; then
                 [ "$DART" = true ] && run="$(check_and_test)"
                 run_release="$RELEASE" agents="$AGENTS" docs="$DOCS" deploy="$INFRA"
-                validate="$HAS_AUTO"
+                validate="$AUTO_VALIDATE"
               else
-                # Label and edit events: a pending run they replaced may never have run.
+                # Label, edit and ready events: a pending run they replaced may never have run.
                 needed "$DART" "Check & Test" && run=true
                 needed "$RELEASE" "Check release scripts" && run_release=true
                 needed "$AGENTS" "Agent system validation" && agents=true
@@ -196,7 +215,7 @@ jobs:
                 needed "$INFRA" "Validate manifests and test levels CLI" && deploy=true
                 if [ "$PR_ACTION" = labeled ] && [ "$LABEL" = merge/auto ]; then
                   validate=true
-                elif [ "$HAS_AUTO" = true ]; then
+                elif [ "$AUTO_VALIDATE" = true ]; then
                   # Start Validation only if no validating run reported on this head.
                   status="$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/statuses" \
                     --jq '[.[] | select(.context == "Validation result")][0].description // ""')"
@@ -205,8 +224,20 @@ jobs:
               fi
               ;;
             push)
-              [ "$DART" = true ] && run="$(check_and_test)"
               validate=true
+              case "$REF" in
+                refs/heads/daily)
+                  # Nightly: always the full suites, whatever the push touched.
+                  full=true run=true web=true
+                  ;;
+                refs/heads/weekly|refs/heads/stable)
+                  full=true
+                  [ "$DART" = true ] && run="$(full_check_and_test)"
+                  ;;
+                *)
+                  [ "$DART" = true ] && run="$(check_and_test)"
+                  ;;
+              esac
               if [ "$train" != true ]; then
                 run_release=true
                 # Agent validation is a develop-PR and weekly-schedule check, not a
@@ -222,6 +253,7 @@ jobs:
               agents=true
               ;;
             workflow_dispatch)
+              full=true
               if [ "$OPERATION" != validation ]; then
                 run=true run_release=true agents=true docs=true deploy=true
               fi
@@ -239,6 +271,7 @@ jobs:
             echo "validate=$validate"
             echo "web=$web"
             echo "rules=$rules"
+            echo "full=$full"
           } | tee -a "$GITHUB_OUTPUT"
 
   # --- Stage 2: path-gated suites --------------------------------------------
@@ -257,92 +290,32 @@ jobs:
       - name: Run release script tests
         run: python3 scripts/ci/local_ci.py --group release
 
-  check:
-    name: Check & Test
+  dart-checks:
+    name: Dart checks
     needs: gate
     if: needs.gate.outputs.run == 'true'
+    uses: ./.github/workflows/_reusable-dart-checks.yml
+    with:
+      force_all: ${{ needs.gate.outputs.full == 'true' }}
+      upload_coverage: ${{ needs.gate.outputs.full == 'true' }}
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  # Required check: the verdict of `Dart checks`. `always()` so a cancelled or failed
+  # suite fails it; a skipped required check run would count as passing.
+  check:
+    name: Check & Test
+    needs: [gate, dart-checks]
+    if: ${{ always() && needs.gate.outputs.run == 'true' }}
     runs-on: ubuntu-latest
-
+    timeout-minutes: 5
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Set up Flutter app
-        uses: ./.github/actions/setup-flutter-app
-        with:
-          flutter-version: 3.47.6
-          run-pub-get: "false"
-          run-build-runner: "false"
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Restore committed analysis options
-        run: git checkout -- analysis_options.yaml
-
-      - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed .
-
-      - name: Cache build_runner state
-        uses: actions/cache@v4
-        with:
-          path: .dart_tool/build
-          key: build-runner-${{ runner.os }}-3.47.6-${{ hashFiles('pubspec.lock', 'lib/**/*.dart', 'packages/**/*.dart') }}
-          restore-keys: |
-            build-runner-${{ runner.os }}-3.47.6-${{ hashFiles('pubspec.lock') }}-
-            build-runner-${{ runner.os }}-3.47.6-
-
-      - name: Build generative code
-        run: dart run build_runner build --delete-conflicting-outputs
-
-      - name: Analyze code
-        run: flutter analyze --fatal-infos --fatal-warnings --no-pub
-
-      - name: Localization check
-        run: dart run scripts/locale/check_localizations.dart
-
-      - name: "Shape-sync check (ADR 0004)"
-        run: dart run scripts/ci/check_shape_sync.dart
-
-      - name: "Select tests (ADR 0002 relational selection + core pin)"
-        id: select
+      - name: Require green Dart checks
+        env:
+          RESULT: ${{ needs.dart-checks.result }}
         run: |
-          set -o pipefail
-          dart run scripts/ci/select_tests.dart | tee selection.txt
-          echo "files=$(grep '^files=' selection.txt | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
-          echo "reason=$(grep '^reason=' selection.txt | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
-
-      - name: Restore test hash cache
-        uses: actions/cache@v4
-        with:
-          path: .test-hashes/
-          key: test-hashes-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}-${{ github.sha }}
-          restore-keys: |
-            test-hashes-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}-
-
-      - name: "Run tests (selected slice incl. foodsavr_core package tests, cached-green skip, core workflows pinned)"
-        run: dart run scripts/ci/run_tests.dart
-        env:
-          SELECTED_FILES: ${{ steps.select.outputs.files }}
-          FORCE_ALL: ${{ github.event_name == 'workflow_dispatch' }}
-
-      - name: Upload coverage to Codecov
-        if: hashFiles('coverage/lcov.info') != '' && env.CODECOV_TOKEN != ''
-        uses: codecov/codecov-action@v5
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        with:
-          token: ${{ env.CODECOV_TOKEN }}
-          files: coverage/lcov.info
-          fail_ci_if_error: true
-
-      - name: Report skipped Codecov upload
-        if: hashFiles('coverage/lcov.info') != '' && env.CODECOV_TOKEN == ''
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        run: echo '::warning::CODECOV_TOKEN is missing; coverage upload was skipped.'
+          echo "Dart checks: $RESULT"
+          test "$RESULT" = success
 
   agents:
     name: Agent system validation
@@ -440,7 +413,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       web: ${{ steps.decide.outputs.web }}
-      web_e2e: ${{ steps.decide.outputs.web_e2e }}
       rules: ${{ steps.decide.outputs.rules }}
     steps:
       - name: Checkout code
@@ -465,11 +437,12 @@ jobs:
         run: |
           scripts/ci/already_tested.sh --push-only-reuse \
             --require-job 'Validation status \(result\)' \
-            --substantive-job '^(Web smoke test|Android smoke test|Firestore security rules)$' \
-            --target 'web:lib,packages,web,assets,pubspec.yaml,pubspec.lock,test/e2e' \
-            --target 'rules:firestore-rules,firestore.rules' \
+            --substantive-job '(^| / )(Web smoke test|Web full E2E|Android smoke test|Firestore security rules)$' \
+            --target 'web:lib,packages,web,assets,pubspec.yaml,pubspec.lock,test/e2e,.github/workflows/_reusable-web-playwright.yml' \
+            --target 'rules:firestore-rules,firestore.rules,.github/workflows/_reusable-web-playwright.yml' \
             pull-request.yml lib packages web assets test/e2e \
-            firestore-rules firestore.rules pubspec.yaml pubspec.lock
+            firestore-rules firestore.rules pubspec.yaml pubspec.lock \
+            .github/workflows/_reusable-web-playwright.yml
       - name: Classify Dependabot pubspec bump
         id: dep
         if: >
@@ -489,94 +462,44 @@ jobs:
           SKIP_WEB: ${{ steps.tested.outputs.skip_web }}
           SKIP_RULES: ${{ steps.tested.outputs.skip_rules }}
           EVENT_NAME: ${{ github.event_name }}
+          NIGHTLY: ${{ github.event_name == 'push' && github.ref == 'refs/heads/daily' }}
           FILTER_WEB: ${{ needs.gate.outputs.web }}
           FILTER_RULES: ${{ needs.gate.outputs.rules }}
           DEP_WEB: ${{ steps.dep.outputs.run_web }}
         run: |
           web=false
-          web_e2e=false
           rules=false
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             web=true
-            web_e2e=true
             rules=true
-          elif [ "$SKIP" != "true" ]; then
-            # PRs and pushes get the same smoke and E2E coverage; on PRs dep_impact.py
-            # may narrow it to the platforms the change can affect, and already_tested.sh
-            # reuses green per-target runs when a synchronize left that target untouched.
-            if [ "$SKIP_WEB" != "true" ] && [ "$FILTER_WEB" = "true" ] && [ "$DEP_WEB" != "false" ]; then
-              web=true
-              web_e2e=true
+          else
+            if [ "$SKIP" != "true" ]; then
+              # On PRs dep_impact.py may narrow web to the platforms a dependency bump
+              # can affect, and already_tested.sh reuses green per-target runs when a
+              # synchronize left that target untouched.
+              if [ "$SKIP_WEB" != "true" ] && [ "$FILTER_WEB" = "true" ] && [ "$DEP_WEB" != "false" ]; then
+                web=true
+              fi
+              [ "$SKIP_RULES" != "true" ] && [ "$FILTER_RULES" = "true" ] && rules=true
             fi
-            [ "$SKIP_RULES" != "true" ] && [ "$FILTER_RULES" = "true" ] && rules=true
+            # The nightly run always produces the full web evidence for this SHA.
+            [ "$NIGHTLY" = true ] && web=true
           fi
           {
             echo "web=$web"
-            echo "web_e2e=$web_e2e"
             echo "rules=$rules"
           } >> "$GITHUB_OUTPUT"
 
-  web-smoke:
-    name: Web smoke test
-    needs: changes
-    if: ${{ needs.changes.outputs.web == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-      - name: Set up Flutter app
-        uses: ./.github/actions/setup-flutter-app
-        with:
-          flutter-version: "3.47.6"
-          dotenv-content: "CI_TEST=1"
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Generate web platform files
-        run: flutter create . --platforms web
-      - name: Start Firebase Emulators (background)
-        uses: ./.github/actions/start-firebase-emulators
-        with:
-          mode: start
-      - name: Build web
-        run: flutter build web --release
-      - name: Serve web build
-        run: |
-          npx -y serve build/web -l 4173 --no-clipboard &
-          for i in $(seq 1 30); do
-            curl -s http://localhost:4173 > /dev/null && break
-            sleep 1
-          done
-      - name: Install Playwright dependencies
-        working-directory: test/e2e
-        run: |
-          npm ci
-          npx playwright install --with-deps chromium
-      - name: Wait for Firebase Emulators
-        uses: ./.github/actions/start-firebase-emulators
-        with:
-          mode: wait
-      - name: Run Playwright smoke tests
-        working-directory: test/e2e
-        run: npx playwright test --project=smoke
-      - name: Run Playwright E2E tests
-        if: ${{ needs.changes.outputs.web_e2e == 'true' }}
-        working-directory: test/e2e
-        run: npx playwright test --project=chromium
-      - name: Upload Playwright artifacts
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: web-e2e-artifacts
-          path: test/e2e/playwright-report/
-          retention-days: 7
+  web-validation:
+    name: Web validation
+    needs: [gate, changes]
+    if: needs.changes.outputs.web == 'true' || needs.changes.outputs.rules == 'true'
+    uses: ./.github/workflows/_reusable-web-playwright.yml
+    with:
+      suite: ${{ needs.gate.outputs.full == 'true' && 'full' || 'smoke' }}
+      run_web: ${{ needs.changes.outputs.web == 'true' }}
+      # Fork PRs skip the rules tests.
+      run_rules: ${{ needs.changes.outputs.rules == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
 
   android-smoke:
     name: Android smoke test
@@ -647,56 +570,9 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  firestore-rules:
-    name: Firestore security rules
-    needs: changes
-    if: ${{ needs.changes.outputs.rules == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Install dependencies
-        working-directory: firestore-rules
-        run: npm ci
-      - name: Start Firestore emulator
-        run: |
-          cat > firebase.json <<'EOT'
-          {
-            "firestore": {
-              "rules": "firestore.rules"
-            },
-            "emulators": {
-              "firestore": { "port": 8080 }
-            }
-          }
-          EOT
-          npx -y firebase-tools@15 emulators:start --project demo-project &
-          emulator_up=false
-          for _ in $(seq 1 60); do
-            if curl -s http://localhost:8080 > /dev/null; then emulator_up=true; break; fi
-            sleep 2
-          done
-          if [ "$emulator_up" != true ]; then
-            echo "Firestore emulator did not start" >&2
-            exit 1
-          fi
-      - name: Run rules unit tests
-        working-directory: firestore-rules
-        run: npx jest --ci
-
   validation-result:
     name: Validation status (result)
-    needs: [gate, changes, web-smoke, android-smoke, firestore-rules]
+    needs: [gate, changes, web-validation, android-smoke]
     # Also after a failed preflight on a run that would have validated, so the status
     # reads failure instead of waiting forever. Label and edit runs never overwrite a
     # real result from their preflight alone.
@@ -709,7 +585,8 @@ jobs:
          (github.event_name == 'pull_request' &&
           ((github.event.action == 'labeled' && github.event.label.name == 'merge/auto') ||
            (github.event.action != 'labeled' && github.event.action != 'edited' &&
-            contains(github.event.pull_request.labels.*.name, 'merge/auto')))))))
+            (contains(github.event.pull_request.labels.*.name, 'merge/auto') ||
+             (vars.SELF_MANAGED_MERGE == 'true' && !github.event.pull_request.draft))))))))
     permissions:
       contents: read
       statuses: write

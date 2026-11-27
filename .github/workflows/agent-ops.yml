@@ -13,8 +13,9 @@ name: Agent Ops
 #   same-repository PRs at their adaptive review tier (exempt, fast, balanced, deep,
 #   human) and posts a head-bound attestation review (<!-- agent-review: ... -->)
 #   consumed by the merge gate (ADR 0006). Automatic reviews are off when the
-#   repository variable AGENT_AUTO_REVIEW_ENABLED is `false`; dispatch and trusted
-#   PR-comment requests still review. Untrusted PR code is never checked out or
+#   repository variable SELF_MANAGED_MERGE is `true` (or the legacy
+#   AGENT_AUTO_REVIEW_ENABLED is `false`); dispatch and trusted PR-comment requests
+#   still review. Untrusted PR code is never checked out or
 #   executed; the jobs check out the default branch and fetch PR metadata and diff
 #   text via the GitHub API. `review` reads untrusted PR text and holds provider
 #   credentials but only a read-only token; `review-publish` holds write permissions
@@ -93,14 +94,14 @@ concurrency:
   group: >-
     ${{ (github.event_name == 'workflow_dispatch' && inputs.operation == 'review') && format('agent-review-{0}', inputs.pr) ||
     (github.event_name == 'issue_comment') && ((github.event.issue.pull_request && contains(github.event.comment.body, '@foodsavr-agent review') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) && format('agent-review-{0}', github.event.issue.number) || format('agent-review-skip-{0}-{1}', github.event.issue.number, github.run_id)) ||
-    (github.event_name == 'pull_request_target') && ((vars.AGENT_AUTO_REVIEW_ENABLED != 'false' && !github.event.pull_request.draft && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') && format('agent-review-{0}', github.event.pull_request.number) || format('agent-review-skip-{0}-{1}', github.event.pull_request.number, github.run_id)) ||
+    (github.event_name == 'pull_request_target') && ((vars.SELF_MANAGED_MERGE != 'true' && vars.AGENT_AUTO_REVIEW_ENABLED != 'false' && !github.event.pull_request.draft && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') && format('agent-review-{0}', github.event.pull_request.number) || format('agent-review-skip-{0}-{1}', github.event.pull_request.number, github.run_id)) ||
     (github.event_name == 'issues' || (github.event_name == 'workflow_dispatch' && inputs.operation == 'implement')) && format('agent-implement-{0}{1}', github.event.issue.number || inputs.issue, (github.event_name == 'issues' && github.event.label.name != 'triage/ready-for-agent') && format('-label-{0}', github.run_id) || '') ||
     (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.operation == 'audit')) && 'agent-system-audit' ||
     'agent-incident' }}
   cancel-in-progress: >-
     ${{ (github.event_name == 'workflow_dispatch' && inputs.operation == 'review') ||
     (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@foodsavr-agent review') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
-    (github.event_name == 'pull_request_target' && vars.AGENT_AUTO_REVIEW_ENABLED != 'false' && !github.event.pull_request.draft && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') }}
+    (github.event_name == 'pull_request_target' && vars.SELF_MANAGED_MERGE != 'true' && vars.AGENT_AUTO_REVIEW_ENABLED != 'false' && !github.event.pull_request.draft && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') }}
 
 permissions:
   contents: read
@@ -467,6 +468,7 @@ jobs:
        contains(github.event.comment.body, '@foodsavr-agent review') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
       (github.event_name == 'pull_request_target' &&
+       vars.SELF_MANAGED_MERGE != 'true' &&
        vars.AGENT_AUTO_REVIEW_ENABLED != 'false' &&
        !github.event.pull_request.draft &&
        !github.event.pull_request.head.repo.fork &&

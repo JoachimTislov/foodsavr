@@ -30,7 +30,18 @@ export async function openApp(page: Page, path = '/') {
   });
   const enableA11y = page.getByRole('button', { name: 'Enable accessibility' });
   if (await enableA11y.count()) {
-    await enableA11y.dispatchEvent('click');
+    // On touch devices Flutter only accepts a click at the placeholder's centre.
+    await enableA11y.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      element.dispatchEvent(
+        new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          clientX: box.left + box.width / 2,
+          clientY: box.top + box.height / 2,
+        }),
+      );
+    });
   }
 }
 

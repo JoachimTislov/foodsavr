@@ -104,6 +104,9 @@ class AuditTests(unittest.TestCase):
             job("Validation status (result)", "success", "2026-11-24T01:35:00Z", "2026-11-24T01:36:00Z"),
         ]
         self.assertEqual(audit.validation_hours(validating), 0.6)
+        for name in ("Web validation / Web smoke test", "Web validation / Web full E2E"):
+            validating[1] = job(name, "success", "2026-11-24T01:05:00Z", "2026-11-24T01:35:00Z")
+            self.assertEqual(audit.validation_hours(validating), 0.6)
 
     def test_baseline_then_all_recommendation_statuses(self):
         metrics = {METRIC: .7, "ci.maven-429": 3, "pr.42.rebases": 1, "pr.42.force-pushes": 1}

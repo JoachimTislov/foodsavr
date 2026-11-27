@@ -389,6 +389,61 @@ class PlanTest(unittest.TestCase):
         )
 
 
+class SelfManagedMergeTest(unittest.TestCase):
+    def merges(self, candidate, self_managed=True):
+        result = gate.plan([candidate], NOW, history=[], self_managed=self_managed)
+        return [(a, p.number) for a, p in result.actions] == [("merge", candidate.number)]
+
+    def test_only_exact_opt_in_enables_self_managed_merge(self):
+        for value, expected in (("true", True), (" TRUE ", True), ("false", False), ("", False), (None, False)):
+            with self.subTest(value=value):
+                self.assertEqual(gate.is_self_managed(value), expected)
+
+    def test_missing_attestation_blocks_only_without_self_management(self):
+        self.assertFalse(self.merges(pr(1, reviews=[]), self_managed=False))
+        self.assertTrue(self.merges(pr(1, reviews=[])))
+        self.assertIsNone(gate.blocker(pr(1, reviews=[]), history=[], self_managed=True))
+        train = gate.plan_train([pr(1, reviews=[])], [], history=[], self_managed=True)
+        self.assertEqual([slot.pr.number for slot in train.slots], [1])
+
+    def test_structural_blockers_stay(self):
+        cases = {
+            "risk/security": {"labels": (gate.LABEL, gate.SECURITY_LABEL)},
+            "security-sensitive": {"files": [".github/workflows/merge-gate.yml"]},
+            "unresolved review thread": {"open_threads": 1},
+            "check failed": {"rollup": "FAILURE"},
+            "conflicts": {"state": "DIRTY"},
+            "changes requested": {"review_decision": "CHANGES_REQUESTED"},
+            "fork": {"fork": True},
+            "not trusted": {"author": "stranger", "author_association": "NONE"},
+            "one-way": {"body": "**Door:** one-way"},
+        }
+        for reason, kwargs in cases.items():
+            with self.subTest(reason):
+                candidate = pr(1, reviews=[], **kwargs)
+                self.assertFalse(self.merges(candidate))
+                report = gate.plan([candidate], NOW, history=[], self_managed=True).report[0][2]
+                self.assertIn(reason, report)
+
+    def test_explicit_human_holds_and_truncated_files_still_need_approval(self):
+        for kwargs in (
+            {"labels": (gate.LABEL, "review/human")},
+            {"labels": (gate.LABEL, "door/one-way")},
+            {"files_truncated": True},
+            {"changed_files": 101},
+        ):
+            with self.subTest(**kwargs):
+                candidate = pr(1, reviews=[], **kwargs)
+                self.assertFalse(self.merges(candidate))
+                self.assertEqual(gate.plan_train([candidate], [], history=[], self_managed=True).slots, [])
+
+    def test_running_review_is_waited_for(self):
+        candidate = pr(1, reviews=[], state="BEHIND", review_running=True, review_started_at=NOW)
+        result = gate.plan([candidate], NOW, history=[], self_managed=True)
+        self.assertEqual(result.actions, [])
+        self.assertEqual(result.report[0][1:], ("in flight", "Agent review running"))
+
+
 class SupersessionTest(unittest.TestCase):
     def run_(self, id, status="in_progress", event="workflow_run", actor="owner"):
         return {"id": id, "status": status, "event": event, "actor": {"login": actor}}

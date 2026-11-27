@@ -293,7 +293,9 @@ else:
     def test_push_only_reuse_needs_a_validation_target_job(self):
         for jobs, expected in (
             ([("Validation status (result)", "success"), ("Check & Test", "success")], "false"),
-            ([("Validation status (result)", "success"), ("Web smoke test", "success")], "true"),
+            # A smoke run on the same SHA is not evidence for a release push.
+            ([("Validation status (result)", "success"), ("Web validation / Web smoke test", "success")], "false"),
+            ([("Validation status (result)", "success"), ("Web validation / Web full E2E", "success")], "true"),
         ):
             with self.subTest(jobs=jobs), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
@@ -319,17 +321,17 @@ else:
         # its overall pass must not set skip for a target it did not test (#531).
         for jobs, expected in (
             (
-                {"Validation status (result)": "success", "Web smoke test": "success",
-                 "Firestore security rules": "skipped"},
+                {"Validation status (result)": "success", "Web validation / Web full E2E": "success",
+                 "Web validation / Firestore security rules": "skipped"},
                 {"skip": "false", "skip_web": "true", "skip_rules": "false"},
             ),
             (
-                {"Validation status (result)": "success", "Web smoke test": "success",
-                 "Firestore security rules": "success"},
+                {"Validation status (result)": "success", "Web validation / Web full E2E": "success",
+                 "Web validation / Firestore security rules": "success"},
                 {"skip": "true", "skip_web": "true", "skip_rules": "true"},
             ),
             (
-                {"Validation status (result)": "success", "Firestore security rules": "success"},
+                {"Validation status (result)": "success", "Web validation / Firestore security rules": "success"},
                 {"skip": "false", "skip_web": "false", "skip_rules": "true"},
             ),
         ):
@@ -353,6 +355,28 @@ else:
                     sha=new,
                 )
                 self.assertEqual(outputs, expected)
+
+    def test_full_dart_reuse_rejects_relational_runs(self):
+        for name, expected in (("Dart checks / Relational Dart suite", "false"),
+                               ("Dart checks / Full Dart suite", "true")):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                work, _, new = self._two_heads(root)
+                bin_dir = root / "bin"
+                bin_dir.mkdir()
+                self._install_fake_gh(
+                    bin_dir,
+                    runs_by_commit={new: [701]},
+                    jobs_by_run={701: [{"name": name, "conclusion": "success"},
+                                       {"name": "Check & Test", "conclusion": "success"}]},
+                )
+                outputs = self._run_script(
+                    work, bin_dir, "push", {"before": new, "commits": []},
+                    ["--push-only-reuse", "--require-job", "(^| / )Full Dart suite$",
+                     "--substantive-job", "(^| / )Full Dart suite$", "pull-request.yml"],
+                    sha=new,
+                )
+                self.assertEqual(outputs["skip"], expected)
 
     def test_speculative_train_tree_match_skips_pr_and_fails_closed_on_fork_or_mismatch(self):
         with tempfile.TemporaryDirectory() as tmp:

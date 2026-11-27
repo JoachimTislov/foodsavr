@@ -32,7 +32,8 @@ name: Release
 #   0007). Previews are manual only: Actions -> Release -> Run workflow on a branch
 #   (operation: hosting, target: preview) deploys a short-lived channel (default 4h)
 #   named after the branch and comments on its PR; environment `auto` picks staging,
-#   else test, whichever the manifest declares. A post-deploy web probe follows.
+#   else test, whichever the manifest declares. A post-deploy web probe follows: of the
+#   site a live deploy replaced, else of MONITOR_TARGET_URL.
 #   Build and deploy logic lives in scripts/web/deploy_web.py, shared with the manual
 #   bypass `make deploy-web ENV=<env> [CHANNEL=<channel>] [TARGET=live|preview]`,
 #   which runs the same steps with your own firebase login. When an environment is
@@ -426,6 +427,9 @@ jobs:
       group: Firebase Hosting
       cancel-in-progress: false
     environment: ${{ needs.plan.outputs.github_environment || needs.plan.outputs.flavor }}
+    outputs:
+      # Set only by a successful live deploy.
+      url: ${{ steps.live.outputs.url }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -516,6 +520,7 @@ jobs:
         run: python3 scripts/web/deploy_web.py deploy
 
       - name: Deploy live
+        id: live
         if: ${{ steps.config.outputs.ready == 'true' && env.TARGET == 'live' }}
         run: python3 scripts/web/deploy_web.py deploy
 
@@ -529,7 +534,7 @@ jobs:
       !cancelled() &&
       needs.plan.result == 'success' && needs.plan.outputs.hosting == 'true' &&
       (needs.hosting-deploy.result == 'success' || needs.hosting-deploy.result == 'skipped') &&
-      vars.MONITOR_TARGET_URL != ''
+      (needs.hosting-deploy.outputs.url != '' || vars.MONITOR_TARGET_URL != '')
     concurrency:
       group: web-monitor-refs/heads/${{ github.event.repository.default_branch }}
       cancel-in-progress: false
@@ -548,7 +553,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/web-probe
         with:
-          target-url: ${{ vars.MONITOR_TARGET_URL }}
+          target-url: ${{ needs.hosting-deploy.outputs.url || vars.MONITOR_TARGET_URL }}
           deployed-sha: ${{ github.sha }}
           firebase-plan: ${{ vars.FIREBASE_PLAN }}
           auto-heal-enabled: ${{ vars.AUTO_HEAL_ENABLED }}

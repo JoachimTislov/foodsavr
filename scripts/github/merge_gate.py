@@ -3,6 +3,9 @@
 
 Level-triggered: every run reads the whole open-PR queue and takes the next
 safe step (ADR 0006, ADR 0007). Dry run by default; ``--apply`` mutates.
+
+With ``SELF_MANAGED_MERGE=true`` agents and humans manage reviews themselves, so a
+missing review attestation does not block (ADR 0008). Structural blockers stay.
 """
 
 from __future__ import annotations
@@ -64,6 +67,9 @@ SECURITY_PATHS = (
     "firestore.rules",
     "firestore-rules/",
 )
+# Risk signatures that still need a human approval under SELF_MANAGED_MERGE: an explicit
+# hold, or a file list too long for SECURITY_PATHS to be checked completely.
+HUMAN_HOLD_SIGNATURES = frozenset({"one-way-door", "files-truncated", "human-label"})
 STALL_AFTER = timedelta(minutes=60)
 QUEUE_START_GRACE = timedelta(minutes=10)
 REBASE_WAIT = timedelta(minutes=30)
@@ -447,10 +453,15 @@ def review_blocker(
     owner: str = "",
     trusted_bots: frozenset[str] = DEFAULT_TRUSTED_BOTS,
     history: list[dict[str, Any]] | None = None,
+    self_managed: bool = False,
 ) -> str | None:
     """Return missing/insufficient review attestation reason, or None."""
     effective_history = history if history is not None else pr_review.load_history()
     classification = classify_for_gate(pr, owner=owner, trusted_bots=trusted_bots, history=effective_history)
+    if self_managed and not (
+        pr.files_truncated or HUMAN_HOLD_SIGNATURES.intersection(classification.risk_signatures)
+    ):
+        return None
     ok, reason = pr_review.evaluate_review_attestation(
         pr_number=pr.number,
         head_sha=pr.head,
@@ -473,12 +484,18 @@ def blocker(
     owner: str = "",
     trusted_bots: frozenset[str] = DEFAULT_TRUSTED_BOTS,
     history: list[dict[str, Any]] | None = None,
+    self_managed: bool = False,
 ) -> str | None:
     """Return why an opted-in PR needs its author or reviewer, or None."""
     hard = structural_blocker(pr, owner=owner, trusted_bots=trusted_bots)
     if hard:
         return hard
-    return review_blocker(pr, owner=owner, trusted_bots=trusted_bots, history=history)
+    return review_blocker(pr, owner=owner, trusted_bots=trusted_bots, history=history, self_managed=self_managed)
+
+
+def is_self_managed(value: str | None) -> bool:
+    """Only the exact opt-in relaxes review; AGENT_AUTO_REVIEW_ENABLED never does."""
+    return (value or "").strip().lower() == "true"
 
 
 def resolve_freeze_mode(
@@ -523,6 +540,7 @@ def plan(
     history: list[dict[str, Any]] | None = None,
     freeze_mode: str = "none",
     freeze_reason: str = "",
+    self_managed: bool = False,
 ) -> Plan:
     """Choose the next safe step for the queue. Pure; see ADR 0006."""
     if freeze_mode not in FREEZE_MODES:
@@ -578,23 +596,27 @@ def plan(
                 reasons.append(f"{pr.open_threads} unresolved review thread(s)")
             if pr.threads_truncated and "review threads truncated" not in hard:
                 reasons.append("review threads truncated (>100); resolve or inspect manually")
-            rev = review_blocker(pr, owner=owner, trusted_bots=trusted_bots, history=effective_history)
+            rev = review_blocker(pr, owner=owner, trusted_bots=trusted_bots, history=effective_history,
+                                 self_managed=self_managed)
             if rev:
                 reasons.append(rev)
             report.append((pr.number, "blocked", "; ".join(reasons)))
             continue
-        rev = review_blocker(pr, owner=owner, trusted_bots=trusted_bots, history=effective_history)
+        rev = review_blocker(pr, owner=owner, trusted_bots=trusted_bots, history=effective_history,
+                             self_managed=self_managed)
+        review_activity_at = (
+            pr.review_started_at
+            if pr.review_started_at is not None
+            else (max(pr.head_time, pr.labeled_at) if pr.labeled_at else pr.head_time)
+        )
+        # A requested review is waited for even when self-managed, so a rebase or merge
+        # never cancels it.
+        if (rev or self_managed) and pr.review_running and now - review_activity_at < STALL_AFTER:
+            review_in_flight.append(pr)
+            report.append((pr.number, "in flight", f"Agent review running ({rev})" if rev else "Agent review running"))
+            continue
         if rev:
-            review_activity_at = (
-                pr.review_started_at
-                if pr.review_started_at is not None
-                else (max(pr.head_time, pr.labeled_at) if pr.labeled_at else pr.head_time)
-            )
-            if pr.review_running and now - review_activity_at < STALL_AFTER:
-                review_in_flight.append(pr)
-                report.append((pr.number, "in flight", f"Agent review running ({rev})"))
-            else:
-                report.append((pr.number, "blocked", rev))
+            report.append((pr.number, "blocked", rev))
             continue
         queue.append(pr)
 
@@ -704,6 +726,7 @@ def plan_train(
     owner: str = "",
     trusted_bots: frozenset[str] = DEFAULT_TRUSTED_BOTS,
     history: list[dict[str, Any]] | None = None,
+    self_managed: bool = False,
 ) -> TrainPlan:
     """Plan speculative merge-train refs for queued PRs and stale refs to delete.
 
@@ -731,7 +754,8 @@ def plan_train(
             continue
         if structural_blocker(pr, owner=owner, trusted_bots=trusted_bots):
             continue
-        if review_blocker(pr, owner=owner, trusted_bots=trusted_bots, history=effective_history):
+        if review_blocker(pr, owner=owner, trusted_bots=trusted_bots, history=effective_history,
+                          self_managed=self_managed):
             continue
         eligible.append(pr)
 
@@ -1118,6 +1142,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.apply and not serialize(args.repo):
         print("Superseded by a newer merge-gate run.")
         return 0
+    self_managed = is_self_managed(os.environ.get("SELF_MANAGED_MERGE"))
+    if self_managed:
+        print("SELF_MANAGED_MERGE=true: missing agent review attestations do not block.")
+    elif (os.environ.get("AGENT_AUTO_REVIEW_ENABLED") or "").strip().lower() == "false":
+        print("Automatic reviews are off but still required; dispatch one with make agent-review PR=<number>.")
     gh = GitHub(args.repo, args.apply)
     trusted_bots = trusted_bot_set(args.trusted_bot)
     done: list[str] = []
@@ -1150,6 +1179,7 @@ def main(argv: list[str] | None = None) -> int:
             trusted_bots=trusted_bots,
             freeze_mode=freeze_mode,
             freeze_reason=freeze_reason,
+            self_managed=self_managed,
         )
         rows = result.report
         merged = False
@@ -1213,6 +1243,7 @@ def main(argv: list[str] | None = None) -> int:
                 freeze_mode=freeze_mode,
                 owner=gh.owner,
                 trusted_bots=trusted_bots,
+                self_managed=self_managed,
             )
             try:
                 train_notes = gh.sync_train(train_plan, failed_train_trees=failed_train_trees)

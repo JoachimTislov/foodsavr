@@ -259,7 +259,9 @@ def cmd_deploy() -> None:
     run(firebase("deploy", "--only", "hosting", "--project", project, "--non-interactive"))
     site = os.environ.get("SITE_ID") or project
     channel = os.environ.get("RELEASE_CHANNEL", "")
-    line = f"Live ({os.environ.get('FLAVOR', '')}{f', {channel}' if channel else ''}): https://{site}.web.app"
+    url = f"https://{site}.web.app"
+    github_output("url", url)  # release.yml probes the site it deployed
+    line = f"Live ({os.environ.get('FLAVOR', '')}{f', {channel}' if channel else ''}): {url}"
     print(line)
     append_summary(line)
 
