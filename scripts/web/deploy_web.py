@@ -258,7 +258,7 @@ def cmd_deploy() -> None:
         return
     run(firebase("deploy", "--only", "hosting", "--project", project, "--non-interactive"))
     site = os.environ.get("SITE_ID") or project
-    channel = os.environ.get("CHANNEL", "")
+    channel = os.environ.get("RELEASE_CHANNEL", "")
     line = f"Live ({os.environ.get('FLAVOR', '')}{f', {channel}' if channel else ''}): https://{site}.web.app"
     print(line)
     append_summary(line)
@@ -390,7 +390,7 @@ def local_settings(args: argparse.Namespace) -> tuple[dict[str, str], str]:
         "PROJECT_ID": values["PROJECT_ID"],
         "WEB_APP_ID": values.get("WEB_APP_ID", ""),
         "SITE_ID": values.get("SITE_ID", ""),
-        "CHANNEL": values.get("CHANNEL", ""),
+        "RELEASE_CHANNEL": values.get("CHANNEL", ""),
         "FLAVOR": values.get("FLAVOR", args.env),
         "TARGET": args.target,
         "BRANCH": args.branch or current_branch(),
@@ -408,7 +408,7 @@ def cmd_local(args: argparse.Namespace) -> int:
     os.environ["PATH"] = f"{pinned_flutter_dir()}{os.pathsep}{os.environ['PATH']}"
     settings, suffix = local_settings(args)
     print(f"Environment {args.env}: project {settings['PROJECT_ID']}, site {settings['SITE_ID'] or settings['PROJECT_ID']}, "
-          f"channel {settings['CHANNEL'] or 'none'}, "
+          f"channel {settings['RELEASE_CHANNEL'] or 'none'}, "
           f"target {args.target}, assets/.env from {args.web_env_file or 'nothing (empty)'}")
     if args.plan:
         print("Plan only: no build, no deploy.")
