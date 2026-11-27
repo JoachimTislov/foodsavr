@@ -62,8 +62,9 @@ than the 3 latest to stay under 10 GB, and fails only if that is not enough.
 `infra/terraform` manages the GitHub deploy identity (one branch-and-environment
 binding per release channel the environment deploys), the channels' extra Hosting
 sites, web API key referrer restriction, App Check (reCAPTCHA Enterprise for
-web, Play Integrity for Android; Firestore and Storage `ENFORCED`, Authentication
-`UNENFORCED`; `APP_CHECK_ENFORCEMENT=UNENFORCED` rolls back), the Firestore
+web, Play Integrity for Android; `APP_CHECK_ENFORCEMENT=ENFORCED` turns Firestore
+and Storage enforcement on, `UNENFORCED` rolls back, and an apply without it keeps
+the live mode; Authentication stays `UNENFORCED`), the Firestore
 database, rules release and indexes, and the Google and Facebook sign-in
 providers for one environment, plus a monthly budget when the environment is on
 `firebase-blaze`. Email/Password, Anonymous sign-in and the Hosting sites'

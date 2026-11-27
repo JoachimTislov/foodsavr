@@ -352,6 +352,19 @@ def firebase_resources(directory, project, indexes_file, account=""):
     print(android)
 
 
+def app_check_mode(project, account=""):
+    """Print ENFORCED when the live project already enforces App Check on Firestore
+    or Storage, else UNENFORCED, so an apply without an explicit choice keeps it."""
+    account_arg = (f"--account={account}",) if account else ()
+    enabled = {item["config"]["name"] for item in command_json(
+        "gcloud", *account_arg, "services", "list", "--enabled", f"--project={project}", "--format=json")}
+    enforced = "firebaseappcheck.googleapis.com" in enabled and any(
+        app_check_get(project, f"projects/{project}/services/{service}", missing_ok=True).get("enforcementMode")
+        == "ENFORCED"
+        for service in ("firestore.googleapis.com", "firebasestorage.googleapis.com"))
+    print("ENFORCED" if enforced else "UNENFORCED")
+
+
 # Replacements that keep the live service working: rulesets are immutable and
 # abandoned, and the rules release is recreated for the new ruleset.
 REPLACEABLE = {"google_firebaserules_ruleset.firestore", "google_firebaserules_release.firestore"}
@@ -387,6 +400,8 @@ if __name__ == "__main__":
             gcp_resources(*args)
         elif task == "firebase":
             firebase_resources(*args)
+        elif task == "app-check-mode":
+            app_check_mode(*args)
         elif task == "safe-plan":
             safe_plan(*args)
     except (ValueError, OSError, KeyError, subprocess.TimeoutExpired) as error:
