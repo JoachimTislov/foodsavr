@@ -27,6 +27,7 @@ from setupctl import (
     probe_environment,
     scaffold_local,
     save_instance_local,
+    verify_profile,
 )
 
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -459,6 +460,7 @@ class Setup:
             "web-monitoring": self.web_monitoring,
             "session-archive": self.session_archive,
             "fork-actions": self.fork_actions,
+            "health": self.health,
         }
         if ordered_steps and (len(ordered_steps) != len(steps) or set(ordered_steps) != set(steps)):
             raise ValueError("The setup steps in scripts/human/menu.toml are incomplete.")
@@ -1002,6 +1004,19 @@ class Setup:
             print("Session archive backfill pending. Run make setup to retry.", file=sys.stderr)
             return False
         return True
+
+    def health(self):
+        """Last step: the declared end state (scripts/setup/health.toml), the same report as make setup-verify."""
+        if not self.cloud:
+            return True
+        report = verify_profile(probe_environment(repo=self.repo), profile=self.profile, live=True)
+        missing = [check for check in report["checks"] if not check["ok"]]
+        if not self.listing:
+            for check in missing:
+                print(f"  {check['name']}: {check['detail']}\n    Fix: {check['remediation']}")
+            for note in report["notes"]:
+                print(f"  Note: {note}")
+        return self.step("Platform health", not missing, None, "Run the fixes above, then make setup again.")
 
     def fork_actions(self):
         if not self.cloud or not self.github["is_fork"]:

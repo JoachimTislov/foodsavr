@@ -44,6 +44,9 @@ from release_topology import UPSTREAM_REPO  # noqa: E402
 sys.path.insert(0, str(ROOT / "scripts"))
 import instance_local  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import health  # noqa: E402
+
 INSTANCE_LOCAL_PATH = Path(".agents/instance.local.json")
 PROFILES = ("local-dev", "fork-agents", "full-cloud")
 FIREBASE_PLANS = ("spark", "blaze")
@@ -61,12 +64,7 @@ def ordered_branches(channels: dict[str, str]) -> list[str]:
 
 TOPOLOGY_BRANCHES = {name: ordered_branches(channels) for name, channels in TOPOLOGY_CHANNELS.items()}
 
-HARNESS_AUTH_SECRETS = (
-    "CLAUDE_CODE_OAUTH_TOKEN",
-    "CODEX_AUTH_JSON_B64",
-    "ANTIGRAVITY_OAUTH_TOKEN_B64",
-    "GEMINI_API_KEY",
-)
+HARNESS_AUTH_SECRETS = health.group("harness")
 
 EVENT_POLICY_NAME = "foodsavr-pull-request-target"
 EVENT_POLICY_WORKFLOWS = (
@@ -924,100 +922,23 @@ def verify_profile(
     *,
     profile: str,
     topology: str | None = None,
+    live: bool = False,
 ) -> dict[str, Any]:
-    """Verify readiness for the selected setup profile."""
+    """Evaluate scripts/setup/health.toml for the profile (live=True adds network and GitHub run checks)."""
     if profile not in PROFILES:
         raise ValueError(f"Unsupported profile: {profile!r}")
-
-    checks: list[dict[str, Any]] = []
-    local_files = probe["local_files"]
-    tools = probe["tools"]
     gh = probe["github"]
-
-    def add(name: str, ok: bool, detail: str, remediation: str = "") -> None:
-        checks.append({"name": name, "ok": ok, "detail": detail, "remediation": remediation})
-
-    add(
-        "local-stubs",
-        local_files["dotenv"] and local_files["google_services"],
-        "assets/.env and android/app/google-services.json",
-        f"python3 scripts/setup/setupctl.py scaffold-local --profile {profile}",
+    active = topology or (gh.get("variables") or {}).get("RELEASE_TOPOLOGY") or probe["recommendations"]["default_topology"]
+    repo = gh.get("target_repo")
+    ctx = health.Context(
+        probe=probe,
+        profile=profile,
+        topology=active,
+        branches=TOPOLOGY_BRANCHES.get(active, [INTEGRATION_BRANCH]),
+        integration_branch=INTEGRATION_BRANCH,
+        live=health.Live(repo) if live and repo and gh.get("is_admin") else None,
     )
-    add(
-        "git-hooks",
-        local_files["hooks_configured"],
-        "core.hooksPath == .githooks",
-        "git config core.hooksPath .githooks",
-    )
-
-    if profile in {"fork-agents", "full-cloud"}:
-        add("gh-auth", bool(gh.get("authenticated")), f"gh user: {gh.get('login') or 'unauthenticated'}", "gh auth login")
-        add(
-            "repo-admin",
-            bool(gh.get("is_admin")),
-            f"admin on {gh.get('target_repo') or 'unknown'}",
-            f"python3 scripts/setup/setupctl.py fork --upstream {UPSTREAM_REPO} --yes",
-        )
-        add("terraform-cli", bool(tools.get("terraform")), "terraform binary installed", "Install Terraform >= 1.7")
-
-        vars_present = gh.get("variables") or {}
-        secrets_present = set(gh.get("secret_names") or [])
-        active_topology = topology or vars_present.get("RELEASE_TOPOLOGY") or probe["recommendations"]["default_topology"]
-        required_branches = TOPOLOGY_BRANCHES.get(active_topology, ["develop"])
-        missing_branches = [b for b in required_branches if b not in set(gh.get("branches") or [])]
-        add(
-            "channel-branches",
-            len(missing_branches) == 0,
-            f"topology={active_topology}; missing={missing_branches or 'none'}",
-            f"python3 scripts/setup/setupctl.py ensure-branches --repo {gh.get('target_repo') or '<owner>/<repo>'} --topology {active_topology} --yes",
-        )
-        add(
-            "agent-app",
-            ("AGENT_APP_PRIVATE_KEY" in secrets_present)
-            and ("AGENT_APP_ID" in vars_present or "AGENT_APP_ID" in secrets_present),
-            "AGENT_APP_ID + AGENT_APP_PRIVATE_KEY",
-            f"scripts/human/github/create-agent-app.sh --role agent --repo {gh.get('target_repo') or '<owner>/<repo>'}",
-        )
-        add(
-            "release-gate",
-            (
-                ("RELEASE_GATE_APP_PRIVATE_KEY" in secrets_present)
-                and ("RELEASE_GATE_APP_ID" in vars_present or "RELEASE_GATE_APP_ID" in secrets_present)
-            ),
-            "RELEASE_GATE_APP_ID + RELEASE_GATE_APP_PRIVATE_KEY",
-            f"scripts/human/github/create-agent-app.sh --role release-gate --repo {gh.get('target_repo') or '<owner>/<repo>'}",
-        )
-        # Never omit this check: an unprobed policy (offline, non-admin) must not read as ready.
-        event_policy = gh.get("event_policy") or {
-            "state": "unavailable",
-            "detail": "not probed (needs online gh access with admin on the repository)",
-        }
-        add(
-            "actions-event-policy",
-            event_policy.get("state") == "match",
-            f"pull_request_target allowed only for {', '.join(EVENT_POLICY_WORKFLOWS)}: {event_policy.get('detail')}",
-            f"make setup-event-policy REPO={gh.get('target_repo') or '<owner>/<repo>'} (owner: Settings -> Actions -> Policies)",
-        )
-        add(
-            "harness-auth",
-            any(name in secrets_present for name in HARNESS_AUTH_SECRETS),
-            "At least one CI harness login secret configured",
-            f"scripts/secrets/rotate.py --repo {gh.get('target_repo') or '<owner>/<repo>'} CLAUDE_CODE_OAUTH_TOKEN",
-        )
-
-    if profile == "full-cloud":
-        vars_present = gh.get("variables") or {}
-        add("gcloud-cli", bool(tools.get("gcloud")), "gcloud binary installed", "Install Google Cloud SDK")
-        add(
-            "gcp-wif",
-            bool(vars_present.get("GCP_WORKLOAD_IDENTITY_PROVIDER"))
-            and bool(vars_present.get("GCP_DEPLOY_SERVICE_ACCOUNT")),
-            "GCP_WORKLOAD_IDENTITY_PROVIDER + GCP_DEPLOY_SERVICE_ACCOUNT",
-            "ENV=production scripts/infra/apply.sh apply",
-        )
-
-    all_ok = all(item["ok"] for item in checks)
-    return {"profile": profile, "ready": all_ok, "checks": checks}
+    return health.evaluate(ctx)
 
 
 def _print_probe_text(probe: dict[str, Any]) -> None:
@@ -1063,6 +984,8 @@ def _print_verify_text(report: dict[str, Any]) -> None:
         print(f"  [{mark}] {chk['name']}: {chk['detail']}")
         if not chk["ok"] and chk["remediation"]:
             print(f"         Fix: {chk['remediation']}")
+    for note in report.get("notes", []):
+        print(f"  [NOTE] {note}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1292,7 +1215,7 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "verify":
             probe = probe_environment(repo=args.repo, offline=args.offline)
-            report = verify_profile(probe, profile=args.profile, topology=args.topology)
+            report = verify_profile(probe, profile=args.profile, topology=args.topology, live=not args.offline)
             if args.output == "json":
                 print(json.dumps(report, indent=2, sort_keys=True))
             else:

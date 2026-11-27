@@ -173,7 +173,8 @@ class PlanAndVerifyTest(unittest.TestCase):
         probe["github"]["event_policy"] = {"state": "match", "policy_id": 7, "detail": "matches"}
         self.assertTrue(setupctl.verify_profile(probe, profile="local-dev")["ready"])
         self.assertTrue(setupctl.verify_profile(probe, profile="fork-agents")["ready"])
-        self.assertTrue(setupctl.verify_profile(probe, profile="full-cloud")["ready"])
+        # Offline full-cloud never reads as healthy: the live platform checks are unprobed.
+        self.assertFalse(setupctl.verify_profile(probe, profile="full-cloud")["ready"])
 
 
 class MutationGuardTest(unittest.TestCase):

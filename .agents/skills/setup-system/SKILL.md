@@ -92,3 +92,5 @@ scripts/agents/agentctl status
 ```
 
 Report any remaining `MISS` items with their exact remediation command.
+
+The checks are declared in `scripts/setup/health.toml` and evaluated by `scripts/setup/health.py` (ADR 0008, November 27 amendment). If you verify something by hand (curl a site, read a run log, compare variables), add it there as a `[[check]]` in the same change so it is never checked by hand again. Keep the domain CLIs; health calls their `--check` modes.
