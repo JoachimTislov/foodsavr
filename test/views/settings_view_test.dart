@@ -8,6 +8,7 @@ import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/features/third_party_integration/services/oauth_service.dart';
 import 'package:foodsavr/services/secure_storage_service.dart';
 import 'package:foodsavr/features/third_party_integration/interfaces/i_oauth_service.dart';
+import 'package:foodsavr/constants/public_routes.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/routes/routes.dart';
 import 'package:foodsavr/views/legal_document_view.dart';
@@ -368,15 +369,23 @@ void main() async {
       });
     });
 
-    testWidgets('settings links open the public legal routes', (tester) async {
+    testWidgets('settings links open the public legal modal routes', (
+      tester,
+    ) async {
       final router = GoRouter(
         initialLocation: '/settings',
         routes: [
           GoRoute(path: '/settings', builder: (_, _) => const SettingsView()),
-          GoRoute(path: '/terms', builder: const TermsRoute().build),
-          GoRoute(path: '/privacy', builder: const PrivacyRoute().build),
           GoRoute(
-            path: '/delete-account',
+            path: PublicRoutes.terms,
+            pageBuilder: const TermsRoute().buildPage,
+          ),
+          GoRoute(
+            path: PublicRoutes.privacy,
+            pageBuilder: const PrivacyRoute().buildPage,
+          ),
+          GoRoute(
+            path: PublicRoutes.deleteAccount,
             builder: (_, _) => const Placeholder(),
           ),
         ],
@@ -404,6 +413,7 @@ void main() async {
           await tester.pump();
           await tester.pump(const Duration(milliseconds: 500));
           expect(find.widgetWithText(LegalDocumentView, title), findsOneWidget);
+          expect(find.byType(Dialog), findsOneWidget);
           router.pop();
           await tester.pumpAndSettle();
         }
@@ -412,6 +422,40 @@ void main() async {
         expect(find.byType(Placeholder), findsOneWidget);
       });
     });
+
+    testWidgets(
+      'Delete Account is placed under Account section and not inside About',
+      (tester) async {
+        await tester.runAsync(() async {
+          await tester.pumpWidget(
+            EasyLocalization(
+              supportedLocales: const [Locale('en'), Locale('nb')],
+              path: 'assets/translations',
+              fallbackLocale: const Locale('en'),
+              child: const _TestWrapper(child: SettingsView()),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          final accountTop = tester.getTopLeft(find.text('ACCOUNT')).dy;
+          final deleteAccountTop = tester
+              .getTopLeft(find.text('Delete Account'))
+              .dy;
+          final appearanceTop = tester.getTopLeft(find.text('APPEARANCE')).dy;
+          final aboutTop = tester.getTopLeft(find.text('ABOUT')).dy;
+          final termsTop = tester.getTopLeft(find.text('Terms of Service')).dy;
+          final privacyTop = tester.getTopLeft(find.text('Privacy Policy')).dy;
+          final versionTop = tester.getTopLeft(find.text('App Version')).dy;
+
+          expect(deleteAccountTop, greaterThan(accountTop));
+          expect(deleteAccountTop, lessThan(appearanceTop));
+          expect(deleteAccountTop, lessThan(aboutTop));
+          expect(termsTop, greaterThan(aboutTop));
+          expect(privacyTop, greaterThan(aboutTop));
+          expect(versionTop, greaterThan(aboutTop));
+        });
+      },
+    );
 
     testWidgets('displays app version correctly', (tester) async {
       await tester.runAsync(() async {

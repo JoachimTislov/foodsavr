@@ -17,7 +17,12 @@ FutureOr<String?> redirect(
   WebAccess? webAccess,
 ) {
   final uri = state.uri;
-  if (PublicRoutes.isPublic(uri.path)) return null;
+  final hashTarget = PublicRoutes.resolveHashRoute(uri);
+  if (hashTarget != null) return hashTarget;
+  final canonicalPublic = PublicRoutes.canonicalize(uri.path);
+  if (canonicalPublic != null) {
+    return uri.path == canonicalPublic ? null : canonicalPublic;
+  }
   final isDeletionSignIn = PublicRoutes.isDeletionSignIn(uri);
   if (uri.path == PublicRoutes.webAccess) {
     if (webAccess?.isLocked ?? false) return null;

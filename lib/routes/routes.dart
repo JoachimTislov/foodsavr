@@ -24,6 +24,7 @@ import '../constants/public_routes.dart';
 import '../controllers/list_query.dart';
 import '../views/legal_document_view.dart';
 import '../models/product_model.dart';
+import '../widgets/common/url_modal_dialog.dart';
 
 part 'routes.g.dart';
 
@@ -58,8 +59,12 @@ class PrivacyRoute extends GoRouteData with $PrivacyRoute {
   const PrivacyRoute();
 
   @override
-  Widget build(BuildContext context, GoRouterState state) =>
-      const LegalDocumentView(document: LegalDoc.privacy);
+  Page<void> buildPage(BuildContext context, GoRouterState state) =>
+      ModalDialogPage<void>(
+        key: state.pageKey,
+        name: state.matchedLocation,
+        child: const LegalDocumentView(document: LegalDoc.privacy),
+      );
 }
 
 @TypedGoRoute<TermsRoute>(path: PublicRoutes.terms)
@@ -67,8 +72,12 @@ class TermsRoute extends GoRouteData with $TermsRoute {
   const TermsRoute();
 
   @override
-  Widget build(BuildContext context, GoRouterState state) =>
-      const LegalDocumentView(document: LegalDoc.terms);
+  Page<void> buildPage(BuildContext context, GoRouterState state) =>
+      ModalDialogPage<void>(
+        key: state.pageKey,
+        name: state.matchedLocation,
+        child: const LegalDocumentView(document: LegalDoc.terms),
+      );
 }
 
 @TypedGoRoute<SplashRoute>(path: '/splash')

@@ -50,6 +50,10 @@ test('landing page exposes content, plans, legal links, and switches between en 
   await expect(page.getByRole('link', { name: /View Privacy Notice/i })).toHaveAttribute('href', '/privacy');
   await expect(page.getByRole('link', { name: /View Terms of Service/i })).toHaveAttribute('href', '/terms');
   await expect(page.getByRole('link', { name: /Go to Delete Account/i })).toHaveAttribute('href', '/delete-account');
+  await expect(page.locator('[data-contact-email]')).toHaveAttribute(
+    'href',
+    'mailto:dev.joachim.tislov@gmail.com',
+  );
 
   await expect(page.getByText('Up to 3 inventories, 200 items per inventory')).toBeVisible();
   await expect(page.getByText('199 NOK')).toBeVisible();

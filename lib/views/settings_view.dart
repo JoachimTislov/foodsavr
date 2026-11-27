@@ -108,6 +108,12 @@ class _SettingsViewState extends State<SettingsView> {
                       subtitle: email,
                       onTap: () => context.push('/settings/profile'),
                     ),
+                    _SettingsTile(
+                      icon: Icons.delete_outline,
+                      title: 'profile.delete_account'.tr(),
+                      isDestructive: true,
+                      onTap: () => context.push(PublicRoutes.deleteAccount),
+                    ),
                   ],
                 );
               },
@@ -186,11 +192,6 @@ class _SettingsViewState extends State<SettingsView> {
                       icon: Icons.privacy_tip_outlined,
                       title: 'settings.privacy_policy'.tr(),
                       onTap: () => context.push(PublicRoutes.privacy),
-                    ),
-                    _SettingsTile(
-                      icon: Icons.delete_outline,
-                      title: 'profile.delete_account'.tr(),
-                      onTap: () => context.push(PublicRoutes.deleteAccount),
                     ),
                     _SettingsTile(
                       icon: Icons.info_outline,
@@ -520,6 +521,7 @@ class _SettingsTile extends StatelessWidget {
   final String? subtitle;
   final Widget? trailing;
   final VoidCallback? onTap;
+  final bool isDestructive;
 
   const _SettingsTile({
     this.leading,
@@ -528,12 +530,17 @@ class _SettingsTile extends StatelessWidget {
     this.subtitle,
     this.trailing,
     this.onTap,
+    this.isDestructive = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final iconBgColor = isDestructive
+        ? colorScheme.errorContainer.withValues(alpha: 0.7)
+        : colorScheme.primaryContainer.withValues(alpha: 0.5);
+    final iconFgColor = isDestructive ? colorScheme.error : colorScheme.primary;
 
     return ListTile(
       onTap: onTap,
@@ -545,14 +552,17 @@ class _SettingsTile extends StatelessWidget {
               : Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                    color: iconBgColor,
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, size: 20, color: colorScheme.primary),
+                  child: Icon(icon, size: 20, color: iconFgColor),
                 )),
       title: Text(
         title,
-        style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+        style: textTheme.bodyLarge?.copyWith(
+          fontWeight: FontWeight.w600,
+          color: isDestructive ? colorScheme.error : null,
+        ),
       ),
       subtitle: subtitle != null
           ? Text(

@@ -1,54 +1,47 @@
-## Terms of Service for FoodSavr
+## Terms of Service for LettMat
 
-**Last Updated:** February 17, 2026
+**Last Updated:** November 27, 2026
 
-Welcome to FoodSavr! These Terms of Service ("Terms") govern your use of the FoodSavr mobile application (the "App") provided by FoodSavr ("we," "our," or "us"). By accessing or using the App, you agree to be bound by these Terms and our Privacy Policy. If you do not agree to these Terms, please do not use the App.
+Welcome to LettMat (formerly FoodSavr)! These Terms of Service ("Terms") govern your use of the LettMat web and mobile applications (the "App") operated by the owner of LettMat as a private person in Norway ("we," "our," or "us"). By accessing or using the App, you agree to these Terms and our Privacy Policy.
 
-### 1. Acceptance of Terms
+### 1. Eligibility & Your Account
 
-By creating an account, accessing, or using the FoodSavr App, you signify your agreement to these Terms.
+* You must be at least 18 years old to create an account independently, or aged 13–17 with parent or legal guardian consent.
+* You are responsible for keeping your sign-in credentials confidential and for all activity under your account.
+* Please notify us promptly if you suspect unauthorized access to your account.
 
-### 2. Changes to Terms
+### 2. Using LettMat
 
-We reserve the right to modify or replace these Terms at any time. If a revision is material, we will provide at least 30 days' notice prior to any new terms taking effect. What constitutes a material change will be determined at our sole discretion.
+LettMat helps you track household food inventory, expiry dates, and shopping lists so food gets used instead of wasted.
+* You agree to use the App for lawful personal or household purposes only.
+* You agree not to interfere with the operation or security of the App or misuse third-party integrations.
 
-### 3. Your Account
+### 3. Your Content & Data
 
-*   You must be at least 13 years old to use the App.
-*   You are responsible for maintaining the confidentiality of your account and password and for restricting access to your device. You agree to accept responsibility for all activities that occur under your account or password.
-*   You agree to notify us immediately of any unauthorized use of your account.
+* Your inventories, shopping lists, product entries, and preferences belong to you.
+* You grant us a limited license to store, process, and display your content solely as needed to provide and sync the App for you.
+* You can permanently delete your account and associated data at any time from Settings or at `/account/delete` (also reachable at `/delete-account`).
 
-### 4. Use of the App
+### 4. Intellectual Property
 
-*   You agree to use the App only for lawful purposes and in accordance with these Terms.
-*   You agree not to use the App in any way that violates any applicable national, state, local, or international law or regulation.
-*   You agree not to engage in any conduct that restricts or inhibits anyone's use or enjoyment of the App, or which, as determined by us, may harm FoodSavr or users of the App or expose them to liability.
+The App, its design, branding, and source code remain the property of LettMat and its licensors. These Terms do not transfer any ownership rights in the App to you.
 
-### 5. Content
+### 5. Service Availability & Termination
 
-*   You retain all rights in and to the content you submit, post, or display on or through the App.
-*   By submitting, posting, or displaying content, you grant FoodSavr a worldwide, non-exclusive, royalty-free license to use, reproduce, adapt, publish, and distribute such content in any and all media or distribution methods.
+We strive to keep LettMat reliable, but features may evolve and temporary interruptions may occur. We may suspend or terminate access if these Terms are breached or if necessary to protect the service and its users.
 
-### 6. Intellectual Property
+### 6. Disclaimer & Limitation of Liability
 
-The App and its original content, features, and functionality are and will remain the exclusive property of FoodSavr and its licensors. The App is protected by copyright, trademark, and other laws of both the United States and foreign countries. Our trademarks and trade dress may not be used in connection with any product or service without the prior written consent of FoodSavr.
+The App is provided on an "AS IS" and "AS AVAILABLE" basis without warranties of any kind. Expiry reminders and product metadata (including Open Food Facts lookups and receipt scans) are convenience aids — always check physical food labels and food safety yourself. To the fullest extent permitted by Norwegian law, we are not liable for indirect or consequential damages arising from your use of the App.
 
-### 7. Termination
+### 7. Changes to These Terms
 
-We may terminate or suspend your account immediately, without prior notice or liability, for any reason whatsoever, including without limitation if you breach the Terms. Upon termination, your right to use the App will immediately cease.
+We may update these Terms from time to time. If a change is material, we will provide reasonable notice before the updated Terms take effect. The current version is always available at `/legal/terms`.
 
-### 8. Disclaimer of Warranties
+### 8. Governing Law
 
-Your use of the App is at your sole risk. The App is provided on an "AS IS" and "AS AVAILABLE" basis. The App is provided without warranties of any kind, whether express or implied, including, but not limited to, implied warranties of merchantability, fitness for a particular purpose, non-infringement, or course of performance.
+These Terms are governed by and construed in accordance with the laws of Norway.
 
-### 9. Limitation of Liability
+### 9. Contact
 
-In no event shall FoodSavr, nor its directors, employees, partners, agents, suppliers, or affiliates, be liable for any indirect, incidental, special, consequential or punitive damages, including without limitation, loss of profits, data, use, goodwill, or other intangible losses, resulting from (i) your access to or use of or inability to access or use the App; (ii) any conduct or content of any third party on the App; (iii) any content obtained from the App; and (iv) unauthorized access, use or alteration of your transmissions or content, whether based on warranty, contract, tort (including negligence) or any other legal theory, whether or not we have been informed of the possibility of such damage, and even if a remedy set forth herein is found to have failed of its essential purpose.
-
-### 10. Governing Law
-
-These Terms shall be governed and construed in accordance with the laws of Norway, without regard to its conflict of law provisions.
-
-### 11. Contact Us
-
-If you have any questions about these Terms, please contact us at todo@gmail.com.
+Questions about these Terms can be sent to dev.joachim.tislov@gmail.com.

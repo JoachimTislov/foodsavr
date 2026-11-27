@@ -2,7 +2,7 @@
   var cfg = {
     environment: 'development',
     androidUrl: '',
-    contactEmail: 'legal-contact@placeholder.invalid',
+    contactEmail: 'dev.joachim.tislov@gmail.com',
   };
   window.__FOODSAVR_LANDING__ = cfg;
 
