@@ -30,9 +30,7 @@ test('login and signup show the LettMat brand and implicit agreement', async ({ 
     .dispatchEvent('click');
   const privacyDialog = page.getByRole('dialog');
   await expect(privacyDialog).toBeVisible();
-  await expect(
-    privacyDialog.getByText('Privacy Notice', { exact: true }),
-  ).toBeVisible();
+  await expect(privacyDialog).toContainText('Privacy Notice');
   await privacyDialog
     .getByRole('button', { name: 'Close' })
     .first()
