@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/controllers/list_query.dart';
 import 'package:foodsavr/controllers/list_query_state.dart';
@@ -26,7 +28,7 @@ void main() {
     await Future.wait([nextVisit.restore(), otherCollection.restore()]);
     addTearDown(nextVisit.dispose);
     addTearDown(otherCollection.dispose);
-    expect(nextVisit.query.category, 'Dairy');
+    expect(nextVisit.query.category, 'dairy');
     expect(nextVisit.query.status, ProductStatus.expiringSoon);
     expect(nextVisit.query.sort, ListSort.expiry);
     expect(nextVisit.viewMode, ProductViewMode.compact);
@@ -36,4 +38,36 @@ void main() {
     expect(otherCollection.query.sort, ListSort.original);
     expect(otherCollection.viewMode, ProductViewMode.normal);
   });
+
+  test(
+    'saved legacy category filter is normalized and matches migrated products',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'listQuery.collection.user.fridge': jsonEncode({'category': 'Dairy'}),
+      });
+
+      final state = ListQueryState('collection.user.fridge');
+      await state.restore();
+      addTearDown(state.dispose);
+
+      expect(state.category, 'dairy');
+      expect(state.query.category, 'dairy');
+
+      final migratedProduct = Product.fromJson({
+        'id': 'milk-1',
+        'name': 'Whole Milk',
+        'description': '',
+        'userId': 'user-1',
+        'category': 'Dairy',
+      });
+
+      final matched = state.query.apply(
+        [migratedProduct],
+        now: DateTime(2026, 11, 27),
+        expiringSoonDays: 3,
+      );
+
+      expect(matched.map((p) => p.id), ['milk-1']);
+    },
+  );
 }
