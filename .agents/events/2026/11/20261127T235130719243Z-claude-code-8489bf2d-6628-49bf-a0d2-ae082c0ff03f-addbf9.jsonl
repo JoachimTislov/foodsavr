@@ -1,0 +1,1 @@
+{"event": "opened PR #540 (ready, merge/auto) and linked it to the thread; verification: make check, agents and docs groups, actionlint, unit tests, local Playwright 47/47", "issues": ["#532"], "prs": ["#540"], "session_id": "claude-code:8489bf2d-6628-49bf-a0d2-ae082c0ff03f", "stream": "ledger", "timestamp": "2026-11-27T23:51:30+00:00"}
