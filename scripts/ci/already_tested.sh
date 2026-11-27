@@ -8,7 +8,7 @@
 # -> new head touches nothing in the workflow's scope (the pathspecs). When
 # --target <name>:<p1,p2,...> flags are given, each target also emits
 # skip_<name>=true|false so unrelated target changes (e.g. a web-only merge on
-# develop) reuse green android/integration/rules runs from the previous head.
+# develop) reuse green web/rules runs from the previous head.
 # Usage: already_tested.sh [--push-only-reuse] [--require-job <regex>]
 #        [--target <name>:<csv_paths>]... <workflow-file.yml> [pathspec...]   (needs GH_TOKEN)
 set -euo pipefail
