@@ -29,7 +29,7 @@ Two GitHub constraints shape the design:
 
 - **PR-time (cheap)**: `ci-checks.yml` (matching `scripts/ci/local_ci.py`), `agent-system.yml`, `docs-pages.yml` (`build`), `traceability.yml`, and `dependency-review.yml` run on every PR targeting `develop`.
 - **No duplicate `develop` push runs**: Merging a PR into `develop` does not re-run CI check workflows on `develop`; only `merge-gate.yml` reconciles the next queued PR.
-- **Queue-time & release-branch (expensive)**: `validation.yml` (web/Android smoke, Playwright E2E, Android integration, non-fork Firestore rules) runs on `pull_request` when the PR carries `merge/auto` and on `push` to release branches (`nightly`, `beta`, `stable`, `release`). `build-android.yml` and `build-web.yml` produce release artifacts on `push` to `nightly`, `beta`, `stable`, and `release`.
+- **Queue-time & release-branch (expensive)**: `validation.yml` (web/Android smoke, Playwright E2E, Android integration, non-fork Firestore rules) runs on `pull_request` when the PR carries `merge/auto` and on `push` to release branches (`nightly`, `beta`, `stable`, `release`). `build-android.yml` and `build-web.yml` produce release artifacts on `push` to `nightly`, `beta`, `stable`, and `release`. Amendment (owner request, 2026-11-27): Android smoke, Android integration and `build-android.yml` run only on manual dispatch.
 - **`merge_gate.py`** targets `develop`, waits for `"Detect changed areas"` (`Validation` entrypoint) to complete with `SUCCESS` on the PR head (in addition to `rollup == "SUCCESS"`), and integrates one PR at a time via `--rebase`.
 
 ### Periodic and manual fast-forward promotions (`develop -> nightly -> beta -> stable -> release`)
