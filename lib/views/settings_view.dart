@@ -75,11 +75,15 @@ class _SettingsViewState extends State<SettingsView> {
               builder: (context, snapshot) {
                 final user = snapshot.data;
                 final isAnonymous = user?.isAnonymous ?? false;
+                final rawName = user?.displayName?.trim();
+                final rawEmail = user?.email?.split('@').first.trim();
                 final displayName = isAnonymous
                     ? 'settings.guest_user'.tr()
-                    : (user?.displayName ??
-                          user?.email?.split('@').first ??
-                          'profile.title'.tr());
+                    : ((rawName != null && rawName.isNotEmpty)
+                          ? rawName
+                          : (rawEmail != null && rawEmail.isNotEmpty)
+                          ? rawEmail
+                          : 'profile.title'.tr());
                 final email = isAnonymous ? null : (user?.email);
 
                 return _SettingsSection(
