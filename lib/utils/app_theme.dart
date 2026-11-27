@@ -5,8 +5,11 @@ import '../constants/material3_config.dart';
 /// Centralized theme configuration for the FoodSavr application.
 /// Implements Material 3 design principles, dynamic theming, and consistent component styling.
 class AppTheme {
-  // Brand color seed
-  static const _seedColor = Color(0xFF13c8ec);
+  /// LettMat brand cyan, also the color scheme seed.
+  static const brandColor = Color(0xFF13c8ec);
+
+  /// Foreground on [brandColor] in both themes.
+  static const onBrandColor = Color(0xFF0f172a);
 
   // Background overrides if necessary, though ColorScheme.fromSeed handles these well
   static const _lightBackground = Color(0xFFf6f8f8);
@@ -248,7 +251,7 @@ class AppTheme {
   /// Light Theme Definition
   static ThemeData get lightTheme {
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: _seedColor,
+      seedColor: brandColor,
       brightness: Brightness.light,
       surface: _lightBackground,
     );
@@ -270,7 +273,7 @@ class AppTheme {
   /// Dark Theme Definition
   static ThemeData get darkTheme {
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: _seedColor,
+      seedColor: brandColor,
       brightness: Brightness.dark,
       surface: _darkBackground,
     );

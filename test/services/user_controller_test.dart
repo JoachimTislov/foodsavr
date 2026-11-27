@@ -52,6 +52,112 @@ void main() {
     );
   });
 
+  group('provider sign-in failures', () {
+    final signIns =
+        <String, (Future<UserCredential> Function(), Future<bool> Function())>{
+          'google': (
+            () => mockAuthService.signInWithGoogle(),
+            () => authController.signInWithGoogle(),
+          ),
+          'facebook': (
+            () => mockAuthService.signInWithFacebook(),
+            () => authController.signInWithFacebook(),
+          ),
+          'guest': (
+            () => mockAuthService.signInAsGuest(),
+            () => authController.signInAsGuest(),
+          ),
+        };
+
+    Future<void> expectError(
+      String provider,
+      Object error,
+      String? expected,
+    ) async {
+      final (serviceCall, signIn) = signIns[provider]!;
+      when(serviceCall).thenAnswer((_) => Future.error(error));
+
+      expect(await signIn(), isFalse, reason: '$provider $error');
+
+      expect(authController.errorMessage, expected, reason: '$provider $error');
+      expect(authController.isLoading, isFalse);
+    }
+
+    for (final provider in ['google', 'facebook', 'guest']) {
+      test('$provider setup errors say it is unavailable', () async {
+        for (final code in [
+          'operation-not-allowed',
+          'admin-restricted-operation',
+          'unauthorized-domain',
+          'invalid-oauth-client-id',
+          'invalid-api-key',
+          'api-key-not-valid.-please-pass-a-valid-api-key.',
+          'invalid-app-id',
+          'app-not-authorized',
+          'auth-domain-config-required',
+          'configuration-not-found',
+          'operation-not-supported-in-this-environment',
+          'google-sdk-unavailable',
+          'facebook-sdk-unavailable',
+        ]) {
+          await expectError(
+            provider,
+            FirebaseAuthException(code: code),
+            'auth.error.${provider}_unavailable',
+          );
+        }
+      });
+
+      test('$provider unexpected errors never expose raw details', () async {
+        for (final error in [
+          FirebaseAuthException(code: 'internal-error', message: 'secret'),
+          Exception('secret'),
+          StateError('secret'),
+        ]) {
+          await expectError(provider, error, 'auth.error.${provider}_failed');
+        }
+      });
+
+      test('$provider cancellation stays silent', () async {
+        for (final code in [
+          'ERROR_ABORTED_BY_USER',
+          'popup-closed-by-user',
+          'cancelled-popup-request',
+          'web-context-canceled',
+        ]) {
+          await expectError(provider, FirebaseAuthException(code: code), null);
+        }
+      });
+    }
+
+    test('actionable errors have their own message', () async {
+      for (final MapEntry(:key, :value) in {
+        'popup-blocked': 'auth.error.popup_blocked',
+        'web-storage-unsupported': 'auth.error.web_storage_unsupported',
+        'network-request-failed': 'auth.error.network',
+        'account-exists-with-different-credential': 'auth.error.account_exists',
+        'user-disabled': 'auth.error.user_disabled',
+      }.entries) {
+        await expectError('google', FirebaseAuthException(code: key), value);
+      }
+    });
+
+    test('a retry clears the previous error', () async {
+      await expectError(
+        'guest',
+        Exception('offline'),
+        'auth.error.guest_failed',
+      );
+      when(
+        () => mockAuthService.signInAsGuest(),
+      ).thenAnswer((_) async => mockUserCredential);
+
+      expect(await authController.signInAsGuest(), isTrue);
+
+      expect(authController.errorMessage, isNull);
+    });
+  });
+
   group('AuthController', () {
     test(
       'Facebook provider misconfiguration sets an actionable error',
@@ -109,12 +215,11 @@ void main() {
     });
 
     test(
-      'authenticate calls signUp when isLogin is false and agreedToTerms is true',
+      'authenticate calls signUp without a separate terms agreement',
       () async {
         const email = 'test@test.com';
         const password = 'password';
         authController.isLogin = false;
-        authController.agreedToTerms = true;
 
         when(
           () => mockAuthService.signUp(email: email, password: password),
@@ -132,33 +237,12 @@ void main() {
       },
     );
 
-    test(
-      'authenticate sets error message when signUp called without agreedToTerms',
-      () async {
-        authController.isLogin = false;
-        authController.agreedToTerms = false;
-
-        await authController.authenticate(
-          email: 'test@test.com',
-          password: 'password',
-        );
-
-        expect(authController.errorMessage, 'auth.terms.required');
-        verifyNever(
-          () => mockAuthService.signUp(
-            email: any(named: 'email'),
-            password: any(named: 'password'),
-          ),
-        );
-      },
-    );
-
     test('signInAsGuest calls auth service guest sign-in', () async {
       when(
         () => mockAuthService.signInAsGuest(),
       ).thenAnswer((_) async => mockUserCredential);
 
-      await authController.signInAsGuest();
+      expect(await authController.signInAsGuest(), isTrue);
 
       verify(() => mockAuthService.signInAsGuest()).called(1);
       verifyNever(

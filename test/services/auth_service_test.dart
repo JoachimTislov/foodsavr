@@ -573,6 +573,79 @@ void main() {
       verifyNever(() => mockFirebaseAuth.signInWithCredential(any()));
     });
 
+    for (final code in [
+      GoogleSignInExceptionCode.clientConfigurationError,
+      GoogleSignInExceptionCode.providerConfigurationError,
+    ]) {
+      test('signInWithGoogle reports ${code.name} as unavailable', () async {
+        when(
+          () => mockGoogleSignIn.authenticate(),
+        ).thenThrow(GoogleSignInException(code: code));
+
+        await expectLater(
+          authService.signInWithGoogle(),
+          throwsAuthCode('google-sdk-unavailable'),
+        );
+        verifyNever(() => mockFirebaseAuth.signInWithCredential(any()));
+      });
+    }
+
+    for (final error in <Object>[
+      MissingPluginException(),
+      UnimplementedError(),
+    ]) {
+      test(
+        'signInWithGoogle reports ${error.runtimeType} as unavailable',
+        () async {
+          when(
+            () => mockGoogleSignIn.initialize(),
+          ).thenAnswer((_) => Future.error(error));
+
+          await expectLater(
+            authService.signInWithGoogle(),
+            throwsAuthCode('google-sdk-unavailable'),
+          );
+          verifyNever(() => mockGoogleSignIn.authenticate());
+        },
+      );
+    }
+
+    test('signInWithGoogle requires an ID token', () async {
+      final account = MockGoogleSignInAccount();
+      when(
+        () => mockGoogleSignIn.authenticate(),
+      ).thenAnswer((_) async => account);
+      when(
+        () => account.authentication,
+      ).thenReturn(const GoogleSignInAuthentication(idToken: null));
+
+      await expectLater(
+        authService.signInWithGoogle(),
+        throwsAuthCode('google-sdk-unavailable'),
+      );
+      verifyNever(() => mockFirebaseAuth.signInWithCredential(any()));
+    });
+
+    test('signInWithGoogle keeps other SDK failures', () async {
+      const failure = GoogleSignInException(
+        code: GoogleSignInExceptionCode.unknownError,
+      );
+      when(() => mockGoogleSignIn.authenticate()).thenThrow(failure);
+
+      await expectLater(authService.signInWithGoogle(), throwsA(same(failure)));
+    });
+
+    test('signInAsGuest propagates disabled anonymous sign-in', () async {
+      when(
+        () => mockFirebaseAuth.signInAnonymously(),
+      ).thenThrow(FirebaseAuthException(code: 'admin-restricted-operation'));
+
+      await expectLater(
+        authService.signInAsGuest(),
+        throwsAuthCode('admin-restricted-operation'),
+      );
+    });
+
     test('signInWithFacebook signs in with Firebase credential', () async {
       final mockResult = MockLoginResult();
       final mockToken = MockAccessToken();
@@ -804,6 +877,9 @@ void main() {
     });
   });
 }
+
+Matcher throwsAuthCode(String code) =>
+    throwsA(isA<FirebaseAuthException>().having((e) => e.code, 'code', code));
 
 class FakeAuthCredential extends Fake implements AuthCredential {}
 

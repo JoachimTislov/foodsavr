@@ -1,9 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../constants/public_routes.dart';
 import '../widgets/auth/public_page_links.dart';
 import '../service_locator.dart';
 import '../controllers/user_controller.dart';
@@ -13,8 +11,9 @@ import '../widgets/auth/auth_header.dart';
 import '../widgets/auth/auth_status_messages.dart';
 import '../widgets/auth/auth_submit_button.dart';
 import '../widgets/auth/auth_toggle_button.dart';
+import '../widgets/auth/guest_sign_in_button.dart';
+import '../widgets/auth/legal_agreement_notice.dart';
 import '../widgets/auth/social_auth_section.dart';
-import '../widgets/auth/terms_and_privacy_checkbox.dart';
 
 class AuthView extends StatefulWidget {
   const AuthView({super.key, this.isLogin = true, this.deletionOnly = false});
@@ -30,8 +29,6 @@ class _AuthViewState extends State<AuthView> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  final _privacyRecognizer = TapGestureRecognizer();
-  final _termsRecognizer = TapGestureRecognizer();
   late final UserController _controller;
 
   @override
@@ -39,8 +36,6 @@ class _AuthViewState extends State<AuthView> {
     super.initState();
     _controller = getIt<UserController>();
     _controller.isLogin = widget.isLogin;
-    _privacyRecognizer.onTap = () => context.push(PublicRoutes.privacy);
-    _termsRecognizer.onTap = () => context.push(PublicRoutes.terms);
 
     if (Config.isDevelopment) {
       _emailController.text = Config.testUserEmail;
@@ -52,8 +47,6 @@ class _AuthViewState extends State<AuthView> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _privacyRecognizer.dispose();
-    _termsRecognizer.dispose();
     super.dispose();
   }
 
@@ -74,6 +67,13 @@ class _AuthViewState extends State<AuthView> {
     await _controller.signInWithFacebook();
   }
 
+  void _signInAsGuest() async {
+    // The router keeps guests on /auth so they can upgrade, so leave here.
+    if (await _controller.signInAsGuest() && mounted) {
+      context.go('/dashboard');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -85,6 +85,10 @@ class _AuthViewState extends State<AuthView> {
             child: ListenableBuilder(
               listenable: _controller,
               builder: (context, _) {
+                final offersGuest =
+                    _controller.isLogin &&
+                    !widget.deletionOnly &&
+                    !(_controller.user?.isAnonymous ?? false);
                 return Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -105,16 +109,7 @@ class _AuthViewState extends State<AuthView> {
                               passwordController: _passwordController,
                             ),
                             const SizedBox(height: 16.0),
-                            if (_controller.isLogin)
-                              _buildLoginOptions()
-                            else
-                              TermsAndPrivacyCheckbox(
-                                value: _controller.agreedToTerms,
-                                onChanged: (val) =>
-                                    _controller.agreedToTerms = val ?? false,
-                                privacyRecognizer: _privacyRecognizer,
-                                termsRecognizer: _termsRecognizer,
-                              ),
+                            if (_controller.isLogin) _buildLoginOptions(),
                             const SizedBox(height: 24.0),
                             AuthSubmitButton(
                               isLogin: _controller.isLogin,
@@ -132,7 +127,17 @@ class _AuthViewState extends State<AuthView> {
                       isLoading: _controller.isLoading,
                       onGooglePressed: _signInWithGoogle,
                       onFacebookPressed: _signInWithFacebook,
+                      // The divider sets guest access apart.
+                      showDivider: offersGuest,
                     ),
+                    if (offersGuest) ...[
+                      const SizedBox(height: 12.0),
+                      GuestSignInButton(
+                        onPressed: _controller.isLoading
+                            ? null
+                            : _signInAsGuest,
+                      ),
+                    ],
                     const SizedBox(height: 24.0),
                     if (!widget.deletionOnly)
                       AuthToggleButton(
@@ -149,7 +154,12 @@ class _AuthViewState extends State<AuthView> {
                                 context.go('/auth?mode=$mode');
                               },
                       ),
-                    const PublicPageLinks(),
+                    const SizedBox(height: 16.0),
+                    LegalAgreementNotice(isLogin: _controller.isLogin),
+                    if (_controller.isLogin)
+                      const Center(
+                        child: PublicPageLinks(showLegalLinks: false),
+                      ),
                   ],
                 );
               },

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../service_locator.dart';
 import '../controllers/user_controller.dart';
+import '../widgets/auth/auth_status_messages.dart';
 import '../widgets/auth/social_auth_section.dart';
 import '../widgets/common/pwa_install_banner.dart';
 
@@ -21,15 +22,6 @@ class _LandingPageViewState extends State<LandingPageView> {
   void initState() {
     super.initState();
     _controller = getIt<UserController>();
-  }
-
-  Future<void> _signInWithFacebook() async {
-    await _controller.signInWithFacebook();
-    final message = _controller.errorMessage;
-    if (!mounted || message == null) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -86,12 +78,15 @@ class _LandingPageViewState extends State<LandingPageView> {
                       ),
                       const SizedBox(height: 48),
 
+                      AuthStatusMessages(
+                        errorMessage: _controller.errorMessage,
+                      ),
+
                       // Social Login Stack
                       SocialAuthSection(
                         isLoading: _controller.isLoading,
                         onGooglePressed: _controller.signInWithGoogle,
-                        onFacebookPressed: _signInWithFacebook,
-                        showTopDivider: false,
+                        onFacebookPressed: _controller.signInWithFacebook,
                       ),
 
                       const SizedBox(height: 24),

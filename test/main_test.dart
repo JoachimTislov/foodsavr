@@ -119,7 +119,6 @@ void main() {
       when(() => mockUserController.isLogin).thenReturn(true);
       when(() => mockUserController.successMessage).thenReturn(null);
       when(() => mockUserController.rememberMe).thenReturn(false);
-      when(() => mockUserController.agreedToTerms).thenReturn(false);
       getIt.registerSingleton<UserController>(mockUserController);
 
       router = createAppRouter(mockAuthService, mockUserController);

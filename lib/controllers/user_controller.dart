@@ -61,14 +61,12 @@ class UserController extends ChangeNotifier {
   String? _errorMessage;
   String? _successMessage;
   bool _rememberMe = false;
-  bool _agreedToTerms = false;
 
   bool get isLogin => _isLogin;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String? get successMessage => _successMessage;
   bool get rememberMe => _rememberMe;
-  bool get agreedToTerms => _agreedToTerms;
 
   set isLogin(bool value) {
     _isLogin = value;
@@ -77,11 +75,6 @@ class UserController extends ChangeNotifier {
 
   set rememberMe(bool value) {
     _rememberMe = value;
-    notifyListeners();
-  }
-
-  set agreedToTerms(bool value) {
-    _agreedToTerms = value;
     notifyListeners();
   }
 
@@ -96,12 +89,6 @@ class UserController extends ChangeNotifier {
     required String password,
   }) async {
     if (_isLoading) return;
-
-    if (!_isLogin && !_agreedToTerms) {
-      _errorMessage = _tr('auth.terms.required');
-      notifyListeners();
-      return;
-    }
 
     _setLoading(true);
     try {
@@ -125,47 +112,43 @@ class UserController extends ChangeNotifier {
     }
   }
 
-  Future<void> signInWithGoogle() async {
-    if (_isLoading) return;
-    _setLoading(true);
-    try {
-      await _authService.signInWithGoogle();
-    } catch (e) {
-      _logger.e('Google Sign-in error: $e');
-      _errorMessage = AuthErrorHandler.getErrorMessage(e);
-    } finally {
-      _setLoading(false);
-    }
-  }
+  Future<bool> signInWithGoogle() =>
+      _signInWithProvider(SignInProvider.google, _authService.signInWithGoogle);
 
-  Future<void> signInWithFacebook() async {
-    if (_isLoading) return;
+  Future<bool> signInWithFacebook() => _signInWithProvider(
+    SignInProvider.facebook,
+    _authService.signInWithFacebook,
+  );
+
+  Future<bool> signInAsGuest() =>
+      _signInWithProvider(SignInProvider.guest, _authService.signInAsGuest);
+
+  /// Returns whether sign-in succeeded. A failure sets [errorMessage], except
+  /// when the user cancelled.
+  Future<bool> _signInWithProvider(
+    SignInProvider provider,
+    Future<void> Function() signIn,
+  ) async {
+    if (_isLoading) return false;
     _setLoading(true);
     try {
-      await _authService.signInWithFacebook();
+      await signIn();
+      return true;
     } catch (error) {
-      final code = error is FirebaseAuthException ? error.code : null;
-      _errorMessage = switch (code) {
-        'ERROR_ABORTED_BY_USER' => null,
-        'facebook-sdk-unavailable' ||
-        'operation-not-allowed' ||
-        'unauthorized-domain' ||
-        'invalid-oauth-client-id' => _tr('auth.error.facebook_unavailable'),
-        _ => _tr('auth.error.facebook_failed'),
-      };
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  Future<void> signInAsGuest() async {
-    if (_isLoading) return;
-    _setLoading(true);
-    try {
-      await _authService.signInAsGuest();
-    } catch (e) {
-      _logger.e('Guest sign-in error: $e');
-      _errorMessage = AuthErrorHandler.getErrorMessage(e);
+      final message = AuthErrorHandler.getProviderErrorMessage(
+        provider,
+        error,
+        _tr,
+      );
+      if (message != null) {
+        // SDK error messages can contain OAuth tokens, so only log the code.
+        final code = error is FirebaseAuthException
+            ? error.code
+            : error.runtimeType.toString();
+        _logger.e('${provider.name} sign-in error: $code');
+        _errorMessage = message;
+      }
+      return false;
     } finally {
       _setLoading(false);
     }
