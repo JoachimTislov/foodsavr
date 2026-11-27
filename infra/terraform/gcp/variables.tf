@@ -9,6 +9,12 @@ variable "region" {
   default     = "europe-north1"
 }
 
+variable "firestore_location" {
+  description = "Location of the existing Firestore (default) database when adopted; empty uses var.region."
+  type        = string
+  default     = ""
+}
+
 variable "github_repository" {
   description = "owner/repo allowed to authenticate via Workload Identity Federation."
   type        = string

@@ -49,8 +49,9 @@ is not provisioned (`provisioned: false`), when `GCP_WORKLOAD_IDENTITY_PROVIDER`
 `GCP_DEPLOY_SERVICE_ACCOUNT` (suffixed per non-production environment, e.g. `_TEST`) is missing, or
 when the service account belongs to another project than the environment's. Build and deploy logic
 lives in `scripts/web/deploy_web.py`, shared by the workflow and `make deploy-web`.
-`RECAPTCHA_ENTERPRISE_SITE_KEY`, `ANDROID_APK_URL` (`/android` redirect) and the
-`WEB_ENV_B64` secret are optional.
+`ANDROID_APK_URL` (`/android` redirect) and the `WEB_ENV_B64` secret are optional.
+`RECAPTCHA_ENTERPRISE_SITE_KEY` is optional only while App Check enforcement for
+Firestore and Storage is `UNENFORCED`.
 Before each deploy `scripts/web/hosting_storage_guard.py` flags builds over 5 GB and keeps Hosting storage
 in budget: above 8 GB it deletes preview channels oldest-first and skips a
 preview that would not fit; a live deploy may also delete live versions older
@@ -62,9 +63,11 @@ than the 3 latest to stay under 10 GB, and fails only if that is not enough.
 `infra/terraform` manages the GitHub deploy identity (one branch-and-environment
 binding per release channel the environment deploys), the channels' extra Hosting
 sites, web API key referrer restriction, App Check (reCAPTCHA Enterprise for
-web, Play Integrity for Android; `APP_CHECK_ENFORCEMENT=ENFORCED` turns Firestore
-and Storage enforcement on, `UNENFORCED` rolls back, and an apply without it keeps
-the live mode; Authentication stays `UNENFORCED`), the Firestore
+web, Play Integrity for Android; Firestore and Storage default to `UNENFORCED`
+and keep the live mode on subsequent applies; set `APP_CHECK_ENFORCEMENT=ENFORCED`
+to opt in after deploying a web build with `RECAPTCHA_ENTERPRISE_SITE_KEY` and
+verifying App Check metrics, or `APP_CHECK_ENFORCEMENT=UNENFORCED` to roll back;
+Authentication stays `UNENFORCED`), the Firestore
 database, rules release and indexes, and the Google and Facebook sign-in
 providers for one environment, plus a monthly budget when the environment is on
 `firebase-blaze`. Email/Password, Anonymous sign-in and the Hosting sites'

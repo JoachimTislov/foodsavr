@@ -261,6 +261,8 @@ if [ -z "${PLAN_FILE:-}" ]; then
   # Existing Firestore, rules release, App Check and sign-in provider configs (read-only lookup).
   android_app_id="$(python3 "$root/scripts/infra/adopt.py" firebase "$dir" "$PROJECT_ID" "$root/firestore.indexes.json" "${GCLOUD_ACCOUNT:-}")"
   printf 'android_app_id = "%s"\n' "$android_app_id" >>"$tfvars"
+  firestore_location="$(python3 "$root/scripts/infra/adopt.py" firestore-location "$PROJECT_ID" "${GCLOUD_ACCOUNT:-}")"
+  [ -n "$firestore_location" ] && printf 'firestore_location = "%s"\n' "$firestore_location" >>"$tfvars"
   if [ -z "${APP_CHECK_ENFORCEMENT:-}" ]; then
     enforcement="$(python3 "$root/scripts/infra/adopt.py" app-check-mode "$PROJECT_ID" "${GCLOUD_ACCOUNT:-}")"
     printf 'app_check_enforcement = "%s"\n' "$enforcement" >>"$tfvars"

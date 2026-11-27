@@ -804,7 +804,7 @@ class Setup:
             # scripts/infra/firebase_config.py (run by the infrastructure apply) owns the switch.
             if confirm("Enable Email/Password and Anonymous sign-in now?") and run(
                 "python3", "scripts/infra/firebase_config.py", "apply",
-                env={**os.environ, "ENV": (self.env or {}).get("ENV", "production")},
+                env={**os.environ, **(self.env or {}), "ENV": (self.env or {}).get("ENV", "production")},
             ) == 0:
                 return True
             print(f"Enable Anonymous at {url}.")

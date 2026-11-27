@@ -192,6 +192,7 @@ resource "google_firebase_app_check_service_config" "enforcement" {
   }
   service_id       = each.key
   enforcement_mode = each.value
+  depends_on       = [google_project_service.apis]
 }
 
 # Android: Play Integrity. Tokens need the app's SHA-256 in Firebase, the Cloud
@@ -199,10 +200,11 @@ resource "google_firebase_app_check_service_config" "enforcement" {
 # APKs and debug builds get no token (debug tokens are registered in the
 # console, never here: they are secrets).
 resource "google_firebase_app_check_play_integrity_config" "android" {
-  provider  = google-beta
-  count     = var.android_app_id != "" ? 1 : 0
-  app_id    = var.android_app_id
-  token_ttl = "3600s"
+  provider   = google-beta
+  count      = var.android_app_id != "" ? 1 : 0
+  app_id     = var.android_app_id
+  token_ttl  = "3600s"
+  depends_on = [google_project_service.apis]
 }
 
 # ---------------------------------------------------------------------------
