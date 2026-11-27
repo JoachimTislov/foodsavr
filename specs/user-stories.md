@@ -93,7 +93,7 @@ Settings are a fixed-width, centered column; exports and connections live in it.
 ## Test data and web configuration
 
 - As a developer, I want the test environment seeded with global products that have valid barcodes, so that scan and search flows are verifiable.
-- As a developer, I want integration environment variables served from the GitHub `test` environment and nested into the app bundle, so that the web never serves a raw `.env` file.
+- As a developer, I want public client configuration served from the GitHub `test` environment and nested into the app bundle, so that the web never serves a raw `.env` file. Private credentials stay out of the bundle — anything bundled is readable by anyone who loads the app — and reach the client only through a backend or proxy that holds them.
 
 ## Legal and brand
 
