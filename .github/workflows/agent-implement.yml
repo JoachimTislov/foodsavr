@@ -116,27 +116,36 @@ jobs:
           mkdir -p .agents/state/workflows
           gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json number,title,body,labels,comments \
             > ".agents/state/issue-${ISSUE}.json"
+          jq -r '"# Issue #\(.number): \(.title)\n\nLabels: \([.labels[].name] | join(", "))\n\n\(.body)"' \
+            ".agents/state/issue-${ISSUE}.json" > ".agents/state/issue-${ISSUE}.md"
+          # Comments get their own context budget; newest first so truncation drops the oldest.
           jq -r '
-            "# Issue #\(.number): \(.title)\n\nLabels: \([.labels[].name] | join(", "))\n\n\(.body)" +
-            (
-              [ .comments[]? | select(.authorAssociation == "OWNER" or .authorAssociation == "COLLABORATOR" or .authorAssociation == "MEMBER") ]
-              | if length > 0 then
-                  "\n\n## Trusted Comments & Agent Briefs\n\n" +
-                  (map("### Comment by @\(.author.login // "unknown") (\(.authorAssociation))\n\n\(.body)") | join("\n\n---\n\n"))
-                else "" end
-            )
-          ' ".agents/state/issue-${ISSUE}.json" > ".agents/state/issue-${ISSUE}.md"
-          jq --arg file ".agents/state/issue-${ISSUE}.md" --arg issue "#${ISSUE}" \
+            [ .comments[]? | select(.authorAssociation == "OWNER" or .authorAssociation == "COLLABORATOR" or .authorAssociation == "MEMBER") ]
+            | if length > 0 then
+                "## Trusted Comments & Agent Briefs (newest first)\n\n" +
+                (reverse | map("### Comment by @\(.author.login // "unknown") (\(.authorAssociation))\n\n\(.body)") | join("\n\n---\n\n"))
+              else empty end
+          ' ".agents/state/issue-${ISSUE}.json" > ".agents/state/issue-${ISSUE}-comments.md"
+          files=()
+          for file in ".agents/state/issue-${ISSUE}.md" ".agents/state/issue-${ISSUE}-comments.md"; do
+            [ -s "$file" ] || continue
+            files+=("$file")
+            # Matches CONTEXT_FILE_LIMIT in scripts/agents/agentctl.py.
+            if [ "$(wc -m < "$file")" -gt 12000 ]; then
+              echo "::warning::${file} exceeds the 12000-character context limit and is truncated."
+            fi
+          done
+          jq --arg issue "#${ISSUE}" \
             --slurpfile metadata ".agents/state/issue-${ISSUE}.json" '
             [$metadata[0].labels[].name] as $labels |
-            .context.files += [$file] | .references.issues = [$issue] |
+            .context.files += $ARGS.positional | .references.issues = [$issue] |
             .steps[] |= (
               if $labels | index("risk/security") then .work_type = "security" | .tier = "deep"
               elif $labels | index("type/documentation") then .work_type = "documentation"
               elif $labels | index("type/dependency") then .work_type = "refactoring"
               else . end
             )
-          ' .agents/workflows/implement-issue.json > .agents/state/workflows/implement-issue.json
+          ' .agents/workflows/implement-issue.json --args "${files[@]}" > .agents/state/workflows/implement-issue.json
 
       - name: Run implement-issue workflow
         env:
