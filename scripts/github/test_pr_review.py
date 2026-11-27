@@ -596,7 +596,7 @@ class QuotaDegradationTest(unittest.TestCase):
 class AttestationAndHistoryStoreTest(unittest.TestCase):
     def test_native_review_anchors_only_current_added_lines_and_preserves_other_findings(self):
         diff = "diff --git a/a b/a\n+++ b/a\n@@ -5,2 +8,2 @@\n-old\n context\n+new"
-        blocker = json.dumps({"path": "a", "line": 9, "body": "Empty inputs crash. Test []."})
+        blocker = json.dumps({"path": "a", "line": 9, "summary": "Guard empty inputs.", "body": "Empty inputs crash. Test []."})
         off_diff = json.dumps({"path": "a", "line": 8, "body": "Context only"})
         output = "\n".join([blocker, blocker, off_diff, "<!-- injected -->", "VERDICT: CHANGES_REQUESTED"])
         payload = pr_review.github_review_payload("abc1234", "blocked", output, diff, "marker")
@@ -606,7 +606,14 @@ class AttestationAndHistoryStoreTest(unittest.TestCase):
         self.assertIn("a:8", payload["body"])
         self.assertIn("&lt;!-- injected", payload["body"])
         self.assertNotIn("Empty inputs", payload["body"])
+        self.assertIn("Changes to make", payload["body"])
+        self.assertIn("- `a:9` — Guard empty inputs.", payload["body"])
+        self.assertEqual(payload["body"].count("Guard empty inputs."), 1)
         self.assertNotIn("VERDICT", payload["body"])
+        unsummarized = json.dumps({"path": "a", "line": 9, "body": "Empty inputs crash.\nTest []."})
+        fallback = pr_review.github_review_payload("abc1234", "blocked", unsummarized, diff, "marker")
+        self.assertIn("- `a:9` — Empty inputs crash.", fallback["body"])
+        self.assertNotIn("Test []", fallback["body"])
         approved = pr_review.github_review_payload("abc1234", "approved", blocker, diff, "marker")
         self.assertEqual(approved["comments"], [])
         self.assertIn("Empty inputs", approved["body"])
@@ -622,6 +629,21 @@ class AttestationAndHistoryStoreTest(unittest.TestCase):
                 ok, _ = pr_review.evaluate_review_attestation(
                     pr_number=pr, head_sha="abc1234", required_tier="balanced",
                     reviews=[{**review, "commit": {"oid": commit}}],
+                )
+                self.assertEqual(ok, expected)
+
+    def test_capacity_cap_accepts_agent_app_publisher_only(self):
+        marker = pr_review.format_attestation_marker(
+            pr=10, head_sha="abc1234", tier="fast", required_tier="balanced",
+            cap_reason=pr_review.PROVIDER_CAP,
+        )
+        app = "foodsavr-agent"
+        for author, expected in [(f"{app}[bot]", True), ("other-app[bot]", False)]:
+            with self.subTest(author=author), patch.dict("os.environ", {"AGENT_APP_SLUG": app}):
+                ok, _ = pr_review.evaluate_review_attestation(
+                    pr_number=10, head_sha="abc1234", required_tier="balanced",
+                    reviews=[{"state": "COMMENTED", "body": marker, "author": author, "commit": {"oid": "abc1234"}}],
+                    trusted_bots=pr_review.trusted_bot_set([app, "other-app"]),
                 )
                 self.assertEqual(ok, expected)
 

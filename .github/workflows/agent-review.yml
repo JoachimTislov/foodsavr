@@ -229,6 +229,21 @@ jobs:
           # upload-artifact strips the common ancestor (.agents/state), so restore it here.
           path: .agents/state
 
+      - name: Check agent App credentials
+        id: app-config
+        env:
+          HAS_APP: ${{ (vars.AGENT_APP_ID != '' || secrets.AGENT_APP_ID != '') && secrets.AGENT_APP_PRIVATE_KEY != '' }}
+        run: echo "configured=$HAS_APP" >> "$GITHUB_OUTPUT"
+
+      # Reviews are published as the agent GitHub App when it is configured.
+      - name: Mint agent App token
+        id: app
+        if: steps.app-config.outputs.configured == 'true'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.AGENT_APP_ID || secrets.AGENT_APP_ID }}
+          private-key: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
+
       # History is re-fetched here, never taken from the model job's artifact.
       - name: Load review history from the history branch
         env:
@@ -238,6 +253,9 @@ jobs:
       - name: Record review decision and post head-bound attestation
         env:
           GH_TOKEN: ${{ github.token }}
+          APP_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          AGENT_APP_SLUG: ${{ vars.AGENT_APP_SLUG }}
           BASE_SHA: ${{ needs.review.outputs.base_sha }}
           HEAD_SHA: ${{ needs.review.outputs.head_sha }}
           REQ_TIER: ${{ needs.review.outputs.required_tier }}
@@ -269,6 +287,15 @@ jobs:
                 > ".agents/state/pr-${PR_NUMBER}-publish.diff"; then
             diff_args=(--diff-file ".agents/state/pr-${PR_NUMBER}-publish.diff")
           fi
+          # Publish as the agent App, except on a PR the App authored: the gate ignores
+          # self-attestation, so those keep the github-actions identity.
+          reviewer_login="github-actions"
+          pr_author="$(jq -r '.user.login // ""' ".agents/state/pr-${PR_NUMBER}-publish-rest.json")"
+          if [ -n "$APP_TOKEN" ] && [ -n "$APP_SLUG" ] && [ "$pr_author" != "${APP_SLUG}[bot]" ]; then
+            export GH_TOKEN="$APP_TOKEN"
+            reviewer_login="$APP_SLUG"
+          fi
+          reviewer="${reviewer_login}[bot]"
           review_file=".agents/state/pr-${PR_NUMBER}-review.json"
           post_review() {
             endpoint="repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}"
@@ -291,17 +318,16 @@ jobs:
                       }
                     }
                   }' > "$RUNNER_TEMP/threads.json"
-              jq --slurpfile threads "$RUNNER_TEMP/threads.json" --arg head "$HEAD_SHA" '
+              jq --slurpfile threads "$RUNNER_TEMP/threads.json" --arg head "$HEAD_SHA" --arg login "$reviewer_login" '
                 [$threads[0].data.repository.pullRequest.reviewThreads.nodes[] |
                   select(.isResolved | not) | .comments.nodes[0] |
-                  select(.author.login == "github-actions" and .originalCommit.oid == $head) |
+                  select(.author.login == $login and .originalCommit.oid == $head) |
                   {path, line: .originalLine, side: "RIGHT", body}] as $existing |
                 .comments -= $existing' "$review_file" > "$RUNNER_TEMP/review.json"
               review_file="$RUNNER_TEMP/review.json"
             fi
             gh api --method POST "$endpoint/reviews" --input "$review_file" --silent
           }
-          reviewer="github-actions[bot]"
           common=(
             --pr "$PR_NUMBER" --head-sha "$HEAD_SHA" --required-tier "$REQ_TIER"
             --reviewer "$reviewer" --bot --owner "${GITHUB_REPOSITORY_OWNER}"
