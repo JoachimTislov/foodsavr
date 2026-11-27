@@ -1,0 +1,1 @@
+{"commits": [], "harness": "claude-code", "issues": ["#522"], "provider": "anthropic", "prs": [], "session_id": "claude-code:450e1a9d-3449-4396-b390-3ae6250312a4", "sources": [], "started_at": "2026-11-27T14:33:14+00:00", "status": "active", "stream": "sessions", "summary": "Diagnose #522 and disable Web Monitor"}
