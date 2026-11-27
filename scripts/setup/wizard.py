@@ -962,13 +962,19 @@ class Setup:
                     return False
                 section = {"project": project, "billingAccount": billing}
                 save_instance_local({"sessionArchive": section})
-            if run(agentctl, "sessions", "provision-archive", "--apply", "--link-billing") != 0:
-                return False
-            run(agentctl, "sessions", "archive", "--all")
-            return True
+            return run(agentctl, "sessions", "provision-archive", "--apply", "--link-billing") == 0
 
-        return self.step("Session archive", ready(), provision, "Run make setup again.",
-                         lambda: section.get("enabled") is False or ready())
+        if not self.step("Session archive", ready(), provision, "Run make setup again.",
+                         lambda: section.get("enabled") is False or ready()):
+            return False
+        if self.listing or section.get("enabled") is False:
+            return True
+        # Idempotent: uploads only sessions without an archived transcript, so it
+        # also retries earlier failures; a failed upload keeps setup pending.
+        if run(agentctl, "sessions", "archive", "--all") != 0:
+            print("Session archive backfill pending. Run make setup to retry.", file=sys.stderr)
+            return False
+        return True
 
     def fork_actions(self):
         if not self.cloud or not self.github["is_fork"]:

@@ -219,17 +219,19 @@ String _defaultManifest() {
   }
 }
 
-/// The instance overlay applies to the repository manifest only, so
+/// The instance overlay applies to a repository manifest
+/// (`<repo>/deploy/instance.yaml`, wherever the CLI runs from) only, so
 /// templates (deploy/examples) validate as written.
 String? _overlayFor(String manifest) {
-  final repoManifest = File(_defaultManifest());
   final file = File(manifest);
-  if (!repoManifest.existsSync() || !file.existsSync()) return null;
-  if (file.resolveSymbolicLinksSync() !=
-      repoManifest.resolveSymbolicLinksSync()) {
+  if (!file.existsSync()) return null;
+  final resolved = File(file.resolveSymbolicLinksSync());
+  final deployDir = resolved.parent;
+  if (resolved.uri.pathSegments.last != 'instance.yaml' ||
+      deployDir.uri.pathSegments.where((s) => s.isNotEmpty).last != 'deploy') {
     return null;
   }
-  return instanceOverlay(repoManifest.absolute.parent.parent.path);
+  return instanceOverlay(deployDir.parent.path);
 }
 
 void _report(String manifest, List<String> errors, List<String> warnings) {

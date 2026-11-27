@@ -76,9 +76,26 @@ class WizardTest(TestCase):
         self.assertEqual(calls, [
             ("sessions", "provision-archive", "--check"),
             ("sessions", "provision-archive", "--apply"),
-            ("sessions", "archive", "--all"),
             ("sessions", "provision-archive", "--check"),
+            ("sessions", "archive", "--all"),
         ])
+
+    def test_session_archive_backfills_when_ready_and_reports_failures(self):
+        setup = self.cloud_setup()
+        local = {"sessionArchive": {"project": "example-agents"}}
+        for backfill, expected in ((0, True), (1, False)):
+            with self.subTest(backfill=backfill):
+                calls = []
+
+                def fake_run(*args, **_):
+                    calls.append(args[1:4])
+                    return backfill if "archive" in args else 0
+
+                with patch.object(wizard, "load_instance_local", return_value=local), \
+                        patch.object(wizard, "run", side_effect=fake_run), \
+                        redirect_stdout(StringIO()), redirect_stderr(StringIO()):
+                    self.assertEqual(setup.session_archive(), expected)
+                self.assertEqual(calls, [("sessions", "provision-archive", "--check"), ("sessions", "archive", "--all")])
 
     def test_terraform_listing_only_plans(self):
         output = StringIO()

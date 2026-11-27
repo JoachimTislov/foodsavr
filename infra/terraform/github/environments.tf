@@ -88,6 +88,13 @@ resource "github_actions_variable" "instance" {
   repository    = data.github_repository.this.name
   variable_name = each.key
   value         = each.value
+
+  # A rerun from a clone without the local overlay or defines passes an empty
+  # map; refuse to delete the published variables CI deploys from. Removing one
+  # is an explicit operator decision (terraform state rm, then delete it in GitHub).
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "github_actions_environment_variable" "env_vars" {

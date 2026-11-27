@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
@@ -156,7 +157,8 @@ def main():
         print(path)
     elif args.command == "flags":
         if path.is_file():
-            print(f"--dart-define-from-file={path}")
+            # Make recipes splice this into a shell command; quote paths with spaces.
+            print(shlex.quote(f"--dart-define-from-file={path}"))
     else:
         try:
             validate(path.read_bytes())

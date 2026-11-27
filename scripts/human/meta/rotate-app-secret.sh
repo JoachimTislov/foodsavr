@@ -221,6 +221,10 @@ TOTAL_STAGES=2
 
 banner "Meta app secret rotation"
 
+# Resolve the Firebase project before the reset, so the follow-up link is valid.
+PROJECT="${FIREBASE_PROJECT:-$(python3 "$(git rev-parse --show-toplevel)/scripts/instance_local.py" firebase-project)}"
+[[ -n "$PROJECT" ]] || { echo "No Firebase project: set FIREBASE_PROJECT or run make setup first" >&2; exit 2; }
+
 stage "Meta: reset the app secret"
 warn "Resetting invalidates the old secret at once: Facebook sign-in fails"
 warn "until Firebase Auth gets the new one (next stage, then social_auth.sh)."
@@ -235,7 +239,7 @@ stage "Firebase: apply the new secret"
 say "Run this now so Facebook sign-in works again:"
 note "    scripts/setup/social_auth.sh"
 note "If facebook.com is already enabled, update the secret at:"
-note "    https://console.firebase.google.com/project/${FIREBASE_PROJECT:-$(python3 "$(git rev-parse --show-toplevel)/scripts/instance_local.py" firebase-project)}/authentication/providers"
+note "    https://console.firebase.google.com/project/$PROJECT/authentication/providers"
 pause "Press Enter when Firebase has the new secret"
 
 finish

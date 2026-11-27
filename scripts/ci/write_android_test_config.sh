@@ -10,8 +10,7 @@ env_file='assets/.env'
 
 if [ -n "${FIREBASE_DEFINES:-}" ]; then
   mkdir -p "$(dirname "$defines")"
-  printf '%s
-' "$FIREBASE_DEFINES" > "$defines"
+  printf '%s\n' "$FIREBASE_DEFINES" > "$defines"
 fi
 if ! python3 scripts/firebase_options.py validate "$defines"; then
   echo '::error::Firebase defines for the test project are missing (set FIREBASE_DEFINES_TEST, or run make setup).'
@@ -46,8 +45,7 @@ config = {
     }],
     "configuration_version": "1",
 }
-output.write_text(json.dumps(config, indent=2) + "
-")
+output.write_text(json.dumps(config, indent=2) + "\n")
 PY
 
 if [ -n "${ANDROID_ENV_B64:-}" ]; then

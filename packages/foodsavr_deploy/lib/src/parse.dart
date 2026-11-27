@@ -62,7 +62,8 @@ Object? _merge(Object? base, Object? over) {
 }
 
 /// Instance overlay text for the repository manifest, from (first wins):
-/// `DEPLOY_INSTANCE` (YAML or JSON; CI sets it from the GitHub Actions
+/// `DEPLOY_INSTANCE` (a JSON object, as scripts/instance_local.py requires;
+/// CI sets it from the GitHub Actions
 /// variable of that name), then the `deployInstance` object of the gitignored
 /// `.agents/instance.local.json` (FOODSAVR_INSTANCE_LOCAL overrides its path;
 /// worktrees fall back to the main checkout's file). Null when unset: the
@@ -92,7 +93,11 @@ Iterable<String> _localStatePaths(
   const relative = '.agents/instance.local.json';
   final override = env['FOODSAVR_INSTANCE_LOCAL'];
   if (override != null && override.isNotEmpty) {
-    yield override;
+    // Expand `~` like Python's Path.expanduser in scripts/instance_local.py.
+    final home = env['HOME'] ?? '';
+    yield override == '~' || override.startsWith('~/')
+        ? '$home${override.substring(1)}'
+        : override;
     return;
   }
   yield '$repoRoot/$relative';
