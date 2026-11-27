@@ -80,6 +80,21 @@ class WizardTest(TestCase):
             ("sessions", "archive", "--all"),
         ])
 
+    def test_declined_optional_steps_never_block_later_steps(self):
+        setup = self.cloud_setup()
+        with patch.object(wizard, "load_instance_local", return_value={}), \
+                patch.object(wizard, "confirm", return_value=False), \
+                patch.object(wizard, "save_instance_local") as save, \
+                patch.object(wizard, "run", return_value=1) as run, \
+                redirect_stdout(StringIO()), redirect_stderr(StringIO()):
+            self.assertTrue(setup.social_sign_in())
+        save.assert_called_once_with({"declinedSteps": ["social-sign-in"]})
+        self.assertTrue(all("--check" in call.args for call in run.call_args_list), "declining runs no fix")
+        with patch.object(wizard, "load_instance_local", return_value={"declinedSteps": ["web-monitoring"]}), \
+                patch.object(wizard.subprocess, "run") as audit:
+            self.assertTrue(setup.web_monitoring())
+        audit.assert_not_called()
+
     def test_session_archive_backfills_when_ready_and_reports_failures(self):
         setup = self.cloud_setup()
         local = {"sessionArchive": {"project": "example-agents"}}
