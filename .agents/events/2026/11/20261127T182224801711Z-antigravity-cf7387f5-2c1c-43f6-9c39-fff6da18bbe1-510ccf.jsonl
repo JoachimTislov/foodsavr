@@ -1,0 +1,1 @@
+{"commits": ["38c378b5430382283e038fa01026222275ba8e32"], "event": "resolved PR #526 review: isolate ineligible issue_comment runs in agent-review.yml concurrency group", "prs": ["#526"], "session_id": "antigravity:cf7387f5-2c1c-43f6-9c39-fff6da18bbe1", "stream": "ledger", "timestamp": "2026-11-27T18:22:24+00:00"}
