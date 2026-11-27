@@ -176,7 +176,7 @@ class BackendTests(unittest.TestCase):
             (self.root / directory).mkdir(parents=True)
         for name in ['apply.sh', 'apply-github.sh', 'bootstrap_support.py', 'adopt.py']:
             shutil.copy2(HERE / name, self.root / 'scripts/infra' / name)
-        for name in ('scripts/setup/setupctl.py', 'scripts/instance_local.py', 'scripts/github/promote_release.py', 'scripts/github/release_topology.py', 'scripts/github/checks.py'):
+        for name in ('scripts/setup/setupctl.py', 'scripts/setup/health.py', 'scripts/setup/health.toml', 'scripts/instance_local.py', 'scripts/github/promote_release.py', 'scripts/github/release_topology.py', 'scripts/github/checks.py'):
             shutil.copy2(REPO / name, self.root / name)
         for stack in ('gcp', 'github'):
             for tf_file in (REPO / 'infra/terraform' / stack).glob('*.tf'):
