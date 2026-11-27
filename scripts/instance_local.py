@@ -94,6 +94,18 @@ def site_url(root: Path, environment: str = "test", channel: str | None = None,
     return f"https://{site}.web.app" if site else ""
 
 
+def site_urls(root: Path, environ: Mapping[str, str] | None = None) -> list[str]:
+    """https URLs of every Hosting site recorded in the overlay (all environments and channels)."""
+    found = []
+    for name, env in (deploy_overlay(root, environ).get("environments") or {}).items():
+        channels = env.get("channels") if isinstance(env, dict) and isinstance(env.get("channels"), dict) else {}
+        for channel in (None, *channels):
+            url = site_url(root, name, channel, environ)
+            if url and url not in found:
+                found.append(url)
+    return found
+
+
 def ci_variables(root: Path, environ: Mapping[str, str] | None = None) -> dict[str, str]:
     """Actions variables that publish this clone's instance state to CI."""
     found: dict[str, str] = {}
@@ -117,7 +129,7 @@ def _main(argv: list[str] | None = None) -> int:
     import argparse
 
     parser = argparse.ArgumentParser(description="Resolve instance values from env and local state (prints '' when unset).")
-    parser.add_argument("what", choices=("firebase-project", "site-url", "path", "ci-variables"))
+    parser.add_argument("what", choices=("firebase-project", "site-url", "site-urls", "path", "ci-variables"))
     parser.add_argument("--env", default="test", help="deployment environment (default: test)")
     parser.add_argument("--channel", help="release channel for site-url")
     args = parser.parse_args(argv)
@@ -126,6 +138,8 @@ def _main(argv: list[str] | None = None) -> int:
         print(path(root))
     elif args.what == "ci-variables":
         print(json.dumps(ci_variables(root), sort_keys=True))
+    elif args.what == "site-urls":
+        print("\n".join(site_urls(root)))
     elif args.what == "firebase-project":
         print(firebase_project(root, args.env))
     else:

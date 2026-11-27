@@ -60,7 +60,7 @@ vars = [{ name = "PROFILE", prompt = "Profile", choices = ["local-dev", "fork-ag
 [[entry]]
 id = "session-archive"
 group = "setup"
-title = "Provision the agent session archive (links billing) and backfill it"
+title = "Provision the agent session archive and backfill it (a make setup step)"
 target = "session-archive"
 step = ""
 needs = "gcloud login with billing access; sessionArchive (project, billingAccount) in .agents/instance.local.json"
@@ -98,7 +98,7 @@ vars = [{ name = "REPO", prompt = "Repository (empty: origin remote)" }]
 [[entry]]
 id = "social-auth-setup"
 group = "setup"
-title = "Configure Google and Facebook sign-in in Firebase"
+title = "Configure Google and Facebook sign-in in Firebase (a make setup step)"
 target = "social-auth-setup"
 step = ""
 needs = "firebase and gcloud login; the secrets from the Google and Meta wizards"

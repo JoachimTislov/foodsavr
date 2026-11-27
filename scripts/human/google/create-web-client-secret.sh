@@ -6,7 +6,7 @@
 # Secrets: GOOGLE_WEB_CLIENT_SECRET
 # Why human: the OAuth client secret is only shown in the Google Cloud console
 #   (Google login, often 2FA); no API returns it.
-# After it: scripts/setup/social_auth.sh enables Google sign-in in Firebase.
+# After it: make setup (Social sign-in step) enables Google sign-in in Firebase.
 #
 #
 # A wizard walks a human through a manual procedure, step by step.

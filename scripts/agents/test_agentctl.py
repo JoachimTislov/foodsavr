@@ -2920,6 +2920,12 @@ class ArchiveTest(unittest.TestCase):
         self.cli("sessions", "provision-archive", "--apply", "--link-billing", FAKE_GCLOUD_BILLING="False")
         self.assertTrue(any(call.startswith("billing projects link proj --billing-account=000000-000000-000000") for call in self.calls()))
 
+    def test_provision_check_reports_missing_steps_without_changes(self) -> None:
+        missing = self.cli("sessions", "provision-archive", "--check", check=False, FAKE_GCLOUD_BILLING="False")
+        self.assertEqual(missing.returncode, 1)
+        self.assertIn("billing", missing.stdout)
+        self.assertFalse(any(call.startswith(("billing projects link", "storage buckets create", "projects create")) for call in self.calls()))
+
     def test_archive_all_backfills_sessions_without_transcripts(self) -> None:
         self.index.write_text(json.dumps({"session_id": self.session, "started_at": "2026-11-22T00:00:00+00:00"}) + "\n")
         result = self.cli("sessions", "archive", "--all", "--json")

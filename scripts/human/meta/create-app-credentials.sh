@@ -6,7 +6,7 @@
 # Secrets: FACEBOOK_APP_ID FACEBOOK_CLIENT_TOKEN FACEBOOK_APP_SECRET
 # Why human: values live behind the Meta for Developers console login (2FA);
 #   the redirect URI, Android packages and Live mode are console-only settings.
-# After it: scripts/setup/social_auth.sh configures Firebase + key hashes.
+# After it: make setup (Social sign-in step) configures Firebase + key hashes.
 #
 #
 # A wizard walks a human through a manual procedure, step by step.
@@ -238,7 +238,7 @@ step "Copy the client token."
 ask_secret FACEBOOK_CLIENT_TOKEN "Paste the client token:"
 set_secret FACEBOOK_CLIENT_TOKEN "$FACEBOOK_CLIENT_TOKEN"
 
-note "Next: run scripts/setup/social_auth.sh to sync the supported settings and see the remaining dashboard steps."
+note "Next: run make setup to sync the supported settings and see the remaining dashboard steps."
 
 finish
 }
