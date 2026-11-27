@@ -208,9 +208,13 @@ void main() {
           final exception = tester.takeException();
           if (screen == _Screen.productForm) {
             // The test font is wider than the real one; a RenderFlex overflow
-            // is expected under the test font.
+            // on the quantity/action row is expected under the test font.
             if (exception != null) {
-              expect(exception.toString(), contains('overflowed'));
+              expect(exception, isA<FlutterError>());
+              expect(
+                exception.toString(),
+                contains('A RenderFlex overflowed by'),
+              );
             }
           } else {
             expect(exception, isNull);
