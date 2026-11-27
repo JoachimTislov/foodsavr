@@ -571,7 +571,17 @@ def plan(
 
         hard = structural_blocker(pr, owner=owner, trusted_bots=trusted_bots)
         if hard:
-            report.append((pr.number, "blocked", hard))
+            reasons = [hard]
+            # Report all independently actionable safeguards. This prevents a green
+            # Validation result from hiding security, thread, or review blockers.
+            if pr.open_threads and "unresolved review thread" not in hard:
+                reasons.append(f"{pr.open_threads} unresolved review thread(s)")
+            if pr.threads_truncated and "review threads truncated" not in hard:
+                reasons.append("review threads truncated (>100); resolve or inspect manually")
+            rev = review_blocker(pr, owner=owner, trusted_bots=trusted_bots, history=effective_history)
+            if rev:
+                reasons.append(rev)
+            report.append((pr.number, "blocked", "; ".join(reasons)))
             continue
         rev = review_blocker(pr, owner=owner, trusted_bots=trusted_bots, history=effective_history)
         if rev:
@@ -1227,4 +1237,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

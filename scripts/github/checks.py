@@ -14,6 +14,9 @@ IGNORED_WORKFLOWS = {
     "Promote develop to main",
     "Promote release channels",
 }
+# This is an informational attestation status, not an independent required check.
+# The review evaluator is the authority and binds approval to the head SHA.
+IGNORED_STATUSES = {"Review verdict"}
 FAILED = {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"}
 
 
@@ -99,7 +102,7 @@ def rollup_state(contexts: list[dict[str, Any]]) -> str | None:
                 if c.get("conclusion") in FAILED
                 else "SUCCESS"
             )
-        elif c.get("__typename") == "StatusContext":
+        elif c.get("__typename") == "StatusContext" and c.get("context") not in IGNORED_STATUSES:
             states.append(
                 {"SUCCESS": "SUCCESS", "PENDING": "PENDING", "EXPECTED": "PENDING"}.get(c.get("state"), "FAILURE")
             )

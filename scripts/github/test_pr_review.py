@@ -1652,6 +1652,25 @@ class PatchEquivalentCarryoverTest(unittest.TestCase):
             self.assertEqual(parsed["carried_from_sha"], "1111111aaaaaaa")
 
 
+class ReviewVerdictAndSuggestionTest(unittest.TestCase):
+    def test_non_approved_verdicts_fail(self):
+        for verdict in ("blocked", "commented", "skipped"):
+            marker = pr_review.format_attestation_marker(pr=1, head_sha="abc1234", tier="fast", status=verdict)
+            self.assertEqual(pr_review.verdict_status(marker)[0], "failure")
+        marker = pr_review.format_attestation_marker(pr=1, head_sha="abc1234", tier="fast", status="approved")
+        self.assertEqual(pr_review.verdict_status(marker)[0], "success")
+        self.assertEqual(pr_review.verdict_status("")[0], "failure")
+
+    def test_suggestions_only_replace_added_lines(self):
+        added = {("a", 2), ("a", 3)}
+        block, start = pr_review.suggestion_block(
+            {"suggestion": "fixed", "start_line": 2}, "a", 3, added
+        )
+        self.assertEqual((block, start), ("```suggestion\nfixed\n```", 2))
+        self.assertIsNone(pr_review.suggestion_block(
+            {"suggestion": "fixed", "start_line": 1}, "a", 3, added
+        )[0])
+
+
 if __name__ == "__main__":
     unittest.main()
-
