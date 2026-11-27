@@ -9,13 +9,14 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 
-def imports_file(directory, resources):
-    # Individual blocks work with Terraform 1.6 and leave state untouched until apply.
-    blocks = []
-    for address, resource_id in resources.items():
-        literal = json.dumps(resource_id).replace("${", "$${").replace("%{", "%%{")
-        blocks.append(f"import {{\n  to = {address}\n  id = {literal}\n}}\n")
-    (Path(directory) / "adopt.tf").write_text("\n".join(blocks))
+def hcl_string(value):
+    return json.dumps(value).replace("${", "$${").replace("%{", "%%{")
+
+
+def imports_file(directory, resources, name="adopt.tf", extra=()):
+    # Import blocks leave state untouched until apply.
+    blocks = [f"import {{\n  to = {address}\n  id = {hcl_string(resource_id)}\n}}\n" for address, resource_id in resources.items()]
+    (Path(directory) / name).write_text("\n".join([*blocks, *extra]))
 
 
 def command_json(*argv):
@@ -110,7 +111,9 @@ def github_resources(directory, repo, enable_rulesets):
 
 BASE_APIS = {
     "apikeys.googleapis.com", "recaptchaenterprise.googleapis.com", "firebaseappcheck.googleapis.com",
-    "firebasehosting.googleapis.com", "iam.googleapis.com", "iamcredentials.googleapis.com", "sts.googleapis.com",
+    "firebasehosting.googleapis.com", "firebaserules.googleapis.com", "firestore.googleapis.com",
+    "iam.googleapis.com", "iamcredentials.googleapis.com", "identitytoolkit.googleapis.com",
+    "playintegrity.googleapis.com", "sts.googleapis.com",
 }
 BLAZE_APIS = {"firebasetelemetry.googleapis.com", "firebasetelemetryadmin.googleapis.com"}
 APP_CHECK_SERVICES = {"firestore.googleapis.com", "identitytoolkit.googleapis.com", "firebasestorage.googleapis.com"}
@@ -124,8 +127,9 @@ TELEMETRY_ROLES = {
 }
 
 
-def app_check_get(project, path, *, missing_ok=False):
-    request = Request(f"https://firebaseappcheck.googleapis.com/v1beta/{path}", headers={
+def google_get(project, url, label, *, missing_ok=False):
+    """GET a Google API resource; 404 is {} when missing_ok. Callers keep only names."""
+    request = Request(url, headers={
         "Authorization": f"Bearer {os.environ['GOOGLE_OAUTH_ACCESS_TOKEN']}",
         "x-goog-user-project": project,
     })
@@ -133,9 +137,14 @@ def app_check_get(project, path, *, missing_ok=False):
         with urlopen(request, timeout=30) as response:
             return json.load(response)
     except HTTPError as error:
+        error.close()
         if missing_ok and error.code == 404:
             return {}
-        raise ValueError("Cannot read Firebase App Check. Check permissions in the Firebase console.") from None
+        raise ValueError(f"Cannot read {label}. Check permissions in the Firebase console.") from None
+
+
+def app_check_get(project, path, *, missing_ok=False):
+    return google_get(project, f"https://firebaseappcheck.googleapis.com/v1beta/{path}", "Firebase App Check", missing_ok=missing_ok)
 
 
 def hosting_sites(project):
@@ -271,6 +280,83 @@ def gcp_resources(directory, project, app, repo, environment, deploy_branch, int
     print(deploy_id)
 
 
+ANDROID_PACKAGE = "com.foodsavr.app"
+IDENTITY_PROVIDERS = ("google.com", "facebook.com")
+
+
+def index_key(index):
+    """Same key as local.firestore_indexes in infra/terraform/gcp/firestore.tf."""
+    fields = [f for f in index.get("fields", []) if f.get("fieldPath") != "__name__"]
+    return "/".join([index["collectionGroup"], index.get("queryScope", "COLLECTION")] + [
+        f"{f['fieldPath']}:{f.get('order') or f.get('arrayConfig', '')}" for f in fields
+    ])
+
+
+def firebase_resources(directory, project, indexes_file, account=""):
+    """Import blocks for the Firebase resources of firestore.tf, auth.tf and App Check
+    that already exist; prints the Android app id (empty when none)."""
+    account_arg = (f"--account={account}",) if account else ()
+    enabled = {item["config"]["name"] for item in command_json(
+        "gcloud", *account_arg, "services", "list", "--enabled", f"--project={project}", "--format=json")}
+    resources, extra, android = {}, [], ""
+
+    def indexed(address, key):
+        return f"{address}[{json.dumps(key)}]"
+
+    if "firestore.googleapis.com" in enabled:
+        database = f"projects/{project}/databases/(default)"
+        url = f"https://firestore.googleapis.com/v1/{database}"
+        if google_get(project, url, "the Firestore database", missing_ok=True).get("name"):
+            resources["google_firestore_database.default"] = database
+            declared = {index_key(i) for i in json.loads(Path(indexes_file).read_text()).get("indexes", [])}
+            token = ""
+            while True:
+                query = f"?pageToken={token}" if token else ""  # the API accepts no pageSize
+                page = google_get(project, f"{url}/collectionGroups/-/indexes{query}", "Firestore indexes")
+                for index in page.get("indexes", []):
+                    group = index["name"].split("/collectionGroups/", 1)[1].split("/", 1)[0]
+                    key = index_key({**index, "collectionGroup": group})
+                    if key in declared:
+                        resources[indexed("google_firestore_index.composite", key)] = index["name"]
+                token = page.get("nextPageToken", "")
+                if not token:
+                    break
+    if "firebaserules.googleapis.com" in enabled:
+        release = google_get(project, f"https://firebaserules.googleapis.com/v1/projects/{project}/releases/cloud.firestore",
+                             "the Firestore rules release", missing_ok=True)
+        if release.get("name"):
+            resources["google_firebaserules_release.firestore"] = release["name"]
+    if "firebase.googleapis.com" in enabled:
+        apps = google_get(project, f"https://firebase.googleapis.com/v1beta1/projects/{project}/androidApps?pageSize=100",
+                          "Firebase Android apps").get("apps", [])
+        app = lookup(apps, lambda item: item.get("packageName") == ANDROID_PACKAGE and item.get("state", "ACTIVE") == "ACTIVE",
+                     "Android apps")
+        android = app["appId"] if app else ""
+        if android and "firebaseappcheck.googleapis.com" in enabled:
+            resources["google_firebase_app_check_play_integrity_config.android[0]"] = (
+                f"projects/{project}/apps/{android}/playIntegrityConfig")
+    if "identitytoolkit.googleapis.com" in enabled:
+        listing = google_get(project, f"https://identitytoolkit.googleapis.com/admin/v2/projects/{project}/defaultSupportedIdpConfigs",
+                             "Firebase Auth providers", missing_ok=True)
+        # Only names are read; client secrets in the response are discarded here.
+        existing = sorted({item["name"].rsplit("/", 1)[-1] for item in listing.get("defaultSupportedIdpConfigs", [])}
+                          & set(IDENTITY_PROVIDERS))
+        if existing:
+            extra.append(f"""import {{
+  for_each = toset([for idp in {json.dumps(existing)} : idp if contains(keys(var.identity_providers), idp)])
+  to       = google_identity_platform_default_supported_idp_config.idp[each.key]
+  id       = "projects/${{var.project_id}}/defaultSupportedIdpConfigs/${{each.key}}"
+}}
+""")
+    imports_file(directory, resources, "adopt_firebase.tf", extra)
+    print(android)
+
+
+# Replacements that keep the live service working: rulesets are immutable and
+# abandoned, and the rules release is recreated for the new ruleset.
+REPLACEABLE = {"google_firebaserules_ruleset.firestore", "google_firebaserules_release.firestore"}
+
+
 def safe_plan(recovery="true"):
     plan = json.load(sys.stdin)
     variables = plan.get("variables", {})
@@ -284,7 +370,10 @@ def safe_plan(recovery="true"):
         print("false")
         return
     for item in changes:
-        if "delete" in item["change"]["actions"]:
+        actions = item["change"]["actions"]
+        if item["address"] in REPLACEABLE and "create" in actions:
+            continue
+        if "delete" in actions:
             raise ValueError(f"Plan would remove or replace {item['address']}. Reconcile its state before applying.")
     print("true")
 
@@ -296,6 +385,8 @@ if __name__ == "__main__":
             github_resources(*args)
         elif task == "gcp":
             gcp_resources(*args)
+        elif task == "firebase":
+            firebase_resources(*args)
         elif task == "safe-plan":
             safe_plan(*args)
     except (ValueError, OSError, KeyError, subprocess.TimeoutExpired) as error:

@@ -6,7 +6,7 @@
 # Secrets: FACEBOOK_APP_SECRET
 # Why human: only the Meta console can reset the app secret, behind login,
 #   password re-entry and 2FA. The reset breaks sign-in until Firebase is updated.
-# After it: scripts/setup/social_auth.sh pushes the new secret to Firebase Auth.
+# After it: make infra-gcp-apply ENV=<env> pushes the new secret to Firebase Auth (Terraform).
 #
 #
 # A wizard walks a human through a manual procedure, step by step.
@@ -227,7 +227,7 @@ PROJECT="${FIREBASE_PROJECT:-$(python3 "$(git rev-parse --show-toplevel)/scripts
 
 stage "Meta: reset the app secret"
 warn "Resetting invalidates the old secret at once: Facebook sign-in fails"
-warn "until Firebase Auth gets the new one (next stage, then social_auth.sh)."
+warn "until Firebase Auth gets the new one (next stage, then make infra-gcp-apply)."
 confirm "Reset the Meta app secret now?" || { note "Nothing changed."; exit 0; }
 open_url "https://developers.facebook.com/apps/"
 step "Open the FoodSavr app, open Basic settings, and reset the App secret."
@@ -237,9 +237,7 @@ set_secret FACEBOOK_APP_SECRET "$FACEBOOK_APP_SECRET"
 
 stage "Firebase: apply the new secret"
 say "Run this now so Facebook sign-in works again:"
-note "    scripts/setup/social_auth.sh"
-note "If facebook.com is already enabled, update the secret at:"
-note "    https://console.firebase.google.com/project/$PROJECT/authentication/providers"
+note "    make infra-gcp-apply ENV=<environment>   (once per environment)"
 pause "Press Enter when Firebase has the new secret"
 
 finish

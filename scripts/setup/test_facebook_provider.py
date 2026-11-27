@@ -17,113 +17,48 @@ class FacebookProviderTest(unittest.TestCase):
     app_secret = "fb-secret-xyz"
     console_url = "https://console.firebase.google.com/project/demo-project/authentication/providers"
 
-    def test_missing_creates_with_post_and_quota_header(self):
+    def check(self, open_url, app_id=None):
+        return fp.sync_facebook_provider(
+            self.project,
+            self.app_id if app_id is None else app_id,
+            self.app_secret,
+            get_token=lambda _acc: "tok-1",
+            open_url=open_url,
+        )
+
+    def test_check_is_read_only_and_names_terraform_as_the_fix(self):
         not_found = HTTPError("u", 404, "Not Found", {}, BytesIO(b"{}"))
-        open_url = Mock(side_effect=[not_found, BytesIO(b'{"enabled": true}')])
-        ok, message = fp.sync_facebook_provider(
-            self.project,
-            self.app_id,
-            self.app_secret,
-            get_token=lambda _acc: "tok-1",
-            open_url=open_url,
-        )
-        self.assertTrue(ok)
-        self.assertEqual(message, "facebook.com enabled")
-        self.assertEqual(open_url.call_count, 2)
+        open_url = Mock(side_effect=[not_found])
+        ok, message = self.check(open_url)
+        self.assertFalse(ok)
+        self.assertIn("make infra-gcp-apply", message)
+        self.assertEqual(open_url.call_count, 1)
+        request = open_url.call_args_list[0].args[0]
+        self.assertEqual(request.get_method(), "GET")
+        self.assertTrue(request.full_url.endswith(f"/{self.project}/defaultSupportedIdpConfigs/facebook.com"))
+        self.assertEqual(request.get_header("X-goog-user-project"), self.project)
+        self.assertIsNone(request.data)
 
-        req_get = open_url.call_args_list[0].args[0]
-        self.assertEqual(req_get.get_method(), "GET")
-        self.assertTrue(req_get.full_url.endswith(f"/{self.project}/defaultSupportedIdpConfigs/facebook.com"))
-        self.assertEqual(req_get.get_header("X-goog-user-project"), self.project)
-
-        req_post = open_url.call_args_list[1].args[0]
-        self.assertEqual(req_post.get_method(), "POST")
-        self.assertTrue(req_post.full_url.endswith(f"/{self.project}/defaultSupportedIdpConfigs?idpId=facebook.com"))
-        self.assertEqual(req_post.get_header("X-goog-user-project"), self.project)
-        self.assertEqual(
-            json.loads(req_post.data.decode()),
-            {"enabled": True, "clientId": self.app_id, "clientSecret": self.app_secret},
-        )
-        self.assertNotIn(self.console_url, message)
-        self.assertNotIn(self.app_secret, message)
-
-    def test_enabled_same_is_idempotent_single_ok_without_patch(self):
-        open_url = Mock(return_value=BytesIO(json.dumps({
-            "enabled": True,
-            "clientId": self.app_id,
-            "clientSecret": self.app_secret,
-        }).encode()))
-        ok, message = fp.sync_facebook_provider(
-            self.project,
-            self.app_id,
-            self.app_secret,
-            get_token=lambda _acc: "tok-1",
-            open_url=open_url,
-        )
+    def test_enabled_with_matching_app_id_is_ok_and_ignores_the_live_secret(self):
+        body = {"enabled": True, "clientId": self.app_id, "clientSecret": "live-secret-value"}
+        open_url = Mock(return_value=BytesIO(json.dumps(body).encode()))
+        ok, message = self.check(open_url)
         self.assertTrue(ok)
         self.assertEqual(message, "facebook.com is enabled")
-        self.assertEqual(open_url.call_count, 1)
-        req_get = open_url.call_args_list[0].args[0]
-        self.assertEqual(req_get.get_method(), "GET")
-        self.assertEqual(req_get.get_header("X-goog-user-project"), self.project)
+        self.assertNotIn("live-secret-value", message)
 
-    def test_enabled_different_client_id_or_secret_updates_with_patch(self):
-        for existing in (
-            {"enabled": True, "clientId": "other-app", "clientSecret": self.app_secret},
-            {"enabled": True, "clientId": self.app_id, "clientSecret": "old-secret"},
+    def test_disabled_or_other_app_id_reports_without_writing(self):
+        for body, expected in (
+            ({"enabled": False, "clientId": self.app_id}, "facebook.com is disabled"),
+            ({"enabled": True, "clientId": "other-app"}, "different app ID"),
         ):
-            with self.subTest(existing=existing):
-                open_url = Mock(side_effect=[
-                    BytesIO(json.dumps(existing).encode()),
-                    BytesIO(b'{"enabled": true}'),
-                ])
-                ok, message = fp.sync_facebook_provider(
-                    self.project,
-                    self.app_id,
-                    self.app_secret,
-                    get_token=lambda _acc: "tok-1",
-                    open_url=open_url,
-                )
-                self.assertTrue(ok)
-                self.assertEqual(message, "facebook.com enabled")
-                self.assertEqual(open_url.call_count, 2)
-                req_patch = open_url.call_args_list[1].args[0]
-                self.assertEqual(req_patch.get_method(), "PATCH")
-                self.assertIn("defaultSupportedIdpConfigs/facebook.com?updateMask=enabled,clientId,clientSecret", req_patch.full_url)
-                self.assertEqual(req_patch.get_header("X-goog-user-project"), self.project)
-                self.assertEqual(
-                    json.loads(req_patch.data.decode()),
-                    {"enabled": True, "clientId": self.app_id, "clientSecret": self.app_secret},
-                )
-
-    def test_disabled_updates_with_patch_and_check_mode_reports_without_mutating(self):
-        open_url = Mock(side_effect=[
-            BytesIO(b'{"enabled": false, "clientId": "old"}'),
-            BytesIO(b'{"enabled": true}'),
-        ])
-        ok, message = fp.sync_facebook_provider(
-            self.project,
-            self.app_id,
-            self.app_secret,
-            get_token=lambda _acc: "tok-1",
-            open_url=open_url,
-        )
-        self.assertTrue(ok)
-        self.assertEqual(message, "facebook.com enabled")
-        self.assertEqual(open_url.call_args_list[1].args[0].get_method(), "PATCH")
-
-        check_open = Mock(return_value=BytesIO(b'{"enabled": false}'))
-        ok_check, check_msg = fp.sync_facebook_provider(
-            self.project,
-            self.app_id,
-            self.app_secret,
-            check=True,
-            get_token=lambda _acc: "tok-1",
-            open_url=check_open,
-        )
-        self.assertFalse(ok_check)
-        self.assertEqual(check_msg, "facebook.com is disabled")
-        self.assertEqual(check_open.call_count, 1)
+            with self.subTest(body=body):
+                open_url = Mock(return_value=BytesIO(json.dumps(body).encode()))
+                ok, message = self.check(open_url)
+                self.assertFalse(ok)
+                self.assertIn(expected, message)
+                self.assertEqual(open_url.call_count, 1)
+                self.assertEqual(open_url.call_args_list[0].args[0].get_method(), "GET")
 
     def test_permission_error_and_missing_token_fall_back_to_console_url_without_leaking_secrets(self):
         forbidden = HTTPError("u", 403, "Forbidden", {}, BytesIO(b'{"error": {"code": 403}}'))

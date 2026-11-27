@@ -4,7 +4,7 @@
 # or worktree-safe XDG local state on Spark).
 
 terraform {
-  required_version = ">= 1.6"
+  required_version = ">= 1.7"
   required_providers {
     google-beta = {
       source  = "hashicorp/google-beta"
@@ -64,8 +64,12 @@ locals {
     "recaptchaenterprise.googleapis.com",
     "firebaseappcheck.googleapis.com",
     "firebasehosting.googleapis.com",
+    "firebaserules.googleapis.com",
+    "firestore.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
+    "identitytoolkit.googleapis.com",
+    "playintegrity.googleapis.com",
     "sts.googleapis.com",
   ]
   blaze_apis = local.is_blaze ? [
@@ -175,11 +179,30 @@ resource "google_firebase_app_check_recaptcha_enterprise_config" "web" {
   token_ttl = "3600s"
 }
 
+# Firestore and Storage follow app_check_enforcement (ENFORCED by default;
+# rollback: APP_CHECK_ENFORCEMENT=UNENFORCED make infra-gcp-apply ENV=<env>).
+# Authentication App Check is a preview that needs the Identity Platform
+# upgrade, so it stays at app_check_auth_enforcement (UNENFORCED) on Spark.
 resource "google_firebase_app_check_service_config" "enforcement" {
-  provider         = google-beta
-  for_each         = toset(["firestore.googleapis.com", "identitytoolkit.googleapis.com", "firebasestorage.googleapis.com"])
+  provider = google-beta
+  for_each = {
+    "firestore.googleapis.com"       = var.app_check_enforcement
+    "firebasestorage.googleapis.com" = var.app_check_enforcement
+    "identitytoolkit.googleapis.com" = var.app_check_auth_enforcement
+  }
   service_id       = each.key
-  enforcement_mode = var.app_check_enforcement
+  enforcement_mode = each.value
+}
+
+# Android: Play Integrity. Tokens need the app's SHA-256 in Firebase, the Cloud
+# project linked in Play Console and a Play-distributed build; sideloaded
+# APKs and debug builds get no token (debug tokens are registered in the
+# console, never here: they are secrets).
+resource "google_firebase_app_check_play_integrity_config" "android" {
+  provider  = google-beta
+  count     = var.android_app_id != "" ? 1 : 0
+  app_id    = var.android_app_id
+  token_ttl = "3600s"
 }
 
 # ---------------------------------------------------------------------------

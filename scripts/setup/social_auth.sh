@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 # Idempotent setup for Google and Facebook sign-in (Firebase Auth, Android + Web).
+# Registers Android SHA fingerprints, writes google-services.json and syncs the
+# Meta app settings. The Firebase Auth providers and authorized domains belong
+# to `make infra-gcp-apply` (infra/terraform/gcp/auth.tf and
+# scripts/infra/firebase_config.py); this script only checks them.
 #
 # Usage: scripts/setup/social_auth.sh [--check]
 #   --check   report what is missing without changing anything.
@@ -13,9 +17,7 @@
 #   FACEBOOK_APP_ID           Meta app ID
 #   FACEBOOK_APP_SECRET       Meta app secret (Firebase provider + Graph API)
 #   FACEBOOK_CLIENT_TOKEN     Meta client token (Android SDK)
-#   GOOGLE_WEB_CLIENT_SECRET  secret of the "Web client (auto created by Google
-#                             Service)"; only needed to enable Google via API
-#   AUTH_DOMAINS              comma-separated extra Firebase authorized domains
+#   AUTH_DOMAINS              comma-separated extra Firebase authorized domains to check
 #   EXTRA_SHA                 comma-separated extra SHA-1/SHA-256 (e.g. Play signing)
 #   ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS
 #                             release keystore (or android/key.properties)
@@ -84,7 +86,7 @@ api() {
 }
 auth_config=""
 if [ -n "$token" ]; then
-  auth_config="$(api GET "$idt/config")"
+  auth_config="$(api GET "$idt/config" | json "d.get('signIn', {}).pop('hashConfig', None); print(json.dumps(d))" 2>/dev/null || true)"
 fi
 if [ -z "$auth_config" ] || printf '%s' "$auth_config" | grep -q '"error"'; then
   account="$(gcloud config get-value account 2>/dev/null || echo '<account>')"
@@ -177,73 +179,43 @@ else
 fi
 
 step "Firebase Auth providers"
-provider() { # idp clientId clientSecret
-  local idp="$1" id="$2" secret="$3" current enabled current_id
-  current="$(api GET "$idt/defaultSupportedIdpConfigs/$idp")"
-  if failed "$current" && ! printf '%s' "$current" | grep -q '"NOT_FOUND"'; then
+# Read-only: the client secret in the response is dropped before anything else sees it.
+provider() { # idp expectedClientId
+  local idp="$1" id="$2" current enabled current_id
+  current="$(api GET "$idt/defaultSupportedIdpConfigs/$idp" | json "d.pop('clientSecret', None); print(json.dumps(d))" 2>/dev/null || true)"
+  if printf '%s' "$current" | grep -q '"NOT_FOUND"'; then
+    current='{}'
+  elif [ -z "$current" ] || failed "$current"; then
     miss "Could not read the $idp provider config"
     return
   fi
   enabled="$(printf '%s' "$current" | json "print(str(d.get('enabled', False)).lower())")"
-  if [ "$enabled" = true ]; then
-    current_id="$(printf '%s' "$current" | json "print(d.get('clientId', ''))")"
-    if [ "$idp" = facebook.com ] && [ -n "$id" ] && [ "$current_id" != "$id" ]; then
-      miss "Firebase Facebook provider uses a different app ID: https://console.firebase.google.com/project/$project/authentication/providers"
-    else
-      ok "$idp is enabled"
-    fi
-  elif [ -z "$id" ] || [ -z "$secret" ]; then
+  current_id="$(printf '%s' "$current" | json "print(d.get('clientId', ''))")"
+  if [ "$enabled" != true ]; then
     case "$idp" in
-      google.com) miss "$idp is disabled; run scripts/human/google/create-web-client-secret.sh, then re-run" ;;
-      *) miss "$idp is disabled; run scripts/human/meta/create-app-credentials.sh, then re-run" ;;
+      google.com) miss "$idp is disabled; run scripts/human/google/create-web-client-secret.sh, then make infra-gcp-apply" ;;
+      *) miss "$idp is disabled; run scripts/human/meta/create-app-credentials.sh, then make infra-gcp-apply" ;;
     esac
-  elif [ "$check_only" = 1 ]; then
-    miss "$idp is disabled"
+  elif [ -n "$id" ] && [ "$current_id" != "$id" ]; then
+    miss "$idp uses a different client ID than configured; run make infra-gcp-apply"
   else
-    local body result
-    body="$(IDP_ID="$id" IDP_SECRET="$secret" python3 -I -c 'import json,os; print(json.dumps({"enabled": True, "clientId": os.environ["IDP_ID"], "clientSecret": os.environ["IDP_SECRET"]}))')"
-    if printf '%s' "$current" | grep -q '"NOT_FOUND"'; then
-      result="$(api POST "$idt/defaultSupportedIdpConfigs?idpId=$idp" "$body")"
-    else
-      result="$(api PATCH "$idt/defaultSupportedIdpConfigs/$idp?updateMask=enabled,clientId,clientSecret" "$body")"
-    fi
-    if failed "$result"; then
-      miss "Enabling $idp failed"
-    else
-      ok "$idp enabled"
-    fi
+    ok "$idp is enabled"
   fi
 }
 if [ -n "$auth_config" ]; then
-  provider google.com "${web_client_id:-}" "${GOOGLE_WEB_CLIENT_SECRET:-}"
-  fb_args=("$project")
-  [ "$check_only" = 0 ] || fb_args+=(--check)
-  if fb_out="$(python3 scripts/setup/facebook_provider.py "${fb_args[@]}" 2>&1)"; then
-    ok "$fb_out"
-  else
-    miss "$fb_out"
-  fi
+  provider google.com "${web_client_id:-}"
+  provider facebook.com "${FACEBOOK_APP_ID:-}"
 
   IFS=',' read -r -a wanted <<<"${AUTH_DOMAINS:-}"
   domains="$(printf '%s' "$auth_config" | json "print('\n'.join(d.get('authorizedDomains', [])))")"
-  missing_domains=()
   for domain in "${wanted[@]}"; do
     [ -z "$domain" ] && continue
-    grep -qx "$domain" <<<"$domains" && ok "Authorized domain $domain" || missing_domains+=("$domain")
-  done
-  if [ "${#missing_domains[@]}" -gt 0 ]; then
-    if [ "$check_only" = 1 ]; then
-      miss "Authorized domains missing: ${missing_domains[*]}"
+    if grep -qx "$domain" <<<"$domains"; then
+      ok "Authorized domain $domain"
     else
-      body="$(printf '%s\n' "$domains" "${missing_domains[@]}" |
-        python3 -I -c 'import json,sys; print(json.dumps({"authorizedDomains": [l for l in sys.stdin.read().split() if l]}))')"
-      if failed "$(api PATCH "$idt/config?updateMask=authorizedDomains" "$body")"; then
-        miss "Adding authorized domains failed: ${missing_domains[*]}"
-      else
-        ok "Added authorized domains: ${missing_domains[*]}"
-      fi
+      miss "Authorized domain $domain is missing; Hosting site domains come from make infra-gcp-apply, others at https://console.firebase.google.com/project/$project/authentication/settings"
     fi
-  fi
+  done
 fi
 
 step "Meta app"

@@ -147,7 +147,9 @@ void main() async {
     }
     await FirebaseAppCheck.instance.activate(
       providerWeb: ReCaptchaEnterpriseProvider(recaptchaKey),
-      providerAndroid: Config.useEmulators
+      // Debug builds get no Play Integrity verdict; they log a debug token
+      // to register under App Check > Manage debug tokens.
+      providerAndroid: kDebugMode
           ? AndroidDebugProvider()
           : AndroidPlayIntegrityProvider(),
     );

@@ -36,7 +36,7 @@ a ratio above 1 means paying. Budgets alert; they do not cap spend.
 `levels env --env <flavor> --format dotenv|github|tfvars` emits `FLAVOR`, `PROVISIONED`, project/web app/site ids, region, state bucket/prefix, Actions-variable suffix and Terraform variables (including `deploy_branches` and `hosting_sites` from the channels). `levels env --channel <branch>` selects the environment that deploys the channel (exit 3 when none does) and emits that channel's site as `SITE_ID`. Consumers:
 
 - `scripts/infra/bootstrap.sh` — newcomer entry point: prerequisites, human-only steps, then `apply.sh`.
-- `scripts/infra/apply.sh` — Terraform per environment (`ENV=<flavor>`).
+- `scripts/infra/apply.sh` — Terraform per environment (`ENV=<flavor>`), then the Auth settings outside Terraform (`scripts/infra/firebase_config.py`).
   Existing remote state stays in `gs://<project>-tfstate`, prefix `firebase`
   (production) or `firebase-<flavor>`. Fresh Spark instances use private local
   state under `.deployment-state/<project>/<flavor>`; keep a private backup.

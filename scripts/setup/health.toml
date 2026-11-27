@@ -152,6 +152,14 @@ kind = "wif"
 detail = "GCP_WORKLOAD_IDENTITY_PROVIDER{suffix} + GCP_DEPLOY_SERVICE_ACCOUNT{suffix} in {project}"
 fix = "make infra-gcp-apply ENV={env}"
 
+[[check]]
+id = "firebase-config"
+profiles = ["full-cloud"]
+kind = "script"
+argv = ["python3", "scripts/infra/firebase_config.py", "check"]
+detail = "Firestore database, released firestore.rules, Email/Password + Anonymous sign-in, authorized Hosting domains, Android Play Integrity fingerprint"
+fix = "make infra-gcp-apply"
+
 # --- live platform -------------------------------------------------------------
 
 [[check]]

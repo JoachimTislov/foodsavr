@@ -6,7 +6,7 @@
 # Secrets: GOOGLE_WEB_CLIENT_SECRET
 # Why human: adding and disabling OAuth client secrets is console-only behind
 #   Google login/2FA; disabling the old secret breaks anything still using it.
-# After it: scripts/setup/social_auth.sh, then disable the old secret.
+# After it: make infra-gcp-apply ENV=<env> (Terraform updates Firebase Auth), then disable the old secret.
 #
 #
 # A wizard walks a human through a manual procedure, step by step.
@@ -232,9 +232,7 @@ set_secret GOOGLE_WEB_CLIENT_SECRET "$GOOGLE_WEB_CLIENT_SECRET"
 
 stage "Firebase: apply the new secret"
 say "Run this so Firebase Auth uses the new secret:"
-note "    scripts/setup/social_auth.sh"
-note "If google.com is already enabled, update the Web SDK secret at:"
-note "    https://console.firebase.google.com/project/$PROJECT/authentication/providers"
+note "    make infra-gcp-apply ENV=<environment>   (once per environment)"
 pause "Press Enter when Firebase has the new secret"
 
 stage "Google Cloud: disable the old secret"

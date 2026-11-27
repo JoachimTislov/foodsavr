@@ -18,7 +18,7 @@ Only the test environment exists today. It holds no production data.
 
 - Track `firestore.rules` at the repository root. The rules are reviewed in pull requests like code.
 - The `Firestore security rules` job in `validation.yml` tests the tracked file in the Firestore emulator. A change to `firestore.rules` or `firestore-rules/**` triggers it. The `FIRESTORE_RULES_B64` secret and the skip-when-unset branch are removed.
-- Deploys are manual: `make deploy-firestore-rules ENV=<environment>` deploys the tracked file to the Firebase project of that environment in `deploy/instance.yaml`. The release pipeline deploys rules in a later change.
+- Deploys are manual: `make deploy-firestore-rules ENV=<environment>` deploys the tracked file to the Firebase project of that environment in `deploy/instance.yaml`. The release pipeline deploys rules in a later change. Since 2026-11-27 `make infra-gcp-apply` also releases the tracked file through Terraform (`infra/terraform/gcp/firestore.tf`); `make deploy-firestore-rules` stays the manual bypass.
 
 ## Consequences
 

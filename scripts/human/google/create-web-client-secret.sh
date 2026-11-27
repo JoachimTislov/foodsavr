@@ -230,7 +230,7 @@ step "Under Client secrets, copy the enabled secret."
 note "To replace a leaked secret, use scripts/human/google/rotate-web-client-secret.sh."
 ask_secret GOOGLE_WEB_CLIENT_SECRET "Paste the client secret:"
 set_secret GOOGLE_WEB_CLIENT_SECRET "$GOOGLE_WEB_CLIENT_SECRET"
-note "Next: scripts/setup/social_auth.sh"
+note "Next: make infra-gcp-apply ENV=<environment> (enables Google sign-in in Firebase)"
 
 finish
 }
