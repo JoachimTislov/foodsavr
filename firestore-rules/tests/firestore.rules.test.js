@@ -373,7 +373,17 @@ describe('owners/{uid}/rawEvents', () => {
     await assertFails(ref.delete());
     await assertFails(bobDb().doc(`owners/${ALICE}/rawEvents/${id}`).get());
     await assertFails(bobDb().doc(`owners/${ALICE}/rawEvents/x`).set(rawEvent('x', ALICE)));
-    await assertFails(aliceDb().collection(`owners/${ALICE}/rawEvents`).get());
+  });
+
+  test('owner lists their own receipts; others cannot list them', async () => {
+    const id = 'receipt:rema:def';
+    await assertSucceeds(aliceDb().doc(`owners/${ALICE}/rawEvents/${id}`).set(rawEvent(id, ALICE)));
+    const receipts = aliceDb()
+      .collection(`owners/${ALICE}/rawEvents`)
+      .where('source', '==', 'receipt');
+    await assertSucceeds(receipts.get());
+    await assertSucceeds(aliceDb().collection(`owners/${ALICE}/rawEvents`).get());
+    await assertFails(bobDb().collection(`owners/${ALICE}/rawEvents`).get());
   });
 
   test('malformed events are denied', async () => {

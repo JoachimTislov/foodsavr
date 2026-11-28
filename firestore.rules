@@ -113,8 +113,9 @@ service cloud.firestore {
     }
 
     // ---- owners/{uid}/rawEvents: create-only event inbox (ADR 0005) ---
-    // The owner can create a new event and read one by id (idempotency
-    // check). Events can never be changed or deleted from a client.
+    // The owner can create a new event, read one by id (idempotency check)
+    // and list their own events. Events can never be changed or deleted from
+    // a client.
 
     function validRawEvent(eventId, ownerId, data) {
       return data.keys().hasAll(['id', 'ownerId', 'source', 'externalId',
@@ -135,7 +136,7 @@ service cloud.firestore {
     }
 
     match /owners/{ownerId}/rawEvents/{eventId} {
-      allow get: if isOwner(ownerId);
+      allow get, list: if isOwner(ownerId);
       allow create: if isOwner(ownerId) &&
         validRawEvent(eventId, ownerId, request.resource.data);
       allow update, delete: if false;
