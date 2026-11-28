@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../controllers/list_query_state.dart';
 import '../controllers/preferences_controller.dart';
@@ -13,6 +15,7 @@ import '../utils/product_add_helper.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
 import '../services/collection_service.dart';
+import '../services/barcode_scanner_service.dart';
 import '../widgets/collection/collection_header.dart';
 import '../widgets/collection/delete_collection_sheet.dart';
 import '../widgets/collection/quick_import_shopping_dialog.dart';
@@ -24,10 +27,13 @@ import '../widgets/inventory/list_query_controls.dart';
 import '../widgets/product/product_card_compact.dart';
 import '../widgets/product/product_card_details.dart';
 import '../widgets/product/product_card_normal.dart';
+import '../widgets/collection/shopping_list_item_card.dart';
 import '../widgets/product/view_mode_toggle.dart';
 import '../utils/view_mode_helper.dart';
 import 'product_detail_view.dart';
 import 'collection_form_view.dart';
+import 'product_form_view.dart';
+import 'receipt_scan_view.dart';
 
 class CollectionDetailView extends StatefulWidget {
   final Collection collection;
@@ -54,6 +60,8 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
   late Collection _currentCollection;
   late final ListQueryState _query;
   late final PreferencesController _preferences;
+  List<Map<String, dynamic>> _purchaseHistory = const [];
+  bool _canScan = false;
 
   bool get _isShoppingList =>
       _currentCollection.type == CollectionType.shoppingList;
@@ -65,6 +73,10 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     _collectionService = getIt<CollectionService>();
     _currentCollection = widget.collection;
     _preferences = getIt<PreferencesController>();
+    _loadPurchaseHistory();
+    BarcodeScannerService.hasCamera().then((value) {
+      if (mounted) setState(() => _canScan = value);
+    });
     _query = ListQueryState(
       'collection.${widget.collection.userId}.${widget.collection.id}',
     );
@@ -90,6 +102,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       _currentCollection = collection;
       _products = products;
     });
+    await _loadPurchaseHistory();
   }
 
   Future<void> _openAddProducts() async {
@@ -187,6 +200,165 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     }
   }
 
+  Future<void> _loadPurchaseHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(
+      'purchase_history_${_currentCollection.userId}',
+    );
+    if (raw == null || raw.isEmpty) {
+      if (mounted) setState(() => _purchaseHistory = const []);
+      return;
+    }
+    try {
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      if (mounted) {
+        setState(() {
+          _purchaseHistory = decoded.whereType<Map<String, dynamic>>().toList(
+            growable: false,
+          );
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _purchaseHistory = const []);
+    }
+  }
+
+  Future<void> _recordPurchase(Product product, String source) async {
+    final prefs = await SharedPreferences.getInstance();
+    final entries = List<Map<String, dynamic>>.from(_purchaseHistory);
+    entries.insert(0, {
+      'productId': product.id,
+      'name': product.name,
+      'quantity': product.quantity,
+      'source': source,
+      'purchasedAt': DateTime.now().toIso8601String(),
+    });
+    if (entries.length > 50) entries.removeRange(50, entries.length);
+    await prefs.setString(
+      'purchase_history_${_currentCollection.userId}',
+      jsonEncode(entries),
+    );
+    if (mounted) setState(() => _purchaseHistory = entries);
+  }
+
+  Future<void> _markBought(Product product) async {
+    await _recordPurchase(product, 'manual');
+    await _collectionService.removeProductFromCollection(
+      _currentCollection.id,
+      product.id,
+    );
+    if (!mounted) return;
+    await _refreshCollectionAndProducts();
+  }
+
+  Future<void> _adjustQuantity(Product product, int delta) async {
+    final next = (product.nonExpiringQuantity + delta).clamp(0, 100000);
+    try {
+      await _productService.updateProduct(
+        product.copyWith(nonExpiringQuantity: next),
+      );
+      if (mounted) await _refreshCollectionAndProducts();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('product.saveError'.tr())));
+      }
+    }
+  }
+
+  Future<void> _editProduct(Product product) async {
+    final result = await ProductFormView.show(context, product: product);
+    if (result == true && mounted) await _refreshCollectionAndProducts();
+  }
+
+  Future<void> _moveProduct(Product product) async {
+    final userId = _currentCollection.userId;
+    final inventories = await _collectionService.getCollectionsForUser(
+      userId,
+      type: CollectionType.inventory,
+    );
+    if (!mounted || inventories.isEmpty) return;
+    final destination = await showDialog<Collection>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text('collection.moveDestination'.tr()),
+        children: [
+          for (final inventory in inventories)
+            if (inventory.id != _currentCollection.id)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(context, inventory),
+                child: Text(inventory.name),
+              ),
+        ],
+      ),
+    );
+    if (destination == null || !mounted) return;
+    await _collectionService.removeProductFromCollection(
+      _currentCollection.id,
+      product.id,
+    );
+    await _collectionService.addProductToCollection(destination.id, product.id);
+    if (mounted) await _refreshCollectionAndProducts();
+  }
+
+  Future<void> _duplicateProduct(Product product) async {
+    final userId = _currentCollection.userId;
+    final inventories = await _collectionService.getCollectionsForUser(
+      userId,
+      type: CollectionType.inventory,
+    );
+    if (!mounted || inventories.isEmpty) return;
+    final destination = inventories.firstWhere(
+      (item) => item.id != _currentCollection.id,
+      orElse: () => inventories.first,
+    );
+    final copy = await _productService.createProduct(product.copyWith(id: ''));
+    await _collectionService.addProductToCollection(destination.id, copy.id);
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('product.barcodeCreated'.tr())));
+    }
+  }
+
+  Future<void> _deleteProduct(Product product) async {
+    await _productService.deleteProduct(product.id);
+    if (mounted) await _refreshCollectionAndProducts();
+  }
+
+  Future<void> _scanReceipt() async {
+    final userId = _currentCollection.userId;
+    final beforeIds = _products.map((product) => product.id).toSet();
+    final ingested = await Navigator.of(context, rootNavigator: true)
+        .push<bool>(
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (context) => ReceiptScanView(
+              userId: userId,
+              collectionId: _currentCollection.id,
+            ),
+          ),
+        );
+    if (ingested != true || !mounted) return;
+    await _refreshCollectionAndProducts();
+    for (final product in _products) {
+      if (!beforeIds.contains(product.id)) {
+        await _recordPurchase(product, 'receipt');
+      }
+    }
+  }
+
+  Future<void> _reAddPurchase(Map<String, dynamic> entry) async {
+    final productId = entry['productId'] as String?;
+    if (productId == null || productId.isEmpty) return;
+    await _collectionService.addProductToCollection(
+      _currentCollection.id,
+      productId,
+    );
+    if (mounted) await _refreshCollectionAndProducts();
+  }
+
   @override
   Widget build(BuildContext context) {
     return RetryScaffold(
@@ -255,6 +427,16 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
                             icon: const Icon(Icons.playlist_add),
                             label: Text('collection.quickImport.action'.tr()),
                           ),
+                          if (_isShoppingList)
+                            FilledButton.icon(
+                              onPressed: _scanReceipt,
+                              icon: Icon(
+                                _canScan
+                                    ? Icons.receipt_long
+                                    : Icons.receipt_long_outlined,
+                              ),
+                              label: Text('collection.scanReceipt'.tr()),
+                            ),
                           ViewModeToggle(
                             viewMode: _query.viewMode,
                             onModeChanged: (mode) =>
@@ -273,7 +455,11 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
                     ),
             ),
             SliverToBoxAdapter(
-              child: ListQueryControls(state: _query, products: _products),
+              child: ListQueryControls(
+                state: _query,
+                products: _products,
+                showExpiryFilters: !_isShoppingList,
+              ),
             ),
             if (products.isNotEmpty)
               SliverPadding(
@@ -283,6 +469,20 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
                   itemBuilder: (context, index) {
                     final product = products[index];
                     void open() => _navigateToProductDetail(product);
+                    if (_isShoppingList) {
+                      return ShoppingListItemCard(
+                        product: product,
+                        bought: false,
+                        onBoughtChanged: (_) => _markBought(product),
+                        onIncrease: () => _adjustQuantity(product, 1),
+                        onDecrease: () => _adjustQuantity(product, -1),
+                        onTap: open,
+                        onEdit: () => _editProduct(product),
+                        onMove: () => _moveProduct(product),
+                        onDuplicate: () => _duplicateProduct(product),
+                        onDelete: () => _deleteProduct(product),
+                      );
+                    }
                     return switch (_query.viewMode) {
                       ProductViewMode.compact => ProductCardCompact(
                         product: product,
@@ -302,6 +502,36 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
               ),
           ],
         ),
+        if (_isShoppingList && _purchaseHistory.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'collection.purchaseHistory'.tr(),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  for (final entry in _purchaseHistory.take(10))
+                    ListTile(
+                      dense: true,
+                      title: Text(entry['name']?.toString() ?? ''),
+                      subtitle: Text(
+                        '${entry['quantity']} · ${entry['source']} · ${entry['purchasedAt']}', // l10n-ignore
+                      ),
+                      trailing: TextButton(
+                        onPressed: () => _reAddPurchase(entry),
+                        child: Text('collection.reAdd'.tr()),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
         if (products.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,

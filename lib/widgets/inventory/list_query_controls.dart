@@ -13,11 +13,13 @@ class ListQueryControls extends StatelessWidget {
     required this.state,
     required this.products,
     this.collections = const [],
+    this.showExpiryFilters = true,
   });
 
   final ListQueryState state;
   final List<Product> products;
   final List<Collection> collections;
+  final bool showExpiryFilters;
 
   @override
   Widget build(BuildContext context) {
@@ -40,14 +42,15 @@ class ListQueryControls extends StatelessWidget {
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              for (final status in ProductStatus.values)
-                FilterChip(
-                  label: Text(status.getMessage()),
-                  selected: state.status == status,
-                  onSelected: (selected) => state.update(
-                    () => state.status = selected ? status : null,
+              if (showExpiryFilters)
+                for (final status in ProductStatus.values)
+                  FilterChip(
+                    label: Text(status.getMessage()),
+                    selected: state.status == status,
+                    onSelected: (selected) => state.update(
+                      () => state.status = selected ? status : null,
+                    ),
                   ),
-                ),
               if (categories.isNotEmpty || state.category != null)
                 PopupMenuButton<String>(
                   tooltip: 'listQuery.category'.tr(),
@@ -107,11 +110,12 @@ class ListQueryControls extends StatelessWidget {
                 onSelected: (value) => state.update(() => state.sort = value),
                 itemBuilder: (context) => [
                   for (final sort in ListSort.values)
-                    CheckedPopupMenuItem(
-                      value: sort,
-                      checked: state.sort == sort,
-                      child: Text(_sortLabel(sort)),
-                    ),
+                    if (showExpiryFilters || sort != ListSort.expiry)
+                      CheckedPopupMenuItem(
+                        value: sort,
+                        checked: state.sort == sort,
+                        child: Text(_sortLabel(sort)),
+                      ),
                 ],
                 child: Chip(
                   avatar: const Icon(Icons.sort),
