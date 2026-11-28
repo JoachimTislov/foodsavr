@@ -3,6 +3,7 @@ import {
   createInventoryViaDialog,
   deleteSeededCollections,
   deleteUserCollections,
+  deleteUserProducts,
   getCollectionNames,
   getDevUserUid,
   openApp,
@@ -14,8 +15,10 @@ const NO_INVENTORY = "You don't have an inventory yet";
 const NO_SHOPPING_LIST = "You don't have a shopping list yet";
 
 test.beforeEach(async () => {
+  const uid = await getDevUserUid();
   await deleteSeededCollections();
-  await deleteUserCollections(await getDevUserUid());
+  await deleteUserCollections(uid);
+  await deleteUserProducts(uid);
 });
 
 test.afterEach(async () => {
@@ -23,8 +26,16 @@ test.afterEach(async () => {
 });
 
 async function createFromKickstart(page: Page, button: string, name: string): Promise<void> {
-  await page.getByRole('button', { name: button, exact: true }).click();
-  await page.getByRole('textbox', { name: 'Name' }).fill(name);
+  const action = page.getByRole('button', { name: button, exact: true });
+  await expect(action).toBeVisible({ timeout: 15_000 });
+  await action.scrollIntoViewIfNeeded();
+  await action.click();
+  const field = page.getByRole('textbox', { name: 'Name' });
+  await expect(field).toBeVisible({ timeout: 10_000 });
+  await field.click();
+  await expect(field).toBeFocused();
+  await page.keyboard.type(name, { delay: 20 });
+  await expect(field).toHaveValue(name);
   await page.getByRole('button', { name: 'Create', exact: true }).click();
 }
 
