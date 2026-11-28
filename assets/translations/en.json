@@ -170,7 +170,6 @@
 		"reAdd": "Re-add",
 		"scanReceipt": "Scan receipt",
 		"moveError": "Could not move the product. Try again.",
-		"movePartialError": "The product was added to the destination, but could not be removed from this list.",
 		"purchaseHistoryError": "Could not save the purchase history.",
 		"purchaseSourceManual": "Added by hand",
 		"purchaseSourceReceipt": "Receipt",

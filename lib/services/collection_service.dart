@@ -315,4 +315,27 @@ class CollectionService {
       rethrow;
     }
   }
+
+  /// Move a product between two collections in one atomic write.
+  /// [onRejected] reports a queued move the server rejects later.
+  Future<void> moveProduct(
+    String fromId,
+    String toId,
+    String productId, {
+    void Function()? onRejected,
+  }) async {
+    _logger.i('Moving product $productId from $fromId to $toId');
+    try {
+      await _collectionRepository.moveProduct(
+        fromId,
+        toId,
+        productId,
+        onRejected: onRejected,
+      );
+      _logger.i('Successfully moved product');
+    } catch (e) {
+      _logger.e('Error moving product: $e');
+      rethrow;
+    }
+  }
 }

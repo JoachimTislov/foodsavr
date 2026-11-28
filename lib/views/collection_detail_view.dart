@@ -340,27 +340,29 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     );
     if (destination == null || !mounted) return;
     await _changeItem(product.id, () async {
-      // Adding first means a failure never leaves the product in neither list.
       try {
-        await _collectionService.addProductToCollection(
+        await _collectionService.moveProduct(
+          _currentCollection.id,
           destination.id,
           product.id,
+          onRejected: () => unawaited(_reportRejectedMove()),
         );
       } catch (_) {
         _showMessage('collection.moveError'.tr());
         return;
       }
-      try {
-        await _collectionService.removeProductFromCollection(
-          _currentCollection.id,
-          product.id,
-          onRejected: () => _showMessage('collection.movePartialError'.tr()),
-        );
-      } catch (_) {
-        _showMessage('collection.movePartialError'.tr());
-      }
       if (mounted) await _refreshCollectionAndProducts();
     });
+  }
+
+  /// The server's rejection rolls the move back, so the list is reloaded.
+  Future<void> _reportRejectedMove() async {
+    _showMessage('collection.moveError'.tr());
+    try {
+      if (mounted) await _refreshCollectionAndProducts();
+    } catch (_) {
+      _showMessage('collection.errorLoadingProducts'.tr());
+    }
   }
 
   Future<void> _duplicateProduct(Product product) async {

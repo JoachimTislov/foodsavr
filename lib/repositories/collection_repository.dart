@@ -356,6 +356,24 @@ class CollectionRepository implements ICollectionRepository {
   }
 
   @override
+  Future<void> moveProduct(
+    String fromId,
+    String toId,
+    String productId, {
+    void Function()? onRejected,
+  }) async {
+    final collections = _firestore.collection(_collectionName);
+    final batch = _firestore.batch()
+      ..update(collections.doc(fromId), {
+        'productIds': FieldValue.arrayRemove([productId]),
+      })
+      ..update(collections.doc(toId), {
+        'productIds': FieldValue.arrayUnion([productId]),
+      });
+    await _queueMembership(batch.commit, onRejected: onRejected);
+  }
+
+  @override
   Future<void> pruneMissingProducts(
     String collectionId,
     Iterable<String> productIds,

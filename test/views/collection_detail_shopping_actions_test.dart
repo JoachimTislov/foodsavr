@@ -267,22 +267,46 @@ void main() {
     expect(repository.products.single.quantity, 6);
   });
 
-  testWidgets('a failed move leaves the source membership', (tester) async {
+  testWidgets('a failed move keeps the item and is reported', (tester) async {
     when(
-      () => collections.addProductToCollection('inv-1', 'milk'),
+      () => collections.moveProduct(
+        'shop-1',
+        'inv-1',
+        'milk',
+        onRejected: any(named: 'onRejected'),
+      ),
     ).thenAnswer((_) async => throw StateError('rejected'));
     await pumpList(tester);
 
     await move(tester);
 
-    verifyNever(
-      () => collections.removeProductFromCollection(
+    expect(find.text('Could not move the product. Try again.'), findsOneWidget);
+    expect(find.byType(Checkbox), findsOneWidget);
+  });
+
+  testWidgets('a move rejected later is reported and reloaded', (tester) async {
+    void Function()? reject;
+    when(
+      () => collections.moveProduct(
         'shop-1',
+        'inv-1',
         'milk',
         onRejected: any(named: 'onRejected'),
       ),
-    );
+    ).thenAnswer((invocation) async {
+      reject = invocation.namedArguments[#onRejected] as void Function()?;
+      members = [];
+    });
+    await pumpList(tester);
+    await move(tester);
+    expect(find.byType(Checkbox), findsNothing);
+
+    members = ['milk'];
+    reject!();
+    await tester.pumpAndSettle();
+
     expect(find.text('Could not move the product. Try again.'), findsOneWidget);
+    expect(find.byType(Checkbox), findsOneWidget);
   });
 
   testWidgets('a failed duplicate leaves no stray copy', (tester) async {
@@ -349,27 +373,4 @@ void main() {
       );
     });
   }
-
-  testWidgets('a partial move is reported after adding first', (tester) async {
-    when(
-      () => collections.removeProductFromCollection(
-        'shop-1',
-        'milk',
-        onRejected: any(named: 'onRejected'),
-      ),
-    ).thenAnswer((_) async => throw StateError('rejected'));
-    await pumpList(tester);
-
-    await move(tester);
-
-    verifyInOrder([
-      () => collections.addProductToCollection('inv-1', 'milk'),
-      () => collections.removeProductFromCollection(
-        'shop-1',
-        'milk',
-        onRejected: any(named: 'onRejected'),
-      ),
-    ]);
-    expect(find.textContaining('could not be removed'), findsOneWidget);
-  });
 }

@@ -44,5 +44,15 @@ abstract class ICollectionRepository extends IRepository<Collection, String> {
     String productId, {
     void Function()? onRejected,
   });
+
+  /// Moves a member from [fromId] to [toId] in one atomic write, so the
+  /// product is never left in neither. Like removals, it returns while still
+  /// queued offline and reports a later rejection through [onRejected].
+  Future<void> moveProduct(
+    String fromId,
+    String toId,
+    String productId, {
+    void Function()? onRejected,
+  });
   Future<void> addCollectionsInBatch(List<Collection> collections);
 }

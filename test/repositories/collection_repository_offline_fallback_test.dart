@@ -99,6 +99,18 @@ void main() {
     });
   }
 
+  test('a move is one batch that works while unacknowledged', () async {
+    final ack = Completer<void>();
+    addTearDown(ack.complete);
+    when(() => batch.commit()).thenAnswer((_) => ack.future);
+
+    await repository.moveProduct('c1', 'c2', 'p1');
+
+    verify(() => batch.update<Map<String, dynamic>>(document, any())).called(2);
+    verify(() => batch.commit()).called(1);
+    verifyNever(() => document.update(any()));
+  });
+
   test(
     'a transaction that misses the deadline before staging queues',
     () async {
