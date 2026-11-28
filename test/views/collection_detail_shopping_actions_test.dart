@@ -101,7 +101,11 @@ void main() {
       ),
     ).thenAnswer((_) async => [inventory]);
     when(
-      () => collections.removeProductFromCollection('shop-1', 'milk'),
+      () => collections.removeProductFromCollection(
+        'shop-1',
+        'milk',
+        onRejected: any(named: 'onRejected'),
+      ),
     ).thenAnswer((_) async => members = []);
     when(
       () => collections.addProductToCollection('inv-1', 'milk'),
@@ -179,9 +183,42 @@ void main() {
     expect(find.textContaining('manual'), findsNothing);
   });
 
+  testWidgets('a removal rejected later withdraws the purchase', (
+    tester,
+  ) async {
+    void Function()? reject;
+    when(
+      () => collections.removeProductFromCollection(
+        'shop-1',
+        'milk',
+        onRejected: any(named: 'onRejected'),
+      ),
+    ).thenAnswer((invocation) async {
+      reject = invocation.namedArguments[#onRejected] as void Function()?;
+      members = [];
+    });
+    await pumpList(tester);
+    await tester.tap(find.byType(Checkbox));
+    await tester.pumpAndSettle();
+    expect(await history.load(userId), hasLength(1));
+
+    // Firestore rolls the removal back before reporting the rejection.
+    members = ['milk'];
+    reject!();
+    await tester.pumpAndSettle();
+
+    expect(await history.load(userId), isEmpty);
+    expect(find.byType(Checkbox), findsOneWidget);
+    expect(find.textContaining('Added by hand'), findsNothing);
+  });
+
   testWidgets('a failed removal records no purchase', (tester) async {
     when(
-      () => collections.removeProductFromCollection('shop-1', 'milk'),
+      () => collections.removeProductFromCollection(
+        'shop-1',
+        'milk',
+        onRejected: any(named: 'onRejected'),
+      ),
     ).thenAnswer((_) async => throw StateError('rejected'));
     await pumpList(tester);
 
@@ -195,7 +232,11 @@ void main() {
   testWidgets('quantity controls wait for the pending change', (tester) async {
     final removal = Completer<void>();
     when(
-      () => collections.removeProductFromCollection('shop-1', 'milk'),
+      () => collections.removeProductFromCollection(
+        'shop-1',
+        'milk',
+        onRejected: any(named: 'onRejected'),
+      ),
     ).thenAnswer((_) => removal.future);
     await pumpList(tester);
 
@@ -235,7 +276,11 @@ void main() {
     await move(tester);
 
     verifyNever(
-      () => collections.removeProductFromCollection('shop-1', 'milk'),
+      () => collections.removeProductFromCollection(
+        'shop-1',
+        'milk',
+        onRejected: any(named: 'onRejected'),
+      ),
     );
     expect(find.text('Could not move the product. Try again.'), findsOneWidget);
   });
@@ -307,7 +352,11 @@ void main() {
 
   testWidgets('a partial move is reported after adding first', (tester) async {
     when(
-      () => collections.removeProductFromCollection('shop-1', 'milk'),
+      () => collections.removeProductFromCollection(
+        'shop-1',
+        'milk',
+        onRejected: any(named: 'onRejected'),
+      ),
     ).thenAnswer((_) async => throw StateError('rejected'));
     await pumpList(tester);
 
@@ -315,7 +364,11 @@ void main() {
 
     verifyInOrder([
       () => collections.addProductToCollection('inv-1', 'milk'),
-      () => collections.removeProductFromCollection('shop-1', 'milk'),
+      () => collections.removeProductFromCollection(
+        'shop-1',
+        'milk',
+        onRejected: any(named: 'onRejected'),
+      ),
     ]);
     expect(find.textContaining('could not be removed'), findsOneWidget);
   });

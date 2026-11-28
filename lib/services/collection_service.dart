@@ -295,14 +295,20 @@ class CollectionService {
     }
   }
 
-  /// Remove a product from a collection (update productIds list)
+  /// Remove a product from a collection (update productIds list).
+  /// [onRejected] reports a queued removal the server rejects later.
   Future<void> removeProductFromCollection(
     String collectionId,
-    String productId,
-  ) async {
+    String productId, {
+    void Function()? onRejected,
+  }) async {
     _logger.i('Removing product $productId from collection $collectionId');
     try {
-      await _collectionRepository.removeProduct(collectionId, productId);
+      await _collectionRepository.removeProduct(
+        collectionId,
+        productId,
+        onRejected: onRejected,
+      );
       _logger.i('Successfully removed product from collection');
     } catch (e) {
       _logger.e('Error removing product from collection: $e');
