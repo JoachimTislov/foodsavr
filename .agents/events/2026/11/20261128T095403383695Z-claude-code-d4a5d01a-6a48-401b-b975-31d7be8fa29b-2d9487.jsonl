@@ -1,0 +1,1 @@
+{"commits": ["cb362337b4129ad0ac922ba2ab4b21befd07807e"], "harness": "claude-code", "issues": ["#532"], "provider": "claude", "prs": ["#551"], "session_id": "claude-code:d4a5d01a-6a48-401b-b975-31d7be8fa29b", "sources": [], "started_at": "2026-11-28T09:41:58+00:00", "status": "active", "stream": "sessions", "summary": "Resume and verify #532 items #38-#40 and open the PR"}
