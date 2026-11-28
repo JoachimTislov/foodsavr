@@ -377,6 +377,41 @@ void main() {
         expect(controller.isEmptyAccount, isFalse);
       });
 
+      test('splits inventories from shopping lists with counts', () async {
+        final collections = [
+          collection(CollectionType.inventory),
+          collection(CollectionType.shoppingList),
+        ];
+        stubCollections(collections);
+        when(
+          () => mockCollectionService.resolveCounts('user_1', collections),
+        ).thenAnswer((_) async => {'inventory': 2, 'shoppingList': 5});
+
+        await controller.load();
+
+        expect(controller.inventories.map((c) => c.id), ['inventory']);
+        expect(controller.shoppingLists.map((c) => c.id), ['shoppingList']);
+        expect(controller.productCounts, {'inventory': 2, 'shoppingList': 5});
+
+        when(() => mockAuthService.getUserId()).thenReturn(null);
+        await controller.load();
+        expect(controller.shoppingLists, isEmpty);
+        expect(controller.productCounts, isEmpty);
+      });
+
+      test('loads without counts when they cannot be resolved', () async {
+        final collections = [collection(CollectionType.shoppingList)];
+        stubCollections(collections);
+        when(
+          () => mockCollectionService.resolveCounts('user_1', collections),
+        ).thenThrow(StateError('offline'));
+
+        await controller.load();
+
+        expect(controller.shoppingLists, hasLength(1));
+        expect(controller.productCounts, isEmpty);
+      });
+
       test('follows the last inventory being deleted and sign-out', () async {
         stubCollections([collection(CollectionType.inventory)]);
         await controller.load();

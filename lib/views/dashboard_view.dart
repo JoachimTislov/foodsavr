@@ -14,11 +14,11 @@ import '../widgets/common/content_constraint.dart';
 import '../widgets/common/pwa_install_banner.dart';
 import '../widgets/common/refresh_on_return.dart';
 import '../widgets/common/retry_scaffold.dart';
+import '../widgets/dashboard/dashboard_collections_section.dart';
+import '../widgets/dashboard/dashboard_entry_points.dart';
 import '../widgets/dashboard/overview_card.dart';
 import '../widgets/dashboard/expired_items_section.dart';
 import '../widgets/dashboard/expiring_soon_section.dart';
-import '../widgets/dashboard/dashboard_action_chip.dart';
-import 'collection_form_view.dart';
 
 class DashboardView extends WatchingWidget {
   const DashboardView({super.key});
@@ -60,17 +60,9 @@ class DashboardView extends WatchingWidget {
       }
     }
 
-    Future<void> createProduct() async {
-      final added = await ProductAddHelper.startAddProductFlow(context);
+    Future<void> registerExpiry() async {
+      final added = await ProductAddHelper.startExpiryFirstFlow(context);
       if (added == true) await reload();
-    }
-
-    Future<void> createShoppingList() async {
-      final created = await CollectionFormView.show(
-        context,
-        type: CollectionType.shoppingList,
-      );
-      if (created == true) await reload();
     }
 
     final overviewCards = <Widget>[
@@ -143,95 +135,71 @@ class DashboardView extends WatchingWidget {
             },
           );
 
-    final quickActionsTitle = Semantics(
-      header: true,
-      child: Text(
-        'dashboard.actions'.tr(),
-        style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-      ),
-    );
-
-    final quickActions = Row(
+    final quickActions = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DashboardActionChip(
-          icon: Icons.add_box_outlined,
-          label: 'dashboard.createProduct'.tr(),
-          color: colorScheme.primary,
-          onTap: createProduct,
+        Semantics(
+          header: true,
+          child: Text(
+            'dashboard.actions'.tr(),
+            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          ),
         ),
-        const SizedBox(width: 8),
-        DashboardActionChip(
-          icon: Icons.shopping_cart_outlined,
-          label: 'dashboard.createShoppingList'.tr(),
-          color: colorScheme.secondary,
-          onTap: createShoppingList,
-        ),
+        const SizedBox(height: 12),
+        DashboardEntryPoints(onChanged: reload),
       ],
     );
 
     final sections = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (expired.isNotEmpty) ...[
           ExpiredItemsSection(products: expired),
           const SizedBox(height: 24),
         ],
-        ExpiringSoonSection(products: expiringSoon),
+        ExpiringSoonSection(
+          products: expiringSoon,
+          onRegisterExpiry: registerExpiry,
+        ),
+        const SizedBox(height: 24),
+        DashboardCollectionsSection(
+          type: CollectionType.inventory,
+          collections: inventories,
+          productCounts: controller.productCounts,
+          onChanged: reload,
+        ),
+        const SizedBox(height: 24),
+        DashboardCollectionsSection(
+          type: CollectionType.shoppingList,
+          collections: controller.shoppingLists,
+          productCounts: controller.productCounts,
+          onChanged: reload,
+        ),
       ],
     );
 
-    final header = SizedBox(
-      width: double.infinity,
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 12,
-        runSpacing: 12,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'dashboard.title'.tr(),
-                style: textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              Text(
-                today,
-                style: textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
+    final header = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'dashboard.title'.tr(),
+          style: textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface,
           ),
-          if (isExpanded)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                quickActionsTitle,
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    FilledButton.tonalIcon(
-                      onPressed: createProduct,
-                      icon: const Icon(Icons.add_box_outlined),
-                      label: Text('dashboard.createProduct'.tr()),
-                    ),
-                    FilledButton.icon(
-                      onPressed: createShoppingList,
-                      icon: const Icon(Icons.shopping_cart_outlined),
-                      label: Text('dashboard.createShoppingList'.tr()),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-        ],
-      ),
+        ),
+        Text(
+          today,
+          style: textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+
+    final overview = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [overviewTitle, const SizedBox(height: 12), overviewGrid],
     );
 
     final body = isExpanded
@@ -240,31 +208,12 @@ class DashboardView extends WatchingWidget {
             children: [
               Expanded(flex: 2, child: sections),
               const SizedBox(width: 24),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    overviewTitle,
-                    const SizedBox(height: 12),
-                    overviewGrid,
-                  ],
-                ),
-              ),
+              Expanded(child: overview),
             ],
           )
         : Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              sections,
-              const SizedBox(height: 24),
-              overviewTitle,
-              const SizedBox(height: 12),
-              overviewGrid,
-              const SizedBox(height: 24),
-              quickActionsTitle,
-              const SizedBox(height: 12),
-              quickActions,
-            ],
+            children: [sections, const SizedBox(height: 24), overview],
           );
 
     final padding = isExpanded ? 32.0 : 24.0;
@@ -288,11 +237,13 @@ class DashboardView extends WatchingWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               header,
-              SizedBox(height: isExpanded ? 24 : 32),
+              const SizedBox(height: 24),
               if (controller.isEmptyAccount) ...[
-                Center(child: AccountKickstartCard(onCreated: reload)),
+                const AccountKickstartCard(),
                 const SizedBox(height: 24),
               ],
+              quickActions,
+              const SizedBox(height: 24),
               body,
               const PwaInstallBanner(margin: EdgeInsets.only(top: 24)),
             ],

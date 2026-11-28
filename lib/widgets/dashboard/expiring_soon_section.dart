@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../models/product_model.dart';
 import '../../views/product_detail_view.dart';
 import 'expiring_item_card.dart';
+import 'register_expiry_card.dart';
 
 class ExpiringSoonSection extends StatelessWidget {
   final List<Product> products;
 
-  const ExpiringSoonSection({super.key, required this.products});
+  /// Starts registering a new expiry, offered when nothing is expiring.
+  final VoidCallback onRegisterExpiry;
+
+  const ExpiringSoonSection({
+    super.key,
+    required this.products,
+    required this.onRegisterExpiry,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -18,32 +25,13 @@ class ExpiringSoonSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Text(
-              'dashboard.expiringSoon'.tr(),
-              style: textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            TextButton(
-              onPressed: () => context.push(
-                '/dashboard/product-list?sort=expiry&status=expiring',
-              ),
-              child: Text('common.viewAll'.tr()),
-            ),
-          ],
+        Text(
+          'dashboard.expiringSoon'.tr(),
+          style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         if (products.isEmpty)
-          Text(
-            'dashboard.noProductsExpiringSoon'.tr(),
-            style: textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          )
+          RegisterExpiryCard(onRegisterExpiry: onRegisterExpiry)
         else
           Column(
             children: [

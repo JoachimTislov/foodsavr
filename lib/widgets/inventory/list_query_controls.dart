@@ -30,20 +30,14 @@ class ListQueryControls extends StatelessWidget {
             .toList()
           ..sort();
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextFormField(
-            initialValue: state.search,
-            onChanged: state.searchFor,
-            decoration: InputDecoration(
-              labelText: 'listQuery.search'.tr(),
-              prefixIcon: const Icon(Icons.search),
-            ),
-          ),
+          // Filters sit above the search field so they never crowd it.
           Wrap(
             spacing: 8,
+            runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               for (final status in ProductStatus.values)
@@ -125,6 +119,15 @@ class ListQueryControls extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            initialValue: state.search,
+            onChanged: state.searchFor,
+            decoration: InputDecoration(
+              labelText: 'listQuery.search'.tr(),
+              prefixIcon: const Icon(Icons.search),
+            ),
           ),
         ],
       ),

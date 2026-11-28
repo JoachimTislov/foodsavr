@@ -1,9 +1,11 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 
 import '../../constants/adaptive_layout.dart';
 import '../../constants/material3_config.dart';
 import '../../utils/app_theme.dart';
+import 'lettmat_logo.dart';
 
 /// One entry of [AppNavigationRail].
 class AppNavigationRailItem {
@@ -18,7 +20,8 @@ class AppNavigationRailItem {
   });
 }
 
-/// Material 3 navigation rail. With [extended] the labels sit beside the icons.
+/// Material 3 navigation rail. With [extended] the labels sit beside the icons
+/// and the brand mark heads the rail.
 ///
 /// Unlike [NavigationRail], each destination is exposed to assistive
 /// technology as a tab, matching the bottom [NavigationBar] on compact windows.
@@ -47,38 +50,76 @@ class AppNavigationRail extends StatelessWidget {
         right: false,
         child: SizedBox(
           width: extended ? extendedWidth : collapsedWidth,
-          child: Semantics(
-            role: SemanticsRole.tabBar,
-            explicitChildNodes: true,
-            container: true,
-            child: Padding(
-              padding: const EdgeInsets.all(Material3Config.spacing12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var i = 0; i < items.length; i++)
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        bottom: Material3Config.spacing12,
-                      ),
-                      child: MergeSemantics(
-                        child: Semantics(
-                          role: SemanticsRole.tab,
-                          selected: i == selectedIndex,
-                          child: _RailDestination(
-                            item: items[i],
-                            selected: i == selectedIndex,
-                            extended: extended,
-                            onTap: () => onDestinationSelected(i),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (extended) const _RailBrand(),
+              Semantics(
+                role: SemanticsRole.tabBar,
+                explicitChildNodes: true,
+                container: true,
+                child: Padding(
+                  padding: const EdgeInsets.all(Material3Config.spacing12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (var i = 0; i < items.length; i++)
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: Material3Config.spacing12,
+                          ),
+                          child: MergeSemantics(
+                            child: Semantics(
+                              role: SemanticsRole.tab,
+                              selected: i == selectedIndex,
+                              child: _RailDestination(
+                                item: items[i],
+                                selected: i == selectedIndex,
+                                extended: extended,
+                                onTap: () => onDestinationSelected(i),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                ],
+                    ],
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _RailBrand extends StatelessWidget {
+  const _RailBrand();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        Material3Config.spacing24,
+        Material3Config.spacing16,
+        Material3Config.spacing24,
+        Material3Config.spacing8,
+      ),
+      child: Row(
+        children: [
+          // The name beside the mark already labels the brand.
+          const ExcludeSemantics(child: LettMatLogo(size: 32)),
+          const SizedBox(width: Material3Config.spacing12),
+          Expanded(
+            child: Text(
+              'brand.name'.tr(),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }

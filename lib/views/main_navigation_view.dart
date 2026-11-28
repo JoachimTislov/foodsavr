@@ -5,10 +5,12 @@ import 'package:go_router/go_router.dart';
 import '../constants/adaptive_layout.dart';
 import '../widgets/common/app_breadcrumbs.dart';
 import '../widgets/common/app_navigation_rail.dart';
+import '../widgets/dashboard/desktop_task_bar.dart';
 
-/// App shell: a bottom navigation bar on compact windows and a navigation rail
-/// (labels beside the icons from [AdaptiveLayout.extendedRailBreakpoint]) on
-/// wider ones.
+/// App shell: a bottom navigation bar on compact windows, and on wider ones a
+/// navigation rail (labels beside the icons from
+/// [AdaptiveLayout.extendedRailBreakpoint]) with a [DesktopTaskBar] above the
+/// content.
 class MainNavigationView extends StatefulWidget {
   final StatefulNavigationShell navigationShell;
 
@@ -36,6 +38,8 @@ class _MainNavigationViewState extends State<MainNavigationView> {
 
   @override
   Widget build(BuildContext context) {
+    // `tr()` alone does not rebuild the labels on a language change.
+    EasyLocalization.of(context);
     final width = MediaQuery.sizeOf(context).width;
     final shell = KeyedSubtree(key: _bodyKey, child: widget.navigationShell);
     final banner = widget.statusBanner;
@@ -87,7 +91,25 @@ class _MainNavigationViewState extends State<MainNavigationView> {
             ],
           ),
           const VerticalDivider(width: 1),
-          Expanded(child: body),
+          Expanded(
+            child: Column(
+              children: [
+                DesktopTaskBar(
+                  showPreferenceToggles:
+                      !_items[selectedIndex].hasPreferenceToggles,
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  // The task bar already consumes the top inset.
+                  child: MediaQuery.removePadding(
+                    context: context,
+                    removeTop: true,
+                    child: body,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -99,7 +121,15 @@ class _NavItem {
   final IconData selectedIcon;
   final String labelKey;
 
-  const _NavItem(this.icon, this.selectedIcon, this.labelKey);
+  /// Whether the page itself offers the language and theme toggles.
+  final bool hasPreferenceToggles;
+
+  const _NavItem(
+    this.icon,
+    this.selectedIcon,
+    this.labelKey, {
+    this.hasPreferenceToggles = false,
+  });
 }
 
 const _items = [
@@ -114,5 +144,10 @@ const _items = [
     Icons.shopping_cart,
     'dashboard.shoppingList',
   ),
-  _NavItem(Icons.settings_outlined, Icons.settings, 'settings.title'),
+  _NavItem(
+    Icons.settings_outlined,
+    Icons.settings,
+    'settings.title',
+    hasPreferenceToggles: true,
+  ),
 ];

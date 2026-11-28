@@ -192,12 +192,12 @@
 		"terms_of_service": "Terms of Service",
 		"to": "To",
 		"tryAgain": "Try Again",
-		"unknown": "Unknown",
-		"viewAll": "View All"
+		"unknown": "Unknown"
 	},
 	"dashboard": {
 		"actions": "Quick Actions",
 		"browseProducts": "Browse products",
+		"createInventory": "New Inventory",
 		"createProduct": "Add Product",
 		"createShoppingList": "New Shopping List",
 		"expired": "Expired",
@@ -212,11 +212,17 @@
 			"other": "Expired {days} days ago"
 		},
 		"expiringSoon": "Expiring Soon",
+		"export": "Export",
 		"globalProducts": "Global Products",
+		"import": "Import",
+		"integrations": "Integrations",
 		"moveItems": "Move items between inventories",
 		"myInventory": "My Inventory",
+		"noCamera": "No camera available",
+		"noCameraHint": "Receipt scanning needs a connected camera that is allowed in Settings.",
 		"noProductsExpiringSoon": "No products expiring soon.",
 		"overview": "Overview",
+		"registerExpiry": "Register Expiry",
 		"shoppingList": "Shopping List",
 		"title": "Dashboard",
 		"transfer": "Transfer"
@@ -376,6 +382,11 @@
 			"title": "Account removal",
 			"description": "Permanently removes your account and saved data."
 		},
+		"guestLogout": {
+			"title": "Sign out of the guest account?",
+			"message": "Signing out deletes this guest account and everything saved in it."
+		},
+		"logout": "Sign Out",
 		"password": {
 			"title": "Password",
 			"resetHint": "Get an email with a link to choose a new one.",

@@ -176,6 +176,9 @@ void main() {
     String button,
     String name,
   ) async {
+    // The dashboard sections can sit below the fold.
+    await tester.ensureVisible(find.text(button));
+    await tester.pumpAndSettle();
     await tester.tap(find.text(button));
     await tester.pumpAndSettle();
     expect(find.byType(Dialog), findsOneWidget);
@@ -283,6 +286,15 @@ void main() {
     }
   }
 
+  testWidgets('empty dashboard offers each create action once', (tester) async {
+    await pump(tester, const Scaffold(body: DashboardView()));
+
+    expect(find.byType(AccountKickstartCard), findsOneWidget);
+    expect(find.byType(CollectionKickstartCard), findsNWidgets(2));
+    expect(find.text('Create Inventory'), findsOneWidget);
+    expect(find.text('Create Shopping List'), findsOneWidget);
+  });
+
   for (final (button, type) in [
     ('Create Inventory', CollectionType.inventory),
     ('Create Shopping List', CollectionType.shoppingList),
@@ -295,6 +307,9 @@ void main() {
 
       expect(stored.single.type, type);
       expect(find.byType(AccountKickstartCard), findsNothing);
+      // The other section keeps its own kickstart.
+      expect(find.byType(CollectionKickstartCard), findsOneWidget);
+      expect(find.byType(CollectionCard), findsOneWidget);
     });
   }
 
