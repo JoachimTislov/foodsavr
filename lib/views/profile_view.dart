@@ -5,6 +5,9 @@ import 'package:watch_it/watch_it.dart';
 
 import '../constants/public_routes.dart';
 import '../controllers/user_controller.dart';
+import '../widgets/common/content_constraint.dart';
+import '../widgets/settings/password_action_tile.dart';
+import '../widgets/settings/settings_section.dart';
 
 class ProfileView extends WatchingWidget {
   const ProfileView({super.key});
@@ -37,81 +40,78 @@ class ProfileView extends WatchingWidget {
       ),
       body: CustomScrollView(
         slivers: [
-          SliverToBoxAdapter(
-            child: _ProfileHeader(
-              name: authController.displayName,
-              email: authController.email,
-              avatarUrl: authController.photoUrl,
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.all(24),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                const SizedBox(height: 32),
-                Text(
-                  'profile.account_settings'.tr(),
-                  style: textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+          SliverContentConstraint(
+            maxWidth: SettingsSection.maxContentWidth,
+            slivers: [
+              SliverToBoxAdapter(
+                child: _ProfileHeader(
+                  name: authController.displayName,
+                  email: authController.email,
+                  avatarUrl: authController.photoUrl,
                 ),
-                const SizedBox(height: 16),
-                _SettingsGroup(
-                  items: [
-                    if (authController.isAnonymous)
-                      _SettingsItem(
-                        icon: Icons.person_add_alt_1_outlined,
-                        label: 'profile.create_account'.tr(),
-                        onTap: () => context.go('/auth?mode=signup'),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.all(24),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    const SizedBox(height: 32),
+                    Text(
+                      'profile.account_settings'.tr(),
+                      style: textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                        color: colorScheme.onSurfaceVariant,
                       ),
-                    _SettingsItem(
-                      icon: Icons.lock_reset,
-                      label: 'profile.forgot_password'.tr(),
-                      onTap: () =>
-                          _showForgotPasswordSheet(context, authController),
                     ),
-                    _SettingsItem(
-                      icon: Icons.mail_outline,
-                      label: 'profile.change_email'.tr(),
-                      onTap: () =>
-                          _showChangeEmailSheet(context, authController),
+                    const SizedBox(height: 16),
+                    _SettingsGroup(
+                      items: [
+                        if (authController.isAnonymous)
+                          _SettingsItem(
+                            icon: Icons.person_add_alt_1_outlined,
+                            label: 'profile.create_account'.tr(),
+                            onTap: () => context.go('/auth?mode=signup'),
+                          ),
+                        if (PasswordActionTile.appliesTo(authController.user))
+                          PasswordActionTile(),
+                        _SettingsItem(
+                          icon: Icons.mail_outline,
+                          label: 'profile.change_email'.tr(),
+                          onTap: () =>
+                              _showChangeEmailSheet(context, authController),
+                        ),
+                        _SettingsItem(
+                          icon: Icons.logout,
+                          label: 'profile.log_out'.tr(),
+                          isDestructive: true,
+                          onTap: () => authController.signOut(),
+                        ),
+                      ],
                     ),
-                    _SettingsItem(
-                      icon: Icons.security,
-                      label: 'profile.two_factor_auth'.tr(),
+                    const SizedBox(height: 32),
+                    Text(
+                      'profile.danger_zone'.tr(),
+                      style: textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
-                    _SettingsItem(
-                      icon: Icons.logout,
-                      label: 'profile.log_out'.tr(),
-                      isDestructive: true,
-                      onTap: () => authController.signOut(),
+                    const SizedBox(height: 16),
+                    _SettingsGroup(
+                      items: [
+                        _SettingsItem(
+                          icon: Icons.delete_outline,
+                          label: 'profile.delete_account'.tr(),
+                          isDestructive: true,
+                          onTap: () => context.push(PublicRoutes.deleteAccount),
+                        ),
+                      ],
                     ),
-                  ],
+                  ]),
                 ),
-                const SizedBox(height: 32),
-                Text(
-                  'profile.danger_zone'.tr(),
-                  style: textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                    color: Theme.of(context).colorScheme.error,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _SettingsGroup(
-                  items: [
-                    _SettingsItem(
-                      icon: Icons.delete_outline,
-                      label: 'profile.delete_account'.tr(),
-                      isDestructive: true,
-                      onTap: () => context.push(PublicRoutes.deleteAccount),
-                    ),
-                  ],
-                ),
-              ]),
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -125,38 +125,6 @@ class ProfileView extends WatchingWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(success ?? error!)));
-  }
-
-  void _showForgotPasswordSheet(
-    BuildContext context,
-    UserController controller,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Theme.of(sheetContext).colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-          ),
-          child: _ForgotPasswordSheetFields(
-            controller: controller,
-            onCompleted: () {
-              Navigator.pop(sheetContext);
-              if (context.mounted) {
-                _showActionResult(context, controller);
-              }
-            },
-          ),
-        ),
-      ),
-    );
   }
 
   void _showChangeEmailSheet(BuildContext context, UserController controller) {
@@ -210,40 +178,19 @@ class _ProfileHeader extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Stack(
-            children: [
-              CircleAvatar(
-                radius: 56,
-                backgroundColor: colorScheme.outlineVariant,
-                backgroundImage: avatarUrl != null
-                    ? NetworkImage(avatarUrl!) as ImageProvider
-                    : null,
-                child: avatarUrl == null
-                    ? Icon(
-                        Icons.person,
-                        size: 56,
-                        color: colorScheme.onSurfaceVariant,
-                      )
-                    : null,
-              ),
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: colorScheme.surface, width: 2),
-                  ),
-                  child: Icon(
-                    Icons.edit,
-                    size: 18,
-                    color: colorScheme.onPrimary,
-                  ),
-                ),
-              ),
-            ],
+          CircleAvatar(
+            radius: 56,
+            backgroundColor: colorScheme.outlineVariant,
+            backgroundImage: avatarUrl != null
+                ? NetworkImage(avatarUrl!) as ImageProvider
+                : null,
+            child: avatarUrl == null
+                ? Icon(
+                    Icons.person,
+                    size: 56,
+                    color: colorScheme.onSurfaceVariant,
+                  )
+                : null,
           ),
           const SizedBox(height: 16),
           Text(
@@ -267,7 +214,7 @@ class _ProfileHeader extends StatelessWidget {
 }
 
 class _SettingsGroup extends StatelessWidget {
-  final List<_SettingsItem> items;
+  final List<Widget> items;
 
   const _SettingsGroup({required this.items});
 
@@ -342,90 +289,6 @@ class _SettingsItem extends StatelessWidget {
         ),
       ),
       trailing: null,
-    );
-  }
-}
-
-class _ForgotPasswordSheetFields extends StatefulWidget {
-  const _ForgotPasswordSheetFields({
-    required this.controller,
-    required this.onCompleted,
-  });
-
-  final UserController controller;
-  final VoidCallback onCompleted;
-
-  @override
-  State<_ForgotPasswordSheetFields> createState() =>
-      _ForgotPasswordSheetFieldsState();
-}
-
-class _ForgotPasswordSheetFieldsState
-    extends State<_ForgotPasswordSheetFields> {
-  late final TextEditingController _emailController;
-
-  @override
-  void initState() {
-    super.initState();
-    _emailController = TextEditingController(
-      text: widget.controller.email ?? '',
-    );
-  }
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          'profile.forgot_password'.tr(),
-          style: Theme.of(
-            context,
-          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _emailController,
-          keyboardType: TextInputType.emailAddress,
-          decoration: InputDecoration(
-            labelText: 'auth.form.email.label'.tr(),
-            hintText: 'auth.form.email.hint'.tr(),
-          ),
-        ),
-        const SizedBox(height: 24),
-        ListenableBuilder(
-          listenable: widget.controller,
-          builder: (context, _) => ElevatedButton(
-            onPressed: widget.controller.isLoading
-                ? null
-                : () async {
-                    await widget.controller.forgotPassword(
-                      _emailController.text,
-                    );
-                    if (mounted) widget.onCompleted();
-                  },
-            style: ElevatedButton.styleFrom(
-              minimumSize: const Size.fromHeight(56),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-            child: Text('auth.reset.email_prompt'.tr()),
-          ),
-        ),
-        const SizedBox(height: 12),
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          style: TextButton.styleFrom(minimumSize: const Size.fromHeight(56)),
-          child: Text('common.cancel'.tr()),
-        ),
-      ],
     );
   }
 }

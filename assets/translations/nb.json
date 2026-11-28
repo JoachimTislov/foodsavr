@@ -278,11 +278,63 @@
 		"forgot_password": "Glemt passord",
 		"new_email": "Ny e-postadresse",
 		"log_out": "Logg ut",
-		"title": "Profil",
-		"two_factor_auth": "To-faktor autentisering"
+		"title": "Profil"
 	},
 	"settings": {
 		"about": "Om",
+		"accountRemoval": {
+			"title": "Fjerning av konto",
+			"description": "Fjerner kontoen og lagrede data permanent."
+		},
+		"password": {
+			"title": "Passord",
+			"resetHint": "Få en e-post med lenke for å velge et nytt.",
+			"missingHint": "Ikke satt opp for innlogging med e-post ennå.",
+			"add": "Legg til passord",
+			"addDescription": "Da kan du også logge inn med e-posten din og dette passordet.",
+			"newPassword": "Nytt passord",
+			"confirm": "Bekreft passord",
+			"tooShort": "Bruk minst {count} tegn.",
+			"mismatch": "Passordene er ikke like.",
+			"added": "Passordet er lagt til. Du kan nå logge inn med e-post.",
+			"sendLink": "Send tilbakestillingslenke"
+		},
+		"connections": {
+			"title": "Tilkoblinger",
+			"connected": "Tilkoblet",
+			"connect": "Koble til",
+			"connectProvider": "Koble til {provider}",
+			"notLinked": "Ikke knyttet til denne kontoen",
+			"signInEnabled": "Brukes til innlogging",
+			"guestTitle": "Gjesteøkt",
+			"guestHint": "Du trenger en konto for å knytte til Google eller Facebook.",
+			"linkSuccess": "{provider} er nå knyttet til kontoen din.",
+			"alreadyInUse": "Denne {provider}-kontoen tilhører allerede en annen bruker."
+		},
+		"permissions": "Tillatelser",
+		"camera": {
+			"title": "Kameratilgang",
+			"enabledHint": "På. Nettleseren eller enheten spør også om tillatelse. Har du blokkert den, må du tillate kameraet i innstillingene for nettstedet eller systemet.",
+			"disabledHint": "Av. Slå på for å skanne strekkoder, kvitteringer og utløpsdatoer med kameraet.",
+			"saveError": "Kunne ikke lagre kamerainnstillingen."
+		},
+		"export": {
+			"title": "Dataeksport",
+			"description": "Last ned alt, eller velg lagre, handlelister og produkter.",
+			"exportAll": "Eksporter alt ({format})",
+			"exportOne": "Eller trykk på én for å eksportere bare den:",
+			"format": "Filformat",
+			"csvDefault": "CSV (standard)",
+			"everything": "Alt",
+			"products": "Produkter",
+			"productsHint": "Produktene du har på lager og har lagret",
+			"selected": "{selected} av {total} valgt",
+			"download": "Last ned",
+			"success": "Lastet ned {file}",
+			"unsupported": "Nedlasting av filer er bare tilgjengelig i nettappen.",
+			"error": "Eksporten mislyktes. Prøv igjen.",
+			"loadError": "Kunne ikke laste listene dine."
+		},
 		"account": "Konto",
 		"integrations": {
 			"connectionFailed": "Kunne ikke koble til dagligvareleverandøren.",
@@ -318,7 +370,7 @@
 			"en": "Engelsk",
 			"nb": "Norsk"
 		},
-		"privacy_policy": "Personvernregler",
+		"privacy_policy": "Personvernerklæring",
 		"terms_of_service": "Vilkår for bruk",
 		"theme_mode": "Temamodus",
 		"themes": {

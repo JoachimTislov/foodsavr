@@ -231,8 +231,10 @@ class UserController extends ChangeNotifier {
       _deletionReauthenticationUid != null &&
       _deletionReauthenticationUid == _user?.uid;
 
+  // Reads the current user first: linking a password replaces it without an
+  // auth state event.
   bool get deletionRequiresPassword =>
-      _user?.providerData.any(
+      (_authService.currentUser ?? _user)?.providerData.any(
         (provider) => provider.providerId == EmailAuthProvider.PROVIDER_ID,
       ) ??
       false;

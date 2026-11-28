@@ -19,6 +19,9 @@ import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/utils/collection_types.dart';
 import 'package:foodsavr/controllers/user_controller.dart';
 import 'package:foodsavr/services/collection_service.dart';
+import 'package:foodsavr/services/product_service.dart';
+import 'package:foodsavr/widgets/settings/settings_section.dart';
+import 'package:foodsavr/widgets/settings/shorthand_toggles.dart';
 import 'package:foodsavr/features/third_party_integration/oauth_controller.dart';
 import 'package:foodsavr/utils/theme_notifier.dart';
 import 'package:foodsavr/views/settings_view.dart';
@@ -40,6 +43,8 @@ class _MockAuthService extends Mock implements IAuthService {}
 class _MockAuthController extends Mock implements UserController {}
 
 class _MockCollectionService extends Mock implements CollectionService {}
+
+class _MockProductService extends Mock implements ProductService {}
 
 class _MockGroceryStoreAuthService extends Mock implements IOAuthService {}
 
@@ -88,7 +93,7 @@ class _TestWrapper extends StatelessWidget {
       localizationsDelegates: context.localizationDelegates,
       supportedLocales: context.supportedLocales,
       locale: context.locale,
-      home: Center(child: SizedBox(width: 1200, height: 1800, child: child)),
+      home: Center(child: SizedBox(width: 1200, height: 2800, child: child)),
     );
   }
 }
@@ -104,7 +109,7 @@ void main() async {
     final binding = TestWidgetsFlutterBinding.ensureInitialized();
     binding.platformDispatcher.views.first.physicalSize = const Size(
       1200,
-      1800,
+      2800,
     );
     binding.platformDispatcher.views.first.devicePixelRatio = 1.0;
   });
@@ -172,7 +177,11 @@ void main() async {
           ),
         ],
       );
+      when(
+        () => mockCollectionService.getCollectionsForUser('user-1'),
+      ).thenAnswer((_) async => []);
       getIt.registerSingleton<CollectionService>(mockCollectionService);
+      getIt.registerSingleton<ProductService>(_MockProductService());
       when(() => mockAuthService.getUserId()).thenReturn('user-1');
       preferencesRepository = InMemoryPreferencesRepository();
       preferencesController = PreferencesController(
@@ -287,7 +296,12 @@ void main() async {
 
         expect(find.text('ACCOUNT'), findsOneWidget);
         expect(find.text('APPEARANCE'), findsOneWidget);
+        expect(find.text('CONNECTIONS'), findsOneWidget);
         expect(find.text('GROCERY INTEGRATIONS'), findsOneWidget);
+        expect(find.text('PERMISSIONS'), findsOneWidget);
+        expect(find.text('Camera access'), findsOneWidget);
+        expect(find.text('DATA EXPORT'), findsOneWidget);
+        expect(find.textContaining('Two-factor'), findsNothing);
         expect(find.text('ABOUT'), findsOneWidget);
         expect(find.text('Theme Mode'), findsOneWidget);
         expect(find.text('Language'), findsOneWidget);
@@ -299,44 +313,56 @@ void main() async {
       });
     });
 
-    testWidgets('opens language selector and changes language', (tester) async {
+    testWidgets('the language pill changes the language at once', (
+      tester,
+    ) async {
       await tester.runAsync(() async {
         await tester.pumpWidget(
           EasyLocalization(
             supportedLocales: const [Locale('en'), Locale('nb')],
             path: 'assets/translations',
             fallbackLocale: const Locale('en'),
-            child: const _TestWrapper(child: SettingsView()),
+            child: Builder(
+              builder: (context) => MaterialApp(
+                localizationsDelegates: context.localizationDelegates,
+                supportedLocales: context.supportedLocales,
+                locale: context.locale,
+                home: const SettingsView(),
+              ),
+            ),
           ),
         );
         await tester.pumpAndSettle();
 
-        // Initial language should be English
+        expect(find.byType(LanguageTogglePill), findsOneWidget);
         expect(find.text('English'), findsOneWidget);
 
-        // Tap on Language setting
-        await tester.tap(find.text('Language'));
+        await tester.tap(find.text('NO'));
         await tester.pumpAndSettle();
 
-        // Should see language options in English
-        expect(find.text('English'), findsNWidgets(2)); // Tile and Modal item
-        expect(find.text('Norwegian'), findsOneWidget);
-
-        // Select Norwegian
-        await tester.tap(find.text('Norwegian'));
-        await tester.pumpAndSettle();
-
-        // Sections should be translated
-        expect(find.text('KONTO'), findsOneWidget);
-        expect(find.text('UTSEENDE'), findsOneWidget);
-        expect(find.text('OM'), findsOneWidget);
-
-        // Language text in settings tile should update to Norsk (English is 'Engelsk' in NB)
+        // No selector opens; every section follows, behavior included.
+        expect(find.byType(BottomSheet), findsNothing);
+        expect(find.byType(Dialog), findsNothing);
+        for (final title in [
+          'KONTO',
+          'UTSEENDE',
+          'ATFERD',
+          'TILKOBLINGER',
+          'TILLATELSER',
+          'DATAEKSPORT',
+          'OM',
+        ]) {
+          expect(find.text(title), findsOneWidget, reason: title);
+        }
         expect(find.text('Norsk'), findsOneWidget);
+
+        await tester.tap(find.text('EN'));
+        await tester.pumpAndSettle();
+        expect(find.text('ACCOUNT'), findsOneWidget);
       });
     });
 
-    testWidgets('opens theme selector and changes theme', (tester) async {
+    testWidgets('the theme pill changes the theme at once', (tester) async {
       await tester.runAsync(() async {
         await tester.pumpWidget(
           EasyLocalization(
@@ -348,26 +374,81 @@ void main() async {
         );
         await tester.pumpAndSettle();
 
-        // Tap on Theme Mode setting
-        await tester.tap(find.text('Theme Mode'));
+        expect(find.byType(ThemeTogglePill), findsOneWidget);
+        expect(find.text('System'), findsOneWidget);
+
+        await tester.tap(find.byIcon(Icons.dark_mode));
         await tester.pumpAndSettle();
 
-        // Should see theme options
-        // One 'System' is the subtitle of the tile, the other is in the modal
-        expect(find.text('System'), findsNWidgets(2));
-        expect(find.text('Light'), findsOneWidget);
-        expect(find.text('Dark'), findsOneWidget);
-
-        // Select Dark theme
-        await tester.tap(find.text('Dark'));
-        await tester.pumpAndSettle();
-
-        // Modal closes and the Theme row shows the chosen mode
-        expect(find.text('System'), findsNothing);
-        expect(find.text('Dark'), findsOneWidget);
         expect(getIt<ThemeNotifier>().themeMode, ThemeMode.dark);
+        expect(find.text('Dark'), findsOneWidget);
+        expect(find.byType(BottomSheet), findsNothing);
       });
     });
+
+    testWidgets('keeps a fixed, centered column on wide windows', (
+      tester,
+    ) async {
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            child: const _TestWrapper(child: SettingsView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final section = tester.getRect(find.byType(SettingsSection).first);
+        expect(section.width, SettingsSection.maxContentWidth - 32);
+        expect(section.center.dx, 600);
+      });
+    });
+
+    for (final locale in const [Locale('en'), Locale('nb')]) {
+      testWidgets('fills a narrow window without overflow in $locale', (
+        tester,
+      ) async {
+        tester.view.physicalSize = const Size(360, 3200);
+        addTearDown(() => tester.view.physicalSize = const Size(1200, 2800));
+        final user = _MockUser();
+        when(() => user.displayName).thenReturn('Kari Nordmann');
+        when(
+          () => user.email,
+        ).thenReturn('kari.nordmann.lang.adresse@example.com');
+        when(() => user.isAnonymous).thenReturn(false);
+        when(() => user.photoURL).thenReturn(null);
+        when(() => user.providerData).thenReturn(const []);
+        when(() => mockAuthService.currentUser).thenReturn(user);
+
+        await tester.runAsync(() async {
+          await tester.pumpWidget(
+            EasyLocalization(
+              supportedLocales: const [Locale('en'), Locale('nb')],
+              path: 'assets/translations',
+              fallbackLocale: const Locale('en'),
+              startLocale: locale,
+              child: Builder(
+                builder: (context) => MaterialApp(
+                  localizationsDelegates: context.localizationDelegates,
+                  supportedLocales: context.supportedLocales,
+                  locale: context.locale,
+                  home: const SettingsView(),
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(tester.takeException(), isNull);
+          expect(
+            tester.getSize(find.byType(SettingsSection).first).width,
+            360 - 32,
+          );
+        });
+      });
+    }
 
     testWidgets('settings links open the public legal modal routes', (
       tester,
@@ -407,7 +488,7 @@ void main() async {
 
         for (final (label, title) in [
           ('Terms of Service', 'Terms of Service'),
-          ('Privacy Policy', 'Privacy Notice'),
+          ('Privacy Notice', 'Privacy Notice'),
         ]) {
           await tester.tap(find.text(label));
           await tester.pump();
@@ -444,7 +525,7 @@ void main() async {
           final appearanceTop = tester.getTopLeft(find.text('APPEARANCE')).dy;
           final aboutTop = tester.getTopLeft(find.text('ABOUT')).dy;
           final termsTop = tester.getTopLeft(find.text('Terms of Service')).dy;
-          final privacyTop = tester.getTopLeft(find.text('Privacy Policy')).dy;
+          final privacyTop = tester.getTopLeft(find.text('Privacy Notice')).dy;
           final versionTop = tester.getTopLeft(find.text('App Version')).dy;
 
           expect(deleteAccountTop, greaterThan(accountTop));
@@ -528,6 +609,7 @@ void main() async {
         when(() => user.email).thenReturn('');
         when(() => user.isAnonymous).thenReturn(false);
         when(() => user.photoURL).thenReturn(null);
+        when(() => user.providerData).thenReturn(const []);
         when(() => mockAuthService.currentUser).thenReturn(user);
 
         await tester.runAsync(() async {
@@ -545,55 +627,6 @@ void main() async {
         });
       },
     );
-
-    testWidgets('theme selector shows checkmark on current theme', (
-      tester,
-    ) async {
-      await tester.runAsync(() async {
-        await tester.pumpWidget(
-          EasyLocalization(
-            supportedLocales: const [Locale('en'), Locale('nb')],
-            path: 'assets/translations',
-            fallbackLocale: const Locale('en'),
-            child: const _TestWrapper(child: SettingsView()),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        // Tap on Theme Mode setting
-        await tester.tap(find.text('Theme Mode'));
-        await tester.pumpAndSettle();
-
-        // Should have theme icons
-        expect(find.byIcon(Icons.brightness_auto), findsOneWidget);
-        expect(find.byIcon(Icons.light_mode), findsOneWidget);
-        expect(find.byIcon(Icons.dark_mode), findsOneWidget);
-      });
-    });
-
-    testWidgets('language selector shows checkmark on current language', (
-      tester,
-    ) async {
-      await tester.runAsync(() async {
-        await tester.pumpWidget(
-          EasyLocalization(
-            supportedLocales: const [Locale('en'), Locale('nb')],
-            path: 'assets/translations',
-            fallbackLocale: const Locale('en'),
-            child: const _TestWrapper(child: SettingsView()),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        // Tap on Language setting
-        await tester.tap(find.text('Language'));
-        await tester.pumpAndSettle();
-
-        // Should show checkmark for English (current language)
-        final checkIcons = find.byIcon(Icons.check);
-        expect(checkIcons, findsAtLeastNWidgets(1));
-      });
-    });
 
     testWidgets('all settings icons are displayed', (tester) async {
       await tester.runAsync(() async {

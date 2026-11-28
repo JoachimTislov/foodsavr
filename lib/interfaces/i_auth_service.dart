@@ -23,4 +23,16 @@ abstract class IAuthService {
   Stream<User?> get authStateChanges;
   User? get currentUser;
   String? getUserId();
+
+  /// Adds email and password sign-in to the signed-in account.
+  Future<void> linkPasswordCredential({
+    required String email,
+    required String password,
+  });
+
+  /// Adds Google sign-in to the signed-in account.
+  Future<void> linkGoogleProvider();
+
+  /// Adds Facebook sign-in to the signed-in account.
+  Future<void> linkFacebookProvider();
 }

@@ -278,11 +278,63 @@
 		"forgot_password": "Forgot Password",
 		"new_email": "New Email Address",
 		"log_out": "Log Out",
-		"title": "Profile",
-		"two_factor_auth": "Two-factor Authentication"
+		"title": "Profile"
 	},
 	"settings": {
 		"about": "About",
+		"accountRemoval": {
+			"title": "Account removal",
+			"description": "Permanently removes your account and saved data."
+		},
+		"password": {
+			"title": "Password",
+			"resetHint": "Get an email with a link to choose a new one.",
+			"missingHint": "Not set for email sign-in yet.",
+			"add": "Add password",
+			"addDescription": "You can then also sign in with your email and this password.",
+			"newPassword": "New password",
+			"confirm": "Confirm password",
+			"tooShort": "Use at least {count} characters.",
+			"mismatch": "The passwords do not match.",
+			"added": "Password added. You can now sign in with email.",
+			"sendLink": "Send reset link"
+		},
+		"connections": {
+			"title": "Connections",
+			"connected": "Connected",
+			"connect": "Connect",
+			"connectProvider": "Connect {provider}",
+			"notLinked": "Not linked to this account",
+			"signInEnabled": "Used for sign-in",
+			"guestTitle": "Guest session",
+			"guestHint": "Linking Google or Facebook needs an account.",
+			"linkSuccess": "{provider} is now linked to your account.",
+			"alreadyInUse": "This {provider} account already belongs to another user."
+		},
+		"permissions": "Permissions",
+		"camera": {
+			"title": "Camera access",
+			"enabledHint": "On. Your browser or device also asks for permission. If you blocked it, allow the camera in the site or system settings.",
+			"disabledHint": "Off. Turn on to scan barcodes, receipts and expiry dates with the camera.",
+			"saveError": "Could not save the camera setting."
+		},
+		"export": {
+			"title": "Data export",
+			"description": "Download everything, or pick inventories, shopping lists and products.",
+			"exportAll": "Export all ({format})",
+			"exportOne": "Or tap one to export only that:",
+			"format": "File format",
+			"csvDefault": "CSV (Default)",
+			"everything": "Everything",
+			"products": "Products",
+			"productsHint": "Your stocked and saved products",
+			"selected": "{selected} of {total} selected",
+			"download": "Download",
+			"success": "Downloaded {file}",
+			"unsupported": "File downloads are only available in the web app.",
+			"error": "The export failed. Try again.",
+			"loadError": "Could not load your lists."
+		},
 		"account": "Account",
 		"integrations": {
 			"connectionFailed": "Could not connect to the grocery provider.",
@@ -318,7 +370,7 @@
 			"en": "English",
 			"nb": "Norwegian"
 		},
-		"privacy_policy": "Privacy Policy",
+		"privacy_policy": "Privacy Notice",
 		"terms_of_service": "Terms of Service",
 		"theme_mode": "Theme Mode",
 		"themes": {
