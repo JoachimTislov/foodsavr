@@ -169,6 +169,24 @@ class _FakeAuthService implements IAuthService {
   }) {
     throw UnimplementedError();
   }
+
+  @override
+  Future<void> linkPasswordCredential({
+    required String email,
+    required String password,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> linkGoogleProvider() {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> linkFacebookProvider() {
+    throw UnimplementedError();
+  }
 }
 
 class _TestApp extends StatelessWidget {

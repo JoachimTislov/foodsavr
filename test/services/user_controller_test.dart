@@ -15,6 +15,8 @@ class MockLogger extends Mock implements Logger {}
 
 class MockUser extends Mock implements User {}
 
+class MockUserInfo extends Mock implements UserInfo {}
+
 class MockUserCredential extends Mock implements UserCredential {}
 
 class FakeCollection extends Fake implements Collection {}
@@ -320,5 +322,18 @@ void main() {
       expect(authController.successMessage, 'auth.reset.email_sent');
       expect(authController.errorMessage, null);
     });
+  });
+
+  test('deletion asks for a password linked without an auth event', () {
+    final linked = MockUser();
+    final password = MockUserInfo();
+    when(() => password.providerId).thenReturn('password');
+    when(() => mockUser.providerData).thenReturn([]);
+    when(() => linked.providerData).thenReturn([password]);
+    expect(authController.deletionRequiresPassword, isFalse);
+
+    when(() => mockAuthService.currentUser).thenReturn(linked);
+
+    expect(authController.deletionRequiresPassword, isTrue);
   });
 }

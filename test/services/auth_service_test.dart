@@ -59,6 +59,77 @@ void main() {
     );
   });
 
+  group('account linking', () {
+    late MockUser user;
+
+    setUp(() {
+      user = MockUser();
+      when(() => user.isAnonymous).thenReturn(false);
+      when(
+        () => user.linkWithCredential(any()),
+      ).thenAnswer((_) async => mockUserCredential);
+      when(() => mockFirebaseAuth.currentUser).thenReturn(user);
+    });
+
+    AuthCredential linkedCredential() =>
+        verify(() => user.linkWithCredential(captureAny())).captured.single
+            as AuthCredential;
+
+    test('links an email and password to the current user', () async {
+      await authService.linkPasswordCredential(
+        email: 'kari@example.com',
+        password: 'secret-123',
+      );
+
+      expect(linkedCredential().providerId, EmailAuthProvider.PROVIDER_ID);
+    });
+
+    test('links Google through the native SDK', () async {
+      final account = MockGoogleSignInAccount();
+      when(
+        () => account.authentication,
+      ).thenReturn(MockGoogleSignInAuthentication());
+      when(
+        () => mockGoogleSignIn.authenticate(),
+      ).thenAnswer((_) async => account);
+
+      await authService.linkGoogleProvider();
+
+      expect(linkedCredential().providerId, GoogleAuthProvider.PROVIDER_ID);
+    });
+
+    test('a cancelled Facebook login links nothing', () async {
+      final result = MockLoginResult();
+      when(() => result.status).thenReturn(LoginStatus.cancelled);
+      when(() => mockFacebookAuth.login()).thenAnswer((_) async => result);
+
+      await expectLater(
+        authService.linkFacebookProvider(),
+        throwsAuthCode('ERROR_ABORTED_BY_USER'),
+      );
+      verifyNever(() => user.linkWithCredential(any()));
+    });
+
+    test('refuses to link a guest or a signed-out session', () async {
+      for (final current in [user, null]) {
+        when(() => user.isAnonymous).thenReturn(true);
+        when(() => mockFirebaseAuth.currentUser).thenReturn(current);
+
+        for (final link in [
+          () => authService.linkPasswordCredential(
+            email: 'kari@example.com',
+            password: 'secret-123',
+          ),
+          authService.linkGoogleProvider,
+          authService.linkFacebookProvider,
+        ]) {
+          await expectLater(link(), throwsAuthCode('no-current-user'));
+        }
+      }
+      verifyNever(() => user.linkWithCredential(any()));
+    });
+  });
+
   group('AuthService on web', () {
     late AuthService webAuthService;
 

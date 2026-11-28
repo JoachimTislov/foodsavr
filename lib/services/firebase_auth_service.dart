@@ -373,4 +373,50 @@ class AuthService implements IAuthService {
       );
     }
   }
+
+  @override
+  Future<void> linkPasswordCredential({
+    required String email,
+    required String password,
+  }) async {
+    await _linkableUser().linkWithCredential(
+      EmailAuthProvider.credential(email: email, password: password),
+    );
+    _logger.i('Password sign-in linked.');
+  }
+
+  @override
+  Future<void> linkGoogleProvider() async {
+    final user = _linkableUser();
+    if (_isWeb) {
+      await user.linkWithPopup(GoogleAuthProvider());
+    } else {
+      await user.linkWithCredential(await _googleCredential());
+    }
+    _logger.i('Google sign-in linked.');
+  }
+
+  @override
+  Future<void> linkFacebookProvider() async {
+    final user = _linkableUser();
+    if (_isWeb) {
+      await user.linkWithPopup(FacebookAuthProvider());
+    } else {
+      await user.linkWithCredential(await _facebookCredential());
+    }
+    _logger.i('Facebook sign-in linked.');
+  }
+
+  /// The signed-in account that another sign-in method can be added to. A
+  /// guest upgrades through [signUp] instead.
+  User _linkableUser() {
+    final user = _firebaseAuth.currentUser;
+    if (user == null || user.isAnonymous) {
+      throw FirebaseAuthException(
+        code: 'no-current-user',
+        message: 'No signed-in account to link.',
+      );
+    }
+    return user;
+  }
 }
