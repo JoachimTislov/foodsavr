@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   deleteSeededCollections,
   deleteUserCollections,
+  deleteUserProducts,
   getCollectionNames,
   getDevUserUid,
   openApp,
@@ -9,9 +10,12 @@ import {
   waitForDashboard,
 } from './helpers';
 
+// An account without products or collections is the empty one.
 test.beforeEach(async () => {
+  const userId = await getDevUserUid();
   await deleteSeededCollections();
-  await deleteUserCollections(await getDevUserUid());
+  await deleteUserCollections(userId);
+  await deleteUserProducts(userId);
 });
 
 test.afterEach(async () => {
