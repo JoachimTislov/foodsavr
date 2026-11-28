@@ -2,186 +2,111 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../service_locator.dart';
-import '../controllers/user_controller.dart';
-import '../widgets/auth/auth_status_messages.dart';
-import '../widgets/auth/social_auth_section.dart';
+import '../constants/adaptive_layout.dart';
+import '../constants/material3_config.dart';
+import '../widgets/auth/brand_logo.dart';
+import '../widgets/auth/public_page_links.dart';
 import '../widgets/common/pwa_install_banner.dart';
+import '../widgets/landing/landing_feature.dart';
 
-class LandingPageView extends StatefulWidget {
+/// The signed-out entry point. "Get started" is where first-run onboarding
+/// (#535) begins; it opens sign-up until that flow exists.
+class LandingPageView extends StatelessWidget {
   const LandingPageView({super.key});
-
-  @override
-  State<LandingPageView> createState() => _LandingPageViewState();
-}
-
-class _LandingPageViewState extends State<LandingPageView> {
-  late final UserController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = getIt<UserController>();
-  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
+    final wide = WindowSize.of(context).isExpanded;
+    final textAlign = wide ? TextAlign.start : TextAlign.center;
+
+    final hero = Column(
+      crossAxisAlignment: wide
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
+      children: [
+        const BrandLogo(),
+        const SizedBox(height: Material3Config.spacing32),
+        Semantics(
+          header: true,
+          child: Text(
+            'brand.tagline'.tr(),
+            style: (wide ? textTheme.displaySmall : textTheme.headlineLarge)
+                ?.copyWith(fontWeight: FontWeight.w800),
+            textAlign: textAlign,
+          ),
+        ),
+        const SizedBox(height: Material3Config.spacing12),
+        Text(
+          'landing.subtitle'.tr(),
+          style: textTheme.titleMedium?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+          textAlign: textAlign,
+        ),
+      ],
+    );
+
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        LandingFeature(
+          icon: Icons.kitchen_outlined,
+          title: 'landing.pantry.title'.tr(),
+          description: 'landing.pantry.description'.tr(),
+        ),
+        LandingFeature(
+          icon: Icons.schedule,
+          title: 'landing.expiry.title'.tr(),
+          description: 'landing.expiry.description'.tr(),
+        ),
+        LandingFeature(
+          icon: Icons.checklist,
+          title: 'landing.shopping.title'.tr(),
+          description: 'landing.shopping.description'.tr(),
+        ),
+        const SizedBox(height: Material3Config.spacing32),
+        FilledButton(
+          onPressed: () => context.go('/auth?mode=signup'),
+          child: Text('landing.get_started'.tr()),
+        ),
+        const SizedBox(height: Material3Config.spacing12),
+        OutlinedButton(
+          onPressed: () => context.go('/auth?mode=login'),
+          child: Text('landing.sign_in'.tr()),
+        ),
+        const SizedBox(height: Material3Config.spacing16),
+        const Center(child: PublicPageLinks(showDeleteAccount: false)),
+        const PwaInstallBanner(
+          margin: EdgeInsets.only(top: Material3Config.spacing16),
+        ),
+      ],
+    );
 
     return Scaffold(
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(Material3Config.spacing24),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: ListenableBuilder(
-                listenable: _controller,
-                builder: (context, _) {
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // Header Section
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: colorScheme.primary.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Icon(
-                          Icons.inventory_2_outlined,
-                          color: colorScheme.primary,
-                          size: 40,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'auth.landing.title'.tr(),
-                        style: textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: colorScheme.onSurface,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'auth.landing.subtitle'.tr(),
-                        style: textTheme.titleMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 48),
-
-                      AuthStatusMessages(
-                        errorMessage: _controller.errorMessage,
-                      ),
-
-                      // Social Login Stack
-                      SocialAuthSection(
-                        isLoading: _controller.isLoading,
-                        onGooglePressed: _controller.signInWithGoogle,
-                        onFacebookPressed: _controller.signInWithFacebook,
-                        onCancel: _controller.isSocialSignInLoading
-                            ? _controller.cancelSocialSignIn
-                            : null,
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // Email Button (Primary)
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _controller.isLoading
-                              ? null
-                              : () {
-                                  context.go(
-                                    Uri(
-                                      path: '/auth',
-                                      queryParameters: {'mode': 'login'},
-                                    ).toString(),
-                                  );
-                                },
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.mail_outline),
-                              const SizedBox(width: 8),
-                              Text(
-                                'auth.social.continue_email'.tr(),
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          onPressed: _controller.isLoading
-                              ? null
-                              : _controller.signInAsGuest,
-                          child: Text('auth.social.continue_guest'.tr()),
-                        ),
-                      ),
-
-                      const SizedBox(height: 32),
-
-                      // Footer
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              'auth.toggle.no_account'.tr(),
-                              style: TextStyle(
-                                color: colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          Flexible(
-                            child: TextButton(
-                              onPressed: _controller.isLoading
-                                  ? null
-                                  : () {
-                                      context.go(
-                                        Uri(
-                                          path: '/auth',
-                                          queryParameters: {'mode': 'signup'},
-                                        ).toString(),
-                                      );
-                                    },
-                              child: Text(
-                                'auth.toggle.sign_up'.tr(),
-                                style: TextStyle(
-                                  color: colorScheme.primary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const PwaInstallBanner(margin: EdgeInsets.only(top: 20)),
-                    ],
-                  );
-                },
-              ),
+              constraints: BoxConstraints(maxWidth: wide ? 960 : 440),
+              child: wide
+                  ? Row(
+                      children: [
+                        Expanded(child: hero),
+                        const SizedBox(width: Material3Config.spacing32),
+                        Expanded(child: details),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        hero,
+                        const SizedBox(height: Material3Config.spacing32),
+                        details,
+                      ],
+                    ),
             ),
           ),
         ),

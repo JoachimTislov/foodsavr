@@ -393,7 +393,7 @@ void main() {
       await tester.tap(find.text('Back to FoodSavr'));
       await tester.pumpAndSettle();
       expect(find.byType(LandingPageView), findsOneWidget);
-      expect(find.text('Continue as guest'), findsOneWidget);
+      expect(find.text('Get started'), findsOneWidget);
 
       authService.signInForTest('uid-123');
       await tester.pumpAndSettle();

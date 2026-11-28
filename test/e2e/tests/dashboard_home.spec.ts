@@ -146,7 +146,7 @@ test.describe('Dashboard as the home of the app (#532)', () => {
     await button(page, 'Sign Out').click();
 
     await expect(
-      page.getByRole('button', { name: 'Continue with Email' }),
+      page.getByRole('button', { name: 'I already have an account' }),
     ).toBeVisible({ timeout: 15_000 });
   });
 

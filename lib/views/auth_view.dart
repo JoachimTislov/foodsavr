@@ -2,7 +2,6 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../widgets/auth/public_page_links.dart';
 import '../service_locator.dart';
 import '../controllers/user_controller.dart';
 import '../utils/config.dart';
@@ -159,10 +158,6 @@ class _AuthViewState extends State<AuthView> {
                       ),
                     const SizedBox(height: 16.0),
                     LegalAgreementNotice(isLogin: _controller.isLogin),
-                    if (_controller.isLogin)
-                      const Center(
-                        child: PublicPageLinks(showLegalLinks: false),
-                      ),
                   ],
                 );
               },
