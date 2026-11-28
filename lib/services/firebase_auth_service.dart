@@ -3,8 +3,6 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
-import 'package:foodsavr/services/collection_service.dart';
-import 'package:foodsavr/utils/retry.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
@@ -23,7 +21,6 @@ class AuthService implements IAuthService {
   final bool _isWeb;
   final IAccountDataRepository _accountDataRepository;
   final SecureStorage _secureStorage;
-  final CollectionService _collectionService;
   final Logger _logger;
   final IErrorReporter _errorReporter;
 
@@ -35,7 +32,6 @@ class AuthService implements IAuthService {
     @Named('isWeb') required bool isWeb,
     required IAccountDataRepository accountDataRepository,
     required SecureStorage secureStorage,
-    required CollectionService collectionService,
     required Logger logger,
     required IErrorReporter errorReporter,
   }) : _googleSignIn = googleSignIn,
@@ -44,20 +40,11 @@ class AuthService implements IAuthService {
        _isWeb = isWeb,
        _accountDataRepository = accountDataRepository,
        _secureStorage = secureStorage,
-       _collectionService = collectionService,
        _logger = logger,
        _errorReporter = errorReporter;
 
-  Future<void>? _pendingSignIn;
-
   @override
-  Stream<User?> get authStateChanges =>
-      _firebaseAuth.authStateChanges().asyncMap((user) async {
-        final pendingSignIn = _pendingSignIn;
-        if (user == null || pendingSignIn == null) return user;
-        await pendingSignIn;
-        return _firebaseAuth.currentUser;
-      });
+  Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
 
   @override
   /// Signs in a user with email and password.
@@ -76,11 +63,9 @@ class AuthService implements IAuthService {
         await _firebaseAuth.setPersistence(Persistence.SESSION);
       }
     }
-    return _authenticate(
-      () => _firebaseAuth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      ),
+    return _firebaseAuth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
     );
   }
 
@@ -99,44 +84,12 @@ class AuthService implements IAuthService {
         email: email,
         password: password,
       );
-      return _authenticate(() => currentUser!.linkWithCredential(credential));
+      return currentUser!.linkWithCredential(credential);
     }
-    return _authenticate(
-      () => _firebaseAuth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      ),
+    return _firebaseAuth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
     );
-  }
-
-  Future<UserCredential> _authenticate(
-    Future<UserCredential> Function() authenticate,
-  ) async {
-    final completion = Completer<void>();
-    _pendingSignIn = completion.future;
-    try {
-      final credential = await authenticate();
-      final uid = credential.user?.uid;
-      if (uid != null) {
-        try {
-          await retry(
-            () => _collectionService.createInitialCollections(uid),
-            logger: _logger,
-            operationName: 'CreateInitialCollections',
-          );
-        } catch (error, stackTrace) {
-          _logger.e(
-            'Signed in successfully but could not provision initial collections.',
-            error: error,
-            stackTrace: stackTrace,
-          );
-        }
-      }
-      return credential;
-    } finally {
-      completion.complete();
-      if (identical(_pendingSignIn, completion.future)) _pendingSignIn = null;
-    }
   }
 
   Future<void>? _googleSignInInitialization;
@@ -151,7 +104,7 @@ class AuthService implements IAuthService {
       return _signInWithPopup(GoogleAuthProvider());
     }
     final credential = await _googleCredential();
-    return _authenticate(() => _firebaseAuth.signInWithCredential(credential));
+    return _firebaseAuth.signInWithCredential(credential);
   }
 
   /// Throws [FirebaseAuthException] with `google-sdk-unavailable` when the
@@ -238,7 +191,7 @@ class AuthService implements IAuthService {
 
   Future<UserCredential> _signInWithFacebookSdk() async {
     final credential = await _facebookCredential();
-    return _authenticate(() => _firebaseAuth.signInWithCredential(credential));
+    return _firebaseAuth.signInWithCredential(credential);
   }
 
   Future<OAuthCredential> _facebookCredential() async {
@@ -273,7 +226,7 @@ class AuthService implements IAuthService {
 
   Future<UserCredential> _signInWithPopup(AuthProvider provider) async {
     try {
-      return await _authenticate(() => _firebaseAuth.signInWithPopup(provider));
+      return await _firebaseAuth.signInWithPopup(provider);
     } on FirebaseAuthException catch (e) {
       if (e.code == 'popup-closed-by-user' ||
           e.code == 'cancelled-popup-request') {
@@ -287,8 +240,8 @@ class AuthService implements IAuthService {
   }
 
   @override
-  Future<UserCredential> signInAsGuest() {
-    return _authenticate(_firebaseAuth.signInAnonymously);
+  Future<UserCredential> signInAsGuest() async {
+    return _firebaseAuth.signInAnonymously();
   }
 
   @override

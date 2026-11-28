@@ -98,6 +98,18 @@ class PreferencesController extends ChangeNotifier {
     return _update(_preferences.copyWith(defaultInventoryId: inventoryId));
   }
 
+  /// Drops the stored default once [inventoryId] was deleted, restoring the
+  /// "first inventory" fallback. A failed sync keeps the change on this device;
+  /// [resolveDefaultInventoryId] ignores a stale ID either way.
+  Future<void> forgetDefaultInventory(String inventoryId) async {
+    if (defaultInventoryId != inventoryId) return;
+    try {
+      await setDefaultInventoryId(null);
+    } catch (_) {
+      // Already logged by the failed save.
+    }
+  }
+
   /// Applies [next] locally (and to the device cache), then syncs it. A failed
   /// sync is rethrown so the caller can tell the user the change is kept on
   /// this device only.

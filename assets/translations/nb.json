@@ -100,13 +100,10 @@
 		"create_shopping_list": "Opprett handleliste",
 		"edit_inventory": "Rediger lager",
 		"edit_shopping_list": "Rediger handleliste",
-		"emptySubtitle": "Opprett en for å komme i gang",
-		"emptyTitle": "Ingenting funnet",
 		"errorLoadingProducts": "Feil ved lasting av produkter",
 		"items_count": "{count} varer",
 		"loadError": "Feil ved lasting av lister",
 		"noProducts": "Ingen produkter",
-		"defaultShoppingListName": "Handleliste",
 		"type_inventory": "Beholdning",
 		"type_shopping": "Handleliste"
 	},
@@ -404,5 +401,20 @@
 	},
 	"legal": {
 		"load_error": "Dokumentet kunne ikke lastes inn."
+	},
+	"kickstart": {
+		"inventory": {
+			"title": "Du har ingen beholdning ennå",
+			"message": "En beholdning holder oversikt over maten du har og når den går ut på dato. Gi den navn etter hvor du oppbevarer maten, for eksempel Kjøleskap, Spiskammer eller Fryser."
+		},
+		"shoppingList": {
+			"title": "Du har ingen handleliste ennå",
+			"message": "En handleliste samler det du trenger å kjøpe på ett sted. Opprett en og gi den ditt eget navn."
+		},
+		"account": {
+			"title": "La oss komme i gang",
+			"message": "Ingenting er satt opp på forhånd. Opprett din første beholdning eller handleliste, og gi den navnet du vil."
+		},
+		"browseProducts": "Bla gjennom vanlige varer"
 	}
 }

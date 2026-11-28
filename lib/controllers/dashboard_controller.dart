@@ -36,6 +36,7 @@ class DashboardController extends ChangeNotifier {
   List<Product> _expired = const [];
   List<Product> _expiringSoon = const [];
   List<Collection> _inventories = const [];
+  bool _isEmptyAccount = false;
   int _loadGeneration = 0;
   int? _loadedExpiringSoonDays;
 
@@ -43,6 +44,9 @@ class DashboardController extends ChangeNotifier {
   List<Product> get expired => _expired;
   List<Product> get expiringSoon => _expiringSoon;
   List<Collection> get inventories => _inventories;
+
+  /// Whether the user has no inventory, shopping list or product yet.
+  bool get isEmptyAccount => _isEmptyAccount;
 
   /// Loads the dashboard data for the current user and notifies listeners.
   /// Completes normally when there is no signed-in user (state is cleared).
@@ -57,6 +61,7 @@ class DashboardController extends ChangeNotifier {
       _expired = const [];
       _expiringSoon = const [];
       _inventories = const [];
+      _isEmptyAccount = false;
       notifyListeners();
       return;
     }
@@ -67,17 +72,26 @@ class DashboardController extends ChangeNotifier {
         userId,
         expiringSoonDays: expiringSoonDays,
       ),
-      _collectionService.getCollectionsForUser(
-        userId,
-        type: CollectionType.inventory,
-      ),
+      _collectionService.getCollectionsForUser(userId),
     ]);
+
+    if (generation != _loadGeneration) return;
+
+    final collections = results[2] as List<Collection>;
+    // Served from the cache the product lists above just filled.
+    final isEmptyAccount =
+        collections.isEmpty &&
+        (await _productService.getProducts(userId)).isEmpty;
 
     if (generation != _loadGeneration) return;
 
     _expired = results[0] as List<Product>;
     _expiringSoon = results[1] as List<Product>;
-    _inventories = results[2] as List<Collection>;
+    _inventories = [
+      for (final collection in collections)
+        if (collection.type == CollectionType.inventory) collection,
+    ];
+    _isEmptyAccount = isEmptyAccount;
     notifyListeners();
   }
 

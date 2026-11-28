@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/controllers/dashboard_controller.dart';
 import 'package:foodsavr/controllers/preferences_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:foodsavr/models/product_model.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/services/product_service.dart';
@@ -65,6 +66,12 @@ void main() {
       ),
     ).thenAnswer((_) async => []);
     when(() => products.getExpired(any())).thenAnswer((_) async => []);
+    // A started account; the empty one is covered by the kickstart tests.
+    when(() => products.getProducts('user')).thenAnswer(
+      (_) async => [
+        const Product(id: 'p', name: 'Rice', description: '', userId: 'user'),
+      ],
+    );
     final collections = _Collections();
     when(
       () => collections.getCollectionsForUser('user', type: any(named: 'type')),

@@ -12,6 +12,7 @@ import 'package:foodsavr/utils/collection_types.dart';
 import 'package:foodsavr/views/collection_detail_view.dart';
 import 'package:foodsavr/views/collection_list_view.dart';
 import 'package:foodsavr/views/dynamic_collection_view.dart';
+import 'package:foodsavr/widgets/collection/collection_kickstart_card.dart';
 import 'package:foodsavr/widgets/collection/delete_collection_sheet.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,6 +26,12 @@ class _Collections extends Mock implements CollectionService {}
 class _Preferences extends ChangeNotifier implements PreferencesController {
   @override
   int get expiringSoonDays => 5;
+
+  final List<String> forgotten = [];
+
+  @override
+  Future<void> forgetDefaultInventory(String inventoryId) async =>
+      forgotten.add(inventoryId);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -200,6 +207,8 @@ void main() {
     expect(find.byType(DynamicCollectionView), findsOneWidget);
     expect(find.byType(CollectionDetailView), findsNothing);
     expect(find.byType(CollectionListView), findsOneWidget);
+    expect(find.byType(CollectionKickstartCard), findsOneWidget);
+    expect((getIt<PreferencesController>() as _Preferences).forgotten, ['c1']);
   });
 
   testWidgets('a collection of only dangling IDs offers the empty choices', (
