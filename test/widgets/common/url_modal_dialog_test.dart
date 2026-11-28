@@ -107,7 +107,6 @@ void main() {
           expect(find.byType(Dialog), findsOneWidget);
           // Underlying screen stays mounted behind the translucent dialog route.
           expect(find.text('Open Terms'), findsOneWidget);
-          expect(find.text(PublicRoutes.terms), findsOneWidget);
 
           // Small centered modal width is capped near 460px, not full-width.
           final dialogMaterial = find
@@ -127,7 +126,6 @@ void main() {
             router.routeInformationProvider.value.uri.path,
             PublicRoutes.privacy,
           );
-          expect(find.text(PublicRoutes.privacy), findsOneWidget);
 
           // Dismissing via Close returns directly to /settings.
           await tester.tap(find.byKey(const Key('url_modal_close_icon')));
@@ -191,7 +189,7 @@ void main() {
             lessThanOrEqualTo(UrlModalDialog.maxWidth),
           );
 
-          await tester.tap(find.text('Close'));
+          await tester.tap(find.byKey(const Key('url_modal_close_icon')));
           await tester.pumpAndSettle();
           expect(router.routeInformationProvider.value.uri.path, '/');
           expect(find.text('Home Screen'), findsOneWidget);
@@ -241,7 +239,6 @@ void main() {
           await tester.pumpAndSettle();
 
           expect(find.byType(DeleteAccountView), findsOneWidget);
-          expect(find.text(PublicRoutes.deleteAccount), findsOneWidget);
           expect(
             find.text('Sign in to the account you want to delete.'),
             findsOneWidget,

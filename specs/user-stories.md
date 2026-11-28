@@ -23,12 +23,12 @@ A brand-new account starts empty and guided, never pre-filled.
 
 ## Sign-in and account
 
-- As a signed-out visitor, I want a LettMat landing page that leads to getting started (the entry to onboarding, sign-up until then) or to signing in, so that I understand the app before I see a form.
+- As a signed-out visitor, I want a LettMat landing page that leads to getting started (the entry to onboarding, sign-up until then), to signing in, or to trying the app as a guest, so that I understand the app before I see a form; the login and sign-up screens lead back to it and offer no guest access.
 - As a user, I want no "Delete Account" action on the login screen or in the terms and privacy modals, so that a destructive action does not compete with reading or signing in; its URL stays public.
 - As a user, I want to sign up and log in with email and password or Google and Facebook, so that I can reach my data my way.
 - As a social-login user, I want the app to detect my sign-in method and offer "Add password" instead of "Forgot password", so that the action matches my account.
 - As a user, I want failures from a missing guest, Google, or Facebook setup surfaced clearly, so that I am never stuck on a silent blank screen.
-- As a desktop user, I want a logout button in the main view, so that signing out is one click, not a settings journey.
+- As a user, I want profile and settings as two separate slim buttons at the bottom left of the navigation rail (bottom-bar destinations on compact windows), with sign-out in the profile, so that account and app preferences are not mixed.
 - As a user, I want two-factor authentication either working or hidden, so that settings never advertise something I cannot use.
 
 ## Dashboard
@@ -37,10 +37,13 @@ The dashboard is the home of the app; inventory and shopping are sections of it.
 
 - As a user, I want inventory and shopping-list views as dashboard sections, so that everything I track is one scroll away.
 - As a user, I want widgets and entry points on the dashboard — scan receipt, import, export, integrations when they exist — so that I know where to click without hunting through views.
-- As a user, I want an "All products" widget instead of a "View all" link, so that the dashboard covers the overview directly.
-- As a user, I want a horizontal task bar with language, theme, and logout toggles, so that frequent controls sit in one place.
+- As a user, I want "My products" kept apart from the shared product registry (the catalog, later also a discount registry), so that my own items and the catalog never blur.
+- As a user, I want readable insights on the dashboard (products tracked, expiring, expired, shopping-list items, receipts) where an insight without data shows the action that would fill it, and no action repeated elsewhere in the view, so that the overview always leads somewhere.
+- As a user on a wide window, I want breadcrumbs instead of a task bar and instead of back buttons, so that navigation reads as one path.
+- As a user, I want a single compact column with enough margin between widgets, and content under each section title spanning at least the title row, so that nothing collides or floats.
 - As a user, I want quick actions like "Create product" to open a modal on the dashboard, so that I never lose my place to a wide dedicated view.
 - As a user, I want a register-new-expiry fallback whenever a view has no expiry to show, so that a dead end becomes an action.
+- As a user, I want to edit by clicking the text or widget itself (a collection title, a product name), so that the workflow stays streamlined.
 
 ## Inventory
 
@@ -49,6 +52,7 @@ The dashboard is the home of the app; inventory and shopping are sections of it.
 - As a user, I want to add products by barcode scan or manual entry, so that either a camera or a keyboard is enough.
 - As a user, I want a small icon per product when it is cheap to support, so that lists are scannable even without image support.
 - As a user, I want badges that never collide and sit above the search field, so that the list header stays readable on wide screens.
+- As a user, I want "New inventory" and "New shopping list" to create one at once with a unique default name that is already selected for editing, and the add button beside the collection title, so that creating never forces a name dialog.
 
 ## Shopping
 
@@ -64,19 +68,22 @@ Any scan can start the record; details can arrive later.
 - As a user without a camera, I want "Add product" with unlimited barcode attempts and basic validation, so that one typo does not restart the flow.
 - As a user, I want partial-search results from the foods API listed as candidates, so that a half-remembered barcode still finds the product.
 - As a user, I want to scan an expiry date first and fill in the missing details later, so that a receipt or package goes in with one gesture.
+- As a user, I want an "Add expiry" session that repeats scan or pick a product, connect it to an existing product or create a new one, and capture its expiry, plus a one-step "Add expiry" on a product, so that registering many expiries needs no joined steps.
+- As a user, I want a list of every receipt I registered, so that receipts are not write-only.
 - As a user, I want "Add product" to offer global catalog products covering the essentials, so that common items are one tap away.
-- As a user, I want camera-permission errors handled with clear state, retry, and persistence, so that I control the access and can recover from a denied grant.
+- As a user, I want camera-permission errors handled with clear state, retry, and persistence, and steps for my own operating system and browser (from Flutter's platform API) when access is blocked, so that I control the access and can recover from a denied grant.
+- As a web or installed-PWA user, I want live barcode scanning in the browser, including Firefox on Android, so that the camera works outside the native apps.
 
 ## Settings
 
 Settings are a fixed-width, centered column; exports and connections live in it.
 
 - As a user, I want settings laid out at a fixed width with centered rows, so that nothing stretches into hard-to-read lines.
-- As a user, I want small shorthand toggles for language and dark/light mode in the task bar, so that switching is one click and replaces the dual-language selector.
+- As a user, I want small shorthand toggles for language and dark/light mode in the appearance settings, so that switching is one click and replaces the dual-language selector.
 - As a user, I want a section per social provider showing connection status, so that I can connect or disconnect Google and Facebook in place.
 - As a user, I want camera access as an optional settings toggle, so that I can grant or revoke deliberately.
 - As a user, I want "Delete Account" placed with account actions, not under "About", so that destructive and informational settings are separate.
-- As a user, I want account and legal flows such as "Delete Account", terms of service, and privacy notice to open as small modals like "New Shopping List", each reachable through the URL state, so that they are consistent, linkable from outside (for example the Facebook app's policy links), and render a sensible default state directly.
+- As a user, I want account and legal flows such as "Delete Account", terms of service, and privacy notice to open as small modals like "New Shopping List", each reachable through the URL state but showing neither the path nor a second close button beside the close icon, so that they are consistent, linkable from outside (for example the Facebook app's policy links), and render a sensible default state directly.
 - As a user, I want the export section to offer all, some, or one section, inventory, or shopping list, so that mobile gets fast taps and PC gets granular control.
 
 ## Platform behavior

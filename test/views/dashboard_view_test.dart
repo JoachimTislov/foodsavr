@@ -1,6 +1,5 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/controllers/dashboard_controller.dart';
 import 'package:foodsavr/controllers/preferences_controller.dart';
@@ -8,10 +7,10 @@ import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/models/product_model.dart';
 import 'package:foodsavr/service_locator.dart';
-import 'package:foodsavr/services/barcode_scanner_service.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/utils/collection_types.dart';
+import 'package:foodsavr/views/batch_expiry_view.dart';
 import 'package:foodsavr/views/collection_detail_view.dart';
 import 'package:foodsavr/views/dashboard_view.dart';
 import 'package:foodsavr/widgets/collection/account_kickstart_card.dart';
@@ -28,6 +27,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
+import '../helpers/fake_receipt_repository.dart';
 import '../helpers/in_memory_preferences_repository.dart';
 import '../helpers/test_translation_loader.dart';
 
@@ -60,6 +60,7 @@ void main() {
 
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    registerFallbackValue(CollectionType.inventory);
     registerFallbackValue(
       const Collection(id: '', name: '', productIds: [], userId: ''),
     );
@@ -115,6 +116,7 @@ void main() {
           products,
           collections,
           preferences,
+          FakeReceiptRepository(),
           Logger(level: Level.off),
         ),
       );
@@ -366,13 +368,20 @@ void main() {
     });
   }
 
-  for (final (addTooltip, title) in [
-    ('Add Inventory', 'Add Inventory'),
-    ('Add Shopping List', 'Add Shopping List'),
+  for (final (addTooltip, type) in [
+    ('Add Inventory', CollectionType.inventory),
+    ('Add Shopping List', CollectionType.shoppingList),
   ]) {
-    testWidgets('the $addTooltip button opens a modal form', (tester) async {
+    testWidgets('the $addTooltip button creates a collection', (tester) async {
       getIt.registerSingleton<Logger>(Logger(level: Level.off));
       stubCollections();
+      when(
+        () => collections.createWithDefaultName(
+          any(),
+          any(),
+          baseName: any(named: 'baseName'),
+        ),
+      ).thenThrow(StateError('offline'));
       await pump(tester);
 
       await tester.ensureVisible(find.byTooltip(addTooltip));
@@ -380,11 +389,13 @@ void main() {
       await tester.tap(find.byTooltip(addTooltip));
       await tester.pumpAndSettle();
 
-      expect(find.byType(Dialog), findsOneWidget);
-      expect(
-        find.descendant(of: find.byType(Dialog), matching: find.text(title)),
-        findsOneWidget,
-      );
+      verify(
+        () => collections.createWithDefaultName(
+          'user',
+          type,
+          baseName: any(named: 'baseName'),
+        ),
+      ).called(1);
     });
   }
 
@@ -434,28 +445,13 @@ void main() {
     expect(find.byType(AccountKickstartCard), findsNothing);
   });
 
-  testWidgets('Register Expiry starts with the expiry date', (tester) async {
-    // No camera, so the flow asks with the date picker.
-    const channel = MethodChannel('plugins.flutter.io/camera');
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      channel,
-      (_) async => <Object>[],
-    );
-    BarcodeScannerService.refreshCameraDetection();
-    addTearDown(() {
-      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        channel,
-        null,
-      );
-      BarcodeScannerService.refreshCameraDetection();
-    });
-    // The date picker header overflows at the tiny default test scale.
+  testWidgets('Add Expiry opens the batch expiry session', (tester) async {
     await pump(tester, textScale: 0.5);
 
-    await tester.tap(find.text('Register Expiry'));
+    await tester.tap(find.text('Add Expiry'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(DatePickerDialog), findsOneWidget);
+    expect(find.byType(BatchExpiryView), findsOneWidget);
   });
 
   testWidgets('renders the expired section in dark mode', (tester) async {

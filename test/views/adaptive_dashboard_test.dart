@@ -4,6 +4,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foodsavr/constants/adaptive_layout.dart';
 import 'package:foodsavr/controllers/dashboard_controller.dart';
 import 'package:foodsavr/controllers/preferences_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
@@ -14,7 +15,9 @@ import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/views/dashboard_view.dart';
 import 'package:foodsavr/widgets/common/content_constraint.dart';
 import 'package:foodsavr/widgets/dashboard/dashboard_action_button.dart';
-import 'package:foodsavr/widgets/dashboard/overview_card.dart';
+import 'package:foodsavr/widgets/dashboard/dashboard_entry_points.dart';
+import 'package:foodsavr/widgets/dashboard/dashboard_insights_section.dart';
+import 'package:foodsavr/widgets/dashboard/insight_tile.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
@@ -22,6 +25,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
+import '../helpers/fake_receipt_repository.dart';
 import '../helpers/in_memory_preferences_repository.dart';
 import '../helpers/test_translation_loader.dart';
 
@@ -92,6 +96,7 @@ void main() {
             collections,
             Logger(level: Level.off),
           ),
+          FakeReceiptRepository(),
           Logger(level: Level.off),
         ),
       );
@@ -129,89 +134,77 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  // Card width for `columns` columns in a grid of `gridWidth` with 12 px gaps.
-  double cardWidth(double gridWidth, int columns) =>
-      (gridWidth - 12 * (columns - 1)) / columns;
+  final contentColumn = find
+      .descendant(
+        of: find.byType(ContentConstraint),
+        matching: find.byType(Column),
+      )
+      .first;
 
-  double firstCardWidth(WidgetTester tester) =>
-      tester.getSize(find.byType(OverviewCard).first).width;
+  for (final width in [400.0, 700.0, 1600.0]) {
+    testWidgets('one column capped at the page width at $width px', (
+      tester,
+    ) async {
+      await pump(tester, width);
 
-  testWidgets('compact width keeps two columns', (tester) async {
-    await pump(tester, 400);
-    expect(find.text('Quick Actions').hitTestable(), findsOneWidget);
-    expect(firstCardWidth(tester), cardWidth(400 - 48, 2));
-  });
+      expect(tester.takeException(), isNull);
+      expect(find.text('Quick Actions').hitTestable(), findsOneWidget);
+      final column = tester.getRect(contentColumn);
+      expect(column.width, lessThanOrEqualTo(AdaptiveLayout.pageMaxWidth));
+      // Insights and actions stack: no widget sits beside another section.
+      final insights = tester.getRect(find.byType(DashboardInsightsSection));
+      final actions = tester.getRect(find.byType(DashboardEntryPoints));
+      expect(insights.bottom, lessThanOrEqualTo(actions.top));
+      expect(insights.left, actions.left);
+    });
+  }
 
-  testWidgets('medium width reserves three columns with a 128 dp minimum', (
+  testWidgets('quick actions and insights keep clear of each other at 2x', (
     tester,
   ) async {
+    await pump(tester, 360, textScale: 2);
+
+    expect(tester.takeException(), isNull);
+    for (final type in [InsightTile, DashboardActionButton]) {
+      final rects = [
+        for (final element in find.byType(type).evaluate())
+          tester.getRect(find.byWidget(element.widget)),
+      ];
+      for (final rect in rects) {
+        expect(rect.left, greaterThanOrEqualTo(0));
+        expect(rect.right, lessThanOrEqualTo(360));
+      }
+      for (var i = 0; i < rects.length; i++) {
+        for (var j = i + 1; j < rects.length; j++) {
+          expect(rects[i].overlaps(rects[j]), isFalse);
+        }
+      }
+    }
+  });
+
+  testWidgets('an action shown by an insight tile is not in Quick Actions', (
+    tester,
+  ) async {
+    // Rice has no expiry, and there is no receipt or shopping list.
     await pump(tester, 700);
-    expect(find.text('Quick Actions').hitTestable(), findsOneWidget);
-    expect(firstCardWidth(tester), cardWidth(700 - 48, 3));
-    expect(tester.getSize(find.byType(OverviewCard).first).height, 128);
-  });
 
-  testWidgets('medium overview cards grow at 2x text scaling', (tester) async {
-    await pump(tester, 700, textScale: 2);
-
-    expect(tester.takeException(), isNull);
-    final cards = find.byType(OverviewCard);
-    expect(cards, findsNWidgets(2));
-    for (final card in cards.evaluate()) {
-      final size = tester.getSize(find.byWidget(card.widget));
-      expect(size.width, closeTo(cardWidth(700 - 48, 3), 0.01));
-      expect(size.height, greaterThan(128));
+    for (final label in ['Add Expiry', 'Scan Receipt', 'New Shopping List']) {
+      expect(find.text(label), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(DashboardInsightsSection),
+          matching: find.text(label),
+        ),
+        findsOneWidget,
+      );
     }
-  });
-
-  testWidgets('expanded width uses a two-thirds and one-third split', (
-    tester,
-  ) async {
-    await pump(tester, 1600);
-    expect(find.text('Quick Actions').hitTestable(), findsOneWidget);
-    final content = tester.getSize(find.byType(ContentConstraint));
-    expect(content.width, 1600 - 64);
-    final column = tester.getSize(
-      find
-          .descendant(
-            of: find.byType(ContentConstraint),
-            matching: find.byType(Column),
-          )
-          .first,
+    // The product statistic has data, so its action stays a quick action.
+    expect(
+      find.descendant(
+        of: find.byType(DashboardEntryPoints),
+        matching: find.text('Add Product'),
+      ),
+      findsOneWidget,
     );
-    expect(column.width, 1120);
-    // The side column holds a third of the width left after the 24 px gap.
-    expect(firstCardWidth(tester), closeTo((1120 - 24) / 3, 0.01));
-    expect(tester.getSize(find.byType(OverviewCard).first).height, 104);
-  });
-
-  testWidgets('expanded overview cards grow at 2x text scaling', (
-    tester,
-  ) async {
-    await pump(tester, 1600, textScale: 2);
-
-    expect(tester.takeException(), isNull);
-    for (final card in find.byType(OverviewCard).evaluate()) {
-      final size = tester.getSize(find.byWidget(card.widget));
-      expect(size.height, greaterThan(104));
-    }
-  });
-
-  testWidgets('expanded quick actions stay visible at 840 dp and 2x text', (
-    tester,
-  ) async {
-    await pump(tester, 840, textScale: 2);
-
-    expect(tester.takeException(), isNull);
-    expect(find.text('Quick Actions').hitTestable(), findsOneWidget);
-    expect(find.text('Add Product').hitTestable(), findsOneWidget);
-    expect(find.text('New Shopping List').hitTestable(), findsOneWidget);
-    final actions = find.byType(DashboardActionButton);
-    expect(actions, findsNWidgets(6));
-    for (final action in actions.evaluate()) {
-      final rect = tester.getRect(find.byWidget(action.widget));
-      expect(rect.left, greaterThanOrEqualTo(0));
-      expect(rect.right, lessThanOrEqualTo(840));
-    }
   });
 }

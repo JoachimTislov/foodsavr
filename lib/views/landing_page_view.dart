@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../constants/adaptive_layout.dart';
 import '../constants/material3_config.dart';
 import '../widgets/auth/brand_logo.dart';
+import '../widgets/auth/guest_sign_in_button.dart';
 import '../widgets/auth/public_page_links.dart';
 import '../widgets/common/pwa_install_banner.dart';
 import '../widgets/landing/landing_feature.dart';
@@ -77,6 +78,8 @@ class LandingPageView extends StatelessWidget {
           onPressed: () => context.go('/auth?mode=login'),
           child: Text('landing.sign_in'.tr()),
         ),
+        const SizedBox(height: Material3Config.spacing8),
+        const Center(child: GuestSignInButton()),
         const SizedBox(height: Material3Config.spacing16),
         const Center(child: PublicPageLinks(showDeleteAccount: false)),
         const PwaInstallBanner(

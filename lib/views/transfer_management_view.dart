@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../widgets/transfer/location_card.dart';
 import '../widgets/transfer/location_section_header.dart';
+import '../widgets/common/app_breadcrumbs.dart';
 
 /// A simple value object representing a storage location.
 class _LocationOption {
@@ -79,11 +80,14 @@ class _TransferManagementViewState extends State<TransferManagementView> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-          onPressed: () => context.pop(),
-        ),
+        automaticallyImplyLeading: false,
+        leading: AppBreadcrumbs.handlesBack(context)
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                onPressed: () => context.pop(),
+              ),
         title: Text(
           'transfer.title'.tr(),
           style: const TextStyle(fontWeight: FontWeight.bold),

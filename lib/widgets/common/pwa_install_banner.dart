@@ -9,8 +9,8 @@ import 'dismissible_banner.dart';
 ///
 /// Automatically hides when the app is not running in a web browser, is already
 /// installed in standalone mode (fulfilled intent), or when the user dismisses
-/// the banner. On Firefox desktop, where native PWA installation is unavailable,
-/// shows an honest informational notice instead of a broken install trigger.
+/// the banner. Without a native prompt, the install button opens the steps for
+/// the user's browser and operating system.
 class PwaInstallBanner extends StatelessWidget {
   final PwaInstallController? controller;
   final EdgeInsetsGeometry? margin;
@@ -36,7 +36,6 @@ class PwaInstallBanner extends StatelessWidget {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
         final textTheme = theme.textTheme;
-        final isFirefoxDesktop = resolved.isFirefoxDesktop;
 
         return DismissibleBanner(
           visible: resolved.shouldShowBanner,
@@ -57,9 +56,7 @@ class PwaInstallBanner extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
-              isFirefoxDesktop
-                  ? Icons.info_outline
-                  : Icons.install_mobile_outlined,
+              Icons.install_mobile_outlined,
               color: colorScheme.primary,
               size: 24,
             ),
@@ -69,9 +66,7 @@ class PwaInstallBanner extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                isFirefoxDesktop
-                    ? 'pwa.banner.firefox_desktop_title'.tr()
-                    : 'pwa.banner.title'.tr(),
+                'pwa.banner.title'.tr(),
                 style: textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: colorScheme.onSurface,
@@ -79,9 +74,7 @@ class PwaInstallBanner extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                isFirefoxDesktop
-                    ? 'pwa.banner.firefox_desktop_subtitle'.tr()
-                    : 'pwa.banner.subtitle'.tr(),
+                'pwa.banner.subtitle'.tr(),
                 style: textTheme.bodySmall?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),
@@ -92,11 +85,7 @@ class PwaInstallBanner extends StatelessWidget {
             onPressed: resolved.isPrompting
                 ? null
                 : () => PwaInstallSheet.handleInstallTap(context, resolved),
-            child: Text(
-              isFirefoxDesktop
-                  ? 'pwa.banner.learn_more'.tr()
-                  : 'pwa.banner.install'.tr(),
-            ),
+            child: Text('pwa.banner.install'.tr()),
           ),
         );
       },
@@ -106,7 +95,7 @@ class PwaInstallBanner extends StatelessWidget {
 
 /// Modal bottom sheet that guides users through manual PWA installation when
 /// the browser does not expose a native `beforeinstallprompt` dialog (e.g.,
-/// iOS Safari, macOS Safari, Firefox Android, or Firefox desktop).
+/// iOS Safari, macOS Safari, or Firefox).
 class PwaInstallSheet extends StatelessWidget {
   final PwaPlatformHint platformHint;
 
@@ -149,7 +138,6 @@ class PwaInstallSheet extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
-    final isFirefoxDesktop = platformHint == PwaPlatformHint.firefoxDesktop;
 
     final steps = switch (platformHint) {
       PwaPlatformHint.ios => [
@@ -176,6 +164,18 @@ class PwaInstallSheet extends StatelessWidget {
           text: 'pwa.guide.safari_step2'.tr(),
         ),
       ],
+      PwaPlatformHint.android => [
+        _InstallStep(
+          number: '1',
+          icon: Icons.more_vert,
+          text: 'pwa.guide.android_step1'.tr(),
+        ),
+        _InstallStep(
+          number: '2',
+          icon: Icons.add_to_home_screen_outlined,
+          text: 'pwa.guide.android_step2'.tr(),
+        ),
+      ],
       PwaPlatformHint.firefoxAndroid => [
         _InstallStep(
           number: '1',
@@ -191,12 +191,12 @@ class PwaInstallSheet extends StatelessWidget {
       PwaPlatformHint.firefoxDesktop => [
         _InstallStep(
           number: '1',
-          icon: Icons.bookmark_add_outlined,
+          icon: Icons.menu,
           text: 'pwa.guide.firefox_desktop_step1'.tr(),
         ),
         _InstallStep(
           number: '2',
-          icon: Icons.open_in_browser_outlined,
+          icon: Icons.install_desktop_outlined,
           text: 'pwa.guide.firefox_desktop_step2'.tr(),
         ),
       ],
@@ -230,30 +230,29 @@ class PwaInstallSheet extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(
-                    isFirefoxDesktop
-                        ? Icons.info_outline
-                        : Icons.install_mobile_outlined,
+                    Icons.install_mobile_outlined,
                     color: colorScheme.onPrimaryContainer,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    isFirefoxDesktop
-                        ? 'pwa.guide.firefox_desktop_title'.tr()
-                        : 'pwa.guide.title'.tr(),
+                    'pwa.guide.title'.tr(),
                     style: textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
               ],
             ),
             const SizedBox(height: 12),
             Text(
-              isFirefoxDesktop
-                  ? 'pwa.guide.firefox_desktop_subtitle'.tr()
-                  : 'pwa.guide.subtitle'.tr(),
+              'pwa.guide.subtitle'.tr(),
               style: textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -263,14 +262,6 @@ class PwaInstallSheet extends StatelessWidget {
               _InstallStepTile(step: step),
               const SizedBox(height: 12),
             ],
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text('common.close'.tr()),
-              ),
-            ),
           ],
         ),
       ),

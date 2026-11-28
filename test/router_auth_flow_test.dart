@@ -43,6 +43,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
+import 'helpers/fake_receipt_repository.dart';
 import 'helpers/in_memory_preferences_repository.dart';
 
 class _MockSecureStorage extends Mock implements SecureStorage {}
@@ -285,6 +286,7 @@ void main() {
           getIt<ProductService>(),
           getIt<CollectionService>(),
           getIt<PreferencesController>(),
+          FakeReceiptRepository(),
           Logger(level: Level.off),
         ),
       );

@@ -8,6 +8,7 @@ import 'package:foodsavr/views/dynamic_collection_view.dart';
 import 'package:foodsavr/views/landing_page_view.dart';
 import 'package:foodsavr/views/main_navigation_view.dart';
 import 'package:foodsavr/views/product_list_view.dart';
+import 'package:foodsavr/views/receipt_list_view.dart';
 import 'package:foodsavr/views/profile_view.dart';
 import 'package:foodsavr/views/select_products_view.dart';
 import 'package:foodsavr/views/settings_view.dart';
@@ -25,6 +26,7 @@ import '../controllers/list_query.dart';
 import '../views/legal_document_view.dart';
 import '../models/product_model.dart';
 import '../widgets/common/url_modal_dialog.dart';
+import 'page_trail.dart';
 
 part 'routes.g.dart';
 
@@ -115,36 +117,39 @@ class SelectProductsRoute extends GoRouteData with $SelectProductsRoute {
 
 @TypedStatefulShellRoute<MainNavigationRoute>(
   branches: <TypedStatefulShellBranch<StatefulShellBranchData>>[
-    TypedStatefulShellBranch<StatefulShellBranchData>(
+    TypedStatefulShellBranch<DashboardBranch>(
       routes: <TypedRoute<RouteData>>[
         TypedGoRoute<DashboardRoute>(
           path: '/dashboard',
           routes: [
-            TypedGoRoute<ProductListRoute>(path: 'product-list'),
-            TypedGoRoute<GlobalProductsRoute>(path: 'global-products'),
+            TypedGoRoute<MyProductsRoute>(path: 'my-products'),
+            TypedGoRoute<RegistryRoute>(path: 'registry'),
+            TypedGoRoute<ReceiptsRoute>(path: 'receipts'),
             TypedGoRoute<TransferRoute>(path: 'transfer'),
           ],
         ),
       ],
     ),
-    TypedStatefulShellBranch<StatefulShellBranchData>(
+    TypedStatefulShellBranch<InventoryBranch>(
       routes: <TypedRoute<RouteData>>[
         TypedGoRoute<MyInventoryRoute>(path: '/my-inventory'),
       ],
     ),
-    TypedStatefulShellBranch<StatefulShellBranchData>(
+    TypedStatefulShellBranch<ShoppingBranch>(
       routes: <TypedRoute<RouteData>>[
         TypedGoRoute<ShoppingListsRoute>(path: '/shopping-lists'),
       ],
     ),
-    TypedStatefulShellBranch<StatefulShellBranchData>(
+    TypedStatefulShellBranch<ProfileBranch>(
+      routes: <TypedRoute<RouteData>>[
+        TypedGoRoute<ProfileRoute>(path: '/profile'),
+      ],
+    ),
+    TypedStatefulShellBranch<SettingsBranch>(
       routes: <TypedRoute<RouteData>>[
         TypedGoRoute<SettingsRoute>(
           path: '/settings',
-          routes: [
-            TypedGoRoute<ProfileRoute>(path: 'profile'),
-            TypedGoRoute<WebViewRoute>(path: 'web-view'),
-          ],
+          routes: [TypedGoRoute<WebViewRoute>(path: 'web-view')],
         ),
       ],
     ),
@@ -167,6 +172,33 @@ class MainNavigationRoute extends StatefulShellRouteData {
   );
 }
 
+// Each branch reports its pushed pages to its [PageTrail] for the
+// breadcrumbs.
+class DashboardBranch extends StatefulShellBranchData {
+  const DashboardBranch();
+  static final List<NavigatorObserver> $observers = [PageTrail.branches[0]];
+}
+
+class InventoryBranch extends StatefulShellBranchData {
+  const InventoryBranch();
+  static final List<NavigatorObserver> $observers = [PageTrail.branches[1]];
+}
+
+class ShoppingBranch extends StatefulShellBranchData {
+  const ShoppingBranch();
+  static final List<NavigatorObserver> $observers = [PageTrail.branches[2]];
+}
+
+class ProfileBranch extends StatefulShellBranchData {
+  const ProfileBranch();
+  static final List<NavigatorObserver> $observers = [PageTrail.branches[3]];
+}
+
+class SettingsBranch extends StatefulShellBranchData {
+  const SettingsBranch();
+  static final List<NavigatorObserver> $observers = [PageTrail.branches[4]];
+}
+
 class DashboardRoute extends GoRouteData with $DashboardRoute {
   const DashboardRoute();
   @override
@@ -174,8 +206,8 @@ class DashboardRoute extends GoRouteData with $DashboardRoute {
       const DashboardView();
 }
 
-class ProductListRoute extends GoRouteData with $ProductListRoute {
-  const ProductListRoute();
+class MyProductsRoute extends GoRouteData with $MyProductsRoute {
+  const MyProductsRoute();
   @override
   Widget build(BuildContext context, GoRouterState state) => ProductListView(
     key: ValueKey(state.uri.query),
@@ -189,11 +221,18 @@ class ProductListRoute extends GoRouteData with $ProductListRoute {
   );
 }
 
-class GlobalProductsRoute extends GoRouteData with $GlobalProductsRoute {
-  const GlobalProductsRoute();
+class RegistryRoute extends GoRouteData with $RegistryRoute {
+  const RegistryRoute();
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const ProductListView(showGlobalProducts: true);
+}
+
+class ReceiptsRoute extends GoRouteData with $ReceiptsRoute {
+  const ReceiptsRoute();
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const ReceiptListView();
 }
 
 class TransferRoute extends GoRouteData with $TransferRoute {

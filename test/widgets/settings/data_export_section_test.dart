@@ -117,7 +117,7 @@ void main() {
       await pumpSection(tester, 1200);
 
       expect(find.text('3 of 3 selected'), findsOneWidget);
-      expect(find.text('CSV (Default)'), findsOneWidget);
+      expect(find.text('CSV'), findsOneWidget);
       await tester.tap(find.text('Download'));
       await tester.pumpAndSettle();
 

@@ -5,16 +5,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/controllers/dashboard_controller.dart';
 import 'package:foodsavr/controllers/preferences_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:foodsavr/interfaces/i_receipt_repository.dart';
 import 'package:foodsavr/models/collection_model.dart';
+import 'package:foodsavr/models/product_model.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/services/barcode_scanner_service.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/services/product_service.dart';
+import 'package:foodsavr/services/purchase_history_service.dart';
 import 'package:foodsavr/utils/collection_types.dart';
 import 'package:foodsavr/views/collection_list_view.dart';
 import 'package:foodsavr/views/dashboard_view.dart';
 import 'package:foodsavr/widgets/collection/account_kickstart_card.dart';
 import 'package:foodsavr/widgets/collection/collection_card.dart';
+import 'package:foodsavr/widgets/collection/collection_header.dart';
 import 'package:foodsavr/widgets/collection/collection_kickstart_card.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -33,6 +37,10 @@ class _Products extends Mock implements ProductService {}
 
 class _Collections extends Mock implements CollectionService {}
 
+class _Receipts extends Mock implements IReceiptRepository {}
+
+class _History extends Mock implements PurchaseHistoryService {}
+
 void main() {
   late Map<String, TestTranslationLoader> translations;
   late List<Collection> stored;
@@ -50,6 +58,7 @@ void main() {
     await initializeDateFormatting('en', null);
     await initializeDateFormatting('nb', null);
     await EasyLocalization.ensureInitialized();
+    registerFallbackValue(CollectionType.inventory);
     registerFallbackValue(
       const Collection(id: '', name: '', productIds: [], userId: ''),
     );
@@ -84,6 +93,37 @@ void main() {
       stored.add(added);
       return added;
     });
+    when(
+      () => collections.createWithDefaultName(
+        any(),
+        any(),
+        baseName: any(named: 'baseName'),
+      ),
+    ).thenAnswer((call) async {
+      final type = call.positionalArguments[1] as CollectionType;
+      final added = Collection(
+        id: 'new${stored.length}',
+        name: CollectionService.uniqueName(
+          call.namedArguments[#baseName] as String,
+          stored.where((c) => c.type == type).map((c) => c.name),
+        ),
+        userId: 'user',
+        type: type,
+        productIds: const [],
+      );
+      stored.add(added);
+      return added;
+    });
+    when(() => collections.getCollection(any())).thenAnswer(
+      (call) async =>
+          stored.firstWhere((c) => c.id == call.positionalArguments.single),
+    );
+    when(() => collections.loadContents(any())).thenAnswer(
+      (call) async =>
+          (call.positionalArguments.single as Collection, <Product>[]),
+    );
+    final history = _History();
+    when(() => history.load(any())).thenAnswer((_) async => []);
     final preferences = PreferencesController(
       auth,
       InMemoryPreferencesRepository(),
@@ -95,6 +135,7 @@ void main() {
       ..registerSingleton<IAuthService>(auth)
       ..registerSingleton<ProductService>(products)
       ..registerSingleton<CollectionService>(collections)
+      ..registerSingleton<PurchaseHistoryService>(history)
       ..registerSingleton<PreferencesController>(preferences)
       ..registerSingleton<DashboardController>(
         DashboardController(
@@ -102,6 +143,7 @@ void main() {
           products,
           collections,
           preferences,
+          _Receipts(),
           Logger(level: Level.off),
         ),
       );
@@ -171,19 +213,30 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> createNamed(
-    WidgetTester tester,
-    String button,
-    String name,
-  ) async {
+  /// Taps [button], which creates a collection under its default name and
+  /// opens it with the title in edit mode, then closes it again.
+  Future<void> createAndClose(WidgetTester tester, String button) async {
     // The dashboard sections can sit below the fold.
     await tester.ensureVisible(find.text(button));
     await tester.pumpAndSettle();
     await tester.tap(find.text(button));
     await tester.pumpAndSettle();
-    expect(find.byType(Dialog), findsOneWidget);
-    await tester.enterText(find.byType(TextFormField), name);
-    await tester.tap(find.text('Create'));
+    expect(find.byType(Dialog), findsNothing);
+    final field = tester.widget<TextField>(
+      find.descendant(
+        of: find.byType(CollectionHeader),
+        matching: find.byType(TextField),
+      ),
+    );
+    expect(field.focusNode!.hasFocus, isTrue);
+    final name = stored.last.name;
+    expect(field.controller!.text, name);
+    expect(
+      field.controller!.selection,
+      TextSelection(baseOffset: 0, extentOffset: name.length),
+    );
+    expect(find.byType(CollectionHeader), findsOneWidget);
+    Navigator.of(tester.element(find.byType(CollectionHeader))).pop();
     await tester.pumpAndSettle();
   }
 
@@ -199,7 +252,7 @@ void main() {
       'Create Shopping List',
     ),
   ]) {
-    testWidgets('empty ${type.name} list creates a user-named collection', (
+    testWidgets('empty ${type.name} list creates a default-named collection', (
       tester,
     ) async {
       await pump(tester, CollectionListView(typeFilter: type));
@@ -207,10 +260,14 @@ void main() {
       expect(find.text(title), findsOneWidget);
       expect(find.byType(FloatingActionButton), findsNothing);
 
-      await createNamed(tester, button, 'Cellar');
+      await createAndClose(tester, button);
 
       final added = stored.single;
-      expect((added.name, added.type), ('Cellar', type));
+      expect(
+        added.name,
+        type == CollectionType.inventory ? 'Inventory' : 'Shopping list',
+      );
+      expect(added.type, type);
       expect(find.byType(CollectionKickstartCard), findsNothing);
       expect(find.byType(CollectionCard), findsOneWidget);
     });
@@ -228,7 +285,7 @@ void main() {
   });
 
   for (final (label, path) in [
-    ('Browse common products', '/dashboard/global-products'),
+    ('Browse common products', '/dashboard/registry'),
     ('Scan Barcode', '/barcode-scan'),
   ]) {
     testWidgets('$label opens $path', (tester) async {
@@ -303,7 +360,7 @@ void main() {
       await pump(tester, const Scaffold(body: DashboardView()));
       expect(find.text("Let's get you started"), findsOneWidget);
 
-      await createNamed(tester, button, 'Mine');
+      await createAndClose(tester, button);
 
       expect(stored.single.type, type);
       expect(find.byType(AccountKickstartCard), findsNothing);
@@ -317,9 +374,37 @@ void main() {
     await pump(tester, const Scaffold(body: DashboardView()));
 
     await tester.ensureVisible(find.text('New Shopping List'));
-    await createNamed(tester, 'New Shopping List', 'Weekend');
+    await createAndClose(tester, 'New Shopping List');
 
     expect(find.byType(AccountKickstartCard), findsNothing);
+  });
+
+  testWidgets('a second collection gets a numbered default name', (
+    tester,
+  ) async {
+    stored.add(
+      const Collection(
+        id: 'first',
+        name: 'Inventory',
+        productIds: [],
+        userId: 'user',
+      ),
+    );
+    await pump(
+      tester,
+      const CollectionListView(typeFilter: CollectionType.inventory),
+    );
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+    expect(stored.map((c) => c.name), ['Inventory', 'Inventory 2']);
+    expect(find.byType(CollectionHeader), findsOneWidget);
+    Navigator.of(tester.element(find.byType(CollectionHeader))).pop();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CollectionCard), findsNWidgets(2));
+    expect(find.text('Inventory 2'), findsOneWidget);
+    expect(find.byType(FloatingActionButton), findsNothing);
   });
 
   testWidgets('a kept-alive empty list reloads when shown again', (

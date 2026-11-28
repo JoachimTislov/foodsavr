@@ -1,27 +1,22 @@
-import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/data_export_service.dart';
 import 'segmented_pill.dart';
 
-/// Chooses between CSV, the default, and JSON.
+/// Chooses between CSV and JSON; the selected segment shows the active one.
 class ExportFormatToggle extends StatelessWidget {
   final ExportFormat format;
   final ValueChanged<ExportFormat> onChanged;
-
-  /// Whether CSV is labelled as the default.
-  final bool markDefault;
 
   const ExportFormatToggle({
     super.key,
     required this.format,
     required this.onChanged,
-    this.markDefault = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final csv = markDefault ? 'settings.export.csvDefault'.tr() : 'CSV';
+    const csv = 'CSV';
 
     return SegmentedPill<ExportFormat>(
       segments: [

@@ -43,11 +43,10 @@ class _LegalDocumentViewState extends State<LegalDocumentView> {
 
   @override
   Widget build(BuildContext context) {
-    final (title, icon, routeBadge, otherDocLink) = switch (widget.document) {
+    final (title, icon, otherDocLink) = switch (widget.document) {
       LegalDoc.privacy => (
         'common.privacy_notice'.tr(),
         Icons.privacy_tip_outlined,
-        PublicRoutes.privacy,
         UrlModalLink(
           label: 'common.terms_of_service'.tr(),
           location: PublicRoutes.terms,
@@ -56,7 +55,6 @@ class _LegalDocumentViewState extends State<LegalDocumentView> {
       LegalDoc.terms => (
         'common.terms_of_service'.tr(),
         Icons.gavel_outlined,
-        PublicRoutes.terms,
         UrlModalLink(
           label: 'common.privacy_notice'.tr(),
           location: PublicRoutes.privacy,
@@ -67,7 +65,6 @@ class _LegalDocumentViewState extends State<LegalDocumentView> {
     return UrlModalDialog(
       title: title,
       icon: icon,
-      routeBadge: routeBadge,
       footerLinks: [otherDocLink],
       child: FutureBuilder<String>(
         future: _documentFuture,

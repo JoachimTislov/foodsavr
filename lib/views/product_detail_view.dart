@@ -9,12 +9,14 @@ import '../constants/product_categories.dart';
 import '../controllers/preferences_controller.dart';
 import '../models/product_model.dart';
 import '../widgets/common/content_constraint.dart';
+import '../widgets/expiry/add_expiry_sheet.dart';
 import '../widgets/product/product_details_card.dart';
 import '../service_locator.dart';
 import '../services/collection_service.dart';
 import '../services/product_service.dart';
 import '../interfaces/i_auth_service.dart';
 import '../utils/user_error.dart';
+import '../widgets/common/app_breadcrumbs.dart';
 
 class ProductDetailView extends WatchingStatefulWidget {
   final Product product;
@@ -78,6 +80,47 @@ class _ProductDetailViewState extends State<ProductDetailView> {
     }
   }
 
+  Future<void> _edit() async {
+    final result = await ProductFormView.show(
+      context,
+      product: _currentProduct,
+    );
+    if (result == true && mounted) await _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final updated = await _productService.getProductById(_currentProduct.id);
+    if (updated == null || !mounted) return;
+    setState(() => _currentProduct = updated);
+    _loadInventories();
+  }
+
+  Future<void> _addExpiry() async {
+    final input = await AddExpirySheet.show(context);
+    if (input == null || !mounted) return;
+    try {
+      final updated = await _productService.addExpiry(
+        _currentProduct.id,
+        input.date,
+        quantity: input.quantity,
+      );
+      if (!mounted) return;
+      setState(() => _currentProduct = updated);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('product.expiryAdded'.tr())));
+    } catch (e, stack) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            userErrorMessage(e, 'batchExpiry.saveError'.tr(), stack),
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final product = _currentProduct;
@@ -93,7 +136,10 @@ class _ProductDetailViewState extends State<ProductDetailView> {
     final statusIcon = status.getIcon();
 
     return Scaffold(
-      appBar: AppBar(automaticallyImplyLeading: widget.onDeleted == null),
+      appBar: AppBar(
+        automaticallyImplyLeading:
+            widget.onDeleted == null && !AppBreadcrumbs.handlesBack(context),
+      ),
       body: SingleChildScrollView(
         child: ContentConstraint(
           maxWidth: AdaptiveLayout.detailMaxWidth,
@@ -105,11 +151,24 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      product.name,
-                      style: theme.textTheme.displaySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 28,
+                    InkWell(
+                      onTap: _edit,
+                      child: ConstrainedBox(
+                        // Keeps the tappable name at least a tap target tall.
+                        constraints: const BoxConstraints(
+                          minHeight: kMinInteractiveDimension,
+                        ),
+                        child: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          widthFactor: 1,
+                          child: Text(
+                            product.name,
+                            style: theme.textTheme.displaySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 28,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -178,6 +237,12 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                         ],
                       ),
                     ),
+                    FilledButton.tonalIcon(
+                      onPressed: _addExpiry,
+                      icon: const Icon(Icons.event_available),
+                      label: Text('product.addExpiry'.tr()),
+                    ),
+                    const SizedBox(height: 24),
                     // Description section
                     if (product.description.isNotEmpty) ...[
                       Text(
@@ -242,22 +307,7 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                         IconButton(
                           icon: const Icon(Icons.edit),
                           tooltip: 'a11y.editProduct'.tr(),
-                          onPressed: () async {
-                            final result = await ProductFormView.show(
-                              context,
-                              product: _currentProduct,
-                            );
-                            if (result == true && mounted) {
-                              final updatedProduct = await _productService
-                                  .getProductById(_currentProduct.id);
-                              if (updatedProduct != null) {
-                                setState(() {
-                                  _currentProduct = updatedProduct;
-                                });
-                                _loadInventories();
-                              }
-                            }
-                          },
+                          onPressed: _edit,
                         ),
                         IconButton(
                           icon: Icon(Icons.delete, color: colorScheme.error),
@@ -267,7 +317,11 @@ class _ProductDetailViewState extends State<ProductDetailView> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    ProductDetailsCard(product: product),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: _edit,
+                      child: ProductDetailsCard(product: product),
+                    ),
                     const SizedBox(height: 32),
                   ],
                 ),

@@ -515,6 +515,30 @@ class ProductService {
     }
   }
 
+  /// Adds [quantity] expiring on [date] to the stored product [productId].
+  Future<Product> addExpiry(
+    String productId,
+    DateTime date, {
+    int quantity = 1,
+  }) async {
+    final stored = await _productRepository.get(productId);
+    if (stored == null) throw StateError('Product not found: $productId');
+    final updated = stored.withExpiry(date, quantity: quantity);
+    _validateOrThrow(updated);
+    try {
+      await _productRepository.update(updated);
+      _invalidateCache();
+      return updated;
+    } catch (e) {
+      _logger.e('Error adding expiry: $e');
+      rethrow;
+    }
+  }
+
+  /// The product of [userId] with [barcode], or null.
+  Future<Product?> findOwnedByBarcode(String userId, String barcode) async =>
+      _findByBarcode(await getProducts(userId), barcode.trim());
+
   Future<void> deleteProduct(String id) async {
     _logger.i('Deleting product: $id');
     try {

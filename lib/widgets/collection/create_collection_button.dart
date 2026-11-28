@@ -1,10 +1,10 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
+import '../../utils/collection_create_flow.dart';
 import '../../utils/collection_types.dart';
-import '../../views/collection_form_view.dart';
 
-/// Opens the create dialog for a [type] collection, named by the user.
+/// Creates a [type] collection under a default name and opens it for renaming.
 class CreateCollectionButton extends StatelessWidget {
   final CollectionType type;
   final Future<void> Function() onCreated;
@@ -22,8 +22,8 @@ class CreateCollectionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Future<void> create() async {
-      final created = await CollectionFormView.show(context, type: type);
-      if (created == true) await onCreated();
+      final created = await CollectionCreateFlow.run(context, type);
+      if (created != null) await onCreated();
     }
 
     final isShoppingList = type == CollectionType.shoppingList;

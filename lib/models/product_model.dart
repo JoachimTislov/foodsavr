@@ -175,6 +175,25 @@ abstract class Product with _$Product {
     );
   }
 
+  /// A copy with [quantity] more expiring on [date]. It joins the entry of the
+  /// same calendar day, if there is one, and is appended otherwise.
+  Product withExpiry(DateTime date, {int quantity = 1}) {
+    bool sameDay(DateTime a) =>
+        a.year == date.year && a.month == date.month && a.day == date.day;
+    final index = expiries.indexWhere((e) => sameDay(e.expirationDate));
+    return copyWith(
+      expiries: index < 0
+          ? [...expiries, ExpiryEntry(quantity: quantity, expirationDate: date)]
+          : [
+              for (final (i, entry) in expiries.indexed)
+                if (i == index)
+                  entry.copyWith(quantity: entry.quantity + quantity)
+                else
+                  entry,
+            ],
+    );
+  }
+
   // Helper method to get the soonest expiration date
   DateTime? get soonestExpirationDate {
     if (expiries.isEmpty) return null;

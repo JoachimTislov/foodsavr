@@ -4,12 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../controllers/preferences_controller.dart';
 import '../interfaces/i_auth_service.dart';
-import '../models/product_model.dart';
 import '../service_locator.dart';
 import '../services/barcode_scanner_service.dart';
 import '../services/open_food_facts_client.dart';
 import '../services/product_service.dart';
 import '../services/collection_service.dart';
+import '../routes/page_trail.dart';
+import '../views/batch_expiry_view.dart';
 import '../views/expiry_scan_view.dart';
 import '../views/product_form_view.dart';
 import '../views/product_detail_view.dart';
@@ -36,31 +37,18 @@ class ProductAddHelper {
     return finishAddProductFlow(context, result, collectionId: collectionId);
   }
 
-  /// Captures the expiry date first, by scanning it where the camera can and
-  /// with the date picker otherwise, then asks for the rest of the product.
+  /// Opens the batch expiry session: pick or scan a product, capture its
+  /// expiry, repeat.
   static Future<bool?> startExpiryFirstFlow(
     BuildContext context, {
     String? collectionId,
-  }) async {
-    final canScan = await BarcodeScannerService.hasCamera();
-    if (!context.mounted) return false;
-    final date = canScan
-        ? await ExpiryScanView.show(context)
-        : await pickExpiryDate(context);
-    if (date == null || !context.mounted) return false;
-    final userId = getIt<IAuthService>().getUserId();
-    if (userId == null) return false;
-    return ProductFormView.show(
-      context,
-      prefill: Product(
-        id: '',
-        name: '',
-        description: '',
-        userId: userId,
-        expiries: [ExpiryEntry(quantity: 1, expirationDate: date)],
-      ),
-      collectionId: collectionId,
-    );
+  }) => BatchExpiryView.show(context, collectionId: collectionId);
+
+  /// Captures an expiry date: scanned where the camera can, picked otherwise.
+  static Future<DateTime?> captureExpiryDate(BuildContext context) async {
+    final canScan = await BarcodeScannerService.hasTextScanner();
+    if (!context.mounted) return null;
+    return canScan ? ExpiryScanView.show(context) : pickExpiryDate(context);
   }
 
   /// Completes the flow with what the scanner returned: a barcode, a chosen
@@ -174,10 +162,10 @@ class ProductAddHelper {
         );
 
         // Show the product after adding it
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => ProductDetailView(product: addResult.product),
-          ),
+        await PageTrail.push<void>(
+          context,
+          label: addResult.product.name,
+          builder: (_) => ProductDetailView(product: addResult.product),
         );
 
         return true;

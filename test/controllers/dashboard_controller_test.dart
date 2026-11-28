@@ -6,7 +6,9 @@ import 'package:foodsavr/controllers/dashboard_controller.dart';
 import 'package:foodsavr/controllers/preferences_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/models/collection_model.dart';
+import 'package:foodsavr/models/dashboard_insights.dart';
 import 'package:foodsavr/models/product_model.dart';
+import 'package:foodsavr/models/receipt_record.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/utils/collection_types.dart';
@@ -14,6 +16,7 @@ import 'package:foodsavr/models/user_preferences_model.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../helpers/fake_receipt_repository.dart';
 import '../helpers/in_memory_preferences_repository.dart';
 
 class MockAuthService extends Mock implements IAuthService {}
@@ -73,6 +76,7 @@ void main() {
       mockProductService,
       mockCollectionService,
       preferences,
+      FakeReceiptRepository(),
       Logger(level: Level.off),
     );
   });
@@ -281,6 +285,7 @@ void main() {
         mockProductService,
         mockCollectionService,
         preferences,
+        FakeReceiptRepository(),
         Logger(level: Level.off),
       );
       await Future<void>.delayed(Duration.zero);
@@ -363,7 +368,6 @@ void main() {
 
         expect(controller.isEmptyAccount, isFalse);
         expect(controller.inventories, isEmpty);
-        verifyNever(() => mockProductService.getProducts(any()));
       });
 
       test('is not empty with only a product', () async {
@@ -426,6 +430,153 @@ void main() {
         when(() => mockAuthService.getUserId()).thenReturn(null);
         await controller.load();
         expect(controller.isEmptyAccount, isFalse);
+      });
+    });
+
+    group('insights', () {
+      Collection shoppingList(
+        String id, {
+        List<String> productIds = const [],
+      }) => Collection(
+        id: id,
+        name: id,
+        productIds: productIds,
+        userId: 'user_1',
+        type: CollectionType.shoppingList,
+      );
+
+      ReceiptRecord receipt(String id, int items, int daysAgo) => ReceiptRecord(
+        id: id,
+        provider: null,
+        externalId: id,
+        occurredAt: DateTime.now().subtract(Duration(days: daysAgo)),
+        itemCount: items,
+        productIds: const [],
+      );
+
+      Future<void> loadWith({
+        List<Product> products = const [],
+        List<Product> expired = const [],
+        List<Product> expiringSoon = const [],
+        List<Collection> collections = const [],
+        Map<String, int> counts = const {},
+        FakeReceiptRepository? receipts,
+      }) async {
+        controller.dispose();
+        controller = DashboardController(
+          mockAuthService,
+          mockProductService,
+          mockCollectionService,
+          preferences,
+          receipts ?? FakeReceiptRepository(),
+          Logger(level: Level.off),
+        );
+        when(() => mockAuthService.getUserId()).thenReturn('user_1');
+        when(
+          () => mockProductService.getProducts('user_1'),
+        ).thenAnswer((_) async => products);
+        when(
+          () => mockProductService.getExpired('user_1'),
+        ).thenAnswer((_) async => expired);
+        when(
+          () => mockProductService.getExpiringSoon(
+            'user_1',
+            expiringSoonDays: any(named: 'expiringSoonDays'),
+          ),
+        ).thenAnswer((_) async => expiringSoon);
+        when(
+          () => mockCollectionService.getCollectionsForUser('user_1'),
+        ).thenAnswer((_) async => collections);
+        when(
+          () => mockCollectionService.resolveCounts('user_1', collections),
+        ).thenAnswer((_) async => counts);
+        await controller.load();
+      }
+
+      test('an empty account offers every enriching action', () async {
+        await loadWith();
+
+        final insights = controller.insights;
+        expect(insights.productCount, 0);
+        expect(insights.hasExpiries, isFalse);
+        expect(insights.emptyActions, DashboardAction.values.toSet());
+      });
+
+      test('counts products, expiries, shopping items and receipts', () async {
+        final soon = _productExpiringIn('soon', 2);
+        final old = _productExpiringIn('old', -4);
+        final lists = [shoppingList('a'), shoppingList('b')];
+        await loadWith(
+          products: [soon, old, _productExpiringIn('later', 40)],
+          expired: [old],
+          expiringSoon: [soon],
+          collections: lists,
+          counts: {'a': 3, 'b': 4},
+          receipts: FakeReceiptRepository(
+            records: [
+              receipt('r1', 5, 2),
+              receipt('r2', 7, 29),
+              receipt('r3', 9, 60),
+            ],
+          ),
+        );
+
+        final insights = controller.insights;
+        expect(insights.productCount, 3);
+        expect(insights.expiringSoonCount, 1);
+        expect(insights.expiredCount, 1);
+        expect(insights.hasExpiries, isTrue);
+        expect(insights.shoppingListCount, 2);
+        expect(insights.shoppingListItemCount, 7);
+        expect(insights.receiptCount, 3);
+        expect(insights.recentReceiptItemCount, 12);
+        expect(insights.emptyActions, isEmpty);
+      });
+
+      test('falls back to the list contents without resolved counts', () async {
+        final lists = [
+          shoppingList('a', productIds: ['x', 'y']),
+        ];
+        await loadWith(collections: lists);
+
+        expect(controller.insights.shoppingListItemCount, 2);
+      });
+
+      test('products without expiries still offer to add an expiry', () async {
+        await loadWith(
+          products: const [
+            Product(id: 'p', name: 'Rice', description: '', userId: 'user_1'),
+          ],
+        );
+
+        expect(controller.insights.productCount, 1);
+        expect(controller.insights.emptyActions, {
+          DashboardAction.addExpiry,
+          DashboardAction.scanReceipt,
+          DashboardAction.createShoppingList,
+        });
+      });
+
+      test(
+        'a failing receipt store only empties the receipt insight',
+        () async {
+          await loadWith(
+            products: [_productExpiringIn('milk', 3)],
+            receipts: FakeReceiptRepository(failing: true),
+          );
+
+          expect(controller.insights.productCount, 1);
+          expect(controller.insights.receiptCount, 0);
+        },
+      );
+
+      test('sign-out clears the insights', () async {
+        await loadWith(products: [_productExpiringIn('milk', 3)]);
+        when(() => mockAuthService.getUserId()).thenReturn(null);
+
+        await controller.load();
+
+        expect(controller.insights.productCount, 0);
       });
     });
   });

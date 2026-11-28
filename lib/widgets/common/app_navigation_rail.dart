@@ -21,7 +21,8 @@ class AppNavigationRailItem {
 }
 
 /// Material 3 navigation rail. With [extended] the labels sit beside the icons
-/// and the brand mark heads the rail.
+/// and the brand mark heads the rail. [footerItems] are slim icon buttons at
+/// the bottom, such as profile and settings; their indices follow [items].
 ///
 /// Unlike [NavigationRail], each destination is exposed to assistive
 /// technology as a tab, matching the bottom [NavigationBar] on compact windows.
@@ -30,6 +31,7 @@ class AppNavigationRail extends StatelessWidget {
   static const double extendedWidth = 256;
 
   final List<AppNavigationRailItem> items;
+  final List<AppNavigationRailItem> footerItems;
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
   final bool extended;
@@ -39,6 +41,7 @@ class AppNavigationRail extends StatelessWidget {
     required this.items,
     required this.selectedIndex,
     required this.onDestinationSelected,
+    this.footerItems = const [],
     this.extended = false,
   });
 
@@ -85,10 +88,56 @@ class AppNavigationRail extends StatelessWidget {
                   ),
                 ),
               ),
+              const Spacer(),
+              if (footerItems.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(Material3Config.spacing12),
+                  child: Flex(
+                    direction: extended ? Axis.horizontal : Axis.vertical,
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: Material3Config.spacing8,
+                    children: [
+                      for (var i = 0; i < footerItems.length; i++)
+                        _RailFooterButton(
+                          item: footerItems[i],
+                          selected: items.length + i == selectedIndex,
+                          onTap: () => onDestinationSelected(items.length + i),
+                        ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A slim, labelled icon button at the bottom of the rail.
+class _RailFooterButton extends StatelessWidget {
+  final AppNavigationRailItem item;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _RailFooterButton({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = Icon(selected ? item.selectedIcon : item.icon);
+    return Semantics(
+      selected: selected,
+      child: selected
+          ? IconButton.filledTonal(
+              icon: icon,
+              tooltip: item.label,
+              onPressed: onTap,
+            )
+          : IconButton(icon: icon, tooltip: item.label, onPressed: onTap),
     );
   }
 }

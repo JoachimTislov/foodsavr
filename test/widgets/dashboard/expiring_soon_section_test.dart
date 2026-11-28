@@ -3,41 +3,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/models/product_model.dart';
 import 'package:foodsavr/widgets/dashboard/expiring_item_card.dart';
 import 'package:foodsavr/widgets/dashboard/expiring_soon_section.dart';
-import 'package:foodsavr/widgets/dashboard/register_expiry_card.dart';
 
 import '../../support/localized_app.dart';
 
 void main() {
   setUpAll(setUpLocalizedApp);
 
-  for (final (language, empty, register) in [
-    ('en', 'No products expiring soon.', 'Register Expiry'),
-    ('nb', 'Ingen produkter utløper snart.', 'Registrer utløpsdato'),
-  ]) {
-    testWidgets('empty section offers to register an expiry in $language', (
+  testWidgets('an empty section renders nothing', (tester) async {
+    await pumpLocalized(
       tester,
-    ) async {
-      var registered = 0;
-      await pumpLocalized(
-        tester,
-        Scaffold(
-          body: ExpiringSoonSection(
-            products: const [],
-            onRegisterExpiry: () => registered++,
-          ),
-        ),
-        language: language,
-      );
+      const Scaffold(body: ExpiringSoonSection(products: [])),
+    );
 
-      expect(find.text(empty), findsOneWidget);
-      await tester.tap(find.text(register));
+    expect(find.text('Expiring Soon'), findsNothing);
+    expect(find.byType(FilledButton), findsNothing);
+    expect(find.byType(ExpiringItemCard), findsNothing);
+  });
 
-      expect(registered, 1);
-      expect(find.byType(TextButton), findsNothing);
-    });
-  }
-
-  testWidgets('a filled section has no View all button and no fallback', (
+  testWidgets('a filled section lists its products without actions', (
     tester,
   ) async {
     final now = DateTime.now();
@@ -59,13 +42,12 @@ void main() {
               ],
             ),
           ],
-          onRegisterExpiry: () {},
         ),
       ),
     );
 
+    expect(find.text('Expiring Soon'), findsOneWidget);
     expect(find.byType(ExpiringItemCard), findsOneWidget);
-    expect(find.byType(RegisterExpiryCard), findsNothing);
     expect(find.byType(TextButton), findsNothing);
     expect(find.textContaining('View'), findsNothing);
   });

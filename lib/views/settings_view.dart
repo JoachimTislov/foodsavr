@@ -1,7 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:logger/logger.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:watch_it/watch_it.dart';
@@ -18,13 +17,11 @@ import '../utils/collection_types.dart';
 import '../utils/theme_notifier.dart';
 import '../widgets/common/content_constraint.dart';
 import '../widgets/settings/about_section.dart';
-import '../widgets/settings/account_section.dart';
 import '../widgets/settings/appearance_section.dart';
 import '../widgets/settings/camera_access_tile.dart';
 import '../widgets/settings/data_export_section.dart';
 import '../widgets/settings/settings_section.dart';
 import '../widgets/settings/settings_tile.dart';
-import '../widgets/settings/social_connections_section.dart';
 
 class SettingsView extends StatefulWidget {
   const SettingsView({super.key});
@@ -63,17 +60,6 @@ class _SettingsViewState extends State<SettingsView> {
     }
   }
 
-  /// Rebuilds after a sign-in method may have changed; linking does not emit
-  /// an auth state event.
-  void _refresh() {
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _openProfile(BuildContext context) async {
-    await context.push('/settings/profile');
-    _refresh();
-  }
-
   @override
   Widget build(BuildContext context) {
     // A language change rebuilds this view and, through it, every section
@@ -90,26 +76,13 @@ class _SettingsViewState extends State<SettingsView> {
               stream: _authChanges,
               initialData: _authService.currentUser,
               builder: (context, snapshot) {
-                final user = snapshot.data;
                 const gap = SizedBox(height: 24);
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    AccountSection(
-                      user: user,
-                      authService: _authService,
-                      onOpenProfile: () => _openProfile(context),
-                      onChanged: _refresh,
-                    ),
-                    gap,
                     AppearanceSection(themeNotifier: _themeNotifier),
                     gap,
                     const _BehaviorSection(),
-                    gap,
-                    SocialConnectionsSection(
-                      authService: _authService,
-                      onChanged: _refresh,
-                    ),
                     gap,
                     OAuthConnectionsList(),
                     gap,

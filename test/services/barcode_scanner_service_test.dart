@@ -28,6 +28,15 @@ void main() {
   test('hasCamera is false where camera scanning is unsupported', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.linux;
     expect(await BarcodeScannerService.hasCamera(), isFalse);
+    expect(await BarcodeScannerService.hasTextScanner(), isFalse);
+  });
+
+  test('the web scanner exists only in browsers', () {
+    expect(BarcodeScannerService.supportsWebScanning, kIsWeb);
+    expect(
+      BarcodeScannerService.supportsLiveScanning,
+      BarcodeScannerService.supportsCameraScanning || kIsWeb,
+    );
   });
 
   test('hasCamera follows the camera setting and a refresh', () async {

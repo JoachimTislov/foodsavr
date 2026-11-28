@@ -107,6 +107,22 @@ state per environment in `actions/cache`) and keeps one open issue labelled
 `deployment-level` updated while any recommends `warn` or `promote`. Recommend-only:
 there is no apply job; missing Workload Identity variables skip polling with a warning; `make deployment-poll ENV=<env>` polls with your own login.
 
+## Versioning and release tags
+
+The app version is the `version: MAJOR.MINOR.PATCH+BUILD` line of `pubspec.yaml` and follows [semantic versioning](https://semver.org). Flutter uses `MAJOR.MINOR.PATCH` as the Android `versionName` and iOS marketing version, and `BUILD` as the Android `versionCode` (`android/app/build.gradle.kts`) and iOS build number.
+
+Choose the bump by the most significant change in the release:
+
+- **MAJOR**: a breaking change for users, or a data or schema migration that is not backward compatible.
+- **MINOR**: a new user-facing feature that is backward compatible.
+- **PATCH**: fixes, copy, and styling.
+
+A bump of any part resets the lower parts (major resets minor and patch; minor resets patch) and always increments `BUILD` by one, because store builds must increase monotonically.
+
+Bump in the PR that ships the change, once, before it merges to `develop`; do not bump again for each promotion along `daily`, `weekly`, and `stable`, which only fast-forward the same commits. Run `make bump-version part=<major|minor|patch>` (default `patch`; add `DRY=--dry-run` to preview). It rewrites only the `version:` line (`scripts/version/bump_version.dart`) and prints the old and new values.
+
+No workflow creates release tags today. When you tag a release by hand, tag the commit that carries the bump as `vMAJOR.MINOR.PATCH`, matching `pubspec.yaml` without the build number. The Android Play upload derives its version code from `ANDROID_VERSION_CODE_BASE` plus the Release run number (see [Android test APK for manual testing](#android-test-apk-for-manual-testing)), not from `BUILD`.
+
 ## Android test APK for manual testing
 
 For a direct test install, dispatch the `android-drive-test` tool of

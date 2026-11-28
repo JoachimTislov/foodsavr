@@ -10,6 +10,7 @@ import 'package:foodsavr/views/dashboard_view.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../helpers/fake_receipt_repository.dart';
 import '../helpers/in_memory_preferences_repository.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -57,6 +58,7 @@ void main() {
           getIt<CollectionService>(),
           Logger(level: Level.off),
         ),
+        FakeReceiptRepository(),
         Logger(level: Level.off),
       ),
     );

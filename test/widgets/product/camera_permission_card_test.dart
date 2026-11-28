@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/services/camera_permission_service.dart';
+import 'package:foodsavr/utils/pwa_install/pwa_bridge_types.dart';
 import 'package:foodsavr/widgets/product/camera_permission_card.dart';
 
 import '../../support/localized_app.dart';
@@ -133,4 +134,38 @@ void main() {
       }
     },
   );
+
+  testWidgets('a denied camera lists the steps for the browser and system', (
+    tester,
+  ) async {
+    await pumpLocalized(
+      tester,
+      Scaffold(
+        body: CameraPermissionCard(
+          status: CameraAccessStatus.denied,
+          onRetry: () {},
+          platformHint: PwaPlatformHint.firefoxAndroid,
+        ),
+      ),
+    );
+
+    expect(find.text('How to allow the camera'), findsOneWidget);
+    expect(find.textContaining('1. In Firefox'), findsOneWidget);
+    expect(find.textContaining('2. Open Android Settings'), findsOneWidget);
+  });
+
+  testWidgets('other states show no setup steps', (tester) async {
+    await pumpLocalized(
+      tester,
+      Scaffold(
+        body: CameraPermissionCard(
+          status: CameraAccessStatus.noCamera,
+          onRetry: () {},
+          platformHint: PwaPlatformHint.firefoxAndroid,
+        ),
+      ),
+    );
+
+    expect(find.text('How to allow the camera'), findsNothing);
+  });
 }

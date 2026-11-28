@@ -9,4 +9,7 @@ abstract class IReceiptRepository {
   /// Writes [record]; returns false and writes nothing when it already
   /// exists.
   Future<bool> create(String userId, ReceiptRecord record);
+
+  /// Every receipt [userId] ingested, newest first.
+  Future<List<ReceiptRecord>> list(String userId);
 }

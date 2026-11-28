@@ -13,10 +13,14 @@ export '../utils/pwa_install/pwa_bridge_types.dart';
 class PwaInstallController extends ChangeNotifier {
   static const kDismissedKey = 'pwa_install_banner_dismissed';
 
-  PwaInstallController({PwaBridge? bridge, SharedPreferencesWithCache? prefs})
-    : _bridge = bridge ?? createPlatformPwaBridge(),
-      _prefs = prefs,
-      _isBannerDismissed = _readDismissed(prefs) {
+  PwaInstallController({
+    PwaBridge? bridge,
+    SharedPreferencesWithCache? prefs,
+    TargetPlatform? os,
+  }) : _bridge = bridge ?? createPlatformPwaBridge(),
+       _os = os,
+       _prefs = prefs,
+       _isBannerDismissed = _readDismissed(prefs) {
     _subscription = _bridge.onStateChanged.listen((_) {
       notifyListeners();
     });
@@ -27,6 +31,10 @@ class PwaInstallController extends ChangeNotifier {
       PwaInstallController(bridge: const StubPwaBridge());
 
   final PwaBridge _bridge;
+
+  /// The operating system; null reads `defaultTargetPlatform`, which Flutter
+  /// derives from the browser on web.
+  final TargetPlatform? _os;
   final SharedPreferencesWithCache? _prefs;
   StreamSubscription<void>? _subscription;
   bool _isBannerDismissed;
@@ -51,18 +59,16 @@ class PwaInstallController extends ChangeNotifier {
   bool get canPromptNatively => _bridge.canPrompt;
 
   /// Platform hint for manual installation steps when [canPromptNatively] is false.
-  PwaPlatformHint get platformHint => _bridge.platformHint;
+  PwaPlatformHint get platformHint => resolvePwaPlatformHint(
+    os: _os ?? defaultTargetPlatform,
+    browserHint: _bridge.platformHint,
+  );
 
   /// Whether the user has dismissed the in-app install banner.
   bool get isBannerDismissed => _isBannerDismissed;
 
   /// Whether a native install prompt is currently active.
   bool get isPrompting => _isPrompting;
-
-  /// Whether the app is running in Firefox on desktop, which lacks native PWA
-  /// installation support and requires honest guidance rather than a broken
-  /// install trigger.
-  bool get isFirefoxDesktop => platformHint == PwaPlatformHint.firefoxDesktop;
 
   /// Whether the app can be installed (supported web runtime and not yet installed).
   bool get canInstall => isSupported && !isInstalled;
@@ -75,13 +81,10 @@ class PwaInstallController extends ChangeNotifier {
   /// Triggers the browser's native install prompt if available.
   ///
   /// Returns [PwaPromptResult.unavailable] when the browser requires manual
-  /// installation steps (such as iOS Safari, Firefox Android, or Firefox
-  /// desktop guidance), allowing the UI to present the tailored sheet.
+  /// installation steps (such as iOS Safari or Firefox), allowing the UI to
+  /// present the tailored sheet.
   Future<PwaPromptResult> requestInstall() async {
-    if (!canInstall || _isPrompting || isFirefoxDesktop) {
-      return PwaPromptResult.unavailable;
-    }
-    if (!canPromptNatively) {
+    if (!canInstall || _isPrompting || !canPromptNatively) {
       return PwaPromptResult.unavailable;
     }
     _isPrompting = true;

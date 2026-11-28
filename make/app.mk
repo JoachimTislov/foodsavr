@@ -1,4 +1,4 @@
-.PHONY: run-dev run-prod build-apk-debug build-apk-release install-dev install-prod dev-chrome-prod dev-chrome build-web serve-web watch build 
+.PHONY: run-dev run-prod build-apk-debug build-apk-release install-dev install-prod dev-chrome-prod dev-chrome build-web serve-web watch build bump-version
 DOTENV_FLAGS := $(shell [ -f .env ] && echo "--dart-define-from-file=.env") $(shell python3 scripts/firebase_options.py flags)
 FLUTTER_INSTALL := flutter install
 FLUTTER_RUN_CMD := flutter run --no-pub $(DOTENV_FLAGS)
@@ -54,3 +54,7 @@ watch:
 
 build:
 	@dart run build_runner build --delete-conflicting-outputs
+
+part ?= patch
+bump-version: ## Bump the app version: make bump-version part=major|minor|patch [DRY=--dry-run]
+	@dart run scripts/version/bump_version.dart $(part) $(DRY)
