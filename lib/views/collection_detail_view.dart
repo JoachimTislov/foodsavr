@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../controllers/list_query_state.dart';
 import '../controllers/preferences_controller.dart';
@@ -16,6 +14,7 @@ import '../service_locator.dart';
 import '../services/product_service.dart';
 import '../services/collection_service.dart';
 import '../services/barcode_scanner_service.dart';
+import '../services/purchase_history_service.dart';
 import '../widgets/collection/collection_header.dart';
 import '../widgets/collection/delete_collection_sheet.dart';
 import '../widgets/collection/quick_import_shopping_dialog.dart';
@@ -60,7 +59,11 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
   late Collection _currentCollection;
   late final ListQueryState _query;
   late final PreferencesController _preferences;
+  late final PurchaseHistoryService _history = getIt<PurchaseHistoryService>();
   List<Map<String, dynamic>> _purchaseHistory = const [];
+
+  /// Products with a change that is still being saved.
+  final Set<String> _busyProductIds = {};
   bool _canScan = false;
 
   bool get _isShoppingList =>
@@ -73,7 +76,6 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     _collectionService = getIt<CollectionService>();
     _currentCollection = widget.collection;
     _preferences = getIt<PreferencesController>();
-    _loadPurchaseHistory();
     BarcodeScannerService.hasCamera().then((value) {
       if (mounted) setState(() => _canScan = value);
     });
@@ -201,71 +203,88 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
   }
 
   Future<void> _loadPurchaseHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(
-      'purchase_history_${_currentCollection.userId}',
-    );
-    if (raw == null || raw.isEmpty) {
-      if (mounted) setState(() => _purchaseHistory = const []);
-      return;
-    }
+    if (!_isShoppingList) return;
+    final history = await _history.load(_currentCollection.userId);
+    if (mounted) setState(() => _purchaseHistory = history);
+  }
+
+  /// A history failure is reported on its own: the purchase already happened,
+  /// so it must not be repeated.
+  Future<void> _recordPurchases(
+    List<Product> products,
+    PurchaseSource source,
+  ) async {
+    if (products.isEmpty) return;
     try {
-      final decoded = jsonDecode(raw) as List<dynamic>;
-      if (mounted) {
-        setState(() {
-          _purchaseHistory = decoded.whereType<Map<String, dynamic>>().toList(
-            growable: false,
-          );
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _purchaseHistory = const []);
-    }
-  }
-
-  Future<void> _recordPurchase(Product product, String source) async {
-    final prefs = await SharedPreferences.getInstance();
-    final entries = List<Map<String, dynamic>>.from(_purchaseHistory);
-    entries.insert(0, {
-      'productId': product.id,
-      'name': product.name,
-      'quantity': product.quantity,
-      'source': source,
-      'purchasedAt': DateTime.now().toIso8601String(),
-    });
-    if (entries.length > 50) entries.removeRange(50, entries.length);
-    await prefs.setString(
-      'purchase_history_${_currentCollection.userId}',
-      jsonEncode(entries),
-    );
-    if (mounted) setState(() => _purchaseHistory = entries);
-  }
-
-  Future<void> _markBought(Product product) async {
-    await _recordPurchase(product, 'manual');
-    await _collectionService.removeProductFromCollection(
-      _currentCollection.id,
-      product.id,
-    );
-    if (!mounted) return;
-    await _refreshCollectionAndProducts();
-  }
-
-  Future<void> _adjustQuantity(Product product, int delta) async {
-    final next = (product.nonExpiringQuantity + delta).clamp(0, 100000);
-    try {
-      await _productService.updateProduct(
-        product.copyWith(nonExpiringQuantity: next),
+      final history = await _history.record(
+        _currentCollection.userId,
+        products,
+        source,
       );
-      if (mounted) await _refreshCollectionAndProducts();
+      if (mounted) setState(() => _purchaseHistory = history);
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('product.saveError'.tr())));
-      }
+      _showMessage('collection.purchaseHistoryError'.tr());
     }
   }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Runs [change] unless another change to [productId] is still pending.
+  Future<void> _changeItem(
+    String productId,
+    Future<void> Function() change,
+  ) async {
+    if (!_busyProductIds.add(productId)) return;
+    setState(() {});
+    try {
+      await change();
+    } finally {
+      _busyProductIds.remove(productId);
+      if (mounted) setState(() {});
+    }
+  }
+
+  Future<void> _markBought(Product product) =>
+      _changeItem(product.id, () async {
+        try {
+          await _collectionService.removeProductFromCollection(
+            _currentCollection.id,
+            product.id,
+          );
+        } catch (_) {
+          _showMessage('product.saveError'.tr());
+          return;
+        }
+        // The row goes at once, so a failed refresh cannot offer it again.
+        if (mounted) {
+          setState(
+            () => _products = [
+              for (final item in _products)
+                if (item.id != product.id) item,
+            ],
+          );
+        }
+        await _recordPurchases([product], PurchaseSource.manual);
+        if (mounted) await _refreshCollectionAndProducts();
+      });
+
+  Future<void> _adjustQuantity(Product product, int delta) =>
+      _changeItem(product.id, () async {
+        try {
+          // The row may be stale, so the change applies to the stored product.
+          final stored = await _productService.getProductById(product.id);
+          if (stored == null) throw StateError('The product is unavailable.');
+          await _productService.updateProduct(stored.adjustQuantity(delta));
+          if (mounted) await _refreshCollectionAndProducts();
+        } catch (_) {
+          _showMessage('product.saveError'.tr());
+        }
+      });
 
   Future<void> _editProduct(Product product) async {
     final result = await ProductFormView.show(context, product: product);
@@ -294,12 +313,27 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       ),
     );
     if (destination == null || !mounted) return;
-    await _collectionService.removeProductFromCollection(
-      _currentCollection.id,
-      product.id,
-    );
-    await _collectionService.addProductToCollection(destination.id, product.id);
-    if (mounted) await _refreshCollectionAndProducts();
+    await _changeItem(product.id, () async {
+      // Adding first means a failure never leaves the product in neither list.
+      try {
+        await _collectionService.addProductToCollection(
+          destination.id,
+          product.id,
+        );
+      } catch (_) {
+        _showMessage('collection.moveError'.tr());
+        return;
+      }
+      try {
+        await _collectionService.removeProductFromCollection(
+          _currentCollection.id,
+          product.id,
+        );
+      } catch (_) {
+        _showMessage('collection.movePartialError'.tr());
+      }
+      if (mounted) await _refreshCollectionAndProducts();
+    });
   }
 
   Future<void> _duplicateProduct(Product product) async {
@@ -328,25 +362,21 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
   }
 
   Future<void> _scanReceipt() async {
-    final userId = _currentCollection.userId;
-    final beforeIds = _products.map((product) => product.id).toSet();
+    var scanned = const <Product>[];
+    // Receipt items land in an inventory, so the scanner reports them here.
     final ingested = await Navigator.of(context, rootNavigator: true)
         .push<bool>(
           MaterialPageRoute(
             fullscreenDialog: true,
             builder: (context) => ReceiptScanView(
-              userId: userId,
-              collectionId: _currentCollection.id,
+              userId: _currentCollection.userId,
+              onIngested: (products) => scanned = products,
             ),
           ),
         );
-    if (ingested != true || !mounted) return;
-    await _refreshCollectionAndProducts();
-    for (final product in _products) {
-      if (!beforeIds.contains(product.id)) {
-        await _recordPurchase(product, 'receipt');
-      }
-    }
+    if (ingested != true) return;
+    await _recordPurchases(scanned, PurchaseSource.receipt);
+    if (mounted) await _refreshCollectionAndProducts();
   }
 
   Future<void> _reAddPurchase(Map<String, dynamic> entry) async {
@@ -427,20 +457,14 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
                             icon: const Icon(Icons.playlist_add),
                             label: Text('collection.quickImport.action'.tr()),
                           ),
-                          if (_isShoppingList)
-                            FilledButton.icon(
-                              onPressed: _scanReceipt,
-                              icon: Icon(
-                                _canScan
-                                    ? Icons.receipt_long
-                                    : Icons.receipt_long_outlined,
-                              ),
-                              label: Text('collection.scanReceipt'.tr()),
+                          FilledButton.icon(
+                            onPressed: _scanReceipt,
+                            icon: Icon(
+                              _canScan
+                                  ? Icons.receipt_long
+                                  : Icons.receipt_long_outlined,
                             ),
-                          ViewModeToggle(
-                            viewMode: _query.viewMode,
-                            onModeChanged: (mode) =>
-                                _query.update(() => _query.viewMode = mode),
+                            label: Text('collection.scanReceipt'.tr()),
                           ),
                         ],
                       ),
@@ -473,6 +497,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
                       return ShoppingListItemCard(
                         product: product,
                         bought: false,
+                        busy: _busyProductIds.contains(product.id),
                         onBoughtChanged: (_) => _markBought(product),
                         onIncrease: () => _adjustQuantity(product, 1),
                         onDecrease: () => _adjustQuantity(product, -1),
@@ -520,9 +545,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
                     ListTile(
                       dense: true,
                       title: Text(entry['name']?.toString() ?? ''),
-                      subtitle: Text(
-                        '${entry['quantity']} · ${entry['source']} · ${entry['purchasedAt']}', // l10n-ignore
-                      ),
+                      subtitle: Text(_purchaseSummary(context, entry)),
                       trailing: TextButton(
                         onPressed: () => _reAddPurchase(entry),
                         child: Text('collection.reAdd'.tr()),
@@ -579,6 +602,21 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
           ),
       ],
     );
+  }
+
+  String _purchaseSummary(BuildContext context, Map<String, dynamic> entry) {
+    final source = entry['source'] == PurchaseSource.receipt.name
+        ? 'collection.purchaseSourceReceipt'.tr()
+        : 'collection.purchaseSourceManual'.tr();
+    final purchasedAt = DateTime.tryParse('${entry['purchasedAt']}');
+    return [
+      '${entry['quantity']}',
+      source,
+      if (purchasedAt != null)
+        DateFormat.yMMMd(
+          context.locale.toString(),
+        ).add_Hm().format(purchasedAt),
+    ].join(' · ');
   }
 
   Future<void> _navigateToProductDetail(Product product) async {

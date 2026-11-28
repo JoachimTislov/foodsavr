@@ -8,6 +8,7 @@ import 'package:foodsavr/models/product_model.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/services/product_service.dart';
+import 'package:foodsavr/services/purchase_history_service.dart';
 import 'package:foodsavr/utils/collection_types.dart';
 import 'package:foodsavr/utils/shelf_life.dart';
 import 'package:foodsavr/validation/validators/product_model_validator.dart';
@@ -91,7 +92,10 @@ void main() {
       ..registerSingleton<ProductService>(productService)
       ..registerSingleton<CollectionService>(collectionService)
       ..registerSingleton<IAuthService>(auth)
-      ..registerSingleton<PreferencesController>(preferences);
+      ..registerSingleton<PreferencesController>(preferences)
+      ..registerSingleton<PurchaseHistoryService>(
+        PurchaseHistoryService(Logger(level: Level.off)),
+      );
   });
 
   tearDown(() {

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
@@ -143,6 +145,35 @@ abstract class Product with _$Product {
   int get quantity =>
       nonExpiringQuantity +
       expiries.fold(0, (sum, entry) => sum + entry.quantity);
+
+  /// A copy whose [quantity] changed by [delta], never below zero. A removal
+  /// takes undated stock first and then the latest-expiring entries, so the
+  /// soonest expiry dates are kept.
+  Product adjustQuantity(int delta) {
+    if (delta >= 0) {
+      return copyWith(nonExpiringQuantity: nonExpiringQuantity + delta);
+    }
+    final undated = math.min(-delta, nonExpiringQuantity);
+    var remaining = -delta - undated;
+    final left = [for (final entry in expiries) entry.quantity];
+    final latestFirst = List.generate(expiries.length, (index) => index)
+      ..sort(
+        (a, b) =>
+            expiries[b].expirationDate.compareTo(expiries[a].expirationDate),
+      );
+    for (final index in latestFirst) {
+      final taken = math.min(remaining, left[index]);
+      left[index] -= taken;
+      remaining -= taken;
+    }
+    return copyWith(
+      nonExpiringQuantity: nonExpiringQuantity - undated,
+      expiries: [
+        for (final (index, entry) in expiries.indexed)
+          if (left[index] > 0) entry.copyWith(quantity: left[index]),
+      ],
+    );
+  }
 
   // Helper method to get the soonest expiration date
   DateTime? get soonestExpirationDate {

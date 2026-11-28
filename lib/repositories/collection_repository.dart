@@ -341,9 +341,9 @@ class CollectionRepository implements ICollectionRepository {
   ) async {
     if (productIds.isEmpty) return;
     final docRef = _firestore.collection(_collectionName).doc(collectionId);
-    await docRef.update({
-      'productIds': FieldValue.arrayRemove(productIds.toList()),
-    });
+    final removal = {'productIds': FieldValue.arrayRemove(productIds.toList())};
+    // Offline, the write lands in the local cache and syncs on reconnect.
+    await _queueMembership(() => docRef.update(removal));
   }
 
   @override

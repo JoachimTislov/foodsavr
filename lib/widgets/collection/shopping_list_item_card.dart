@@ -8,6 +8,9 @@ import '../../models/product_model.dart';
 class ShoppingListItemCard extends StatelessWidget {
   final Product product;
   final bool bought;
+
+  /// A change to this item is still being saved, so no other one can start.
+  final bool busy;
   final ValueChanged<bool?> onBoughtChanged;
   final VoidCallback onIncrease;
   final VoidCallback onDecrease;
@@ -21,6 +24,7 @@ class ShoppingListItemCard extends StatelessWidget {
     super.key,
     required this.product,
     required this.bought,
+    this.busy = false,
     required this.onBoughtChanged,
     required this.onIncrease,
     required this.onDecrease,
@@ -36,7 +40,7 @@ class ShoppingListItemCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     return GestureDetector(
-      onLongPress: () => _showActions(context),
+      onLongPress: busy ? null : () => _showActions(context),
       child: Card(
         elevation: 1,
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -47,7 +51,7 @@ class ShoppingListItemCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           child: Row(
             children: [
-              Checkbox(value: bought, onChanged: onBoughtChanged),
+              Checkbox(value: bought, onChanged: busy ? null : onBoughtChanged),
               Expanded(
                 child: InkWell(
                   onTap: onTap,
@@ -83,18 +87,21 @@ class ShoppingListItemCard extends StatelessWidget {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.remove),
-                    onPressed: onDecrease,
+                    onPressed: busy || product.quantity == 0
+                        ? null
+                        : onDecrease,
                     visualDensity: VisualDensity.compact,
                   ),
                   Text('${product.quantity}'),
                   IconButton(
                     icon: const Icon(Icons.add),
-                    onPressed: onIncrease,
+                    onPressed: busy ? null : onIncrease,
                     visualDensity: VisualDensity.compact,
                   ),
                 ],
               ),
               PopupMenuButton<String>(
+                enabled: !busy,
                 onSelected: (value) async {
                   switch (value) {
                     case 'edit':
