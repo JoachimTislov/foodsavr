@@ -115,6 +115,7 @@ void main() {
       mockUserController = MockUserController();
       when(() => mockUserController.isInitialized).thenReturn(true);
       when(() => mockUserController.isLoading).thenReturn(false);
+      when(() => mockUserController.isSocialSignInLoading).thenReturn(false);
       when(() => mockUserController.errorMessage).thenReturn(null);
       when(() => mockUserController.isLogin).thenReturn(true);
       when(() => mockUserController.successMessage).thenReturn(null);
