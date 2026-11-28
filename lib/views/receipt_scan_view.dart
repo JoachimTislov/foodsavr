@@ -10,6 +10,7 @@ import 'package:receipt_recognition/receipt_recognition.dart';
 import '../constants/material3_config.dart';
 import '../controllers/preferences_controller.dart';
 import '../models/collection_model.dart';
+import '../models/product_model.dart';
 import '../service_locator.dart';
 import '../services/barcode_scanner_service.dart';
 import '../services/camera_permission_service.dart';
@@ -22,9 +23,17 @@ import 'product_form_view.dart';
 /// Camera view that scans a supermarket receipt, then ingests the
 /// recognized line items as products in a chosen inventory.
 class ReceiptScanView extends StatefulWidget {
-  const ReceiptScanView({super.key, required this.userId, this.collectionId});
+  const ReceiptScanView({
+    super.key,
+    required this.userId,
+    this.collectionId,
+    this.onIngested,
+  });
 
   final String userId;
+
+  /// Receives the products a scanned receipt added, before the view closes.
+  final ValueChanged<List<Product>>? onIngested;
 
   /// Inventory the scan was started from; null picks the default inventory.
   final String? collectionId;
@@ -265,6 +274,7 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
           ),
         ),
       );
+      if (!result.alreadyAdded) widget.onIngested?.call(result.savedProducts);
       Navigator.of(context).pop(!result.alreadyAdded);
     } catch (e) {
       if (!mounted) return;

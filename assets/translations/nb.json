@@ -168,7 +168,12 @@
 		"duplicate": "Dupliser",
 		"purchaseHistory": "Kjøpshistorikk",
 		"reAdd": "Legg til igjen",
-		"scanReceipt": "Skann kvittering"
+		"scanReceipt": "Skann kvittering",
+		"moveError": "Kunne ikke flytte produktet. Prøv igjen.",
+		"movePartialError": "Produktet ble lagt til i målet, men kunne ikke fjernes fra denne listen.",
+		"purchaseHistoryError": "Kunne ikke lagre kjøpshistorikken.",
+		"purchaseSourceManual": "Lagt til manuelt",
+		"purchaseSourceReceipt": "Kvittering"
 	},
 	"common": {
 		"add": "Legg til",
