@@ -1,0 +1,1 @@
+{"event": "rebased PR #551 onto develop; make check, flutter test (864) and analyze passed; no review threads; marking ready", "issues": ["#532"], "prs": ["#551"], "session_id": "claude-code:d4a5d01a-6a48-401b-b975-31d7be8fa29b", "stream": "ledger", "timestamp": "2026-11-28T11:58:13+00:00"}
