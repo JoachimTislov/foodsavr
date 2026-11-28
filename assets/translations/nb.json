@@ -173,7 +173,10 @@
 		"movePartialError": "Produktet ble lagt til i målet, men kunne ikke fjernes fra denne listen.",
 		"purchaseHistoryError": "Kunne ikke lagre kjøpshistorikken.",
 		"purchaseSourceManual": "Lagt til manuelt",
-		"purchaseSourceReceipt": "Kvittering"
+		"purchaseSourceReceipt": "Kvittering",
+		"duplicateError": "Kunne ikke duplisere produktet. Prøv igjen.",
+		"recreateTitle": "Produktet finnes ikke lenger",
+		"recreateMessage": "Vil du opprette {name} på nytt med antall {quantity}?"
 	},
 	"common": {
 		"add": "Legg til",

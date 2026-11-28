@@ -11,6 +11,7 @@ class FakeProductRepository implements IProductRepository {
   Object? addError;
   Object? getError;
   Object? updateError;
+  Object? deleteError;
   Object? Function(String id)? getErrorForId;
   Object? Function(Product entity)? updateErrorForEntity;
   int _nextId = 1;
@@ -56,8 +57,10 @@ class FakeProductRepository implements IProductRepository {
       throw UnimplementedError();
 
   @override
-  Future<void> delete(String id) async =>
-      products.removeWhere((p) => p.id == id);
+  Future<void> delete(String id) async {
+    if (deleteError != null) throw deleteError!;
+    products.removeWhere((p) => p.id == id);
+  }
 
   @override
   Future<List<Product>> getGlobalProducts() async =>
