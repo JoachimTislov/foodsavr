@@ -7,6 +7,7 @@ class SocialAuthSection extends StatelessWidget {
   final bool isLoading;
   final VoidCallback? onGooglePressed;
   final VoidCallback? onFacebookPressed;
+  final VoidCallback? onCancel;
 
   /// Whether an "or" divider separates what follows.
   final bool showDivider;
@@ -16,6 +17,7 @@ class SocialAuthSection extends StatelessWidget {
     required this.isLoading,
     this.onGooglePressed,
     this.onFacebookPressed,
+    this.onCancel,
     this.showDivider = true,
   });
 
@@ -40,6 +42,14 @@ class SocialAuthSection extends StatelessWidget {
           textColor: colorScheme.onSurface,
           onPressed: isLoading ? null : onFacebookPressed,
         ),
+        if (isLoading && onCancel != null) ...[
+          const SizedBox(height: 8.0),
+          TextButton.icon(
+            onPressed: onCancel,
+            icon: const Icon(Icons.close, size: 18),
+            label: Text('common.cancel'.tr()),
+          ),
+        ],
         if (showDivider) ...[
           const SizedBox(height: 24.0),
           Row(

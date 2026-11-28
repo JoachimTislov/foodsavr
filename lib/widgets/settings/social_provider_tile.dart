@@ -18,6 +18,7 @@ class SocialProviderTile extends StatelessWidget {
   final bool busy;
   final bool canConnect;
   final VoidCallback? onConnect;
+  final VoidCallback? onCancel;
 
   const SocialProviderTile({
     super.key,
@@ -27,6 +28,7 @@ class SocialProviderTile extends StatelessWidget {
     required this.busy,
     required this.canConnect,
     required this.onConnect,
+    this.onCancel,
   });
 
   @override
@@ -40,9 +42,26 @@ class SocialProviderTile extends StatelessWidget {
     } else if (!canConnect) {
       action = null;
     } else if (busy) {
-      action = SizedBox.square(
-        dimension: _logoSize,
-        child: CircularProgressIndicator(strokeWidth: 2, semanticsLabel: name),
+      action = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox.square(
+            dimension: _logoSize,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              semanticsLabel: name,
+            ),
+          ),
+          if (onCancel != null) ...[
+            const SizedBox(width: 4),
+            IconButton(
+              onPressed: onCancel,
+              icon: const Icon(Icons.close, size: 20),
+              tooltip: 'common.cancel'.tr(),
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
+        ],
       );
     } else {
       action = FilledButton.tonal(

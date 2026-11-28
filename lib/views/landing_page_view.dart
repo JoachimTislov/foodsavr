@@ -87,6 +87,9 @@ class _LandingPageViewState extends State<LandingPageView> {
                         isLoading: _controller.isLoading,
                         onGooglePressed: _controller.signInWithGoogle,
                         onFacebookPressed: _controller.signInWithFacebook,
+                        onCancel: _controller.isSocialSignInLoading
+                            ? _controller.cancelSocialSignIn
+                            : null,
                       ),
 
                       const SizedBox(height: 24),

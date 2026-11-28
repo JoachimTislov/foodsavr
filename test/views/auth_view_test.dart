@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
@@ -230,6 +232,37 @@ void main() {
     await pumpView(tester, const AuthView());
 
     expect(guestButton, findsNothing);
+  });
+
+  testWidgets('hanging Facebook sign-in can be cancelled on AuthView', (
+    tester,
+  ) async {
+    final completer = Completer<UserCredential>();
+    when(
+      () => authService.signInWithFacebook(),
+    ).thenAnswer((_) => completer.future);
+    await pumpView(tester, const AuthView());
+
+    await tester.tap(find.text('Continue with Facebook'));
+    await tester.pump();
+
+    expect(find.text('Cancel'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pump();
+
+    expect(find.text('Cancel'), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    completer.completeError(FirebaseAuthException(code: 'popup-timeout'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(AuthStatusMessages),
+        matching: find.byType(Text),
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('deletion sign-in offers no guest access', (tester) async {

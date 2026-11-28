@@ -36,6 +36,7 @@ class UserController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _socialSignInAttempt++;
     _authSubscription.cancel();
     super.dispose();
   }
@@ -58,12 +59,15 @@ class UserController extends ChangeNotifier {
 
   bool _isLogin = true;
   bool _isLoading = false;
+  bool _isSocialSignInLoading = false;
+  int _socialSignInAttempt = 0;
   String? _errorMessage;
   String? _successMessage;
   bool _rememberMe = false;
 
   bool get isLogin => _isLogin;
   bool get isLoading => _isLoading;
+  bool get isSocialSignInLoading => _isSocialSignInLoading;
   String? get errorMessage => _errorMessage;
   String? get successMessage => _successMessage;
   bool get rememberMe => _rememberMe;
@@ -82,6 +86,16 @@ class UserController extends ChangeNotifier {
     _errorMessage = null;
     _successMessage = null;
     notifyListeners();
+  }
+
+  /// Stops waiting on an in-flight social sign-in popup so the user is never
+  /// stuck behind a spinner. Any late completion from the abandoned attempt is
+  /// ignored.
+  void cancelSocialSignIn() {
+    if (!_isSocialSignInLoading) return;
+    _socialSignInAttempt++;
+    _isSocialSignInLoading = false;
+    _setLoading(false);
   }
 
   Future<void> authenticate({
@@ -130,11 +144,14 @@ class UserController extends ChangeNotifier {
     Future<void> Function() signIn,
   ) async {
     if (_isLoading) return false;
+    final attempt = ++_socialSignInAttempt;
+    _isSocialSignInLoading = provider != SignInProvider.guest;
     _setLoading(true);
     try {
       await signIn();
-      return true;
+      return attempt == _socialSignInAttempt;
     } catch (error) {
+      if (attempt != _socialSignInAttempt) return false;
       final message = AuthErrorHandler.getProviderErrorMessage(
         provider,
         error,
@@ -150,7 +167,10 @@ class UserController extends ChangeNotifier {
       }
       return false;
     } finally {
-      _setLoading(false);
+      if (attempt == _socialSignInAttempt) {
+        _isSocialSignInLoading = false;
+        _setLoading(false);
+      }
     }
   }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
@@ -143,6 +145,48 @@ void main() {
         await expectError('google', FirebaseAuthException(code: key), value);
       }
     });
+
+    test(
+      'popup-timeout and TimeoutException report provider failures',
+      () async {
+        for (final provider in ['google', 'facebook', 'guest']) {
+          await expectError(
+            provider,
+            FirebaseAuthException(code: 'popup-timeout'),
+            'auth.error.${provider}_failed',
+          );
+          await expectError(
+            provider,
+            TimeoutException('timed out'),
+            'auth.error.${provider}_failed',
+          );
+        }
+      },
+    );
+
+    test(
+      'cancelSocialSignIn clears loading and ignores late completion',
+      () async {
+        final completer = Completer<UserCredential>();
+        when(
+          () => mockAuthService.signInWithFacebook(),
+        ).thenAnswer((_) => completer.future);
+
+        final future = authController.signInWithFacebook();
+        expect(authController.isLoading, isTrue);
+        expect(authController.isSocialSignInLoading, isTrue);
+
+        authController.cancelSocialSignIn();
+        expect(authController.isLoading, isFalse);
+        expect(authController.isSocialSignInLoading, isFalse);
+        expect(authController.errorMessage, isNull);
+
+        completer.completeError(FirebaseAuthException(code: 'popup-timeout'));
+        expect(await future, isFalse);
+        expect(authController.isLoading, isFalse);
+        expect(authController.errorMessage, isNull);
+      },
+    );
 
     test('a retry clears the previous error', () async {
       await expectError(

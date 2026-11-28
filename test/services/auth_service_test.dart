@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter/services.dart';
@@ -224,6 +226,125 @@ void main() {
         ),
       );
     });
+
+    test(
+      'signInWithFacebook times out with popup-timeout on hanging popup',
+      () async {
+        final fastTimeoutWebAuth = AuthService.withPopupTimeout(
+          mockFirebaseAuth,
+          googleSignIn: mockGoogleSignIn,
+          facebookAuth: mockFacebookAuth,
+          supportsPersistence: true,
+          isWeb: true,
+          accountDataRepository: dataRepository,
+          secureStorage: secureStorage,
+          logger: mockLogger,
+          errorReporter: errorReporter,
+          popupTimeout: const Duration(milliseconds: 20),
+        );
+        when(
+          () => mockFirebaseAuth.signInWithPopup(any()),
+        ).thenAnswer((_) => Completer<UserCredential>().future);
+
+        await expectLater(
+          fastTimeoutWebAuth.signInWithFacebook(),
+          throwsAuthCode('popup-timeout'),
+        );
+        verify(
+          () => errorReporter.recordError(
+            any(),
+            any(),
+            reason: 'Facebook sign-in',
+          ),
+        ).called(1);
+      },
+    );
+
+    test(
+      'linkFacebookProvider and linkGoogleProvider normalize popup cancel and time out',
+      () async {
+        final fastTimeoutWebAuth = AuthService.withPopupTimeout(
+          mockFirebaseAuth,
+          googleSignIn: mockGoogleSignIn,
+          facebookAuth: mockFacebookAuth,
+          supportsPersistence: true,
+          isWeb: true,
+          accountDataRepository: dataRepository,
+          secureStorage: secureStorage,
+          logger: mockLogger,
+          errorReporter: errorReporter,
+          popupTimeout: const Duration(milliseconds: 20),
+        );
+        final user = MockUser();
+        when(() => user.isAnonymous).thenReturn(false);
+        when(() => mockFirebaseAuth.currentUser).thenReturn(user);
+
+        for (final link in [
+          fastTimeoutWebAuth.linkFacebookProvider,
+          fastTimeoutWebAuth.linkGoogleProvider,
+        ]) {
+          for (final cancelCode in [
+            'popup-closed-by-user',
+            'cancelled-popup-request',
+          ]) {
+            when(
+              () => user.linkWithPopup(any()),
+            ).thenThrow(FirebaseAuthException(code: cancelCode));
+
+            await expectLater(link(), throwsAuthCode('ERROR_ABORTED_BY_USER'));
+          }
+
+          when(
+            () => user.linkWithPopup(any()),
+          ).thenAnswer((_) => Completer<UserCredential>().future);
+
+          await expectLater(link(), throwsAuthCode('popup-timeout'));
+        }
+      },
+    );
+
+    test(
+      'deleteAccount web reauthenticate normalizes cancel and times out',
+      () async {
+        final fastTimeoutWebAuth = AuthService.withPopupTimeout(
+          mockFirebaseAuth,
+          googleSignIn: mockGoogleSignIn,
+          facebookAuth: mockFacebookAuth,
+          supportsPersistence: true,
+          isWeb: true,
+          accountDataRepository: dataRepository,
+          secureStorage: secureStorage,
+          logger: mockLogger,
+          errorReporter: errorReporter,
+          popupTimeout: const Duration(milliseconds: 20),
+        );
+        final user = MockUser();
+        final facebookInfo = MockUserInfo();
+        when(
+          () => facebookInfo.providerId,
+        ).thenReturn(FacebookAuthProvider.PROVIDER_ID);
+        when(() => user.isAnonymous).thenReturn(false);
+        when(() => user.uid).thenReturn('uid-1');
+        when(() => user.providerData).thenReturn([facebookInfo]);
+        when(() => mockFirebaseAuth.currentUser).thenReturn(user);
+
+        when(
+          () => user.reauthenticateWithPopup(any()),
+        ).thenThrow(FirebaseAuthException(code: 'popup-closed-by-user'));
+        await expectLater(
+          fastTimeoutWebAuth.deleteAccount(reauthenticate: true),
+          throwsAuthCode('ERROR_ABORTED_BY_USER'),
+        );
+
+        when(
+          () => user.reauthenticateWithPopup(any()),
+        ).thenAnswer((_) => Completer<UserCredential>().future);
+        await expectLater(
+          fastTimeoutWebAuth.deleteAccount(reauthenticate: true),
+          throwsAuthCode('popup-timeout'),
+        );
+      },
+    );
   });
 
   group('default provisioning', () {
