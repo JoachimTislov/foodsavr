@@ -59,7 +59,7 @@ promote:
 # Build the web app with CI's pinned Flutter and deploy it to Firebase Hosting with your
 # own `firebase login` (release.yml's hosting jobs run the same scripts/web/deploy_web.py).
 # WEB_ACCESS_CODE can be supplied in the environment to gate the web build.
-# assets/.env is served publicly: WEB_ENV_FILE=<path> copies a file there, default empty.
+# WEB_ENV_FILE=<path> compiles public client config via --dart-define=BUNDLED_ENV_B64=... (keeping served assets/.env empty; local flutter run still reads local assets/.env).
 # Usage: make deploy-web ENV=<env> [CHANNEL=<channel>] [TARGET=live|preview] [EXPIRES=4h] [WEB_ENV_FILE=<path>] [YES=1] [PLAN=1]
 deploy-web:
 	@test -n "$(ENV)" || { echo "Usage: make deploy-web ENV=<environment> [CHANNEL=<channel>] [TARGET=live|preview] [EXPIRES=4h] [WEB_ENV_FILE=<path>] [YES=1] [PLAN=1]" >&2; exit 1; }

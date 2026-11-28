@@ -82,7 +82,7 @@ def parse_catalog(source: str) -> list[dict[str, str]]:
 
 
 def category_keys(source: str) -> set[str]:
-    return set(re.findall(r"ProductCategory\(key:\s*'([^']+)'", source))
+    return set(re.findall(r"ProductCategory\(\s*key:\s*'([^']+)'", source))
 
 
 def ean13_check_digit(digits: str) -> int:
