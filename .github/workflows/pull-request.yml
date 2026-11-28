@@ -228,7 +228,7 @@ jobs:
               case "$REF" in
                 refs/heads/daily)
                   # Nightly: always the full suites, whatever the push touched.
-                  full=true run=true web=true
+                  full=true run=true web=true agents=true
                   ;;
                 refs/heads/weekly|refs/heads/stable)
                   full=true
@@ -240,11 +240,11 @@ jobs:
               esac
               if [ "$train" != true ]; then
                 run_release=true
-                # Agent validation is a develop-PR and weekly-schedule check, not a
+                # Agent validation is a develop-PR, daily, and weekly-schedule check, not a
                 # documented release prerequisite: release.yml gates stable releases on
                 # Check & Test and Validation only, so the agent job stays off stable
                 # push runs and cannot block a release by itself (#531).
-                [ "$REF" != refs/heads/stable ] && agents="$AGENTS"
+                [ "$REF" != refs/heads/daily ] && [ "$REF" != refs/heads/stable ] && agents="$AGENTS"
                 # stable publishes the site from release.yml, which builds it there.
                 [ "$REF" != refs/heads/stable ] && docs="$DOCS"
               fi

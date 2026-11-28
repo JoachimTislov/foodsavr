@@ -275,7 +275,7 @@ vars = [
   { name = "ENV", prompt = "Environment (deploy/instance.yaml)", default = "production", required = true },
   { name = "TARGET", prompt = "Target", choices = ["live", "preview"], default = "live" },
   { name = "EXPIRES", prompt = "Preview lifetime (preview only, empty: 4h)" },
-  { name = "WEB_ENV_FILE", prompt = "File for assets/.env, served publicly (empty: none)" },
+  { name = "WEB_ENV_FILE", prompt = "Public client config file compiled via --dart-define=BUNDLED_ENV_B64 (served assets/.env stays empty; empty: none)" },
 ]
 dry_assign = "PLAN=1"
 apply_assign = "YES=1"

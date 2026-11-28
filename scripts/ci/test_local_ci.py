@@ -223,6 +223,8 @@ class LocalCiTest(unittest.TestCase):
             self.assertIn(["python3", "-m", "unittest", "discover", "-s", f"scripts/{directory}", "-p", "test_*.py"],
                           commands)
             self.assertTrue(any((ROOT / "scripts" / directory).glob("test_*.py")), directory)
+        self.assertIn(["python3", "-m", "unittest", "discover", "-s", "scripts", "-p", "test_*.py"], commands)
+        self.assertTrue(any((ROOT / "scripts").glob("test_*.py")))
         self.assertFalse([c for c in commands if c[:3] == ["python3", "-m", "unittest"] and c[3] != "discover"])
         # Every test file in an uncovered directory must be a conscious exclusion, not an oversight.
         uncovered = {p.parent.name for p in (ROOT / "scripts").glob("*/test_*.py")} - set(ci.PYTHON_TEST_DIRS)
@@ -235,6 +237,12 @@ class LocalCiTest(unittest.TestCase):
         self.assertEqual(ci.groups_for(["scripts/ci/test_validation_status.py"]), ["agents"])
         self.assertEqual(ci.groups_for(["scripts/ci/select_tests.dart"]), ["dart"])
         self.assertEqual(ci.groups_for(["scripts/setup/test_setupctl.py"]), ["agents"])
+        self.assertEqual(ci.groups_for(["scripts/seed_global_catalog.py"]), ["agents"])
+        self.assertEqual(ci.groups_for(["scripts/test_seed_global_catalog.py"]), ["agents"])
+        self.assertTrue(ci.ci_filters(["scripts/seed_global_catalog.py"])["agents"])
+        self.assertTrue(ci.ci_filters(["scripts/test_seed_global_catalog.py"])["agents"])
+        self.assertTrue(ci.ci_filters(["lib/mock_data/global_products.dart"])["agents"])
+        self.assertTrue(ci.ci_filters(["lib/constants/product_categories.dart"])["agents"])
 
     def test_workflows_run_the_same_commands(self):
         checks = workflow_text("pull-request.yml")
