@@ -1,0 +1,1 @@
+{"commits": [], "harness": "claude-code", "issues": ["#532"], "provider": "anthropic", "prs": [], "session_id": "claude-code:db5ca325-c06c-4439-8e31-1e23e0bf17c1", "sources": [], "started_at": "2026-11-27T23:35:54+00:00", "status": "active", "stream": "sessions", "summary": "#532 feedback #3: drop default collection provisioning, add reusable kickstart empty states"}

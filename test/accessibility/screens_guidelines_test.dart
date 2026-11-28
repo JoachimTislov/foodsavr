@@ -95,6 +95,8 @@ void main() {
     when(() => auth.currentUser).thenReturn(null);
 
     final products = _Products();
+    // No stored products or collections, so the audit covers the kickstart.
+    when(() => products.getProducts(any())).thenAnswer((_) async => []);
     when(
       () => products.getExpired(any()),
     ).thenAnswer((_) async => [_product('expired', -2)]);

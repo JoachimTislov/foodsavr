@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:logger/logger.dart';
 import 'package:watch_it/watch_it.dart';
 
 import '../controllers/dashboard_controller.dart';
@@ -8,8 +9,10 @@ import '../constants/adaptive_layout.dart';
 import '../service_locator.dart';
 import '../utils/collection_types.dart'; // Import CollectionType
 import '../utils/product_add_helper.dart';
+import '../widgets/collection/account_kickstart_card.dart';
 import '../widgets/common/content_constraint.dart';
 import '../widgets/common/pwa_install_banner.dart';
+import '../widgets/common/refresh_on_return.dart';
 import '../widgets/common/retry_scaffold.dart';
 import '../widgets/dashboard/overview_card.dart';
 import '../widgets/dashboard/expired_items_section.dart';
@@ -40,9 +43,35 @@ class DashboardView extends WatchingWidget {
       context.locale.toString(),
     ).format(DateTime.now());
 
-    void createProduct() => ProductAddHelper.startAddProductFlow(context);
-    void createShoppingList() =>
-        CollectionFormView.show(context, type: CollectionType.shoppingList);
+    Future<void> reload() async {
+      if (!context.mounted) return;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      try {
+        await controller.load();
+      } catch (e, stack) {
+        getIt<Logger>().w(
+          'Dashboard reload failed',
+          error: e,
+          stackTrace: stack,
+        );
+        messenger?.showSnackBar(
+          SnackBar(content: Text('common.error_loading_data'.tr())),
+        );
+      }
+    }
+
+    Future<void> createProduct() async {
+      final added = await ProductAddHelper.startAddProductFlow(context);
+      if (added == true) await reload();
+    }
+
+    Future<void> createShoppingList() async {
+      final created = await CollectionFormView.show(
+        context,
+        type: CollectionType.shoppingList,
+      );
+      if (created == true) await reload();
+    }
 
     final overviewCards = <Widget>[
       OverviewCard(
@@ -239,7 +268,7 @@ class DashboardView extends WatchingWidget {
           );
 
     final padding = isExpanded ? 32.0 : 24.0;
-    return RetryScaffold(
+    final scaffold = RetryScaffold(
       fetchOnInit: true,
       onRefresh: _refreshDashboard,
       isBodyScrollable: true,
@@ -260,6 +289,10 @@ class DashboardView extends WatchingWidget {
             children: [
               header,
               SizedBox(height: isExpanded ? 24 : 32),
+              if (controller.isEmptyAccount) ...[
+                Center(child: AccountKickstartCard(onCreated: reload)),
+                const SizedBox(height: 24),
+              ],
               body,
               const PwaInstallBanner(margin: EdgeInsets.only(top: 24)),
             ],
@@ -267,5 +300,6 @@ class DashboardView extends WatchingWidget {
         ),
       ),
     );
+    return RefreshOnReturn(onReturn: reload, child: scaffold);
   }
 }

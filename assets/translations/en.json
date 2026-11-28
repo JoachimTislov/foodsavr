@@ -100,13 +100,10 @@
 		"create_shopping_list": "Create Shopping List",
 		"edit_inventory": "Edit Inventory",
 		"edit_shopping_list": "Edit Shopping List",
-		"emptySubtitle": "Create one to get started",
-		"emptyTitle": "Nothing found",
 		"errorLoadingProducts": "Error loading products",
 		"items_count": "{count} items",
 		"loadError": "Error loading collections",
 		"noProducts": "No products",
-		"defaultShoppingListName": "Shopping List",
 		"type_inventory": "Inventory",
 		"type_shopping": "Shopping"
 	},
@@ -404,5 +401,20 @@
 	},
 	"legal": {
 		"load_error": "This document could not be loaded."
+	},
+	"kickstart": {
+		"inventory": {
+			"title": "You don't have an inventory yet",
+			"message": "An inventory keeps track of the food you have and when it expires. Name it after where you keep it, for example Fridge, Pantry or Freezer."
+		},
+		"shoppingList": {
+			"title": "You don't have a shopping list yet",
+			"message": "A shopping list keeps what you need to buy in one place. Create one and give it your own name."
+		},
+		"account": {
+			"title": "Let's get you started",
+			"message": "Nothing is set up in advance. Create your first inventory or shopping list, and name it your way."
+		},
+		"browseProducts": "Browse common products"
 	}
 }

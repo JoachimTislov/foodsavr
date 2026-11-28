@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:easy_localization/easy_localization.dart';
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import 'package:foodsavr/interfaces/i_validator.dart';
@@ -261,38 +260,6 @@ class CollectionService {
         'Could not repair ${missing.length} dangling IDs in '
         'collection ${collection.id}: ${e.runtimeType}',
       );
-    }
-  }
-
-  /// Fill gaps in a user's initial collections without replacing existing types.
-  Future<void> createInitialCollections(String userId) async {
-    final existing = await _collectionRepository.getCollections(
-      userId,
-      serverOnly: true,
-    );
-    final existingTypes = existing.map((collection) => collection.type).toSet();
-
-    // Stable IDs let concurrent sessions converge on one document per type.
-    final missing = [
-      if (!existingTypes.contains(CollectionType.inventory))
-        Collection(
-          id: 'initial-inventory-$userId',
-          name: 'collection.type_inventory'.tr(),
-          userId: userId,
-          type: CollectionType.inventory,
-          productIds: const [],
-        ),
-      if (!existingTypes.contains(CollectionType.shoppingList))
-        Collection(
-          id: 'initial-shopping-list-$userId',
-          name: 'collection.defaultShoppingListName'.tr(),
-          userId: userId,
-          type: CollectionType.shoppingList,
-          productIds: const [],
-        ),
-    ];
-    if (missing.isNotEmpty) {
-      await _collectionRepository.addCollectionsInBatch(missing);
     }
   }
 

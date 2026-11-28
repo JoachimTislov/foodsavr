@@ -8,7 +8,9 @@ import '../service_locator.dart';
 import '../services/collection_service.dart';
 import '../utils/collection_types.dart';
 import '../widgets/collection/collection_card.dart';
+import '../widgets/collection/collection_kickstart_card.dart';
 import '../widgets/common/master_detail_layout.dart';
+import '../widgets/common/refresh_on_return.dart';
 import '../widgets/common/retry_scaffold.dart';
 import 'collection_detail_view.dart';
 import 'collection_form_view.dart';
@@ -57,6 +59,7 @@ class _CollectionListViewState extends State<CollectionListView> {
   }
 
   Future<void> _refreshAfterChange() async {
+    if (!mounted) return;
     try {
       await _fetchCollections();
     } catch (_) {
@@ -140,9 +143,19 @@ class _CollectionListViewState extends State<CollectionListView> {
             if (_controller.collections.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
-                child: _EmptyCollectionListState(
-                  typeFilter: widget.typeFilter,
-                  onRefresh: _refreshAfterChange,
+                // This tab stays alive while a collection can be created
+                // from another one.
+                child: RefreshOnReturn(
+                  onReturn: _refreshAfterChange,
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: CollectionKickstartCard(
+                        type: widget.typeFilter ?? CollectionType.inventory,
+                        onChanged: _refreshAfterChange,
+                      ),
+                    ),
+                  ),
                 ),
               )
             else
@@ -197,62 +210,5 @@ class _CollectionListViewState extends State<CollectionListView> {
       ),
     );
     if (mounted) await _refreshAfterChange();
-  }
-}
-
-class _EmptyCollectionListState extends StatelessWidget {
-  final CollectionType? typeFilter;
-  final Future<void> Function() onRefresh;
-  const _EmptyCollectionListState({
-    required this.typeFilter,
-    required this.onRefresh,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            typeFilter == CollectionType.shoppingList
-                ? Icons.shopping_cart_outlined
-                : Icons.inventory_2_outlined,
-            size: 64,
-            color: colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(height: 16),
-          Text('collection.emptyTitle'.tr(), style: theme.textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(
-            'collection.emptySubtitle'.tr(),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: () async {
-              final result = await CollectionFormView.show(
-                context,
-                type: typeFilter ?? CollectionType.inventory,
-              );
-              if (context.mounted && result == true) {
-                await onRefresh();
-              }
-            },
-            icon: const Icon(Icons.add),
-            label: Text(
-              typeFilter == CollectionType.shoppingList
-                  ? 'collection.create_shopping_list'.tr()
-                  : 'collection.create_inventory'.tr(),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

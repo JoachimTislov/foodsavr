@@ -148,35 +148,53 @@ export async function deleteSeededCollections(): Promise<void> {
   seededCollectionIds.clear();
 }
 
-// Names of the user's inventory collections as stored in the Firestore emulator.
-export async function getInventoryNames(userId: string): Promise<string[]> {
+interface CollectionDocument {
+  name: string;
+  fields?: {
+    name?: { stringValue?: string };
+    userId?: { stringValue?: string };
+    type?: { stringValue?: string };
+  };
+}
+
+async function listUserCollections(userId: string): Promise<CollectionDocument[]> {
   const res = await fetch(
     `${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/collections?pageSize=100`,
     { headers: EMULATOR_ADMIN },
   );
   expect(res.ok, `listing collections failed: ${res.status}`).toBeTruthy();
-  const body = (await res.json()) as {
-    documents?: {
-      fields?: {
-        name?: { stringValue?: string };
-        userId?: { stringValue?: string };
-        type?: { stringValue?: string };
-      };
-    }[];
-  };
-  return (body.documents ?? [])
-    .filter(
-      (doc) =>
-        doc.fields?.userId?.stringValue === userId &&
-        doc.fields?.type?.stringValue === 'inventory',
-    )
+  const body = (await res.json()) as { documents?: CollectionDocument[] };
+  return (body.documents ?? []).filter(
+    (doc) => doc.fields?.userId?.stringValue === userId,
+  );
+}
+
+// Names of the user's collections of one type as stored in the Firestore emulator.
+export async function getCollectionNames(
+  userId: string,
+  type: SeedCollection['type'],
+): Promise<string[]> {
+  return (await listUserCollections(userId))
+    .filter((doc) => doc.fields?.type?.stringValue === type)
     .map((doc) => doc.fields?.name?.stringValue ?? '');
 }
 
-// Adds an inventory through the "+" button of the inventory list. The list is
-// shown only while the user has zero or several inventories; with exactly one,
-// the inventory tab opens that inventory's detail view instead. The button has
-// no accessible name, so it is the only button without text content.
+// Resets the user to an account without any inventory or shopping list.
+export async function deleteUserCollections(userId: string): Promise<void> {
+  for (const doc of await listUserCollections(userId)) {
+    const id = doc.name.split('/').pop() as string;
+    const res = await fetch(
+      `${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/collections/${id}`,
+      { method: 'DELETE', headers: EMULATOR_ADMIN },
+    );
+    expect(res.ok || res.status === 404, `deleting collection ${id} failed: ${res.status}`).toBeTruthy();
+  }
+}
+
+// Adds an inventory through the "+" button of a non-empty inventory list (an
+// empty one offers its kickstart instead). With exactly one inventory, the
+// inventory tab opens that inventory's detail view. The button has no
+// accessible name, so it is the only button without text content.
 export async function createInventoryViaDialog(page: Page, name: string): Promise<void> {
   await page.getByRole('button').filter({ hasNotText: /.+/ }).click();
   await page.getByRole('textbox', { name: 'Name' }).fill(name);

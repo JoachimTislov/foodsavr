@@ -1,24 +1,17 @@
-import 'dart:async';
-
-import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/interfaces/i_collection_repository.dart';
 import 'package:foodsavr/interfaces/i_error_reporter.dart';
 import 'package:foodsavr/interfaces/i_account_data_repository.dart';
 import 'package:foodsavr/services/secure_storage_service.dart';
-import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/services/collection_service.dart';
-import 'package:foodsavr/utils/collection_types.dart';
 import 'package:foodsavr/validation/validators/collection_model_validator.dart';
 import 'package:foodsavr/services/firebase_auth_service.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -29,7 +22,6 @@ void main() {
   late MockFacebookAuth mockFacebookAuth;
   late AuthService authService;
   late MockUserCredential mockUserCredential;
-  late MockCollectionService mockCollectionService;
   late MockLogger mockLogger;
   late MockErrorReporter errorReporter;
 
@@ -48,7 +40,6 @@ void main() {
     mockGoogleSignIn = MockGoogleSignIn();
     mockFacebookAuth = MockFacebookAuth();
     mockUserCredential = MockUserCredential();
-    mockCollectionService = MockCollectionService();
     mockLogger = MockLogger();
     errorReporter = MockErrorReporter();
     when(
@@ -63,7 +54,6 @@ void main() {
       isWeb: false,
       accountDataRepository: dataRepository,
       secureStorage: secureStorage,
-      collectionService: mockCollectionService,
       logger: mockLogger,
       errorReporter: errorReporter,
     );
@@ -81,7 +71,6 @@ void main() {
         isWeb: true,
         accountDataRepository: dataRepository,
         secureStorage: secureStorage,
-        collectionService: mockCollectionService,
         logger: mockLogger,
         errorReporter: errorReporter,
       );
@@ -166,56 +155,29 @@ void main() {
     });
   });
 
-  group('initial collections', () {
+  group('default provisioning', () {
     const uid = 'test-user';
     const email = 'test@example.com';
     const password = 'password123';
+    late MockCollectionRepository repository;
     late CollectionService collections;
-    late AuthService service;
-    late Map<String, Collection> stored;
 
     setUp(() {
-      final repository = MockCollectionRepository();
-      stored = {};
-      when(
-        () => repository.getCollections(
-          uid,
-          serverOnly: any(named: 'serverOnly'),
-        ),
-      ).thenAnswer((_) async => stored.values.toList());
-      when(() => repository.addCollectionsInBatch(any())).thenAnswer((
-        call,
-      ) async {
-        final batch = call.positionalArguments.single as List<Collection>;
-        for (final collection in batch) {
-          stored[collection.id] = collection;
-        }
-      });
+      repository = MockCollectionRepository();
+      when(() => repository.getCollections(uid)).thenAnswer((_) async => []);
       collections = CollectionService(
         repository,
         CollectionModelValidator(),
         mockLogger,
       );
-      service = AuthService(
-        mockFirebaseAuth,
-        googleSignIn: mockGoogleSignIn,
-        facebookAuth: mockFacebookAuth,
-        supportsPersistence: false,
-        isWeb: true,
-        accountDataRepository: dataRepository,
-        secureStorage: secureStorage,
-        collectionService: collections,
-        logger: mockLogger,
-        errorReporter: errorReporter,
-      );
       final user = MockUser();
       when(() => user.uid).thenReturn(uid);
       when(() => user.isAnonymous).thenReturn(true);
-      when(() => mockFirebaseAuth.currentUser).thenReturn(user);
       when(() => mockUserCredential.user).thenReturn(user);
+      when(() => mockFirebaseAuth.currentUser).thenReturn(user);
       when(
-        () => mockFirebaseAuth.signInWithPopup(any()),
-      ).thenAnswer((_) async => mockUserCredential);
+        () => mockFirebaseAuth.setPersistence(Persistence.SESSION),
+      ).thenAnswer((_) async {});
       when(
         () => mockFirebaseAuth.signInAnonymously(),
       ).thenAnswer((_) async => mockUserCredential);
@@ -228,88 +190,37 @@ void main() {
           password: password,
         ),
       ).thenAnswer((_) async => mockUserCredential);
-    });
-
-    Future<void> loadNorwegian(WidgetTester tester) async {
-      SharedPreferences.setMockInitialValues({});
-      await EasyLocalization.ensureInitialized();
-      await tester.pumpWidget(
-        EasyLocalization(
-          supportedLocales: const [Locale('nb')],
-          startLocale: const Locale('nb'),
-          path: 'assets/translations',
-          saveLocale: false,
-          child: Builder(
-            builder: (context) => MaterialApp(
-              locale: context.locale,
-              supportedLocales: context.supportedLocales,
-              localizationsDelegates: context.localizationDelegates,
-              home: const SizedBox.shrink(),
-            ),
-          ),
+      when(
+        () => mockFirebaseAuth.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
         ),
-      );
-      await tester.pumpAndSettle();
-    }
-
-    for (final provider in ['Google', 'Facebook', 'guest', 'guest-to-email']) {
-      testWidgets(
-        '$provider provisions one Norwegian inventory and shopping list',
-        (tester) async {
-          await loadNorwegian(tester);
-          final signIn = switch (provider) {
-            'Google' => service.signInWithGoogle,
-            'Facebook' => service.signInWithFacebook,
-            'guest' => service.signInAsGuest,
-            _ => () => service.signUp(email: email, password: password),
-          };
-          Future<void> expectDefaults() async {
-            final result = await collections.getCollectionsForUser(uid);
-            expect(
-              result.map((collection) => (collection.type, collection.name)),
-              unorderedEquals([
-                (CollectionType.inventory, 'Beholdning'),
-                (CollectionType.shoppingList, 'Handleliste'),
-              ]),
-            );
-          }
-
-          await signIn();
-          await expectDefaults();
-          await (provider == 'guest-to-email'
-              ? service.signIn(email: email, password: password)
-              : signIn());
-          await expectDefaults();
-        },
-      );
-    }
-
-    testWidgets('fills a missing type and preserves the existing inventory', (
-      tester,
-    ) async {
-      await loadNorwegian(tester);
-      const inventory = Collection(
-        id: 'custom',
-        userId: uid,
-        name: 'Pantry',
-        type: CollectionType.inventory,
-        productIds: ['rice'],
-      );
-      stored[inventory.id] = inventory;
-
-      await service.signUp(email: email, password: password);
-
-      final result = await collections.getCollectionsForUser(uid);
-      expect(result, hasLength(2));
-      expect(
-        result.singleWhere((c) => c.type == CollectionType.inventory),
-        inventory,
-      );
-      expect(
-        result.singleWhere((c) => c.type == CollectionType.shoppingList).name,
-        'Handleliste',
-      );
+      ).thenAnswer((_) async => mockUserCredential);
     });
+
+    for (final method in ['sign-up', 'sign-in', 'guest', 'guest-to-email']) {
+      test('$method creates no inventory or shopping list', () async {
+        if (method == 'sign-up') {
+          when(() => mockFirebaseAuth.currentUser).thenReturn(null);
+        }
+        final signIn = switch (method) {
+          'sign-in' => () => authService.signIn(
+            email: email,
+            password: password,
+          ),
+          'guest' => authService.signInAsGuest,
+          _ => () => authService.signUp(email: email, password: password),
+        };
+
+        expect(await signIn(), mockUserCredential);
+
+        expect(await collections.getCollectionsForUser(uid), isEmpty);
+        // The only repository call is the read above.
+        verify(() => repository.getCollections(uid)).called(1);
+        verifyNoMoreInteractions(repository);
+        verifyZeroInteractions(dataRepository);
+      });
+    }
   });
 
   group('AuthService', () {
@@ -385,9 +296,6 @@ void main() {
           password: password,
         ),
       ).thenAnswer((_) async => mockUserCredential);
-      when(
-        () => mockCollectionService.createInitialCollections(uid),
-      ).thenAnswer((_) async {});
 
       final result = await authService.signUp(email: email, password: password);
 
@@ -398,89 +306,6 @@ void main() {
           password: password,
         ),
       ).called(1);
-    });
-
-    test('signUp calls createInitialCollections on new user', () async {
-      const uid = 'some-uid';
-      final mockUser = MockUser();
-      when(() => mockUser.uid).thenReturn(uid);
-      when(() => mockUserCredential.user).thenReturn(mockUser);
-      when(() => mockFirebaseAuth.currentUser).thenReturn(null);
-      when(
-        () => mockFirebaseAuth.createUserWithEmailAndPassword(
-          email: email,
-          password: password,
-        ),
-      ).thenAnswer((_) async => mockUserCredential);
-      when(
-        () => mockCollectionService.createInitialCollections(uid),
-      ).thenAnswer((_) async {});
-
-      await authService.signUp(email: email, password: password);
-
-      verify(
-        () => mockCollectionService.createInitialCollections(uid),
-      ).called(1);
-    });
-
-    test('signUp retries createInitialCollections and succeeds', () async {
-      const uid = 'some-uid';
-      final mockUser = MockUser();
-      when(() => mockUser.uid).thenReturn(uid);
-      when(() => mockUserCredential.user).thenReturn(mockUser);
-      when(() => mockFirebaseAuth.currentUser).thenReturn(null);
-      when(
-        () => mockFirebaseAuth.createUserWithEmailAndPassword(
-          email: email,
-          password: password,
-        ),
-      ).thenAnswer((_) async => mockUserCredential);
-
-      int createCollectionsCallCount = 0;
-      when(
-        () => mockCollectionService.createInitialCollections(uid),
-      ).thenAnswer((_) async {
-        createCollectionsCallCount++;
-        if (createCollectionsCallCount == 1) {
-          throw Exception('Failed to create collections');
-        }
-      });
-
-      await authService.signUp(email: email, password: password);
-
-      verify(
-        () => mockCollectionService.createInitialCollections(uid),
-      ).called(2);
-    });
-
-    test('signUp retries createInitialCollections and finally fails', () async {
-      const uid = 'some-uid';
-      final mockUser = MockUser();
-      when(() => mockUser.uid).thenReturn(uid);
-      when(() => mockUserCredential.user).thenReturn(mockUser);
-      when(() => mockFirebaseAuth.currentUser).thenReturn(null);
-      when(
-        () => mockFirebaseAuth.createUserWithEmailAndPassword(
-          email: email,
-          password: password,
-        ),
-      ).thenAnswer((_) async => mockUserCredential);
-      when(
-        () => mockCollectionService.createInitialCollections(uid),
-      ).thenThrow(Exception('Failed to create collections'));
-
-      await authService.signUp(email: email, password: password);
-
-      verify(
-        () => mockCollectionService.createInitialCollections(uid),
-      ).called(3);
-      verify(
-        () => mockLogger.e(
-          any(),
-          error: any(named: 'error'),
-          stackTrace: any(named: 'stackTrace'),
-        ),
-      ).called(2);
     });
 
     test('signUp links credentials when current user is anonymous', () async {
@@ -831,40 +656,6 @@ void main() {
       verify(() => mockFirebaseAuth.signOut()).called(1);
     });
 
-    test('auth stream waits for guest collection provisioning', () async {
-      final user = MockUser();
-      final provisioning = Completer<void>();
-      final started = Completer<void>();
-      when(() => user.uid).thenReturn('guest');
-      when(() => mockFirebaseAuth.currentUser).thenReturn(user);
-      when(() => mockUserCredential.user).thenReturn(user);
-      when(
-        () => mockFirebaseAuth.authStateChanges(),
-      ).thenAnswer((_) => Stream.value(user));
-      when(
-        () => mockFirebaseAuth.signInAnonymously(),
-      ).thenAnswer((_) async => mockUserCredential);
-      when(
-        () => mockCollectionService.createInitialCollections('guest'),
-      ).thenAnswer((_) {
-        started.complete();
-        return provisioning.future;
-      });
-
-      final signIn = authService.signInAsGuest();
-      var emitted = false;
-      final authEvent = authService.authStateChanges.first.then((value) {
-        emitted = true;
-        return value;
-      });
-      await started.future;
-      expect(emitted, isFalse);
-
-      provisioning.complete();
-      expect(await authEvent, user);
-      await signIn;
-    });
-
     test('signInAsGuest calls signInAnonymously', () async {
       when(
         () => mockFirebaseAuth.signInAnonymously(),
@@ -914,8 +705,6 @@ class MockLoginResult extends Mock implements LoginResult {}
 class MockUser extends Mock implements User {}
 
 class MockUserCredential extends Mock implements UserCredential {}
-
-class MockCollectionService extends Mock implements CollectionService {}
 
 class MockLogger extends Mock implements Logger {}
 

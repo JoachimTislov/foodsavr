@@ -75,6 +75,12 @@ void main() {
         expiringSoonDays: any(named: 'expiringSoonDays'),
       ),
     ).thenAnswer((_) async => []);
+    // A started account; the empty one is covered by the kickstart tests.
+    when(() => products.getProducts('user')).thenAnswer(
+      (_) async => [
+        const Product(id: 'p', name: 'Rice', description: '', userId: 'user'),
+      ],
+    );
     final collections = _Collections();
     when(
       () => collections.getCollectionsForUser('user', type: any(named: 'type')),

@@ -6,7 +6,6 @@ import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/services/collection_service.dart';
-import 'package:foodsavr/utils/collection_types.dart';
 import 'package:foodsavr/views/dashboard_view.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
@@ -44,6 +43,7 @@ void main() {
     getIt.registerSingleton<IAuthService>(authService);
     final productService = MockProductService();
     when(() => productService.getExpired(any())).thenAnswer((_) async => []);
+    when(() => productService.getProducts(any())).thenAnswer((_) async => []);
     getIt.registerSingleton<ProductService>(productService);
     getIt.registerSingleton<CollectionService>(MockCollectionService());
     getIt.registerSingleton<DashboardController>(
@@ -75,10 +75,7 @@ void main() {
         () => productService.getExpiringSoon('user_1', expiringSoonDays: 6),
       ).thenAnswer((_) async => []);
       when(
-        () => collectionService.getCollectionsForUser(
-          'user_1',
-          type: CollectionType.inventory,
-        ),
+        () => collectionService.getCollectionsForUser('user_1'),
       ).thenAnswer((_) async => []);
 
       // Also need to stub user_2 to prevent MissingStubError during the second fetch
@@ -86,10 +83,7 @@ void main() {
         () => productService.getExpiringSoon('user_2', expiringSoonDays: 6),
       ).thenAnswer((_) async => []);
       when(
-        () => collectionService.getCollectionsForUser(
-          'user_2',
-          type: CollectionType.inventory,
-        ),
+        () => collectionService.getCollectionsForUser('user_2'),
       ).thenAnswer((_) async => []);
 
       await tester.pumpWidget(
@@ -105,12 +99,7 @@ void main() {
       verify(
         () => productService.getExpiringSoon('user_1', expiringSoonDays: 6),
       ).called(1);
-      verify(
-        () => collectionService.getCollectionsForUser(
-          'user_1',
-          type: CollectionType.inventory,
-        ),
-      ).called(1);
+      verify(() => collectionService.getCollectionsForUser('user_1')).called(1);
 
       // Simulate session change: user_2 is now logged in
       when(() => authService.getUserId()).thenReturn('user_2');
@@ -129,12 +118,7 @@ void main() {
       verify(
         () => productService.getExpiringSoon('user_2', expiringSoonDays: 6),
       ).called(1);
-      verify(
-        () => collectionService.getCollectionsForUser(
-          'user_2',
-          type: CollectionType.inventory,
-        ),
-      ).called(1);
+      verify(() => collectionService.getCollectionsForUser('user_2')).called(1);
     },
   );
 }

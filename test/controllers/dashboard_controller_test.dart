@@ -57,6 +57,9 @@ void main() {
       () => mockProductService.getExpired(any()),
     ).thenAnswer((_) async => []);
     when(
+      () => mockProductService.getProducts(any()),
+    ).thenAnswer((_) async => []);
+    when(
       () => mockAuthService.authStateChanges,
     ).thenAnswer((_) => authChanges.stream);
     preferences = PreferencesController(
@@ -101,10 +104,7 @@ void main() {
           ),
         ).thenAnswer((_) async => [mixed, _productExpiringIn('three', 3)]);
         when(
-          () => mockCollectionService.getCollectionsForUser(
-            'user_1',
-            type: CollectionType.inventory,
-          ),
+          () => mockCollectionService.getCollectionsForUser('user_1'),
         ).thenAnswer((_) async => []);
 
         await controller.load();
@@ -142,10 +142,7 @@ void main() {
         () => mockProductService.getExpiringSoon(userId, expiringSoonDays: 6),
       ).thenAnswer((_) async => []);
       when(
-        () => mockCollectionService.getCollectionsForUser(
-          userId,
-          type: CollectionType.inventory,
-        ),
+        () => mockCollectionService.getCollectionsForUser(userId),
       ).thenAnswer((_) async => []);
 
       var notified = false;
@@ -156,10 +153,7 @@ void main() {
         () => mockProductService.getExpiringSoon(userId, expiringSoonDays: 6),
       ).called(1);
       verify(
-        () => mockCollectionService.getCollectionsForUser(
-          userId,
-          type: CollectionType.inventory,
-        ),
+        () => mockCollectionService.getCollectionsForUser(userId),
       ).called(1);
     });
 
@@ -169,10 +163,7 @@ void main() {
         () => mockProductService.getExpiringSoon('user_1', expiringSoonDays: 6),
       ).thenAnswer((_) async => []);
       when(
-        () => mockCollectionService.getCollectionsForUser(
-          'user_1',
-          type: CollectionType.inventory,
-        ),
+        () => mockCollectionService.getCollectionsForUser('user_1'),
       ).thenAnswer((_) async => []);
       await controller.load();
 
@@ -181,10 +172,7 @@ void main() {
         () => mockProductService.getExpiringSoon('user_2', expiringSoonDays: 6),
       ).thenAnswer((_) async => []);
       when(
-        () => mockCollectionService.getCollectionsForUser(
-          'user_2',
-          type: CollectionType.inventory,
-        ),
+        () => mockCollectionService.getCollectionsForUser('user_2'),
       ).thenAnswer((_) async => []);
       await controller.load();
 
@@ -207,10 +195,7 @@ void main() {
               mockProductService.getExpiringSoon('user_1', expiringSoonDays: 6),
         ).thenAnswer((_) => firstLoadProducts.future);
         when(
-          () => mockCollectionService.getCollectionsForUser(
-            'user_1',
-            type: CollectionType.inventory,
-          ),
+          () => mockCollectionService.getCollectionsForUser('user_1'),
         ).thenAnswer((_) => firstLoadCollections.future);
         final firstLoad = controller.load();
 
@@ -240,10 +225,7 @@ void main() {
             mockProductService.getExpiringSoon('user_1', expiringSoonDays: 10),
       ).thenAnswer((_) async => []);
       when(
-        () => mockCollectionService.getCollectionsForUser(
-          'user_1',
-          type: CollectionType.inventory,
-        ),
+        () => mockCollectionService.getCollectionsForUser('user_1'),
       ).thenAnswer((_) async => []);
 
       await controller.load();
@@ -269,10 +251,7 @@ void main() {
           ),
         ).thenAnswer((_) async => []);
         when(
-          () => mockCollectionService.getCollectionsForUser(
-            'user_1',
-            type: CollectionType.inventory,
-          ),
+          () => mockCollectionService.getCollectionsForUser('user_1'),
         ).thenAnswer((_) async => []);
         await controller.load();
 
@@ -314,10 +293,7 @@ void main() {
         ),
       ).thenAnswer((_) async => []);
       when(
-        () => mockCollectionService.getCollectionsForUser(
-          'user_1',
-          type: CollectionType.inventory,
-        ),
+        () => mockCollectionService.getCollectionsForUser('user_1'),
       ).thenAnswer((_) async => []);
 
       await controller.refresh();
@@ -347,5 +323,75 @@ void main() {
         );
       },
     );
+
+    group('empty account', () {
+      setUp(() {
+        when(() => mockAuthService.getUserId()).thenReturn('user_1');
+        when(
+          () => mockProductService.getExpiringSoon(
+            'user_1',
+            expiringSoonDays: any(named: 'expiringSoonDays'),
+          ),
+        ).thenAnswer((_) async => []);
+      });
+
+      void stubCollections(List<Collection> collections) => when(
+        () => mockCollectionService.getCollectionsForUser('user_1'),
+      ).thenAnswer((_) async => collections);
+
+      Collection collection(CollectionType type) => Collection(
+        id: type.name,
+        name: type.name,
+        productIds: const [],
+        userId: 'user_1',
+        type: type,
+      );
+
+      test('is empty without collections and products', () async {
+        stubCollections(const []);
+
+        await controller.load();
+
+        expect(controller.isEmptyAccount, isTrue);
+        expect(controller.inventories, isEmpty);
+      });
+
+      test('is not empty with only a shopping list', () async {
+        stubCollections([collection(CollectionType.shoppingList)]);
+
+        await controller.load();
+
+        expect(controller.isEmptyAccount, isFalse);
+        expect(controller.inventories, isEmpty);
+        verifyNever(() => mockProductService.getProducts(any()));
+      });
+
+      test('is not empty with only a product', () async {
+        stubCollections(const []);
+        when(
+          () => mockProductService.getProducts('user_1'),
+        ).thenAnswer((_) async => [_productExpiringIn('milk', 30)]);
+
+        await controller.load();
+
+        expect(controller.isEmptyAccount, isFalse);
+      });
+
+      test('follows the last inventory being deleted and sign-out', () async {
+        stubCollections([collection(CollectionType.inventory)]);
+        await controller.load();
+        expect(controller.inventories, hasLength(1));
+        expect(controller.isEmptyAccount, isFalse);
+
+        stubCollections(const []);
+        await controller.load();
+        expect(controller.inventories, isEmpty);
+        expect(controller.isEmptyAccount, isTrue);
+
+        when(() => mockAuthService.getUserId()).thenReturn(null);
+        await controller.load();
+        expect(controller.isEmptyAccount, isFalse);
+      });
+    });
   });
 }

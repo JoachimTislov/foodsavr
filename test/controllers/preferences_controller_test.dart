@@ -72,6 +72,64 @@ void main() {
   Future<void> settle() => Future<void>.delayed(Duration.zero);
 
   group('PreferencesController', () {
+    void stubInventories(List<Collection> inventories) => when(
+      () => collections.getCollectionsForUser(
+        'user-1',
+        type: CollectionType.inventory,
+      ),
+    ).thenAnswer((_) async => inventories);
+
+    test('resolves no default without inventories', () async {
+      repository.remote['user-1'] = const UserPreferences(
+        defaultInventoryId: 'deleted',
+      );
+      stubInventories(const []);
+      controller = create();
+      await settle();
+
+      expect(await controller.resolveDefaultInventoryId(), isNull);
+    });
+
+    test('falls back when the default inventory was deleted', () async {
+      repository.remote['user-1'] = const UserPreferences(
+        defaultInventoryId: 'deleted',
+      );
+      stubInventories([_inventory('kept')]);
+      controller = create();
+      await settle();
+
+      expect(await controller.resolveDefaultInventoryId(), 'kept');
+    });
+
+    test('forgets only the deleted default inventory', () async {
+      repository.remote['user-1'] = const UserPreferences(
+        defaultInventoryId: 'chosen',
+      );
+      controller = create();
+      await settle();
+
+      await controller.forgetDefaultInventory('other');
+      expect(controller.defaultInventoryId, 'chosen');
+      expect(repository.saved, isEmpty);
+
+      await controller.forgetDefaultInventory('chosen');
+      expect(controller.defaultInventoryId, isNull);
+      expect(repository.remote['user-1']!.defaultInventoryId, isNull);
+    });
+
+    test('forgets the default locally when the sync fails', () async {
+      repository = _FailingSaveRepository();
+      repository.cache['user-1'] = const UserPreferences(
+        defaultInventoryId: 'chosen',
+      );
+      controller = create();
+      await settle();
+
+      await controller.forgetDefaultInventory('chosen');
+
+      expect(controller.defaultInventoryId, isNull);
+    });
+
     test('starts from the cache and then applies the backend value', () async {
       repository.cache['user-1'] = const UserPreferences(expiringSoonDays: 2);
       repository.remote['user-1'] = const UserPreferences(expiringSoonDays: 9);

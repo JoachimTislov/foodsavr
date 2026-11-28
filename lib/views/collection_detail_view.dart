@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:easy_localization/easy_localization.dart';
@@ -137,6 +138,8 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       } else {
         await _collectionService.deleteCollectionOnly(source.id);
       }
+      // Not awaited: an offline save completes only once the server has it.
+      unawaited(_preferences.forgetDefaultInventory(source.id));
       if (!mounted) return;
       final onChanged = widget.onChanged;
       if (onChanged == null) {
