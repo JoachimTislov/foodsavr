@@ -68,13 +68,34 @@ class CameraPermissionCard extends StatelessWidget {
         'camera.unsupported.message'.tr(),
       ),
     };
-    final enable =
-        status == CameraAccessStatus.disabledInSettings && onEnable != null;
     final retryLabel =
         status == CameraAccessStatus.prompt ||
             status == CameraAccessStatus.granted
         ? 'camera.allow'.tr()
         : 'common.tryAgain'.tr();
+    final actions = switch (status) {
+      CameraAccessStatus.unsupported || CameraAccessStatus.insecureContext => [
+        if (onFallback != null)
+          FilledButton(onPressed: onFallback, child: Text(fallbackLabel!)),
+      ],
+      CameraAccessStatus.noCamera => [
+        if (onFallback != null) ...[
+          OutlinedButton(onPressed: onRetry, child: Text(retryLabel)),
+          FilledButton(onPressed: onFallback, child: Text(fallbackLabel!)),
+        ] else
+          FilledButton(onPressed: onRetry, child: Text(retryLabel)),
+      ],
+      CameraAccessStatus.disabledInSettings when onEnable != null => [
+        if (onFallback != null)
+          TextButton(onPressed: onFallback, child: Text(fallbackLabel!)),
+        FilledButton(onPressed: onEnable, child: Text('camera.enable'.tr())),
+      ],
+      _ => [
+        if (onFallback != null)
+          TextButton(onPressed: onFallback, child: Text(fallbackLabel!)),
+        FilledButton(onPressed: onRetry, child: Text(retryLabel)),
+      ],
+    };
 
     return Card(
       margin: EdgeInsets.zero,
@@ -100,27 +121,15 @@ class CameraPermissionCard extends StatelessWidget {
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: Material3Config.spacing16),
-            Wrap(
-              alignment: WrapAlignment.end,
-              spacing: Material3Config.spacing8,
-              runSpacing: Material3Config.spacing8,
-              children: [
-                if (onFallback != null)
-                  TextButton(
-                    onPressed: onFallback,
-                    child: Text(fallbackLabel!),
-                  ),
-                if (enable) ...[
-                  OutlinedButton(onPressed: onRetry, child: Text(retryLabel)),
-                  FilledButton(
-                    onPressed: onEnable,
-                    child: Text('camera.enable'.tr()),
-                  ),
-                ] else
-                  FilledButton(onPressed: onRetry, child: Text(retryLabel)),
-              ],
-            ),
+            if (actions.isNotEmpty) ...[
+              const SizedBox(height: Material3Config.spacing16),
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: Material3Config.spacing8,
+                runSpacing: Material3Config.spacing8,
+                children: actions,
+              ),
+            ],
           ],
         ),
       ),
