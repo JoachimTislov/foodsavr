@@ -60,8 +60,9 @@ class ServiceLocator {
           Config.testUserEmail,
           Config.testUserPassword,
         );
-        await seedingService.seedUserDocument(testUserId);
+        // First: firestore.rules denies the admin-role write that follows.
         await seedingService.seedGlobalProducts();
+        await seedingService.seedUserDocument(testUserId);
         final addedProductIds = await seedingService.seedInventoryProducts(
           testUserId,
         );

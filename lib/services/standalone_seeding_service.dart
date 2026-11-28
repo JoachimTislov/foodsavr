@@ -116,9 +116,12 @@ class StandaloneSeedingService {
   /// Generic method to seed a batch of records in Firestore REST API.
   Future<void> seedBatch(List<SeedRecord> records) async {
     final url = '$_firestoreBaseUrl:commit';
+    // The emulator's `owner` token skips firestore.rules, which let only admins
+    // write global products. A remote project only gets the signed-in user.
+    final token = isRemote ? _idToken : 'owner';
     final headers = {
       'Content-Type': 'application/json',
-      if (_idToken != null) 'Authorization': 'Bearer $_idToken',
+      if (token != null) 'Authorization': 'Bearer $token',
     };
 
     List<Map<String, dynamic>> writes = [];

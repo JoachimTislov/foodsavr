@@ -123,9 +123,13 @@ class MainTest(unittest.TestCase):
         first = requests[0]
         self.assertEqual(first.get_method(), "PATCH")
         self.assertEqual(first.full_url, "http://localhost:8080/v1/projects/demo-project/databases/(default)"
-                                         f"/documents/global_products/{products[0]['id']}")
+                                         f"/documents/products/{products[0]['id']}")
         self.assertEqual(first.get_header("Authorization"), "Bearer owner")
         self.assertEqual(json.loads(first.data), {"fields": seeder.firestore_fields(products[0])})
+
+    def test_collection_can_be_overridden(self):
+        requests, _ = self.apply("--emulator", "localhost:8080", "--collection", "global_products")
+        self.assertIn("/documents/global_products/global-", requests[0].full_url)
 
     def test_reruns_send_identical_requests(self):
         def snapshot():
@@ -135,7 +139,7 @@ class MainTest(unittest.TestCase):
 
     def test_cloud_project_uses_the_access_token_and_never_prints_it(self):
         with patch.dict(os.environ, {"ACCESS_TOKEN": "secret-token"}):
-            requests, output = self.apply("--project", "foodsavr-test", "--collection", "products")
+            requests, output = self.apply("--project", "foodsavr-test")
         self.assertTrue(requests[0].full_url.startswith(
             "https://firestore.googleapis.com/v1/projects/foodsavr-test/databases/(default)/documents/products/"))
         self.assertEqual(requests[0].get_header("Authorization"), "Bearer secret-token")
@@ -159,7 +163,7 @@ class MainTest(unittest.TestCase):
     def test_http_error_stops_and_names_the_document(self):
         error = urllib.error.HTTPError("u", 403, "Forbidden", {}, io.BytesIO(b"denied"))
         with patch.object(seeder.urllib.request, "urlopen", side_effect=error) as urlopen:
-            with self.assertRaisesRegex(SystemExit, "global_products/global-.*HTTP 403: denied"):
+            with self.assertRaisesRegex(SystemExit, "error: products/global-.*HTTP 403: denied"):
                 self.run_main("--emulator", "localhost:8080", "--apply")
         urlopen.assert_called_once()
 

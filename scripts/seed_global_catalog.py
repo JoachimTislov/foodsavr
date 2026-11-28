@@ -11,10 +11,9 @@ written. Documents are replaced by id with PATCH, so re-running is safe.
 
 A cloud project needs ACCESS_TOKEN or a `gcloud auth login`.
 
---collection selects the target. The default, global_products, is where
-SeedingService seeds. The app reads its global catalog from `products`
-(lib/repositories/product_repository.dart), and firestore.rules denies clients
-global_products: pass `--collection products` to show the catalog in the app.
+The default target, `products`, is where the app reads its global catalog
+(lib/repositories/product_repository.dart). `--collection global_products`
+selects the legacy path, which firestore.rules denies to clients.
 """
 
 from __future__ import annotations
@@ -32,7 +31,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "lib/mock_data/global_products.dart"
 CATEGORIES = ROOT / "lib/constants/product_categories.dart"
-COLLECTIONS = ("global_products", "products")
+COLLECTIONS = ("products", "global_products")
 EMULATOR_PROJECT = "demo-project"
 FIELDS = ("id", "name", "description", "category", "barcode")
 
