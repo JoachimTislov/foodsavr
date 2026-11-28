@@ -15,7 +15,8 @@ function decision(runs, paths, branch) {
 }
 
 // The pushed commit's verification (Check & Test and Validation) runs in
-// pull-request.yml; release.yml calls this after its own web build succeeded.
+// pull-request.yml; release.yml uses this to gate release-channel Hosting
+// deploys (daily, weekly, stable) and the stable web release candidate.
 const PATHS = ['.github/workflows/pull-request.yml'];
 
 async function evaluate({github, context, core, sha = context.sha, branch = context.ref.replace('refs/heads/', '')}) {
@@ -27,17 +28,18 @@ async function evaluate({github, context, core, sha = context.sha, branch = cont
     });
     const state = decision(runs, PATHS, branch);
     if (state === 'blocked') {
-      core.setFailed('A required check failed for the source commit; release blocked.');
+      core.setFailed(`A required check failed for ${branch} (${sha}); release blocked.`);
       return;
     }
     if (state === 'ready') {
-      core.setOutput('release_web', 'true');
+      core.setOutput('passed', 'true');
+      core.setOutput('release_web', branch === 'stable' ? 'true' : 'false');
       return;
     }
-    core.info('Waiting for CI and Validation on ' + sha);
+    core.info(`Waiting for Pull Request checks on ${branch} (${sha})`);
     await new Promise(resolve => setTimeout(resolve, 30000));
   }
-  core.setFailed('Timed out waiting for CI and Validation; release blocked.');
+  core.setFailed(`Timed out waiting for Pull Request checks on ${branch} (${sha}); release blocked.`);
 }
 
 module.exports = {PATHS, decision, evaluate};

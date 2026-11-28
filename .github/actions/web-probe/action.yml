@@ -14,6 +14,9 @@ inputs:
   deployed-sha:
     description: Commit the probed deployment was built from (post-deploy probes)
     default: ''
+  environment:
+    description: Target environment name (e.g. test, staging, production; defaults to production)
+    default: production
   dry-run:
     description: Run probe and intake without mutating issues ('true' or empty)
     default: ''
@@ -75,6 +78,7 @@ runs:
       env:
         URL: ${{ inputs.target-url }}
         DEPLOYED_SHA: ${{ inputs.deployed-sha }}
+        ENVIRONMENT: ${{ inputs.environment }}
         FIREBASE_PLAN: ${{ inputs.firebase-plan }}
       run: |
         if [ -z "$URL" ]; then
@@ -82,8 +86,10 @@ runs:
           exit 0
         fi
         level="firebase-${FIREBASE_PLAN:-spark}"
+        environment="${ENVIRONMENT:-production}"
         echo "url=${URL}" >> "$GITHUB_OUTPUT"
         echo "sha=${DEPLOYED_SHA}" >> "$GITHUB_OUTPUT"
+        echo "environment=${environment}" >> "$GITHUB_OUTPUT"
         echo "level=${level}" >> "$GITHUB_OUTPUT"
 
     - name: Run Playwright web probe
@@ -94,7 +100,7 @@ runs:
         TARGET_URL: ${{ steps.target.outputs.url }}
         RELEASE_SHA: ${{ steps.target.outputs.sha }}
         DEPLOYMENT_LEVEL: ${{ steps.target.outputs.level }}
-        ENVIRONMENT: production
+        ENVIRONMENT: ${{ steps.target.outputs.environment }}
       run: |
         node scripts/monitoring/probe_web.mjs \
           --url "$TARGET_URL" \
@@ -116,11 +122,12 @@ runs:
         AUTO_HEAL_ENABLED: ${{ inputs.auto-heal-enabled }}
         TARGET_URL: ${{ steps.target.outputs.url }}
         DEPLOYED_SHA: ${{ steps.target.outputs.sha }}
+        ENVIRONMENT: ${{ steps.target.outputs.environment }}
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       run: |
-        args=(--input "$RUNNER_TEMP/probe-report.json" --ref "$DEFAULT_BRANCH")
-        verify_args=(--probe-file "$RUNNER_TEMP/probe-report.json" --target-url "$TARGET_URL" --deployed-sha "$DEPLOYED_SHA" --run-url "$RUN_URL")
+        args=(--input "$RUNNER_TEMP/probe-report.json" --environment "$ENVIRONMENT" --ref "$DEFAULT_BRANCH")
+        verify_args=(--probe-file "$RUNNER_TEMP/probe-report.json" --environment "$ENVIRONMENT" --target-url "$TARGET_URL" --deployed-sha "$DEPLOYED_SHA" --run-url "$RUN_URL")
         if [ "$DRY_RUN" = "true" ]; then
           args+=(--dry-run)
           verify_args+=(--dry-run)
@@ -138,9 +145,10 @@ runs:
         DRY_RUN: ${{ inputs.dry-run }}
         TARGET_URL: ${{ steps.target.outputs.url }}
         DEPLOYED_SHA: ${{ steps.target.outputs.sha }}
+        ENVIRONMENT: ${{ steps.target.outputs.environment }}
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       run: |
-        verify_args=(--probe-file "$RUNNER_TEMP/probe-report.json" --target-url "$TARGET_URL" --deployed-sha "$DEPLOYED_SHA" --run-url "$RUN_URL")
+        verify_args=(--probe-file "$RUNNER_TEMP/probe-report.json" --environment "$ENVIRONMENT" --target-url "$TARGET_URL" --deployed-sha "$DEPLOYED_SHA" --run-url "$RUN_URL")
         if [ "$DRY_RUN" = "true" ]; then
           verify_args+=(--dry-run)
         fi

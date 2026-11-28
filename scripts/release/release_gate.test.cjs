@@ -41,9 +41,45 @@ test('a release waits for the consolidated Pull Request run of the commit', asyn
   const context = {repo: {owner: 'o', repo: 'r'}, sha: 'abc', ref: 'refs/heads/stable'};
   const core = {setOutput: (k, v) => { outputs[k] = v; }, setFailed: msg => { outputs.failed = msg; }, info: () => {}};
   await evaluate({github, context, core});
-  assert.deepEqual(outputs, {release_web: 'true'});
+  assert.deepEqual(outputs, {passed: 'true', release_web: 'true'});
   runs[0] = run('.github/workflows/pull-request.yml', {conclusion: 'failure'});
+  delete outputs.passed;
   delete outputs.release_web;
   await evaluate({github, context, core});
   assert.match(outputs.failed, /blocked/);
+});
+
+test('daily and weekly channels set passed without enabling stable release_web candidate', async () => {
+  const {evaluate} = require('./release_gate.cjs');
+  for (const branch of ['daily', 'weekly']) {
+    const outputs = {};
+    const runs = [
+      run('.github/workflows/pull-request.yml', {head_branch: branch, conclusion: 'success'}),
+      run('.github/workflows/pull-request.yml', {head_branch: 'stable', id: 2, conclusion: 'failure'}),
+    ];
+    const github = {paginate: async () => runs, rest: {actions: {listWorkflowRunsForRepo: () => {}}}};
+    const context = {repo: {owner: 'o', repo: 'r'}, sha: 'def', ref: `refs/heads/${branch}`};
+    const core = {setOutput: (k, v) => { outputs[k] = v; }, setFailed: msg => { outputs.failed = msg; }, info: () => {}};
+    await evaluate({github, context, core});
+    assert.deepEqual(outputs, {passed: 'true', release_web: 'false'});
+  }
+});
+
+test('a failing daily or weekly Pull Request run blocks channel hosting deploy', async () => {
+  const {evaluate} = require('./release_gate.cjs');
+  for (const branch of ['daily', 'weekly']) {
+    const outputs = {};
+    const runs = [
+      run('.github/workflows/pull-request.yml', {head_branch: branch, conclusion: 'failure'}),
+      run('.github/workflows/pull-request.yml', {head_branch: 'develop', id: 2, conclusion: 'success'}),
+    ];
+    const github = {paginate: async () => runs, rest: {actions: {listWorkflowRunsForRepo: () => {}}}};
+    const context = {repo: {owner: 'o', repo: 'r'}, sha: 'bad', ref: `refs/heads/${branch}`};
+    const core = {setOutput: (k, v) => { outputs[k] = v; }, setFailed: msg => { outputs.failed = msg; }, info: () => {}};
+    await evaluate({github, context, core});
+    assert.equal(outputs.passed, undefined);
+    assert.equal(outputs.release_web, undefined);
+    assert.match(outputs.failed, /blocked/);
+    assert.match(outputs.failed, new RegExp(branch));
+  }
 });
