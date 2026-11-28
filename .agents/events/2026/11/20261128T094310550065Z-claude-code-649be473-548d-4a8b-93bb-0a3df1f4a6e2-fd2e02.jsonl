@@ -1,0 +1,1 @@
+{"commits": ["583a9d3e50f1883f553750ab57749eb60b28c00e"], "event": "rebased onto develop (#548); dashboard commit is now 583a9d3e, added e2e product reset; full Playwright suite 105 passed", "session_id": "claude-code:649be473-548d-4a8b-93bb-0a3df1f4a6e2", "stream": "ledger", "timestamp": "2026-11-28T09:43:10+00:00"}
