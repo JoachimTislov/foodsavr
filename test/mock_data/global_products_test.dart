@@ -62,4 +62,32 @@ void main() {
       expect(int.parse(barcode[12]), _checkDigit(barcode), reason: barcode);
     }
   });
+
+  test('catalog entries use Norwegian Bokmål names and descriptions', () {
+    final byId = {
+      for (final product in products) product['id'] as String: product,
+    };
+    expect(products, hasLength(30));
+    expect(byId['global-milk-whole']?['name'], 'Helmelk');
+    expect(byId['global-milk-whole']?['description'], 'Fersk helmelk, 1 l');
+    expect(byId['global-bread-wholegrain']?['name'], 'Grovbrød');
+    expect(byId['global-apples']?['name'], 'Epler');
+    expect(byId['global-peas-frozen']?['name'], 'Frosne erter');
+    expect(byId['global-mackerel-tomato']?['name'], 'Makrell i tomat');
+    expect(byId['global-coffee-ground']?['name'], 'Filterkaffe');
+    expect(
+      values('name'),
+      isNot(
+        anyElement(
+          isIn([
+            'Whole Milk',
+            'Wholegrain Bread',
+            'Apples',
+            'Frozen Peas',
+            'Ground Coffee',
+          ]),
+        ),
+      ),
+    );
+  });
 }
