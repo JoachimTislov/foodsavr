@@ -102,22 +102,12 @@ class ShoppingListItemCard extends StatelessWidget {
               ),
               PopupMenuButton<String>(
                 enabled: !busy,
-                onSelected: (value) async {
-                  switch (value) {
-                    case 'edit':
-                      await onEdit();
-                      break;
-                    case 'move':
-                      await onMove();
-                      break;
-                    case 'duplicate':
-                      await onDuplicate();
-                      break;
-                    case 'delete':
-                      await onDelete();
-                      break;
-                  }
-                },
+                onSelected: (value) => _run(context, switch (value) {
+                  'edit' => onEdit,
+                  'move' => onMove,
+                  'duplicate' => onDuplicate,
+                  _ => onDelete,
+                }),
                 itemBuilder: (context) => [
                   PopupMenuItem(
                     value: 'edit',
@@ -144,10 +134,27 @@ class ShoppingListItemCard extends StatelessWidget {
     );
   }
 
+  /// Runs a quick action from either menu and reports a failure that its
+  /// handler did not.
+  Future<void> _run(
+    BuildContext context,
+    Future<void> Function() action,
+  ) async {
+    // Captured first: the action can remove this row.
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await action();
+    } catch (_) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('common.somethingWentWrong'.tr())),
+      );
+    }
+  }
+
   Future<void> _showActions(BuildContext context) async {
     await showModalBottomSheet<void>(
       context: context,
-      builder: (context) => SafeArea(
+      builder: (sheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -155,32 +162,32 @@ class ShoppingListItemCard extends StatelessWidget {
               leading: const Icon(Icons.edit_outlined),
               title: Text('product.edit'.tr()),
               onTap: () {
-                Navigator.pop(context);
-                onEdit();
+                Navigator.pop(sheetContext);
+                _run(context, onEdit);
               },
             ),
             ListTile(
               leading: const Icon(Icons.drive_file_move_outlined),
               title: Text('collection.move'.tr()),
               onTap: () {
-                Navigator.pop(context);
-                onMove();
+                Navigator.pop(sheetContext);
+                _run(context, onMove);
               },
             ),
             ListTile(
               leading: const Icon(Icons.copy_outlined),
               title: Text('collection.duplicate'.tr()),
               onTap: () {
-                Navigator.pop(context);
-                onDuplicate();
+                Navigator.pop(sheetContext);
+                _run(context, onDuplicate);
               },
             ),
             ListTile(
               leading: const Icon(Icons.delete_outline),
               title: Text('common.delete'.tr()),
               onTap: () {
-                Navigator.pop(context);
-                onDelete();
+                Navigator.pop(sheetContext);
+                _run(context, onDelete);
               },
             ),
           ],

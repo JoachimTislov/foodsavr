@@ -32,7 +32,7 @@ class ReceiptScanView extends StatefulWidget {
 
   final String userId;
 
-  /// Receives the products a scanned receipt added, before the view closes.
+  /// Receives the products a scanned receipt added, also after the view closed.
   final ValueChanged<List<Product>>? onIngested;
 
   /// Inventory the scan was started from; null picks the default inventory.
@@ -248,6 +248,7 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
     setState(() => _isIngesting = true);
     final ingestion = getIt<ReceiptIngestionService>();
     final messenger = ScaffoldMessenger.of(context);
+    final onIngested = widget.onIngested;
     try {
       final result = await ingestion.ingestReceiptDetailed(
         receipt,
@@ -261,6 +262,9 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
           'Failed to save all ${receipt.positions.length} receipt items',
         );
       }
+      // Reported before the mounted check: the products are saved even when the
+      // view was closed meanwhile.
+      if (!result.alreadyAdded) onIngested?.call(result.savedProducts);
       if (!mounted) return;
       HapticFeedback.vibrate();
       messenger.showSnackBar(
@@ -274,7 +278,6 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
           ),
         ),
       );
-      if (!result.alreadyAdded) widget.onIngested?.call(result.savedProducts);
       Navigator.of(context).pop(!result.alreadyAdded);
     } catch (e) {
       if (!mounted) return;

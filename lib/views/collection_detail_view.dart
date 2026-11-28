@@ -347,46 +347,113 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       (item) => item.id != _currentCollection.id,
       orElse: () => inventories.first,
     );
-    final copy = await _productService.createProduct(product.copyWith(id: ''));
-    await _collectionService.addProductToCollection(destination.id, copy.id);
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('product.barcodeCreated'.tr())));
+    await _changeItem(product.id, () async {
+      try {
+        await _createInCollection(product.copyWith(id: ''), destination.id);
+      } catch (_) {
+        _showMessage('collection.duplicateError'.tr());
+        return;
+      }
+      _showMessage('product.barcodeCreated'.tr());
+    });
+  }
+
+  /// Saves [draft] as a new product in [collectionId]. It is deleted again if
+  /// it cannot be added, so a retry leaves no stray copy.
+  Future<void> _createInCollection(Product draft, String collectionId) async {
+    final saved = await _productService.createProduct(draft);
+    try {
+      await _collectionService.addProductToCollection(collectionId, saved.id);
+    } catch (_) {
+      await _productService.deleteProduct(saved.id);
+      rethrow;
     }
   }
 
-  Future<void> _deleteProduct(Product product) async {
-    await _productService.deleteProduct(product.id);
-    if (mounted) await _refreshCollectionAndProducts();
-  }
+  Future<void> _deleteProduct(Product product) =>
+      _changeItem(product.id, () async {
+        await _productService.deleteProduct(product.id);
+        if (mounted) await _refreshCollectionAndProducts();
+      });
 
   Future<void> _scanReceipt() async {
-    var scanned = const <Product>[];
-    // Receipt items land in an inventory, so the scanner reports them here.
     final ingested = await Navigator.of(context, rootNavigator: true)
         .push<bool>(
           MaterialPageRoute(
             fullscreenDialog: true,
             builder: (context) => ReceiptScanView(
               userId: _currentCollection.userId,
-              onIngested: (products) => scanned = products,
+              // Receipt items land in an inventory, so the scanner reports
+              // them here, even when it was closed while saving them.
+              onIngested: (products) =>
+                  unawaited(_recordPurchases(products, PurchaseSource.receipt)),
             ),
           ),
         );
-    if (ingested != true) return;
-    await _recordPurchases(scanned, PurchaseSource.receipt);
-    if (mounted) await _refreshCollectionAndProducts();
+    if (ingested == true && mounted) await _refreshCollectionAndProducts();
   }
 
   Future<void> _reAddPurchase(Map<String, dynamic> entry) async {
     final productId = entry['productId'] as String?;
     if (productId == null || productId.isEmpty) return;
-    await _collectionService.addProductToCollection(
-      _currentCollection.id,
-      productId,
+    await _changeItem(productId, () async {
+      try {
+        // The rules deny a direct read of a deleted product, so it is looked
+        // up in the user's products.
+        final products = await _productService.getProducts(
+          _currentCollection.userId,
+          forceRefresh: true,
+        );
+        if (products.any((product) => product.id == productId)) {
+          await _collectionService.addProductToCollection(
+            _currentCollection.id,
+            productId,
+          );
+        } else {
+          final name = entry['name']?.toString() ?? '';
+          final quantity = (entry['quantity'] as num?)?.toInt() ?? 1;
+          if (!mounted || !await _confirmRecreate(name, quantity)) return;
+          await _createInCollection(
+            Product(
+              id: '',
+              name: name,
+              description: '',
+              userId: _currentCollection.userId,
+              nonExpiringQuantity: quantity,
+            ),
+            _currentCollection.id,
+          );
+        }
+        if (mounted) await _refreshCollectionAndProducts();
+      } catch (_) {
+        _showMessage('common.somethingWentWrong'.tr());
+      }
+    });
+  }
+
+  Future<bool> _confirmRecreate(String name, int quantity) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('collection.recreateTitle'.tr()),
+        content: Text(
+          'collection.recreateMessage'.tr(
+            namedArgs: {'name': name, 'quantity': '$quantity'},
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('common.cancel'.tr()),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('common.create'.tr()),
+          ),
+        ],
+      ),
     );
-    if (mounted) await _refreshCollectionAndProducts();
+    return confirmed ?? false;
   }
 
   @override

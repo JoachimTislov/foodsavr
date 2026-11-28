@@ -240,6 +240,71 @@ void main() {
     expect(find.text('Could not move the product. Try again.'), findsOneWidget);
   });
 
+  testWidgets('a failed duplicate leaves no stray copy', (tester) async {
+    when(
+      () => collections.addProductToCollection('inv-1', any()),
+    ).thenAnswer((_) async => throw StateError('rejected'));
+    await pumpList(tester);
+
+    await tester.tap(find.byType(PopupMenuButton<String>).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Duplicate'));
+    await tester.pumpAndSettle();
+
+    expect(repository.added, hasLength(1));
+    expect(repository.products.map((p) => p.id), ['milk']);
+    expect(find.textContaining('Could not duplicate'), findsOneWidget);
+  });
+
+  testWidgets('re-adding a deleted product offers to create it again', (
+    tester,
+  ) async {
+    await history.record(userId, [
+      milk.copyWith(id: 'gone', name: 'Eggs', nonExpiringQuantity: 6),
+    ], PurchaseSource.manual);
+    when(() => collections.addProductToCollection('shop-1', any())).thenAnswer((
+      invocation,
+    ) async {
+      members = [...members, invocation.positionalArguments[1] as String];
+    });
+    await pumpList(tester);
+
+    await tester.tap(find.text('Re-add'));
+    await tester.pumpAndSettle();
+    expect(find.text('Create Eggs again with quantity 6?'), findsOneWidget);
+    expect(repository.added, isEmpty);
+    await tester.tap(find.text('Create'));
+    await tester.pumpAndSettle();
+
+    expect(repository.added.single.name, 'Eggs');
+    expect(repository.added.single.quantity, 6);
+    expect(members, ['milk', repository.added.single.id]);
+  });
+
+  for (final menu in ['popup', 'long-press']) {
+    testWidgets('a failed delete from the $menu menu is reported', (
+      tester,
+    ) async {
+      repository.deleteError = StateError('rejected');
+      await pumpList(tester);
+
+      if (menu == 'popup') {
+        await tester.tap(find.byType(PopupMenuButton<String>).last);
+      } else {
+        await tester.longPress(find.text('Milk').first);
+      }
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Something went wrong'), findsOneWidget);
+      expect(
+        tester.widget<Checkbox>(find.byType(Checkbox)).onChanged,
+        isNotNull,
+      );
+    });
+  }
+
   testWidgets('a partial move is reported after adding first', (tester) async {
     when(
       () => collections.removeProductFromCollection('shop-1', 'milk'),

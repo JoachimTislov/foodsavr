@@ -173,7 +173,10 @@
 		"movePartialError": "The product was added to the destination, but could not be removed from this list.",
 		"purchaseHistoryError": "Could not save the purchase history.",
 		"purchaseSourceManual": "Added by hand",
-		"purchaseSourceReceipt": "Receipt"
+		"purchaseSourceReceipt": "Receipt",
+		"duplicateError": "Could not duplicate the product. Try again.",
+		"recreateTitle": "Product no longer exists",
+		"recreateMessage": "Create {name} again with quantity {quantity}?"
 	},
 	"common": {
 		"add": "Add",
