@@ -1,0 +1,1 @@
+{"commits": ["e46430657449efd45a701aecfdbed4380a74d830"], "event": "wired scripts/test_seed_global_catalog.py into CI, reconciled BUNDLED_ENV_B64 wording, removed unused lib/utils/retry.dart (#532)", "session_id": "antigravity:f057fca8-7fb0-4cc1-acf9-0381bdbde90b", "stream": "ledger", "timestamp": "2026-11-28T08:54:33+00:00"}
