@@ -60,23 +60,77 @@ void main() {
         // No untranslated key shows.
         expect(find.textContaining(RegExp(r'camera\.[a-z]')), findsNothing);
 
-        final retry = status == CameraAccessStatus.prompt
+        final retryLabel = status == CameraAccessStatus.prompt
             ? (language == 'en' ? 'Allow camera' : 'Tillat kamera')
             : 'common.tryAgain'.tr();
-        await tester.tap(find.text(retry));
-        await tester.tap(find.text('manual'));
-        expect((retries, fallbacks), (1, 1));
+        final enableLabel = language == 'en'
+            ? 'Enable camera'
+            : 'Slå på kamera';
 
-        final enable = find.text(
-          language == 'en' ? 'Enable camera' : 'Slå på kamera',
-        );
-        if (status == CameraAccessStatus.disabledInSettings) {
-          await tester.tap(enable);
-          expect(enables, 1);
-        } else {
-          expect(enable, findsNothing);
+        switch (status) {
+          case CameraAccessStatus.unsupported ||
+              CameraAccessStatus.insecureContext:
+            expect(find.text(retryLabel), findsNothing);
+            expect(find.text(enableLabel), findsNothing);
+            expect(find.widgetWithText(FilledButton, 'manual'), findsOneWidget);
+            await tester.tap(find.widgetWithText(FilledButton, 'manual'));
+            expect((retries, enables, fallbacks), (0, 0, 1));
+          case CameraAccessStatus.noCamera:
+            expect(find.widgetWithText(FilledButton, 'manual'), findsOneWidget);
+            expect(
+              find.widgetWithText(OutlinedButton, retryLabel),
+              findsOneWidget,
+            );
+            expect(find.text(enableLabel), findsNothing);
+            await tester.tap(find.widgetWithText(OutlinedButton, retryLabel));
+            await tester.tap(find.widgetWithText(FilledButton, 'manual'));
+            expect((retries, enables, fallbacks), (1, 0, 1));
+          case CameraAccessStatus.disabledInSettings:
+            expect(find.text(retryLabel), findsNothing);
+            expect(
+              find.widgetWithText(FilledButton, enableLabel),
+              findsOneWidget,
+            );
+            expect(find.widgetWithText(TextButton, 'manual'), findsOneWidget);
+            await tester.tap(find.widgetWithText(FilledButton, enableLabel));
+            await tester.tap(find.widgetWithText(TextButton, 'manual'));
+            expect((retries, enables, fallbacks), (0, 1, 1));
+          case CameraAccessStatus.prompt ||
+              CameraAccessStatus.granted ||
+              CameraAccessStatus.denied ||
+              CameraAccessStatus.inUse:
+            expect(
+              find.widgetWithText(FilledButton, retryLabel),
+              findsOneWidget,
+            );
+            expect(find.widgetWithText(TextButton, 'manual'), findsOneWidget);
+            expect(find.text(enableLabel), findsNothing);
+            await tester.tap(find.widgetWithText(FilledButton, retryLabel));
+            await tester.tap(find.widgetWithText(TextButton, 'manual'));
+            expect((retries, enables, fallbacks), (1, 0, 1));
         }
       });
     }
   }
+
+  testWidgets(
+    'unsupported and insecureContext omit actions when no fallback exists',
+    (tester) async {
+      for (final status in [
+        CameraAccessStatus.unsupported,
+        CameraAccessStatus.insecureContext,
+      ]) {
+        await pumpLocalized(
+          tester,
+          Scaffold(
+            body: CameraPermissionCard(status: status, onRetry: () {}),
+          ),
+        );
+
+        expect(find.byType(FilledButton), findsNothing);
+        expect(find.byType(OutlinedButton), findsNothing);
+        expect(find.byType(TextButton), findsNothing);
+      }
+    },
+  );
 }

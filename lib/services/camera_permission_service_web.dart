@@ -64,13 +64,7 @@ class _BrowserCameraAccess implements CameraAccessPlatform {
     final blocker = _blocker;
     if (blocker != null) return blocker;
     try {
-      final stream = await web.window.navigator.mediaDevices
-          .getUserMedia(
-            web.MediaStreamConstraints(
-              video: {'facingMode': 'environment'}.jsify()!,
-            ),
-          )
-          .toDart;
+      final stream = await _openVideoStream();
       // Only the permission matters; release the camera at once.
       for (final track in stream.getTracks().toDart) {
         track.stop();
@@ -78,6 +72,31 @@ class _BrowserCameraAccess implements CameraAccessPlatform {
       return CameraAccessStatus.granted;
     } catch (error) {
       return statusForCameraErrorCode(_errorName(error));
+    }
+  }
+
+  /// Prefers the rear camera without requiring it, falling back to any camera
+  /// when the browser still rejects the constraint (for example on laptops).
+  Future<web.MediaStream> _openVideoStream() async {
+    try {
+      return await web.window.navigator.mediaDevices
+          .getUserMedia(
+            web.MediaStreamConstraints(
+              video: {
+                'facingMode': {'ideal': 'environment'},
+              }.jsify()!,
+            ),
+          )
+          .toDart;
+    } catch (error) {
+      final name = _errorName(error);
+      if (name != 'OverconstrainedError' &&
+          name != 'ConstraintNotSatisfiedError') {
+        rethrow;
+      }
+      return web.window.navigator.mediaDevices
+          .getUserMedia(web.MediaStreamConstraints(video: true.toJS))
+          .toDart;
     }
   }
 

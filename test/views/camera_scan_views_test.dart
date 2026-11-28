@@ -56,26 +56,38 @@ void main() {
   };
 
   for (final MapEntry(key: name, value: view) in views.entries) {
-    testWidgets('$name: names the problem and retry asks again', (
+    testWidgets('$name: insecureContext omits retry and offers fallback', (
       tester,
     ) async {
       harness.camera.current = CameraAccessStatus.insecureContext;
 
       await open(tester, view());
       expect(find.text('Secure connection required'), findsOneWidget);
+      expect(find.text('Try Again'), findsNothing);
       expect(harness.camera.requests, 0);
-
-      harness.camera.answer = CameraAccessStatus.denied;
-      await press(tester, 'Try Again');
-      expect(find.text('Camera permission denied'), findsOneWidget);
-
-      // Access granted, but this platform still cannot scan: say so.
-      harness.camera.answer = CameraAccessStatus.granted;
-      await press(tester, 'Try Again');
-      expect(find.text('Camera scanning is not available'), findsOneWidget);
-      expect(harness.camera.requests, 2);
       expect(tester.takeException(), isNull);
     }, variant: unsupported);
+
+    testWidgets(
+      '$name: denied retries and lands on unsupported without retry',
+      (tester) async {
+        harness.camera.current = CameraAccessStatus.denied;
+
+        await open(tester, view());
+        expect(find.text('Camera permission denied'), findsOneWidget);
+        expect(harness.camera.requests, 0);
+
+        // Access granted, but this platform still cannot scan: say so and stop
+        // offering a dead retry button.
+        harness.camera.answer = CameraAccessStatus.granted;
+        await press(tester, 'Try Again');
+        expect(find.text('Camera scanning is not available'), findsOneWidget);
+        expect(find.text('Try Again'), findsNothing);
+        expect(harness.camera.requests, 1);
+        expect(tester.takeException(), isNull);
+      },
+      variant: unsupported,
+    );
 
     testWidgets('$name: a camera turned off can be enabled in place', (
       tester,

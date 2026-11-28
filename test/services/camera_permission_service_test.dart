@@ -122,6 +122,7 @@ void main() {
       'CameraAccessDeniedWithoutPrompt': CameraAccessStatus.denied,
       'NotFoundError': CameraAccessStatus.noCamera,
       'OverconstrainedError': CameraAccessStatus.noCamera,
+      'ConstraintNotSatisfiedError': CameraAccessStatus.noCamera,
       'NotReadableError': CameraAccessStatus.inUse,
       'AbortError': CameraAccessStatus.inUse,
       'NotSupportedError': CameraAccessStatus.unsupported,
