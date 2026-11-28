@@ -30,6 +30,7 @@ import 'utils/env_loader.dart';
 import 'utils/app_check_storage.dart';
 import 'utils/app_locales.dart';
 import 'utils/startup_loader.dart';
+import 'widgets/common/app_zoom_wrapper.dart';
 
 const dummyOptions = FirebaseOptions(
   apiKey: 'AIzaSyDummyKeyForDemoOnly',
@@ -211,6 +212,8 @@ class MyApp extends StatelessWidget {
         darkTheme: AppTheme.darkTheme,
         themeMode: getIt<ThemeNotifier>().themeMode,
         scrollBehavior: const AppScrollBehavior(),
+        builder: (context, child) =>
+            AppZoomWrapper(child: child ?? const SizedBox.shrink()),
         routerConfig: router,
       ),
     );

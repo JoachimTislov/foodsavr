@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../constants/adaptive_layout.dart';
+import '../widgets/common/app_breadcrumbs.dart';
 import '../widgets/common/app_navigation_rail.dart';
 
 /// App shell: a bottom navigation bar on compact windows and a navigation rail
@@ -38,14 +39,16 @@ class _MainNavigationViewState extends State<MainNavigationView> {
     final width = MediaQuery.sizeOf(context).width;
     final shell = KeyedSubtree(key: _bodyKey, child: widget.navigationShell);
     final banner = widget.statusBanner;
-    final body = banner == null
-        ? shell
-        : Column(
-            children: [
-              banner,
-              Expanded(child: shell),
-            ],
-          );
+    final body = AppBreadcrumbs(
+      child: banner == null
+          ? shell
+          : Column(
+              children: [
+                banner,
+                Expanded(child: shell),
+              ],
+            ),
+    );
     final selectedIndex = widget.navigationShell.currentIndex;
 
     if (WindowSize.fromWidth(width).isCompact) {
