@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -14,6 +15,8 @@ import 'secure_storage_service.dart';
 
 @LazySingleton(as: IAuthService)
 class AuthService implements IAuthService {
+  static const defaultPopupTimeout = Duration(seconds: 30);
+
   final FirebaseAuth _firebaseAuth;
   final GoogleSignIn _googleSignIn;
   final FacebookAuth _facebookAuth;
@@ -23,6 +26,7 @@ class AuthService implements IAuthService {
   final SecureStorage _secureStorage;
   final Logger _logger;
   final IErrorReporter _errorReporter;
+  final Duration _popupTimeout;
 
   AuthService(
     this._firebaseAuth, {
@@ -41,7 +45,30 @@ class AuthService implements IAuthService {
        _accountDataRepository = accountDataRepository,
        _secureStorage = secureStorage,
        _logger = logger,
-       _errorReporter = errorReporter;
+       _errorReporter = errorReporter,
+       _popupTimeout = defaultPopupTimeout;
+
+  @visibleForTesting
+  AuthService.withPopupTimeout(
+    this._firebaseAuth, {
+    required GoogleSignIn googleSignIn,
+    required FacebookAuth facebookAuth,
+    required bool supportsPersistence,
+    required bool isWeb,
+    required IAccountDataRepository accountDataRepository,
+    required SecureStorage secureStorage,
+    required Logger logger,
+    required IErrorReporter errorReporter,
+    Duration popupTimeout = defaultPopupTimeout,
+  }) : _googleSignIn = googleSignIn,
+       _facebookAuth = facebookAuth,
+       _supportsPersistence = supportsPersistence,
+       _isWeb = isWeb,
+       _accountDataRepository = accountDataRepository,
+       _secureStorage = secureStorage,
+       _logger = logger,
+       _errorReporter = errorReporter,
+       _popupTimeout = popupTimeout;
 
   @override
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
@@ -224,9 +251,18 @@ class AuthService implements IAuthService {
     return FacebookAuthProvider.credential(token);
   }
 
-  Future<UserCredential> _signInWithPopup(AuthProvider provider) async {
+  Future<UserCredential> _signInWithPopup(AuthProvider provider) =>
+      _runWebPopup(() => _firebaseAuth.signInWithPopup(provider));
+
+  Future<T> _runWebPopup<T>(Future<T> Function() action) async {
     try {
-      return await _firebaseAuth.signInWithPopup(provider);
+      return await action().timeout(
+        _popupTimeout,
+        onTimeout: () => throw FirebaseAuthException(
+          code: 'popup-timeout',
+          message: 'Authentication popup timed out',
+        ),
+      );
     } on FirebaseAuthException catch (e) {
       if (e.code == 'popup-closed-by-user' ||
           e.code == 'cancelled-popup-request') {
@@ -357,13 +393,17 @@ class AuthService implements IAuthService {
       );
     } else if (providers.contains(GoogleAuthProvider.PROVIDER_ID)) {
       if (_isWeb) {
-        await user.reauthenticateWithPopup(GoogleAuthProvider());
+        await _runWebPopup(
+          () => user.reauthenticateWithPopup(GoogleAuthProvider()),
+        );
       } else {
         await user.reauthenticateWithCredential(await _googleCredential());
       }
     } else if (providers.contains(FacebookAuthProvider.PROVIDER_ID)) {
       if (_isWeb) {
-        await user.reauthenticateWithPopup(FacebookAuthProvider());
+        await _runWebPopup(
+          () => user.reauthenticateWithPopup(FacebookAuthProvider()),
+        );
       } else {
         await user.reauthenticateWithCredential(await _facebookCredential());
       }
@@ -389,7 +429,7 @@ class AuthService implements IAuthService {
   Future<void> linkGoogleProvider() async {
     final user = _linkableUser();
     if (_isWeb) {
-      await user.linkWithPopup(GoogleAuthProvider());
+      await _runWebPopup(() => user.linkWithPopup(GoogleAuthProvider()));
     } else {
       await user.linkWithCredential(await _googleCredential());
     }
@@ -400,7 +440,7 @@ class AuthService implements IAuthService {
   Future<void> linkFacebookProvider() async {
     final user = _linkableUser();
     if (_isWeb) {
-      await user.linkWithPopup(FacebookAuthProvider());
+      await _runWebPopup(() => user.linkWithPopup(FacebookAuthProvider()));
     } else {
       await user.linkWithCredential(await _facebookCredential());
     }

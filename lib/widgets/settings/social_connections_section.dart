@@ -29,6 +29,13 @@ class _SocialConnectionsSectionState extends State<SocialConnectionsSection> {
   late final IAuthService _authService =
       widget.authService ?? getIt<IAuthService>();
   SignInProvider? _linking;
+  int _attemptId = 0;
+
+  void _cancelLink() {
+    if (_linking == null) return;
+    _attemptId++;
+    setState(() => _linking = null);
+  }
 
   Future<void> _link(
     SignInProvider provider,
@@ -36,15 +43,18 @@ class _SocialConnectionsSectionState extends State<SocialConnectionsSection> {
     Future<void> Function() link,
   ) async {
     if (_linking != null) return;
+    final attemptId = ++_attemptId;
     setState(() => _linking = provider);
     String? message;
     try {
       await link();
+      if (attemptId != _attemptId) return;
       message = 'settings.connections.linkSuccess'.tr(
         namedArgs: {'provider': name},
       );
       widget.onChanged?.call();
     } catch (error) {
+      if (attemptId != _attemptId) return;
       final code = error is FirebaseAuthException
           ? error.code
           : error.runtimeType.toString();
@@ -63,9 +73,12 @@ class _SocialConnectionsSectionState extends State<SocialConnectionsSection> {
       if (message != null) {
         getIt<Logger>().w('Could not link ${provider.name}: $code');
       }
+    } finally {
+      if (mounted && attemptId == _attemptId) {
+        setState(() => _linking = null);
+      }
     }
-    if (!mounted) return;
-    setState(() => _linking = null);
+    if (!mounted || attemptId != _attemptId) return;
     if (message != null) {
       ScaffoldMessenger.of(
         context,
@@ -109,6 +122,7 @@ class _SocialConnectionsSectionState extends State<SocialConnectionsSection> {
             onConnect: _linking != null
                 ? null
                 : () => _link(entry.provider, entry.name, entry.link),
+            onCancel: _linking == entry.provider ? _cancelLink : null,
           ),
         if (account == null)
           SettingsActionRow(

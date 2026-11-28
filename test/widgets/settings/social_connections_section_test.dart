@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -96,6 +98,57 @@ void main() {
       expect(find.text('Connect'), findsNWidgets(2));
     });
   }
+
+  testWidgets('hanging Facebook link can be cancelled immediately', (
+    tester,
+  ) async {
+    useUser(signedInUser([providerInfo('password')]));
+    final completer = Completer<void>();
+    when(() => auth.linkFacebookProvider()).thenAnswer((_) => completer.future);
+    var changes = 0;
+    await pumpSection(tester, onChanged: () => changes++);
+
+    await tester.tap(find.text('Connect').last);
+    await tester.pump();
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    final cancelButton = find.byTooltip('Cancel');
+    expect(cancelButton, findsOneWidget);
+
+    await tester.tap(cancelButton);
+    await tester.pump();
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Connect'), findsNWidgets(2));
+
+    // Late error from the abandoned popup must not disrupt the UI.
+    completer.completeError(FirebaseAuthException(code: 'popup-timeout'));
+    await tester.pumpAndSettle();
+
+    expect(changes, 0);
+    expect(find.byType(SnackBar), findsNothing);
+    expect(find.text('Connect'), findsNWidgets(2));
+  });
+
+  testWidgets('Facebook popup timeout clears busy state and shows error', (
+    tester,
+  ) async {
+    useUser(signedInUser([providerInfo('password')]));
+    when(
+      () => auth.linkFacebookProvider(),
+    ).thenThrow(FirebaseAuthException(code: 'popup-timeout'));
+    await pumpSection(tester);
+
+    await tester.tap(find.text('Connect').last);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Connect'), findsNWidgets(2));
+    expect(
+      find.text('Facebook sign-in failed. Try again or sign in with email.'),
+      findsOneWidget,
+    );
+  });
 
   testWidgets('tells a guest that linking needs an account', (tester) async {
     useUser(signedInUser([], isAnonymous: true, email: null));

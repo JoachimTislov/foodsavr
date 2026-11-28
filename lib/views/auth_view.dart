@@ -127,6 +127,9 @@ class _AuthViewState extends State<AuthView> {
                       isLoading: _controller.isLoading,
                       onGooglePressed: _signInWithGoogle,
                       onFacebookPressed: _signInWithFacebook,
+                      onCancel: _controller.isSocialSignInLoading
+                          ? _controller.cancelSocialSignIn
+                          : null,
                       // The divider sets guest access apart.
                       showDivider: offersGuest,
                     ),

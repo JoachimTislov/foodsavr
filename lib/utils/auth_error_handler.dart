@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -54,6 +56,13 @@ class AuthErrorHandler {
         SignInProvider.guest => tr('auth.error.guest_unavailable'),
       };
     }
+    if (error is TimeoutException || code == 'popup-timeout') {
+      return switch (provider) {
+        SignInProvider.google => tr('auth.error.google_failed'),
+        SignInProvider.facebook => tr('auth.error.facebook_failed'),
+        SignInProvider.guest => tr('auth.error.guest_failed'),
+      };
+    }
     return switch (code) {
       'popup-blocked' => tr('auth.error.popup_blocked'),
       'web-storage-unsupported' => tr('auth.error.web_storage_unsupported'),
@@ -69,6 +78,9 @@ class AuthErrorHandler {
   }
 
   static String getErrorMessage(Object error) {
+    if (error is TimeoutException) {
+      return 'auth.error.unknown'.tr();
+    }
     if (error is FirebaseAuthException) {
       switch (error.code) {
         case 'user-not-found':
