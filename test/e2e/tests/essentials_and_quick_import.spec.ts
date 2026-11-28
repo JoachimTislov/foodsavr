@@ -58,15 +58,15 @@ test.beforeEach(async () => {
   await deleteUserProducts(uid);
   await seedGlobalEssential({
     id: 'global-milk-whole',
-    name: 'Whole Milk',
-    description: 'Fresh whole milk, 1 l',
+    name: 'Helmelk',
+    description: 'Fersk helmelk, 1 l',
     category: 'dairy',
     barcode: '7090000000011',
   });
   await seedGlobalEssential({
     id: 'global-apples',
-    name: 'Apples',
-    description: 'Fresh apples, 1 kg',
+    name: 'Epler',
+    description: 'Friske epler, 1 kg',
     category: 'fruits',
     barcode: '7090000000103',
   });
@@ -107,18 +107,18 @@ test('quick imports a pasted shopping list into an empty shopping list', async (
   // like a user rather than calling .fill() on the multiline textarea.
   await input.click();
   await expect(input).toBeFocused();
-  await page.keyboard.type('2x Whole Milk, Bread', { delay: 20 });
+  await page.keyboard.type('2x Helmelk, Grovbrød', { delay: 20 });
   await page.keyboard.press('Enter');
-  await page.keyboard.type('- Apples', { delay: 20 });
+  await page.keyboard.type('- Epler', { delay: 20 });
 
   const importButton = page.getByRole('button', { name: 'Import 3 items' });
   await expect(importButton).toBeVisible({ timeout: 10_000 });
   await expect(importButton).toBeEnabled();
   await importButton.click();
 
-  await expect(page.getByText('Whole Milk').first()).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText('Bread').first()).toBeVisible();
-  await expect(page.getByText('Apples').first()).toBeVisible();
+  await expect(page.getByText('Helmelk').first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Grovbrød').first()).toBeVisible();
+  await expect(page.getByText('Epler').first()).toBeVisible();
 });
 
 test('browses and adds global essentials into a shopping list', async ({ page }) => {
@@ -138,10 +138,10 @@ test('browses and adds global essentials into a shopping list', async ({ page })
 
   await page.getByRole('button', { name: 'Select Products' }).click();
   await expect(page.getByText('Essentials').first()).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText('Whole Milk').first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('Helmelk').first()).toBeVisible({ timeout: 10_000 });
 
-  await page.getByText('Whole Milk').first().click();
+  await page.getByText('Helmelk').first().click();
   await page.getByRole('button', { name: 'Add 1 item' }).click();
 
-  await expect(page.getByText('Whole Milk').first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Helmelk').first()).toBeVisible({ timeout: 15_000 });
 });
