@@ -1,0 +1,1 @@
+{"commits": ["7936682c3f12f13eea6438c74de5a8446512cddc"], "event": "Moved global product seeding to products and verified catalog visibility on a rules-loaded emulator", "prs": ["#541"], "session_id": "claude-code:24cfdb3d-b6f2-485d-ad39-9272c08c40a3", "stream": "ledger", "timestamp": "2026-11-28T00:04:01+00:00"}
