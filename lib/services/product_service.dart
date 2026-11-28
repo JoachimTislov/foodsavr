@@ -43,12 +43,97 @@ class ProductService {
     _cacheGeneration++;
   }
 
-  String _normalizeBarcode(String barcode) {
+  /// [barcode] as scanned products store it: padded to 13 characters.
+  static String normalizeBarcode(String barcode) {
     var normalized = barcode.trim();
     if (normalized.length < 13) {
       normalized = normalized.padLeft(13, '0');
     }
     return normalized;
+  }
+
+  static Product? _findByBarcode(List<Product> products, String barcode) {
+    final normalized = normalizeBarcode(barcode);
+    return products
+        .where((p) => p.barcode == normalized || p.barcode == barcode)
+        .firstOrNull;
+  }
+
+  /// The last positive preview, handed to the add that follows it.
+  (String, OffFound)? _previewed;
+
+  /// Looks up [barcode] without saving anything. Open Food Facts is searched
+  /// for similar products when neither the user nor it knows the barcode.
+  Future<ProductLookupResult> lookupByBarcode({
+    required String? userId,
+    required String barcode,
+    String languageCode = 'nb',
+  }) async {
+    final normalized = normalizeBarcode(barcode);
+    if (userId != null &&
+        _findByBarcode(await getProducts(userId), barcode.trim()) != null) {
+      return const ProductLookupResult(owned: true);
+    }
+    final lookup = await _offClient.lookup(
+      normalized,
+      languageCode: languageCode,
+    );
+    switch (lookup) {
+      case OffFound(:final product):
+        _previewed = (normalized, lookup);
+        return ProductLookupResult(candidates: [product], exact: true);
+      case OffOffline():
+        return const ProductLookupResult(offline: true);
+      case OffNotFound():
+        return searchCatalog(barcode.trim(), languageCode: languageCode);
+    }
+  }
+
+  /// Searches Open Food Facts by name, brand or partial text.
+  Future<ProductLookupResult> searchCatalog(
+    String query, {
+    String languageCode = 'nb',
+  }) async => switch (await _offClient.searchProducts(
+    query,
+    languageCode: languageCode,
+  )) {
+    OffSearchFound(:final products) => ProductLookupResult(
+      candidates: products,
+    ),
+    OffSearchEmpty() => const ProductLookupResult(),
+    OffSearchOffline() => const ProductLookupResult(offline: true),
+  };
+
+  /// The app category that Open Food Facts [tags] point to, or null.
+  static String? categoryForTags(List<String> tags) {
+    const markers = {
+      'dairy': ['dairies', 'milks', 'cheeses', 'yogurts', 'eggs'],
+      'bakery': ['breads', 'pastries', 'bakery'],
+      'vegetables': ['vegetables', 'salads'],
+      'fruits': ['fruits'],
+      'pantry': [
+        'canned-foods',
+        'pastas',
+        'rices',
+        'cereals',
+        'condiments',
+        'sauces',
+        'dried-products',
+      ],
+    };
+    // Open Food Facts lists tags from broad to specific, and broad ones such
+    // as "fruits-and-vegetables-based-foods" name more than one category.
+    for (final tag in tags.reversed) {
+      final name = tag.split(':').last.toLowerCase();
+      for (final entry in markers.entries) {
+        if (entry.value.any(
+          (marker) => name == marker || name.endsWith('-$marker'),
+        )) {
+          return entry.key;
+        }
+      }
+    }
+    return null;
   }
 
   Future<ScanAddProductResult> addOrIncrementByBarcode({
@@ -62,16 +147,12 @@ class ProductService {
       throw ArgumentError('Barcode cannot be empty');
     }
 
-    final normalizedBarcode = _normalizeBarcode(trimmedBarcode);
+    final normalizedBarcode = normalizeBarcode(trimmedBarcode);
 
-    final products = await _productRepository.getProducts(userId);
-    Product? existingProduct;
-    for (final product in products) {
-      if (product.barcode == normalizedBarcode || product.barcode == barcode) {
-        existingProduct = product;
-        break;
-      }
-    }
+    final existingProduct = _findByBarcode(
+      await _productRepository.getProducts(userId),
+      barcode,
+    );
 
     if (existingProduct != null) {
       _logger.i('Barcode matched existing product: ${existingProduct.name}');
@@ -104,10 +185,14 @@ class ProductService {
       );
     }
 
-    final lookup = await _offClient.lookup(
-      normalizedBarcode,
-      languageCode: languageCode,
-    );
+    final previewed = _previewed;
+    _previewed = null;
+    final lookup = previewed != null && previewed.$1 == normalizedBarcode
+        ? previewed.$2
+        : await _offClient.lookup(
+            normalizedBarcode,
+            languageCode: languageCode,
+          );
     switch (lookup) {
       case OffFound(product: final data):
         final estimatedExpiry = _estimateFromTags(data.tags);
@@ -457,6 +542,26 @@ class ProductService {
       rethrow;
     }
   }
+}
+
+/// What a barcode or catalog lookup found, before anything is saved.
+class ProductLookupResult {
+  /// Open Food Facts products the user can choose from.
+  final List<OffProductData> candidates;
+
+  /// Open Food Facts knows exactly the barcode that was looked up.
+  final bool exact;
+
+  /// The user already has a product with the barcode.
+  final bool owned;
+  final bool offline;
+
+  const ProductLookupResult({
+    this.candidates = const [],
+    this.exact = false,
+    this.owned = false,
+    this.offline = false,
+  });
 }
 
 class ScanAddProductResult {

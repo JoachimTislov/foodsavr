@@ -7,13 +7,16 @@ import '../models/product_model.dart';
 import '../service_locator.dart';
 import '../services/product_service.dart';
 import '../services/collection_service.dart';
+import '../services/open_food_facts_client.dart';
 import '../interfaces/i_auth_service.dart';
 import '../widgets/product/quantity_section.dart';
 import '../views/expiry_scan_view.dart';
 import '../widgets/product/expiries_section.dart';
 import '../widgets/product/global_essentials_picker.dart';
+import '../widgets/product/product_lookup_panel.dart';
 import '../constants/product_categories.dart';
 import '../widgets/common/adaptive_sheet.dart';
+import '../utils/expiry_date_picker.dart';
 import '../utils/user_error.dart';
 
 class ProductFormView extends StatelessWidget {
@@ -23,26 +26,32 @@ class ProductFormView extends StatelessWidget {
   /// An unsaved product (for example from a barcode scan) that prefills the
   /// form; saving it creates a new product.
   final Product? prefill;
+
+  /// An Open Food Facts product that prefills a new product.
+  final OffProductData? candidate;
   final String? initialCollectionId;
 
   const ProductFormView({
     super.key,
     this.product,
     this.prefill,
+    this.candidate,
     this.initialCollectionId,
   }) : assert(product == null || prefill == null);
 
   /// Shows the product form as a bottom sheet on Compact windows and a dialog
   /// on wider ones.
   /// Pass [product] to edit an existing product, or [prefill] to create a new
-  /// one from partial data. Returns `true` if a product was saved.
+  /// one from partial data, or [candidate] to create one from a catalog match.
+  /// Returns `true` if a product was saved.
   static Future<bool?> show(
     BuildContext context, {
     Product? product,
     Product? prefill,
+    OffProductData? candidate,
     String? collectionId,
   }) async {
-    assert(product == null || prefill == null);
+    assert(product == null || (prefill == null && candidate == null));
     // A new product without a target goes to the default inventory.
     if (product == null && collectionId == null) {
       collectionId = await getIt<PreferencesController>()
@@ -54,6 +63,7 @@ class ProductFormView extends StatelessWidget {
       builder: (_) => _ProductFormContent(
         product: product,
         prefill: prefill,
+        candidate: candidate,
         initialCollectionId: collectionId,
       ),
     );
@@ -68,11 +78,13 @@ class ProductFormView extends StatelessWidget {
 class _ProductFormContent extends StatefulWidget {
   final Product? product;
   final Product? prefill;
+  final OffProductData? candidate;
   final String? initialCollectionId;
 
   const _ProductFormContent({
     this.product,
     this.prefill,
+    this.candidate,
     this.initialCollectionId,
   });
 
@@ -104,6 +116,9 @@ class _ProductFormContentState extends State<_ProductFormContent> {
   bool _isSaving = false;
   bool _browsingEssentials = false;
   Product? _selectedEssential;
+  String? _barcode;
+  String? _imageUrl;
+  List<String> _tags = const [];
 
   final _shelfLife = ShelfLifeInferer();
 
@@ -137,6 +152,10 @@ class _ProductFormContentState extends State<_ProductFormContent> {
     _selectedCategory = ProductCategory.normalize(source?.category);
     _nonExpiringQuantity = source?.nonExpiringQuantity ?? 0;
     _expiries = List.from(source?.expiries ?? []);
+    _barcode = source?.barcode;
+    _imageUrl = source?.imageUrl;
+    _tags = source?.tags ?? const [];
+    if (widget.candidate case final candidate?) _fillFrom(candidate);
   }
 
   @override
@@ -153,12 +172,40 @@ class _ProductFormContentState extends State<_ProductFormContent> {
       _nameController.text = essential.name;
       _descriptionController.text = essential.description;
       _selectedCategory = normalizedCategory;
+      final source = widget.prefill;
+      _barcode = essential.barcode ?? source?.barcode;
+      _imageUrl = essential.imageUrl ?? source?.imageUrl;
+      _tags = essential.tags.isNotEmpty
+          ? essential.tags
+          : source?.tags ?? const [];
       _browsingEssentials = false;
-      _refreshSuggestedExpiry();
-      if (_expiries.isEmpty && _nonExpiringQuantity == 0) {
-        _nonExpiringQuantity = 1;
-      }
+      _ensureStock();
     });
+  }
+
+  /// Prefills the form with a catalog match, replacing an earlier choice.
+  void _fillFrom(OffProductData candidate) {
+    _selectedEssential = null;
+    if (candidate.name case final name? when name.trim().isNotEmpty) {
+      _nameController.text = name;
+    }
+    final barcode = candidate.barcode;
+    _barcode = barcode == null
+        ? widget.prefill?.barcode
+        : ProductService.normalizeBarcode(barcode);
+    _imageUrl = candidate.imageUrl;
+    _tags = candidate.tags;
+    _selectedCategory =
+        ProductService.categoryForTags(candidate.tags) ?? _selectedCategory;
+    _ensureStock();
+  }
+
+  /// Suggests an expiry for the new choice and keeps at least one unit.
+  void _ensureStock() {
+    _refreshSuggestedExpiry();
+    if (_expiries.isEmpty && _nonExpiringQuantity == 0) {
+      _nonExpiringQuantity = 1;
+    }
   }
 
   Future<void> _quickAddEssential(Product essential) async {
@@ -177,6 +224,11 @@ class _ProductFormContentState extends State<_ProductFormContent> {
           : DateUtils.dateOnly(
               DateTime.now().add(Duration(days: estimate.days)),
             );
+      // Dates the user already captured win over the category suggestion.
+      final captured = [
+        for (final entry in _expiries)
+          if (!identical(entry, _suggested)) entry,
+      ];
       final product = Product(
         id: '',
         name: essential.name,
@@ -187,10 +239,15 @@ class _ProductFormContentState extends State<_ProductFormContent> {
         imageUrl: essential.imageUrl,
         tags: essential.tags,
         mappedFromProductId: essential.id,
-        expiries: suggestedDate != null
-            ? [ExpiryEntry(quantity: 1, expirationDate: suggestedDate)]
-            : const [],
-        nonExpiringQuantity: suggestedDate == null ? 1 : 0,
+        expiries: captured.isNotEmpty
+            ? captured
+            : [
+                if (suggestedDate != null)
+                  ExpiryEntry(quantity: 1, expirationDate: suggestedDate),
+              ],
+        nonExpiringQuantity: captured.isNotEmpty
+            ? _nonExpiringQuantity
+            : (suggestedDate == null ? 1 : 0),
       );
       final collectionId = widget.initialCollectionId;
       final created = await _productService.createProduct(
@@ -245,11 +302,9 @@ class _ProductFormContentState extends State<_ProductFormContent> {
         expiries: _expiries,
         nonExpiringQuantity: _nonExpiringQuantity,
         category: _selectedCategory,
-        barcode: essential?.barcode ?? base.barcode,
-        imageUrl: essential?.imageUrl ?? base.imageUrl,
-        tags: essential != null && essential.tags.isNotEmpty
-            ? essential.tags
-            : base.tags,
+        barcode: _barcode,
+        imageUrl: _imageUrl,
+        tags: _tags,
         mappedFromProductId: essential?.id ?? base.mappedFromProductId,
       );
 
@@ -376,6 +431,37 @@ class _ProductFormContentState extends State<_ProductFormContent> {
               padding: const EdgeInsets.symmetric(vertical: 8),
               shrinkWrap: true,
               children: [
+                if (!_isEditing) ...[
+                  ProductLookupPanel(
+                    keepBarcodeLabel: 'product.lookup.keepBarcode'.tr(),
+                    onCandidate: (candidate) =>
+                        setState(() => _fillFrom(candidate)),
+                    onKeepBarcode: (barcode) => setState(
+                      () => _barcode = ProductService.normalizeBarcode(barcode),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (_barcode case final barcode?) ...[
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: const ExcludeSemantics(
+                        child: Icon(Icons.qr_code_2),
+                      ),
+                      title: Text(
+                        'product.lookup.attachedBarcode'.tr(
+                          namedArgs: {'barcode': barcode},
+                        ),
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.close),
+                        tooltip: 'product.lookup.removeBarcode'.tr(),
+                        onPressed: () => setState(() => _barcode = null),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ],
                 TextFormField(
                   controller: _nameController,
                   autofocus: true,
@@ -454,9 +540,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Text(
-                      _isEditing ? 'common.save'.tr() : 'common.create'.tr(),
-                    ),
+                  : Text(_isEditing ? 'common.save'.tr() : 'product.add'.tr()),
             ),
           ),
         ),
@@ -466,6 +550,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
 
   DateTime? _estimatedExpiry() {
     final estimate = _shelfLife.estimate(
+      tags: _tags,
       category: _selectedCategory,
       normalizedName: _nameController.text.trim().toLowerCase(),
     );
@@ -499,27 +584,12 @@ class _ProductFormContentState extends State<_ProductFormContent> {
   }
 
   Future<void> _scanExpiry() async {
-    final date = await Navigator.of(context, rootNavigator: true)
-        .push<DateTime>(
-          MaterialPageRoute(
-            fullscreenDialog: true,
-            builder: (context) => const ExpiryScanView(),
-          ),
-        );
+    final date = await ExpiryScanView.show(context);
     if (date != null && mounted) _acceptExpiry(date);
   }
 
   Future<void> _addExpiry() async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate:
-          _estimatedExpiry() ??
-          DateTime.now().add(
-            Duration(days: getIt<PreferencesController>().expiringSoonDays + 1),
-          ),
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 365 * 10)),
-    );
+    final date = await pickExpiryDate(context, initialDate: _estimatedExpiry());
 
     if (date != null && mounted) _acceptExpiry(date);
   }

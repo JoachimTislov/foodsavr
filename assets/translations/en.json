@@ -86,6 +86,38 @@
 			"privacy": "Privacy Policy"
 		}
 	},
+	"camera": {
+		"allow": "Allow camera",
+		"enable": "Enable camera",
+		"prompt": {
+			"title": "Camera access",
+			"message": "Allow the camera to scan with it. Your browser or device asks you to confirm."
+		},
+		"disabled": {
+			"title": "Camera access is off",
+			"message": "You turned the camera off in Settings. Turn it on to scan."
+		},
+		"denied": {
+			"title": "Camera permission denied",
+			"message": "Your browser or device blocked the camera. Allow it in the site or system settings, then try again."
+		},
+		"noCamera": {
+			"title": "No camera found",
+			"message": "This device has no camera we can use. Connect one and try again."
+		},
+		"insecureContext": {
+			"title": "Secure connection required",
+			"message": "Browsers only allow the camera over HTTPS. Open the app with an https:// address."
+		},
+		"inUse": {
+			"title": "The camera could not start",
+			"message": "Another app or browser tab may be using it. Close it, then try again."
+		},
+		"unsupported": {
+			"title": "Camera scanning is not available",
+			"message": "Live scanning is not supported in this browser or on this device yet. The Android and iOS apps can scan."
+		}
+	},
 	"collection": {
 		"saveError": "Could not save the collection. Try again.",
 		"deleteTitle": "Delete {name}?",
@@ -166,7 +198,7 @@
 	"dashboard": {
 		"actions": "Quick Actions",
 		"browseProducts": "Browse products",
-		"createProduct": "Create Product",
+		"createProduct": "Add Product",
 		"createShoppingList": "New Shopping List",
 		"expired": "Expired",
 		"expiredCount": {
@@ -223,7 +255,6 @@
 		"barcodeMatched": "Updated existing product \"{name}\"",
 		"barcodeNotFound": "Product not found. Be the first to add it!",
 		"barcodeOffline": "You are offline: the barcode is saved and will be looked up later",
-		"barcodeNumber": "Barcode number",
 		"category": "Category",
 		"compact": "Compact",
 		"daysRemaining": "{days} days remaining",
@@ -236,6 +267,26 @@
 		"details": "Product Details",
 		"edit": "Edit Product",
 		"enterBarcodeManually": "Enter barcode manually",
+		"expiryFirst": "Start with the expiry date",
+		"expiryDateHelp": "Select the expiry date",
+		"notProductBarcode": "That code is not a product barcode. Keep scanning.",
+		"lookup": {
+			"field": "Barcode or product name",
+			"search": "Search",
+			"validStandard": "Valid product barcode",
+			"invalidCheckDigit": "The check digit does not match. Check the number; you can still use it.",
+			"validCustom": "Store or custom barcode",
+			"invalidFormat": "A barcode has 4 to 32 digits.",
+			"offline": "Open Food Facts could not be reached. Check your connection and try again.",
+			"owned": "You already have a product with this barcode.",
+			"noBarcodeMatch": "No product found for {barcode}. Try another barcode, or add it yourself.",
+			"noResults": "No matching products. Try other words.",
+			"results": "Matches from Open Food Facts",
+			"addWithBarcode": "Add product with this barcode",
+			"keepBarcode": "Use this barcode",
+			"attachedBarcode": "Barcode: {barcode}",
+			"removeBarcode": "Remove barcode"
+		},
 		"errorLoading": "Error loading products",
 		"expiration_breakdown": "Expiration Breakdown",
 		"expirations": "Expirations",
@@ -260,10 +311,8 @@
 		"enterExpiryManually": "Enter expiry manually",
 		"scanBarcodeHint": "Align the barcode inside the frame",
 		"scanSingleBarcodeHint": "Multiple barcodes detected. Focus on one barcode.",
-		"scanUnavailable": "Barcode scanner unavailable: {error}",
-		"barcodeCameraUnavailable": "Camera unavailable. Enter the barcode below.",
 		"toggleScannerFlash": "Toggle flashlight",
-		"expiryScanUnavailable": "Expiry scanner unavailable: {error}",
+		"expiryScanUnavailable": "The expiry date could not be read. Try again or enter it manually.",
 		"search_hint": "Search your pantry...",
 		"select": "Select Products",
 		"soonest_expiration": "Soonest Expiration",
@@ -445,6 +494,7 @@
 		"progress": "Recognized: {percent}% · {items} items",
 		"addItems": "Add items to inventory",
 		"ingestError": "Failed to add receipt items: {error}",
+		"addManually": "Add product manually",
 		"targetInventory": "Add to inventory",
 		"added": "Added {count} items",
 		"alreadyAdded": "This receipt was already added"
