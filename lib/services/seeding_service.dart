@@ -163,7 +163,7 @@ class SeedingService {
     return addedIds;
   }
 
-  /// Seeds global products catalog.
+  /// Seeds the global catalog into `products`, where the app reads it.
   Future<void> seedGlobalProducts() async {
     final productsData = GlobalProductsData.getProducts();
 
@@ -179,7 +179,13 @@ class SeedingService {
         barcode: data['barcode'] as String?,
       );
 
-      await postToFirestore('global_products', id, product.toFirestoreRest());
+      // Only admins may write global products under firestore.rules.
+      await postToFirestore(
+        'products',
+        id,
+        product.toFirestoreRest(),
+        bypassRules: true,
+      );
     }
   }
 
@@ -208,17 +214,24 @@ class SeedingService {
   }
 
   /// Generic method to patch a document in Firestore REST API.
+  ///
+  /// [bypassRules] sends the emulator's `owner` token, which skips
+  /// firestore.rules. Real projects reject it.
   Future<void> postToFirestore(
     String collection,
     String documentId,
-    Map<String, dynamic> fields,
-  ) async {
+    Map<String, dynamic> fields, {
+    bool bypassRules = false,
+  }) async {
     final url =
         'http://$host:$firestorePort/v1/projects/$projectId/databases/(default)/documents/$collection/$documentId';
     final response = await client
         .patch(
           Uri.parse(url),
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            if (bypassRules) 'Authorization': 'Bearer owner',
+          },
           body: jsonEncode({'fields': fields}),
         )
         .timeout(const Duration(seconds: 5));

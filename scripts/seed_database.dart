@@ -116,6 +116,7 @@ Future<void> main() async {
         userId: 'global',
         isGlobal: true,
         category: data['category'] as String?,
+        barcode: data['barcode'] as String?,
         registryType: 'global',
       );
       allRecords.add(
