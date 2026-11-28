@@ -1,21 +1,23 @@
-import 'dart:io';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:logger/logger.dart';
 import 'package:receipt_recognition/receipt_recognition.dart';
 
+import '../constants/material3_config.dart';
 import '../controllers/preferences_controller.dart';
 import '../models/collection_model.dart';
 import '../service_locator.dart';
+import '../services/barcode_scanner_service.dart';
+import '../services/camera_permission_service.dart';
 import '../services/collection_service.dart';
 import '../services/receipt_ingestion_service.dart';
 import '../utils/collection_types.dart';
+import '../widgets/product/camera_blocked_view.dart';
+import 'product_form_view.dart';
 
 /// Camera view that scans a supermarket receipt, then ingests the
 /// recognized line items as products in a chosen inventory.
@@ -33,13 +35,18 @@ class ReceiptScanView extends StatefulWidget {
 
 class _ReceiptScanViewState extends State<ReceiptScanView>
     with WidgetsBindingObserver {
+  late final CameraPermissionService _access =
+      CameraPermissionService.resolve();
   CameraController? _cameraController;
   ReceiptRecognizer? _recognizer;
   RecognizedScanProgress? _progress;
-  bool _isCameraReady = false;
+
+  /// Drops the outcome of a camera start that a newer one replaced.
+  int _revision = 0;
   bool _isProcessingFrame = false;
   bool _isIngesting = false;
-  bool _disposed = false;
+  bool _suspended = false;
+  CameraAccessStatus? _failure;
   String? _errorMessage;
   List<Collection> _inventories = const [];
   String? _targetId;
@@ -48,14 +55,7 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _recognizer = ReceiptRecognizer(
-      onScanUpdate: (progress) {
-        if (mounted) {
-          setState(() => _progress = progress);
-        }
-      },
-    );
-    _initializeCamera();
+    _startCamera();
     _loadInventories();
   }
 
@@ -82,7 +82,7 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _disposed = true;
+    _revision++;
     _cameraController?.dispose();
     _recognizer?.close();
     super.dispose();
@@ -90,10 +90,15 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.inactive) {
+    // A camera that is still starting is left alone: the permission prompt
+    // itself makes the app inactive.
+    if (state != AppLifecycleState.resumed) {
+      if (_cameraController == null) return;
+      _suspended = true;
       _tearDownCamera();
-    } else if (state == AppLifecycleState.resumed && mounted) {
-      _initializeCamera();
+    } else if (_suspended) {
+      _suspended = false;
+      _startCamera();
     }
   }
 
@@ -101,9 +106,37 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     Widget body = const Center(child: CircularProgressIndicator());
-    if (_errorMessage != null) {
-      body = Center(child: Text(_errorMessage!));
-    } else if (_isCameraReady && _cameraController != null) {
+    if (_failure case final failure?) {
+      body = CameraBlockedView(
+        status: failure,
+        onRetry: _retry,
+        onEnable: _enableAndRetry,
+        onFallback: _addManually,
+        fallbackLabel: 'receipt.addManually'.tr(),
+      );
+    } else if (_errorMessage != null) {
+      body = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(Material3Config.spacing24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_errorMessage!, textAlign: TextAlign.center),
+              const SizedBox(height: Material3Config.spacing16),
+              FilledButton(
+                onPressed: _startCamera,
+                child: Text('common.tryAgain'.tr()),
+              ),
+              const SizedBox(height: Material3Config.spacing8),
+              TextButton(
+                onPressed: _addManually,
+                child: Text('receipt.addManually'.tr()),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else if (_cameraController != null) {
       final matchPercentage = _progress?.validationResult.matchPercentage ?? 0;
       final mergedReceipt = _progress?.mergedReceipt;
       final positions = mergedReceipt?.positions ?? [];
@@ -198,7 +231,7 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
         title: Text('receipt.scanTitle'.tr()),
         backgroundColor: colorScheme.surface,
       ),
-      body: body,
+      body: SafeArea(child: body),
     );
   }
 
@@ -232,7 +265,7 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
           ),
         ),
       );
-      context.pop(!result.alreadyAdded);
+      Navigator.of(context).pop(!result.alreadyAdded);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -242,58 +275,100 @@ class _ReceiptScanViewState extends State<ReceiptScanView>
     }
   }
 
-  Future<void> _tearDownCamera() async {
-    await _cameraController?.stopImageStream();
-    await _cameraController?.dispose();
-    if (!mounted) return;
-    setState(() {
-      _cameraController = null;
-      _isCameraReady = false;
-    });
+  /// Continues without the camera; a saved product closes the scanner.
+  Future<void> _addManually() async {
+    final added = await ProductFormView.show(context, collectionId: _targetId);
+    if (added == true && mounted) Navigator.of(context).pop(true);
   }
 
-  Future<void> _initializeCamera() async {
+  Future<void> _retry() async {
+    BarcodeScannerService.refreshCameraDetection();
+    if (BarcodeScannerService.supportsCameraScanning) return _startCamera();
+    final blocker = await _access.scanBlocker(ask: true);
+    if (mounted) setState(() => _failure = blocker);
+  }
+
+  Future<void> _enableAndRetry() async {
+    await _access.enable();
+    if (mounted) await _retry();
+  }
+
+  Future<void> _tearDownCamera() async {
+    _revision++;
+    final controller = _cameraController;
+    if (controller == null) return;
+    _cameraController = null;
+    if (mounted) setState(() {});
+    await _release(controller);
+  }
+
+  Future<void> _release(CameraController? controller) async {
+    if (controller == null) return;
     try {
-      final cameras = await availableCameras();
-      if (cameras.isEmpty) {
-        throw StateError('No camera available');
-      }
-      CameraDescription selectedCamera = cameras.first;
-      for (final camera in cameras) {
-        if (camera.lensDirection == CameraLensDirection.back) {
-          selectedCamera = camera;
-          break;
+      try {
+        if (controller.value.isStreamingImages) {
+          await controller.stopImageStream();
         }
-      }
-
-      final imageFormat = Platform.isIOS
-          ? ImageFormatGroup.bgra8888
-          : ImageFormatGroup.nv21;
-      final controller = CameraController(
-        selectedCamera,
-        ResolutionPreset.medium,
-        enableAudio: false,
-        imageFormatGroup: imageFormat,
-      );
-
-      await controller.initialize();
-      await controller.startImageStream(_processCameraImage);
-      if (!mounted || _disposed) {
+      } finally {
         await controller.dispose();
+      }
+    } catch (error) {
+      debugPrint('Could not release the receipt camera: $error');
+    }
+  }
+
+  Future<void> _startCamera() async {
+    await _tearDownCamera();
+    if (!mounted) return;
+    final revision = _revision;
+    bool isStale() => !mounted || revision != _revision;
+    setState(() {
+      _failure = null;
+      _errorMessage = null;
+    });
+
+    CameraController? pending;
+    try {
+      if (!await _access.isEnabled() ||
+          !BarcodeScannerService.supportsCameraScanning) {
+        final blocker = await _access.scanBlocker();
+        if (!isStale()) setState(() => _failure = blocker);
         return;
       }
-      setState(() {
-        _cameraController = controller;
-        _isCameraReady = true;
-        _errorMessage = null;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = 'product.scanUnavailable'.tr(
-          namedArgs: {'error': '$e'},
-        );
-      });
+      final camera = await BarcodeScannerService.findCamera();
+      if (isStale()) return;
+      if (camera == null) {
+        setState(() => _failure = CameraAccessStatus.noCamera);
+        return;
+      }
+      pending = CameraController(
+        camera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+        imageFormatGroup: defaultTargetPlatform == TargetPlatform.iOS
+            ? ImageFormatGroup.bgra8888
+            : ImageFormatGroup.nv21,
+      );
+      await pending.initialize();
+      if (isStale()) return;
+      _recognizer ??= ReceiptRecognizer(
+        onScanUpdate: (progress) {
+          if (mounted) setState(() => _progress = progress);
+        },
+      );
+      await pending.startImageStream(_processCameraImage);
+      if (isStale()) return;
+      await _access.record(CameraAccessStatus.granted);
+      if (isStale()) return;
+      setState(() => _cameraController = pending);
+      pending = null;
+    } catch (error) {
+      debugPrint('Could not start the receipt camera: $error');
+      final status = CameraPermissionService.classifyError(error);
+      await _access.record(status);
+      if (!isStale()) setState(() => _failure = status);
+    } finally {
+      await _release(pending);
     }
   }
 

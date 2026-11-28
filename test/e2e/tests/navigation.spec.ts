@@ -29,7 +29,7 @@ test('dashboard renders quick actions and overview sections', async ({ page }) =
   await waitForDashboard(page);
 
   await expect(page.getByText('Quick Actions')).toBeVisible();
-  await expect(page.getByText('Create Product')).toBeVisible();
+  await expect(page.getByText('Add Product')).toBeVisible();
   await expect(page.getByText('New Shopping List')).toBeVisible();
   await expect(page.getByText('Overview')).toBeVisible();
 });

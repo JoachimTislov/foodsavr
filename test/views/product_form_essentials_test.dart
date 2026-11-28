@@ -166,7 +166,7 @@ void main() {
       await tester.pumpAndSettle();
       tester.takeException();
 
-      await tester.tap(find.text('Create'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Add Product'));
       await tester.pumpAndSettle();
       tester.takeException();
 

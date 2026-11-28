@@ -11,8 +11,13 @@ import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart
 import '../constants/material3_config.dart';
 import '../service_locator.dart';
 import '../services/barcode_scanner_service.dart';
+import '../services/camera_permission_service.dart';
+import '../services/open_food_facts_client.dart';
+import '../utils/barcode_validator.dart';
 import '../utils/product_add_helper.dart';
 import '../widgets/product/barcode_scanner_overlay.dart';
+import '../widgets/product/camera_permission_card.dart';
+import '../widgets/product/product_lookup_panel.dart';
 
 class BarcodeScanView extends StatefulWidget {
   const BarcodeScanView({super.key});
@@ -25,14 +30,21 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
     with WidgetsBindingObserver {
   static const _manualFormWidth = 560.0;
 
+  late final CameraPermissionService _access =
+      CameraPermissionService.resolve();
+  final _lookupFocus = FocusNode();
   CameraController? _cameraController;
   BarcodeScannerService? _barcodeScannerService;
   Future<void> _cameraTask = Future<void>.value();
   Future<void>? _frameTask;
   int _cameraRevision = 0;
-  String _manualBarcode = '';
   bool _cameraLoading = false;
-  bool _cameraUnavailable = false;
+  CameraAccessStatus? _failure;
+
+  /// The barcode the camera read last; it is looked up below the preview.
+  String? _scannedBarcode;
+  bool _notProductCode = false;
+  bool _suspended = false;
   bool _manualMode = false;
   bool _multipleBarcodesDetected = false;
   bool _isFlashOn = false;
@@ -41,16 +53,15 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
   @override
   void initState() {
     super.initState();
-    if (BarcodeScannerService.supportsCameraScanning) {
-      WidgetsBinding.instance.addObserver(this);
-      _updateCamera(start: true);
-    }
+    WidgetsBinding.instance.addObserver(this);
+    _updateCamera(start: true);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _updateCamera(start: false);
+    _lookupFocus.dispose();
     final scanner = _barcodeScannerService;
     if (scanner != null) {
       unawaited(_closeScanner(scanner));
@@ -69,15 +80,24 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_manualMode || _submitted || _cameraUnavailable) return;
-    setState(() => _updateCamera(start: state == AppLifecycleState.resumed));
+    if (_manualMode || _submitted) return;
+    // A camera that is still starting is left alone: the permission prompt
+    // itself makes the app inactive.
+    if (state != AppLifecycleState.resumed) {
+      if (_cameraController == null) return;
+      _suspended = true;
+      setState(() => _updateCamera(start: false));
+    } else if (_suspended) {
+      _suspended = false;
+      setState(() => _updateCamera(start: true));
+    }
   }
 
   void _updateCamera({required bool start}) {
     final revision = ++_cameraRevision;
     final previous = _cameraController;
     _cameraController = null;
-    _cameraLoading = start;
+    _cameraLoading = start && BarcodeScannerService.supportsCameraScanning;
     _isFlashOn = false;
     _multipleBarcodesDetected = false;
 
@@ -109,10 +129,16 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
   Future<void> _initializeCamera(int revision) async {
     CameraController? pending;
     try {
+      if (!await _access.isEnabled() ||
+          !BarcodeScannerService.supportsCameraScanning) {
+        final blocker = await _access.scanBlocker();
+        if (_isCurrentCameraRequest(revision)) _showCameraFallback(blocker);
+        return;
+      }
       final camera = await BarcodeScannerService.findCamera();
       if (!_isCurrentCameraRequest(revision)) return;
       if (camera == null) {
-        _showCameraFallback();
+        _showCameraFallback(CameraAccessStatus.noCamera);
         return;
       }
 
@@ -127,7 +153,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
       await pending.initialize();
       if (!_isCurrentCameraRequest(revision)) return;
       if (!pending.supportsImageStreaming()) {
-        _showCameraFallback();
+        _showCameraFallback(CameraAccessStatus.unsupported);
         return;
       }
       _barcodeScannerService ??= getIt<BarcodeScannerService>();
@@ -138,19 +164,42 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
         _cameraLoading = false;
       });
       pending = null;
+      await _access.record(CameraAccessStatus.granted);
     } catch (error) {
       debugPrint('Could not start barcode camera: $error');
-      if (_isCurrentCameraRequest(revision)) _showCameraFallback();
+      final status = CameraPermissionService.classifyError(error);
+      await _access.record(status);
+      if (_isCurrentCameraRequest(revision)) _showCameraFallback(status);
     } finally {
       await _disposeCamera(pending);
     }
   }
 
-  void _showCameraFallback() {
+  void _showCameraFallback(CameraAccessStatus status) {
     setState(() {
-      _cameraUnavailable = true;
+      _failure = status;
       _updateCamera(start: false);
     });
+  }
+
+  Future<void> _retryCamera() async {
+    BarcodeScannerService.refreshCameraDetection();
+    if (!BarcodeScannerService.supportsCameraScanning) {
+      final blocker = await _access.scanBlocker(ask: true);
+      if (mounted) setState(() => _failure = blocker);
+      return;
+    }
+    setState(() {
+      _failure = null;
+      _manualMode = false;
+      _scannedBarcode = null;
+      _updateCamera(start: true);
+    });
+  }
+
+  Future<void> _enableAndRetry() async {
+    await _access.enable();
+    if (mounted) await _retryCamera();
   }
 
   Future<void> _toggleFlash() async {
@@ -170,6 +219,8 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
   void _enterManualMode() {
     setState(() {
       _manualMode = true;
+      _scannedBarcode = null;
+      _notProductCode = false;
       _updateCamera(start: false);
     });
   }
@@ -195,16 +246,27 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
     }
   }
 
+  /// The lookup for typed input, or for the [scanned] barcode. A barcode that
+  /// nobody knows keeps the user here to try again.
+  ProductLookupPanel _lookupPanel(String? scanned) => ProductLookupPanel(
+    key: ValueKey(scanned),
+    initialQuery: scanned,
+    focusNode: scanned == null ? _lookupFocus : null,
+    barcodeActionLabel: 'product.useBarcode'.tr(),
+    keepBarcodeLabel: 'product.lookup.addWithBarcode'.tr(),
+    onBarcodeMatched: _submit,
+    onCandidate: _submit,
+    onKeepBarcode: (barcode) => _submit(OffProductData(barcode: barcode)),
+  );
+
   @override
   Widget build(BuildContext context) {
     final camera = _cameraController;
-    final colorScheme = Theme.of(context).colorScheme;
+    final scanned = _scannedBarcode;
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          camera != null
-              ? 'product.scanBarcode'.tr()
-              : 'product.enterBarcodeManually'.tr(),
+          camera != null ? 'product.scanBarcode'.tr() : 'product.add'.tr(),
         ),
         actions: [
           if (camera != null)
@@ -248,6 +310,8 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
                           Text(
                             _multipleBarcodesDetected
                                 ? 'product.scanSingleBarcodeHint'.tr()
+                                : _notProductCode
+                                ? 'product.notProductBarcode'.tr()
                                 : 'product.scanBarcodeHint'.tr(),
                             textAlign: TextAlign.center,
                           ),
@@ -257,6 +321,20 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
                           const LinearProgressIndicator(),
                           const SizedBox(height: Material3Config.spacing16),
                         ],
+                        if (_failure case final failure?) ...[
+                          CameraPermissionCard(
+                            status: failure,
+                            onRetry: _retryCamera,
+                            onEnable: _enableAndRetry,
+                            onFallback: _lookupFocus.requestFocus,
+                            fallbackLabel: 'product.enterBarcodeManually'.tr(),
+                          ),
+                          const SizedBox(height: Material3Config.spacing16),
+                        ],
+                        if (camera != null && scanned != null) ...[
+                          _lookupPanel(scanned),
+                          const SizedBox(height: Material3Config.spacing16),
+                        ],
                         if (camera != null || _cameraLoading)
                           OutlinedButton.icon(
                             onPressed: _enterManualMode,
@@ -264,35 +342,17 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
                             label: Text('product.enterBarcodeManually'.tr()),
                           )
                         else ...[
-                          if (_cameraUnavailable) ...[
-                            Text(
-                              'product.barcodeCameraUnavailable'.tr(),
-                              style: TextStyle(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
+                          _lookupPanel(null),
+                          if (_manualMode &&
+                              _failure == null &&
+                              BarcodeScannerService.supportsCameraScanning) ...[
+                            const SizedBox(height: Material3Config.spacing8),
+                            OutlinedButton.icon(
+                              onPressed: _submitted ? null : _retryCamera,
+                              icon: const Icon(Icons.qr_code_scanner),
+                              label: Text('product.scanBarcode'.tr()),
                             ),
-                            const SizedBox(height: Material3Config.spacing16),
                           ],
-                          TextField(
-                            decoration: InputDecoration(
-                              labelText: 'product.barcodeNumber'.tr(),
-                            ),
-                            keyboardType: TextInputType.number,
-                            textInputAction: TextInputAction.done,
-                            onChanged: (value) =>
-                                setState(() => _manualBarcode = value.trim()),
-                            onSubmitted: (value) {
-                              final barcode = value.trim();
-                              if (barcode.isNotEmpty) _submit(barcode);
-                            },
-                          ),
-                          const SizedBox(height: Material3Config.spacing16),
-                          FilledButton(
-                            onPressed: _submitted || _manualBarcode.isEmpty
-                                ? null
-                                : () => _submit(_manualBarcode),
-                            child: Text('product.useBarcode'.tr()),
-                          ),
                         ],
                         TextButton(
                           onPressed: _submitted
@@ -301,6 +361,13 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
                                   BarcodeScanAction.addWithoutBarcode,
                                 ),
                           child: Text('product.addWithoutBarcode'.tr()),
+                        ),
+                        TextButton.icon(
+                          onPressed: _submitted
+                              ? null
+                              : () => _submit(BarcodeScanAction.expiryFirst),
+                          icon: const Icon(Icons.event_outlined),
+                          label: Text('product.expiryFirst'.tr()),
                         ),
                       ],
                     ),
@@ -340,15 +407,21 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
         setState(() => _multipleBarcodesDetected = multipleBarcodes);
       }
 
-      final barcode = barcodes.singleOrNull?.rawValue;
-      if (barcode == null || barcode.isEmpty) return;
+      final raw = barcodes.singleOrNull?.rawValue;
+      if (raw == null || raw.isEmpty) return;
+      final code = BarcodeValidator.validate(raw);
+      final usable = code.validity != BarcodeValidity.invalidFormat;
+      if (_notProductCode == usable) {
+        setState(() => _notProductCode = !usable);
+      }
+      if (!usable || code.barcode == _scannedBarcode) return;
       unawaited(HapticFeedback.vibrate());
       unawaited(SystemSound.play(SystemSoundType.click));
-      await _submit(barcode);
+      setState(() => _scannedBarcode = code.barcode);
     } catch (error) {
       debugPrint('Could not read barcode camera image: $error');
       if (mounted && identical(camera, _cameraController) && !_submitted) {
-        _showCameraFallback();
+        _showCameraFallback(CameraAccessStatus.inUse);
       }
     }
   }

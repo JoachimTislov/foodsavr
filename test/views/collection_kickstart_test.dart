@@ -1,11 +1,13 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/controllers/dashboard_controller.dart';
 import 'package:foodsavr/controllers/preferences_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/service_locator.dart';
+import 'package:foodsavr/services/barcode_scanner_service.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/utils/collection_types.dart';
@@ -107,6 +109,28 @@ void main() {
 
   tearDown(() => getIt.reset());
 
+  /// Reports [cameras] as the device's cameras, a back camera by default.
+  void mockCameras(
+    WidgetTester tester, {
+    List<Object> cameras = const [
+      {'name': 'back', 'lensFacing': 'back', 'sensorOrientation': 90},
+    ],
+  }) {
+    const channel = MethodChannel('plugins.flutter.io/camera');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      (_) async => cameras,
+    );
+    BarcodeScannerService.refreshCameraDetection();
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      );
+      BarcodeScannerService.refreshCameraDetection();
+    });
+  }
+
   Future<void> pump(
     WidgetTester tester,
     Widget home, {
@@ -205,6 +229,7 @@ void main() {
     ('Scan Barcode', '/barcode-scan'),
   ]) {
     testWidgets('$label opens $path', (tester) async {
+      mockCameras(tester);
       await pump(
         tester,
         const CollectionListView(typeFilter: CollectionType.inventory),
@@ -217,6 +242,21 @@ void main() {
       expect(find.text('at $path'), findsOneWidget);
     });
   }
+
+  testWidgets('without a camera Scan Barcode opens the Add Product modal', (
+    tester,
+  ) async {
+    mockCameras(tester, cameras: const []);
+    await pump(
+      tester,
+      const CollectionListView(typeFilter: CollectionType.inventory),
+    );
+
+    await tester.tap(find.text('Scan Barcode'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Barcode or product name'), findsOneWidget);
+  });
 
   for (final language in ['en', 'nb']) {
     for (final width in [320.0, 700.0, 1400.0]) {

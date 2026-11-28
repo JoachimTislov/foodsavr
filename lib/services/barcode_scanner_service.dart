@@ -3,6 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 import 'package:injectable/injectable.dart';
 
+import '../service_locator.dart';
+import 'camera_preference_service.dart';
+
 @injectable
 class BarcodeScannerService {
   static bool get supportsCameraScanning =>
@@ -20,19 +23,39 @@ class BarcodeScannerService {
         cameras.firstOrNull;
   }
 
-  static Future<bool>? _hasCamera;
+  static Future<bool>? _hasHardware;
 
-  /// Whether this device can scan with a camera; detected once and cached.
-  static Future<bool> hasCamera() => _hasCamera ??= () async {
+  /// Whether this device can scan with a camera and the user allows it. The
+  /// setting is read on every call; the hardware is detected once and cached.
+  static Future<bool> hasCamera() async {
+    if (!supportsCameraScanning || !await _cameraAllowed()) return false;
+    return _hasHardware ??= _detectHardware();
+  }
+
+  static Future<bool> _cameraAllowed() async {
+    try {
+      final preference = getIt.isRegistered<CameraPreferenceService>()
+          ? getIt<CameraPreferenceService>()
+          : CameraPreferenceService();
+      return await preference.isEnabled();
+    } catch (error) {
+      debugPrint('Could not read the camera setting: $error');
+      return true;
+    }
+  }
+
+  static Future<bool> _detectHardware() async {
     try {
       return await findCamera() != null;
     } catch (_) {
+      // A failed detection may succeed later; do not remember it.
+      _hasHardware = null;
       return false;
     }
-  }();
+  }
 
-  @visibleForTesting
-  static void resetCameraDetection() => _hasCamera = null;
+  /// Detects the camera again on the next [hasCamera], for example on a retry.
+  static void refreshCameraDetection() => _hasHardware = null;
 
   final BarcodeScanner _barcodeScanner = BarcodeScanner();
 

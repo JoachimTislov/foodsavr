@@ -98,6 +98,11 @@ void main() {
     Product? prefill,
     String? collectionId,
   }) async {
+    // Tall enough for the lazy form list to build the expiry section.
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
     // Translations load through real asynchronous I/O.
     await tester.runAsync(() async {
       await tester.pumpWidget(
@@ -132,6 +137,8 @@ void main() {
     await settle(tester);
   }
 
+  final addButton = find.widgetWithText(FilledButton, 'Add Product');
+
   const scanned = Product(
     id: '',
     name: '',
@@ -147,7 +154,7 @@ void main() {
     await openForm(tester, prefill: scanned, collectionId: 'inv');
 
     await tester.enterText(find.byType(TextFormField).first, 'Oat drink');
-    await tester.tap(find.text('Create'));
+    await tester.tap(addButton);
     await settle(tester);
 
     final current = repository.added.last;
@@ -159,7 +166,7 @@ void main() {
     verify(
       () => collectionService.addProductToCollection('inv', current.id),
     ).called(1);
-    expect(find.text('Create'), findsNothing);
+    expect(addButton, findsNothing);
   });
 
   testWidgets('a retry after a failed assignment creates no second product', (
@@ -174,15 +181,15 @@ void main() {
     await openForm(tester, prefill: scanned, collectionId: 'inv');
     await tester.enterText(find.byType(TextFormField).first, 'Oat drink');
 
-    await tester.tap(find.text('Create'));
+    await tester.tap(addButton);
     await settle(tester);
     final addedAfterFailure = repository.added.length;
-    await tester.tap(find.text('Create'));
+    await tester.tap(addButton);
     await settle(tester);
 
     expect(repository.added.length, addedAfterFailure);
     expect(attempts, 2);
-    expect(find.text('Create'), findsNothing);
+    expect(addButton, findsNothing);
   });
 
   testWidgets('B: editing keeps barcode, image and tags; rescan increments', (
@@ -229,7 +236,7 @@ void main() {
   testWidgets('failed validation performs no write', (tester) async {
     await openForm(tester, prefill: scanned, collectionId: 'inv');
 
-    await tester.tap(find.text('Create'));
+    await tester.tap(addButton);
     await settle(tester);
 
     expect(find.text('Please enter product name'), findsOneWidget);
@@ -242,7 +249,7 @@ void main() {
     await openForm(tester, prefill: scanned);
 
     await tester.enterText(find.byType(TextFormField).first, 'Oat drink');
-    await tester.tap(find.text('Create'));
+    await tester.tap(addButton);
     await settle(tester);
 
     expect(find.text('Could not save the product. Try again.'), findsOneWidget);
@@ -257,7 +264,7 @@ void main() {
     await settle(tester);
     await tester.tap(find.text('Dairy').last);
     await settle(tester);
-    await tester.tap(find.text('Create'));
+    await tester.tap(addButton);
     await settle(tester);
 
     expect(repository.added.last.category, 'dairy');
@@ -290,7 +297,7 @@ void main() {
     await settle(tester);
     await choose('Bakery');
     await choose('Dairy');
-    await tester.tap(find.text('Create'));
+    await tester.tap(addButton);
     await settle(tester);
 
     expect(repository.added.last.expiries, isEmpty);
@@ -316,7 +323,7 @@ void main() {
       await settle(tester);
       await tester.tap(find.text('OK'));
       await settle(tester);
-      await tester.tap(find.text('Create'));
+      await tester.tap(addButton);
       await settle(tester);
 
       expect(repository.added.last.expiries, hasLength(1));

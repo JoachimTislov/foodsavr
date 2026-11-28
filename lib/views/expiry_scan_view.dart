@@ -1,19 +1,31 @@
-import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
+import '../constants/material3_config.dart';
 import '../service_locator.dart';
+import '../services/barcode_scanner_service.dart';
+import '../services/camera_permission_service.dart';
 import '../services/expiry_scanner_service.dart';
+import '../utils/expiry_date_picker.dart';
+import '../widgets/product/camera_blocked_view.dart';
 
 /// Camera view that OCR-scans a printed expiry date and pops with the
-/// recognized [DateTime], or null if the user backs out.
+/// recognized or manually picked [DateTime], or null if the user backs out.
 class ExpiryScanView extends StatefulWidget {
   const ExpiryScanView({super.key});
+
+  /// Pushes the scanner above the whole app and returns the captured date.
+  static Future<DateTime?> show(BuildContext context) =>
+      Navigator.of(context, rootNavigator: true).push<DateTime>(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (context) => const ExpiryScanView(),
+        ),
+      );
 
   @override
   State<ExpiryScanView> createState() => _ExpiryScanViewState();
@@ -21,50 +33,100 @@ class ExpiryScanView extends StatefulWidget {
 
 class _ExpiryScanViewState extends State<ExpiryScanView>
     with WidgetsBindingObserver {
+  late final CameraPermissionService _access =
+      CameraPermissionService.resolve();
   CameraController? _cameraController;
-  late final ExpiryScannerService _expiryScannerService;
-  bool _isCameraReady = false;
+  ExpiryScannerService? _expiryScannerService;
+
+  /// Drops the outcome of a camera start that a newer one replaced.
+  int _revision = 0;
   bool _isProcessingFrame = false;
-  bool _disposed = false;
-  String? _errorMessage;
+  bool _suspended = false;
+
+  /// While the date picker is open, recognized frames are ignored.
+  bool _picking = false;
+  bool _finished = false;
+  CameraAccessStatus? _failure;
+  bool _readingFailed = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _expiryScannerService = getIt<ExpiryScannerService>();
-    _initializeCamera();
+    _startCamera();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _disposed = true;
+    _revision++;
     _cameraController?.dispose();
-    _expiryScannerService.close();
+    _expiryScannerService?.close();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.inactive) {
+    // A camera that is still starting is left alone: the permission prompt
+    // itself makes the app inactive.
+    if (state != AppLifecycleState.resumed) {
+      if (_cameraController == null) return;
+      _suspended = true;
       _tearDownCamera();
-    } else if (state == AppLifecycleState.resumed && mounted) {
-      _initializeCamera();
+    } else if (_suspended) {
+      _suspended = false;
+      _startCamera();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    Widget body = const Center(child: CircularProgressIndicator());
-    if (_errorMessage != null) {
-      body = Center(child: Text(_errorMessage!));
-    } else if (_isCameraReady && _cameraController != null) {
+    final camera = _cameraController;
+    final manualLabel = 'product.enterExpiryManually'.tr();
+    final Widget body;
+    if (_failure case final failure?) {
+      body = CameraBlockedView(
+        status: failure,
+        onRetry: _retry,
+        onEnable: _enableAndRetry,
+        onFallback: _pickManually,
+        fallbackLabel: manualLabel,
+      );
+    } else if (_readingFailed || camera == null) {
+      body = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(Material3Config.spacing24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_readingFailed) ...[
+                Text(
+                  'product.expiryScanUnavailable'.tr(),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: Material3Config.spacing16),
+                FilledButton(
+                  onPressed: _startCamera,
+                  child: Text('common.tryAgain'.tr()),
+                ),
+              ] else
+                const CircularProgressIndicator(),
+              const SizedBox(height: Material3Config.spacing16),
+              OutlinedButton.icon(
+                onPressed: _pickManually,
+                icon: const Icon(Icons.edit_calendar_outlined),
+                label: Text(manualLabel),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
       body = Stack(
         fit: StackFit.expand,
         children: [
-          CameraPreview(_cameraController!),
+          CameraPreview(camera),
           Positioned(
             bottom: 96,
             left: 24,
@@ -83,9 +145,9 @@ class _ExpiryScanViewState extends State<ExpiryScanView>
             left: 24,
             right: 24,
             child: FilledButton.icon(
-              onPressed: () => context.pop(),
-              icon: const Icon(Icons.edit),
-              label: Text('product.enterExpiryManually'.tr()),
+              onPressed: _pickManually,
+              icon: const Icon(Icons.edit_calendar_outlined),
+              label: Text(manualLabel),
               style: FilledButton.styleFrom(
                 backgroundColor: colorScheme.surface,
                 foregroundColor: colorScheme.onSurface,
@@ -100,77 +162,117 @@ class _ExpiryScanViewState extends State<ExpiryScanView>
         title: Text('product.scan_expiry'.tr()),
         backgroundColor: colorScheme.surface,
       ),
-      body: body,
+      body: SafeArea(child: body),
     );
   }
 
+  Future<void> _pickManually() async {
+    _picking = true;
+    final date = await pickExpiryDate(context);
+    _picking = false;
+    if (date != null && mounted) _finish(date);
+  }
+
+  void _finish(DateTime date) {
+    if (_finished) return;
+    _finished = true;
+    Navigator.of(context).pop(date);
+  }
+
+  Future<void> _retry() async {
+    BarcodeScannerService.refreshCameraDetection();
+    if (BarcodeScannerService.supportsCameraScanning) return _startCamera();
+    final blocker = await _access.scanBlocker(ask: true);
+    if (mounted) setState(() => _failure = blocker);
+  }
+
+  Future<void> _enableAndRetry() async {
+    await _access.enable();
+    if (mounted) await _retry();
+  }
+
   Future<void> _tearDownCamera() async {
+    _revision++;
     final controller = _cameraController;
     if (controller == null) return;
     _cameraController = null;
-    if (mounted) {
-      setState(() => _isCameraReady = false);
-    }
-    if (controller.value.isStreamingImages) {
+    if (mounted) setState(() {});
+    await _release(controller);
+  }
+
+  Future<void> _release(CameraController? controller) async {
+    if (controller == null) return;
+    try {
       try {
-        await controller.stopImageStream();
+        if (controller.value.isStreamingImages) {
+          await controller.stopImageStream();
+        }
       } finally {
         await controller.dispose();
       }
-    } else {
-      await controller.dispose();
+    } catch (error) {
+      debugPrint('Could not release the expiry camera: $error');
     }
   }
 
-  Future<void> _initializeCamera() async {
+  Future<void> _startCamera() async {
+    await _tearDownCamera();
+    if (!mounted) return;
+    final revision = _revision;
+    bool isStale() => !mounted || revision != _revision;
+    setState(() {
+      _failure = null;
+      _readingFailed = false;
+    });
+
+    CameraController? pending;
     try {
-      final cameras = await availableCameras();
-      if (cameras.isEmpty) {
-        throw StateError('No camera available');
-      }
-      CameraDescription selectedCamera = cameras.first;
-      for (final camera in cameras) {
-        if (camera.lensDirection == CameraLensDirection.back) {
-          selectedCamera = camera;
-          break;
-        }
-      }
-
-      final imageFormat = Platform.isIOS
-          ? ImageFormatGroup.bgra8888
-          : ImageFormatGroup.nv21;
-      final controller = CameraController(
-        selectedCamera,
-        ResolutionPreset.medium,
-        enableAudio: false,
-        imageFormatGroup: imageFormat,
-      );
-
-      await controller.initialize();
-      if (!mounted || _disposed) {
-        await controller.dispose();
+      if (!await _access.isEnabled() ||
+          !BarcodeScannerService.supportsCameraScanning) {
+        final blocker = await _access.scanBlocker();
+        if (!isStale()) setState(() => _failure = blocker);
         return;
       }
-      setState(() {
-        _cameraController = controller;
-        _isCameraReady = true;
-        _errorMessage = null;
-      });
-      await controller.startImageStream(_processCameraImage);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = 'product.expiryScanUnavailable'.tr(
-          namedArgs: {'error': '$e'},
-        );
-      });
+      final camera = await BarcodeScannerService.findCamera();
+      if (isStale()) return;
+      if (camera == null) {
+        setState(() => _failure = CameraAccessStatus.noCamera);
+        return;
+      }
+      pending = CameraController(
+        camera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+        imageFormatGroup: defaultTargetPlatform == TargetPlatform.iOS
+            ? ImageFormatGroup.bgra8888
+            : ImageFormatGroup.nv21,
+      );
+      await pending.initialize();
+      if (isStale()) return;
+      _expiryScannerService ??= getIt<ExpiryScannerService>();
+      await pending.startImageStream(_processCameraImage);
+      if (isStale()) return;
+      await _access.record(CameraAccessStatus.granted);
+      if (isStale()) return;
+      setState(() => _cameraController = pending);
+      pending = null;
+    } catch (error) {
+      debugPrint('Could not start the expiry camera: $error');
+      final status = CameraPermissionService.classifyError(error);
+      await _access.record(status);
+      if (!isStale()) setState(() => _failure = status);
+    } finally {
+      await _release(pending);
     }
   }
 
   Future<void> _processCameraImage(CameraImage image) async {
-    if (_isProcessingFrame || !mounted) return;
+    if (_isProcessingFrame || _picking || _finished || !mounted) return;
     final cameraController = _cameraController;
-    if (cameraController == null || !cameraController.value.isInitialized) {
+    final scanner = _expiryScannerService;
+    if (cameraController == null ||
+        scanner == null ||
+        !cameraController.value.isInitialized) {
       return;
     }
 
@@ -180,23 +282,19 @@ class _ExpiryScanViewState extends State<ExpiryScanView>
     try {
       final DateTime? date;
       try {
-        date = await _expiryScannerService.scanExpiryDate(inputImage);
-      } catch (e) {
-        await cameraController.stopImageStream();
-        if (!mounted) return;
-        setState(() {
-          _errorMessage = 'product.expiryScanUnavailable'.tr(
-            namedArgs: {'error': '$e'},
-          );
-        });
+        date = await scanner.scanExpiryDate(inputImage);
+      } catch (error) {
+        debugPrint('Could not read the expiry date: $error');
+        await _tearDownCamera();
+        if (mounted) setState(() => _readingFailed = true);
         return;
       }
-      if (date == null) return;
+      // The picker may have opened while the frame was being read.
+      if (date == null || _picking || _finished || !mounted) return;
       HapticFeedback.vibrate();
       SystemSound.play(SystemSoundType.click);
       await cameraController.stopImageStream();
-      if (!mounted) return;
-      context.pop(date);
+      if (mounted) _finish(date);
     } finally {
       _isProcessingFrame = false;
     }

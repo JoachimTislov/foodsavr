@@ -86,6 +86,38 @@
 			"privacy": "personvernerklæringen"
 		}
 	},
+	"camera": {
+		"allow": "Tillat kamera",
+		"enable": "Slå på kamera",
+		"prompt": {
+			"title": "Kameratilgang",
+			"message": "Tillat kameraet for å skanne med det. Nettleseren eller enheten ber deg bekrefte."
+		},
+		"disabled": {
+			"title": "Kameratilgang er av",
+			"message": "Du har slått av kameraet i Innstillinger. Slå det på for å skanne."
+		},
+		"denied": {
+			"title": "Kameratilgang avslått",
+			"message": "Nettleseren eller enheten blokkerte kameraet. Tillat det i innstillingene for nettstedet eller systemet, og prøv igjen."
+		},
+		"noCamera": {
+			"title": "Fant ikke noe kamera",
+			"message": "Denne enheten har ikke noe kamera vi kan bruke. Koble til et og prøv igjen."
+		},
+		"insecureContext": {
+			"title": "Sikker tilkobling kreves",
+			"message": "Nettlesere tillater bare kameraet over HTTPS. Åpne appen med en https://-adresse."
+		},
+		"inUse": {
+			"title": "Kameraet kunne ikke starte",
+			"message": "En annen app eller nettleserfane kan bruke det. Lukk den, og prøv igjen."
+		},
+		"unsupported": {
+			"title": "Kameraskanning er ikke tilgjengelig",
+			"message": "Direkteskanning støttes ikke ennå i denne nettleseren eller på denne enheten. Appene for Android og iOS kan skanne."
+		}
+	},
 	"collection": {
 		"saveError": "Kunne ikke lagre samlingen. Prøv igjen.",
 		"deleteTitle": "Vil du slette {name}?",
@@ -166,7 +198,7 @@
 	"dashboard": {
 		"actions": "Hurtighandlinger",
 		"browseProducts": "Bla gjennom produkter",
-		"createProduct": "Nytt produkt",
+		"createProduct": "Legg til produkt",
 		"createShoppingList": "Ny Handleliste",
 		"expired": "Utgått",
 		"expiredCount": {
@@ -223,7 +255,6 @@
 		"barcodeMatched": "Oppdaterte eksisterende produkt \"{name}\"",
 		"barcodeNotFound": "Produktet ble ikke funnet. Vær den første til å legge det til!",
 		"barcodeOffline": "Du er frakoblet: strekkoden er lagret og slås opp senere",
-		"barcodeNumber": "Strekkodenummer",
 		"category": "Kategori",
 		"compact": "Kompakt",
 		"daysRemaining": "{days} dager igjen",
@@ -236,6 +267,26 @@
 		"details": "Produktdetaljer",
 		"edit": "Rediger produkt",
 		"enterBarcodeManually": "Skriv inn strekkode manuelt",
+		"expiryFirst": "Start med utløpsdatoen",
+		"expiryDateHelp": "Velg utløpsdato",
+		"notProductBarcode": "Koden er ikke en produktstrekkode. Fortsett å skanne.",
+		"lookup": {
+			"field": "Strekkode eller produktnavn",
+			"search": "Søk",
+			"validStandard": "Gyldig produktstrekkode",
+			"invalidCheckDigit": "Kontrollsifferet stemmer ikke. Sjekk nummeret; du kan fortsatt bruke det.",
+			"validCustom": "Butikkens eller egen strekkode",
+			"invalidFormat": "En strekkode har 4 til 32 sifre.",
+			"offline": "Fikk ikke kontakt med Open Food Facts. Sjekk tilkoblingen og prøv igjen.",
+			"owned": "Du har allerede et produkt med denne strekkoden.",
+			"noBarcodeMatch": "Fant ikke noe produkt for {barcode}. Prøv en annen strekkode, eller legg det til selv.",
+			"noResults": "Ingen produkter passer. Prøv andre ord.",
+			"results": "Treff fra Open Food Facts",
+			"addWithBarcode": "Legg til produkt med denne strekkoden",
+			"keepBarcode": "Bruk denne strekkoden",
+			"attachedBarcode": "Strekkode: {barcode}",
+			"removeBarcode": "Fjern strekkoden"
+		},
 		"errorLoading": "Feil ved lasting av produkter",
 		"expiration_breakdown": "Utløpsoversikt",
 		"expirations": "Utløpsdatoer",
@@ -260,10 +311,8 @@
 		"enterExpiryManually": "Skriv inn utløpsdato manuelt",
 		"scanBarcodeHint": "Juster strekkoden innenfor rammen",
 		"scanSingleBarcodeHint": "Flere strekkoder oppdaget. Fokuser på én strekkode.",
-		"scanUnavailable": "Strekkodeskanner utilgjengelig: {error}",
-		"barcodeCameraUnavailable": "Kameraet er utilgjengelig. Skriv inn strekkoden nedenfor.",
 		"toggleScannerFlash": "Slå lommelykten av eller på",
-		"expiryScanUnavailable": "Utløpsskanner utilgjengelig: {error}",
+		"expiryScanUnavailable": "Utløpsdatoen kunne ikke leses. Prøv igjen eller skriv den inn manuelt.",
 		"search_hint": "Søk i matskapet ditt...",
 		"select": "Velg produkter",
 		"soonest_expiration": "Nærmeste utløpsdato",
@@ -445,6 +494,7 @@
 		"progress": "Gjenkjent: {percent}% · {items} varer",
 		"addItems": "Legg varer til lageret",
 		"ingestError": "Kunne ikke legge til kvitteringsvarer: {error}",
+		"addManually": "Legg til produkt manuelt",
 		"targetInventory": "Legg til i lager",
 		"added": "La til {count} varer",
 		"alreadyAdded": "Denne kvitteringen er allerede lagt til"

@@ -203,7 +203,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.text('Quick Actions').hitTestable(), findsOneWidget);
-      expect(find.text('Create Product').hitTestable(), findsOneWidget);
+      expect(find.text('Add Product').hitTestable(), findsOneWidget);
       expect(find.text('New Shopping List').hitTestable(), findsOneWidget);
       final actions = find.bySubtype<FilledButton>();
       expect(actions, findsNWidgets(2));
