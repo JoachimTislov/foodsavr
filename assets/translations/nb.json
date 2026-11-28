@@ -1,18 +1,18 @@
 {
-  "a11y": {
-    "removeExpiry": "Fjern utløpsdato",
-    "decreaseQuantity": "Reduser antall",
-    "increaseQuantity": "Øk antall",
-    "editProduct": "Rediger produkt",
-    "deleteProduct": "Slett produkt",
-    "editCollection": "Rediger samling",
-    "deleteCollection": "Slett samling",
-    "decreaseDays": "Færre dager",
-    "increaseDays": "Flere dager",
-    "showPassword": "Vis passord",
-    "hidePassword": "Skjul passord",
-    "clearSearch": "Tøm søk"
-  },
+	"a11y": {
+		"removeExpiry": "Fjern utløpsdato",
+		"decreaseQuantity": "Reduser antall",
+		"increaseQuantity": "Øk antall",
+		"editProduct": "Rediger produkt",
+		"deleteProduct": "Slett produkt",
+		"editCollection": "Rediger samling",
+		"deleteCollection": "Slett samling",
+		"decreaseDays": "Færre dager",
+		"increaseDays": "Flere dager",
+		"showPassword": "Vis passord",
+		"hidePassword": "Skjul passord",
+		"clearSearch": "Tøm søk"
+	},
 	"auth": {
 		"error": {
 			"facebook_unavailable": "Innlogging med Facebook er utilgjengelig. Du kan logge inn med e-post i stedet.",
@@ -163,7 +163,12 @@
 				"other": "Importerte {count} varer"
 			},
 			"importError": "Kunne ikke importere varer. Prøv igjen."
-		}
+		},
+		"move": "Flytt",
+		"duplicate": "Dupliser",
+		"purchaseHistory": "Kjøpshistorikk",
+		"reAdd": "Legg til igjen",
+		"scanReceipt": "Skann kvittering"
 	},
 	"common": {
 		"add": "Legg til",

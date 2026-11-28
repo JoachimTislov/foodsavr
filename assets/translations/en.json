@@ -1,18 +1,18 @@
 {
-  "a11y": {
-    "removeExpiry": "Remove expiry",
-    "decreaseQuantity": "Decrease quantity",
-    "increaseQuantity": "Increase quantity",
-    "editProduct": "Edit product",
-    "deleteProduct": "Delete product",
-    "editCollection": "Edit collection",
-    "deleteCollection": "Delete collection",
-    "decreaseDays": "Decrease days",
-    "increaseDays": "Increase days",
-    "showPassword": "Show password",
-    "hidePassword": "Hide password",
-    "clearSearch": "Clear search"
-  },
+	"a11y": {
+		"removeExpiry": "Remove expiry",
+		"decreaseQuantity": "Decrease quantity",
+		"increaseQuantity": "Increase quantity",
+		"editProduct": "Edit product",
+		"deleteProduct": "Delete product",
+		"editCollection": "Edit collection",
+		"deleteCollection": "Delete collection",
+		"decreaseDays": "Decrease days",
+		"increaseDays": "Increase days",
+		"showPassword": "Show password",
+		"hidePassword": "Hide password",
+		"clearSearch": "Clear search"
+	},
 	"auth": {
 		"error": {
 			"facebook_unavailable": "Facebook sign-in is unavailable. You can sign in with email instead.",
@@ -163,7 +163,12 @@
 				"other": "Imported {count} items"
 			},
 			"importError": "Could not import items. Try again."
-		}
+		},
+		"move": "Move",
+		"duplicate": "Duplicate",
+		"purchaseHistory": "Purchase history",
+		"reAdd": "Re-add",
+		"scanReceipt": "Scan receipt"
 	},
 	"common": {
 		"add": "Add",
