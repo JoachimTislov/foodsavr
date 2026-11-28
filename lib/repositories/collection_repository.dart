@@ -163,8 +163,10 @@ class CollectionRepository implements ICollectionRepository {
   /// foreign product; server reads hide and repair such references. A write
   /// the server rejects later is rolled back in the local cache and never
   /// replayed.
-  Future<void> _queueMembership(Future<void> Function() write) =>
-      _syncStatus.queue(write);
+  Future<void> _queueMembership(
+    Future<void> Function() write, {
+    void Function()? onRejected,
+  }) => _syncStatus.queue(write, onRejected: onRejected);
 
   @override
   Future<bool> isProductMissingOrUnreadable(String id) async {
@@ -331,19 +333,26 @@ class CollectionRepository implements ICollectionRepository {
   }
 
   @override
-  Future<void> removeProduct(String collectionId, String productId) =>
-      removeProducts(collectionId, [productId]);
+  Future<void> removeProduct(
+    String collectionId,
+    String productId, {
+    void Function()? onRejected,
+  }) => removeProducts(collectionId, [productId], onRejected: onRejected);
 
   @override
   Future<void> removeProducts(
     String collectionId,
-    Iterable<String> productIds,
-  ) async {
+    Iterable<String> productIds, {
+    void Function()? onRejected,
+  }) async {
     if (productIds.isEmpty) return;
     final docRef = _firestore.collection(_collectionName).doc(collectionId);
     final removal = {'productIds': FieldValue.arrayRemove(productIds.toList())};
     // Offline, the write lands in the local cache and syncs on reconnect.
-    await _queueMembership(() => docRef.update(removal));
+    await _queueMembership(
+      () => docRef.update(removal),
+      onRejected: onRejected,
+    );
   }
 
   @override

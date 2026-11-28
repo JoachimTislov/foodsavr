@@ -210,11 +210,12 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
 
   /// A history failure is reported on its own: the purchase already happened,
   /// so it must not be repeated.
-  Future<void> _recordPurchases(
+  /// Returns the newest saved entry, or null when nothing was saved.
+  Future<Map<String, dynamic>?> _recordPurchases(
     List<Product> products,
     PurchaseSource source,
   ) async {
-    if (products.isEmpty) return;
+    if (products.isEmpty) return null;
     try {
       final history = await _history.record(
         _currentCollection.userId,
@@ -222,6 +223,27 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         source,
       );
       if (mounted) setState(() => _purchaseHistory = history);
+      return history.first;
+    } catch (_) {
+      _showMessage('collection.purchaseHistoryError'.tr());
+      return null;
+    }
+  }
+
+  /// Undoes [purchase] after the server rejected the item's removal, which
+  /// puts the item back on the list.
+  Future<void> _withdrawPurchase(Future<Map<String, dynamic>?> purchase) async {
+    final entry = await purchase;
+    try {
+      if (entry != null) {
+        final history = await _history.withdraw(
+          _currentCollection.userId,
+          entry,
+        );
+        if (mounted) setState(() => _purchaseHistory = history);
+      }
+      _showMessage('product.saveError'.tr());
+      if (mounted) await _refreshCollectionAndProducts();
     } catch (_) {
       _showMessage('collection.purchaseHistoryError'.tr());
     }
@@ -251,10 +273,12 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
 
   Future<void> _markBought(Product product) =>
       _changeItem(product.id, () async {
+        final purchase = Completer<Map<String, dynamic>?>();
         try {
           await _collectionService.removeProductFromCollection(
             _currentCollection.id,
             product.id,
+            onRejected: () => unawaited(_withdrawPurchase(purchase.future)),
           );
         } catch (_) {
           _showMessage('product.saveError'.tr());
@@ -269,7 +293,9 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
             ],
           );
         }
-        await _recordPurchases([product], PurchaseSource.manual);
+        purchase.complete(
+          await _recordPurchases([product], PurchaseSource.manual),
+        );
         if (mounted) await _refreshCollectionAndProducts();
       });
 
@@ -328,6 +354,7 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         await _collectionService.removeProductFromCollection(
           _currentCollection.id,
           product.id,
+          onRejected: () => _showMessage('collection.movePartialError'.tr()),
         );
       } catch (_) {
         _showMessage('collection.movePartialError'.tr());

@@ -33,6 +33,26 @@ void main() {
     expect(sync.pendingWrites, 0);
   });
 
+  test('only a rejection after the timeout is reported', () async {
+    final sync = status();
+    var rejections = 0;
+    final ack = Completer<void>();
+    await sync.queue(() => ack.future, onRejected: () => rejections++);
+    await sync.queue(() async {}, onRejected: () => rejections++);
+    await expectLater(
+      sync.queue(
+        () async => throw StateError('denied'),
+        onRejected: () => rejections++,
+      ),
+      throwsStateError,
+    );
+    expect(rejections, 0);
+
+    ack.completeError(StateError('denied'));
+    await pumpEventQueue();
+    expect(rejections, 1);
+  });
+
   test('a rejection after the timeout clears the pending write', () async {
     final sync = status();
     final ack = Completer<void>();

@@ -22,7 +22,14 @@ abstract class ICollectionRepository extends IRepository<Collection, String> {
 
   /// Confirms missing or inaccessible products directly on the server.
   Future<bool> isProductMissingOrUnreadable(String id);
-  Future<void> removeProducts(String collectionId, Iterable<String> productIds);
+
+  /// Removals return while still queued offline. [onRejected] is called if the
+  /// server rejects one after that.
+  Future<void> removeProducts(
+    String collectionId,
+    Iterable<String> productIds, {
+    void Function()? onRejected,
+  });
 
   /// Removes each of [productIds] that is still a member and still missing or
   /// unreadable on the server, atomically with those checks.
@@ -32,6 +39,10 @@ abstract class ICollectionRepository extends IRepository<Collection, String> {
   );
   Future<void> addProduct(String collectionId, String productId);
   Future<void> addProducts(String collectionId, List<String> productIds);
-  Future<void> removeProduct(String collectionId, String productId);
+  Future<void> removeProduct(
+    String collectionId,
+    String productId, {
+    void Function()? onRejected,
+  });
   Future<void> addCollectionsInBatch(List<Collection> collections);
 }

@@ -17,7 +17,7 @@ class PurchaseHistoryService {
 
   final Logger _logger;
 
-  /// Completes when the latest [record] call has finished.
+  /// Completes when the latest write has finished.
   Future<void>? _lastWrite;
 
   PurchaseHistoryService(this._logger);
@@ -29,21 +29,37 @@ class PurchaseHistoryService {
     return _decode(prefs.getString(_key(userId)));
   }
 
-  /// Adds [products] and returns the saved history. Calls run one at a time,
-  /// so overlapping purchases cannot overwrite each other.
+  /// Adds [products] and returns the saved history, newest first.
   Future<List<Map<String, dynamic>>> record(
     String userId,
     List<Product> products,
     PurchaseSource source,
-  ) {
-    final result = (_lastWrite ?? Future<void>.value()).then(
-      (_) => _append(userId, products, source),
-    );
+  ) => _serialized(() => _append(userId, products, source));
+
+  /// Removes [entry], a purchase that turned out not to have happened, and
+  /// returns the saved history.
+  Future<List<Map<String, dynamic>>> withdraw(
+    String userId,
+    Map<String, dynamic> entry,
+  ) => _serialized(() async {
+    final prefs = await SharedPreferences.getInstance();
+    return _save(prefs, userId, [
+      for (final item in _decode(prefs.getString(_key(userId))))
+        if (item['productId'] != entry['productId'] ||
+            item['purchasedAt'] != entry['purchasedAt'])
+          item,
+    ]);
+  });
+
+  /// Runs writes one at a time, so overlapping ones cannot overwrite each
+  /// other.
+  Future<T> _serialized<T>(Future<T> Function() write) {
+    final result = (_lastWrite ?? Future<void>.value()).then((_) => write());
     // A failed write is reported to its caller and never blocks later ones.
     _lastWrite = result.then<void>(
       (_) {},
       onError: (Object error) =>
-          _logger.e('Could not record a purchase: ${error.runtimeType}'),
+          _logger.e('Could not save purchase history: ${error.runtimeType}'),
     );
     return result;
   }
@@ -66,6 +82,14 @@ class PurchaseHistoryService {
         },
       ..._decode(prefs.getString(_key(userId))),
     ].take(maxEntries).toList(growable: false);
+    return _save(prefs, userId, entries);
+  }
+
+  Future<List<Map<String, dynamic>>> _save(
+    SharedPreferences prefs,
+    String userId,
+    List<Map<String, dynamic>> entries,
+  ) async {
     if (!await prefs.setString(_key(userId), jsonEncode(entries))) {
       throw StateError('The purchase history was not saved.');
     }

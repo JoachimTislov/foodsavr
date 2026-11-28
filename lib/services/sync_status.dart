@@ -29,8 +29,13 @@ class SyncStatus extends ChangeNotifier {
   /// Starts [write] and returns once it is acknowledged, or after the
   /// acknowledgement timeout while it stays queued. An error raised before the
   /// timeout is rethrown; a later rejection is logged, and Firestore rolls the
-  /// write back in its local cache.
-  Future<void> queue(Future<void> Function() write) async {
+  /// write back in its local cache, and [onRejected] is called so the caller
+  /// can undo what it derived from the write. It is not called after an app
+  /// restart.
+  Future<void> queue(
+    Future<void> Function() write, {
+    void Function()? onRejected,
+  }) async {
     final acknowledged = Future.sync(write);
     _pendingWrites++;
     notifyListeners();
@@ -50,6 +55,11 @@ class SyncStatus extends ChangeNotifier {
       await acknowledged.timeout(_timeout);
     } on TimeoutException {
       // Offline: Firestore syncs the queued write after reconnecting.
+      if (onRejected != null) {
+        unawaited(
+          acknowledged.then<void>((_) {}, onError: (Object _) => onRejected()),
+        );
+      }
     }
   }
 }
