@@ -18,9 +18,10 @@ name: Release
 # - build-web (daily, weekly, stable pushes touching web paths, or dispatch): the
 #   `web-build` artifact. On stable it feeds the gated release candidate.
 # - build-android (dispatch only): the development debug APK.
-# - release gate (stable pushes after build-web): waits for the Pull Request workflow
-#   run of the same commit (Check & Test and Validation) and publishes the
-#   `release-web-candidate` artifact from this run's web build.
+# - release gate (daily, weekly, stable pushes): waits for the Pull Request workflow
+#   run of the same commit (Check & Test and Validation). Gates release-channel
+#   Hosting deploys (daily, weekly, stable) and, on stable pushes after build-web,
+#   publishes the `release-web-candidate` artifact from this run's web build.
 # - hosting (develop, daily, weekly, stable pushes touching hosting paths, or
 #   dispatch): builds the web app for one environment of deploy/instance.yaml and
 #   deploys it to that environment's Firebase project and Hosting site. Project, web
@@ -29,11 +30,13 @@ name: Release
 #   sets FIREBASE_HOSTING_ENABLED=true. Once enabled, a push to a release channel
 #   deploys live to the environment that declares the channel: develop, daily and
 #   weekly to their own sites in the `test` project, stable to `production` (ADR
-#   0007). Previews are manual only: Actions -> Release -> Run workflow on a branch
-#   (operation: hosting, target: preview) deploys a short-lived channel (default 4h)
-#   named after the branch and comments on its PR; environment `auto` picks staging,
-#   else test, whichever the manifest declares. A post-deploy web probe follows: of the
-#   site a live deploy replaced, else of MONITOR_TARGET_URL.
+#   0007). Develop pushes and manual dispatches stay fast without waiting on
+#   release-gate; daily, weekly, and stable pushes wait for release-gate. Previews are
+#   manual only: Actions -> Release -> Run workflow on a branch (operation: hosting,
+#   target: preview) deploys a short-lived channel (default 4h) named after the branch
+#   and comments on its PR; environment `auto` picks staging, else test, whichever the
+#   manifest declares. A post-deploy web probe follows: of the site a live deploy
+#   replaced (with its resolved environment), else of MONITOR_TARGET_URL (production).
 #   Build and deploy logic lives in scripts/web/deploy_web.py, shared with the manual
 #   bypass `make deploy-web ENV=<env> [CHANNEL=<channel>] [TARGET=live|preview]`,
 #   which runs the same steps with your own firebase login. When an environment is
@@ -366,15 +369,23 @@ jobs:
 
   release-gate:
     name: Evaluate release gate
-    needs: build-web
-    # Only a pushed stable build is a release candidate; dispatched builds are not.
-    if: needs.build-web.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/stable'
+    needs: plan
+    # Gate release-channel Hosting deploys (daily/weekly/stable) and stable web release
+    # candidates on a green Pull Request push run for the same commit. Develop pushes
+    # and manual dispatches skip the gate so Hosting deploys stay fast.
+    if: >-
+      !cancelled() &&
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/daily' || github.ref == 'refs/heads/weekly' || github.ref == 'refs/heads/stable') &&
+      ((needs.plan.result == 'success' && needs.plan.outputs.ready == 'true') ||
+       (github.ref == 'refs/heads/stable' && needs.plan.outputs.web_build == 'true'))
     permissions:
       actions: read
       contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 115
     outputs:
+      passed: ${{ steps.evaluate.outputs.passed }}
       release_web: ${{ steps.evaluate.outputs.release_web }}
     steps:
       - uses: actions/checkout@v6
@@ -390,7 +401,12 @@ jobs:
   release-web:
     name: Release Web candidate
     needs: [build-web, release-gate]
-    if: needs.release-gate.outputs.release_web == 'true'
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/stable' &&
+      needs.build-web.result == 'success' &&
+      needs.release-gate.result == 'success' &&
+      needs.release-gate.outputs.release_web == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout released commit (provenance)
@@ -420,8 +436,14 @@ jobs:
 
   hosting-deploy:
     name: Build and deploy to Firebase Hosting
-    needs: plan
-    if: needs.plan.outputs.ready == 'true'
+    needs: [plan, release-gate]
+    if: >-
+      !cancelled() &&
+      needs.plan.result == 'success' &&
+      needs.plan.outputs.ready == 'true' &&
+      (github.event_name != 'push' ||
+       github.ref == 'refs/heads/develop' ||
+       (needs.release-gate.result == 'success' && needs.release-gate.outputs.passed == 'true'))
     # One deploy at a time across all channels, as the former Firebase Hosting workflow.
     concurrency:
       group: Firebase Hosting
@@ -529,10 +551,11 @@ jobs:
   # deploy was skipped. Monitor scripts come from the default branch, as before.
   post-deploy-probe:
     name: Probe live web app
-    needs: [plan, hosting-deploy]
+    needs: [plan, release-gate, hosting-deploy]
     if: >-
       !cancelled() &&
       needs.plan.result == 'success' && needs.plan.outputs.hosting == 'true' &&
+      needs.release-gate.result != 'failure' && needs.release-gate.result != 'cancelled' &&
       (needs.hosting-deploy.result == 'success' || needs.hosting-deploy.result == 'skipped') &&
       (needs.hosting-deploy.outputs.url != '' || vars.MONITOR_TARGET_URL != '')
     concurrency:
@@ -555,6 +578,7 @@ jobs:
         with:
           target-url: ${{ needs.hosting-deploy.outputs.url || vars.MONITOR_TARGET_URL }}
           deployed-sha: ${{ github.sha }}
+          environment: ${{ needs.hosting-deploy.outputs.url != '' && needs.plan.outputs.flavor || 'production' }}
           firebase-plan: ${{ vars.FIREBASE_PLAN }}
           auto-heal-enabled: ${{ vars.AUTO_HEAL_ENABLED }}
           app-id: ${{ vars.AGENT_APP_ID || secrets.AGENT_APP_ID }}

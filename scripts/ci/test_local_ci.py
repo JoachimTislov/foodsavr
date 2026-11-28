@@ -105,6 +105,42 @@ class LocalCiTest(unittest.TestCase):
         self.assertIn("url: ${{ steps.live.outputs.url }}", text)
         self.assertIn("(needs.hosting-deploy.outputs.url != '' || vars.MONITOR_TARGET_URL != '')", text)
         self.assertIn("target-url: ${{ needs.hosting-deploy.outputs.url || vars.MONITOR_TARGET_URL }}", text)
+        self.assertIn(
+            "environment: ${{ needs.hosting-deploy.outputs.url != '' && needs.plan.outputs.flavor || 'production' }}",
+            text,
+        )
+        probe_action = (ROOT / ".github/actions/web-probe/action.yml").read_text()
+        self.assertIn("  environment:\n", probe_action)
+        self.assertIn("ENVIRONMENT: ${{ steps.target.outputs.environment }}", probe_action)
+        self.assertIn('--environment "$ENVIRONMENT"', probe_action)
+
+    def test_release_channel_hosting_deploys_are_gated_on_release_gate(self):
+        text = workflow_text("release.yml")
+        gate = text.split("\n  release-gate:\n", 1)[1].split("\n  release-web:\n", 1)[0]
+        self.assertIn("needs: plan", gate)
+        for branch in ("daily", "weekly", "stable"):
+            self.assertIn(f"refs/heads/{branch}", gate)
+        self.assertIn("passed: ${{ steps.evaluate.outputs.passed }}", gate)
+
+        web_candidate = text.split("\n  release-web:\n", 1)[1].split("\n  # --- Firebase Hosting", 1)[0]
+        self.assertIn("needs: [build-web, release-gate]", web_candidate)
+        self.assertIn("github.ref == 'refs/heads/stable'", web_candidate)
+        self.assertIn("needs.release-gate.outputs.release_web == 'true'", web_candidate)
+
+        hosting = text.split("\n  hosting-deploy:\n", 1)[1].split("\n  # Post-deploy probe", 1)[0]
+        self.assertIn("needs: [plan, release-gate]", hosting)
+        self.assertIn("github.event_name != 'push'", hosting)
+        self.assertIn("github.ref == 'refs/heads/develop'", hosting)
+        self.assertIn("needs.release-gate.outputs.passed == 'true'", hosting)
+
+    def test_daily_ci_alert_job_runs_on_daily_push_with_minimal_permissions(self):
+        text = workflow_text("pull-request.yml")
+        job = text.split("\n  daily-ci-alert:\n", 1)[1]
+        self.assertIn("needs: [gate, check, changes, web-validation, validation-result]", job)
+        self.assertIn("if: always() && github.event_name == 'push' && github.ref_name == 'daily'", job)
+        self.assertIn("contents: read", job)
+        self.assertIn("issues: write", job)
+        self.assertIn("python3 scripts/github/daily_ci_alert.py --soft-fail", job)
 
     def test_suite_job_names_match_the_reuse_evidence(self):
         dart = (ROOT / ci.DART_WORKFLOW).read_text()

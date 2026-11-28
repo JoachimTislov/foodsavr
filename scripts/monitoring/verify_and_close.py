@@ -18,6 +18,8 @@ from scripts.monitoring.fault_intake import (  # noqa: E402
     GhClient,
     SubprocessGhClient,
     count_healing_attempts,
+    extract_environment,
+    normalize_environment,
 )
 
 COMMIT_SHA = re.compile(r"[0-9a-f]{40}")
@@ -50,16 +52,23 @@ def verify_and_close(
     deployed_sha: str,
     run_url: str,
     gh: GhClient,
+    environment: str = "production",
     dry_run: bool = False,
     max_attempts: int = 1,
     probe_summary: str = "",
     served_revision: str = "",
 ) -> dict[str, Any]:
-    """Close resolved healing issues on a clean probe of the expected release."""
+    """Close resolved healing issues on a clean probe of the expected release and environment."""
+    probe_env = normalize_environment(environment)
     revision_verified = COMMIT_SHA.fullmatch(deployed_sha) and served_revision == deployed_sha
     if probe_ok and not revision_verified:
-        return {"probe_ok": probe_ok, "dry_run": dry_run, "actions": [],
-                "skipped": "served revision does not match an explicit expected release SHA"}
+        return {
+            "probe_ok": probe_ok,
+            "environment": probe_env,
+            "dry_run": dry_run,
+            "actions": [],
+            "skipped": "served revision does not match an explicit expected release SHA",
+        }
 
     reported_sha = served_revision if COMMIT_SHA.fullmatch(served_revision) else "unknown"
     open_issues = gh.list_open_healing_issues()
@@ -67,6 +76,18 @@ def verify_and_close(
 
     for issue in open_issues:
         number = int(issue["number"])
+        issue_env = extract_environment(issue.get("body") or "")
+        if issue_env != probe_env:
+            actions.append(
+                {
+                    "issue": number,
+                    "action": "skipped_environment_mismatch",
+                    "issue_environment": issue_env,
+                    "probe_environment": probe_env,
+                }
+            )
+            continue
+
         merged_prs = [
             pr for pr in gh.list_merged_prs_for_issue(number) if pr_resolves_issue(pr, number)
         ]
@@ -78,6 +99,7 @@ def verify_and_close(
         if probe_ok:
             comment = (
                 "### Post-Deploy Verification Passed\n\n"
+                f"- **Environment:** `{probe_env}`\n"
                 f"- **Target URL:** `{target_url}`\n"
                 f"- **Deployed SHA:** `{reported_sha}`\n"
                 f"- **Verification Run:** {run_url or 'n/a'}\n"
@@ -99,6 +121,7 @@ def verify_and_close(
         if attempts >= max_attempts and not already_escalated:
             comment = (
                 "### Post-Deploy Verification Failed — Escalated\n\n"
+                f"- **Environment:** `{probe_env}`\n"
                 f"- **Target URL:** `{target_url}`\n"
                 f"- **Deployed SHA:** `{reported_sha}`\n"
                 f"- **Verification Run:** {run_url or 'n/a'}\n"
@@ -114,6 +137,7 @@ def verify_and_close(
         else:
             comment = (
                 "### Post-Deploy Verification Failed\n\n"
+                f"- **Environment:** `{probe_env}`\n"
                 f"- **Target URL:** `{target_url}`\n"
                 f"- **Deployed SHA:** `{reported_sha}`\n"
                 f"- **Verification Run:** {run_url or 'n/a'}\n"
@@ -123,7 +147,7 @@ def verify_and_close(
                 gh.comment_issue(number, comment)
             actions.append({"issue": number, "action": "would_record_failure" if dry_run else "recorded_failure"})
 
-    return {"probe_ok": probe_ok, "dry_run": dry_run, "actions": actions}
+    return {"probe_ok": probe_ok, "environment": probe_env, "dry_run": dry_run, "actions": actions}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -131,6 +155,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--probe-file", default=None, help="JSON output from probe_web.mjs")
     parser.add_argument("--passed", action="store_true", help="Mark verification passed (when no --probe-file)")
     parser.add_argument("--failed", action="store_true", help="Mark verification failed (when no --probe-file)")
+    parser.add_argument("--environment", default="", help="Probed environment (defaults to probe-file environment, else production)")
     parser.add_argument("--target-url", default="")
     parser.add_argument("--deployed-sha", default="", help="Expected release SHA. Required to close issues.")
     parser.add_argument("--run-url", default="")
@@ -142,10 +167,12 @@ def main(argv: list[str] | None = None) -> int:
     probe_summary = ""
     served_revision = ""
     deployed_sha = args.deployed_sha
+    report_env = ""
     if args.probe_file:
         report = json.loads(Path(args.probe_file).read_text(encoding="utf-8"))
         probe_ok = bool(report.get("ok"))
         target_url = args.target_url or str(report.get("target_url") or "")
+        report_env = str(report.get("environment") or "")
         if target_url == report.get("target_url"):
             served_revision = str(report.get("served_revision") or "")
         raw = report.get("raw_findings") or {}
@@ -162,6 +189,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("Specify --probe-file or --passed / --failed")
         return 2
 
+    environment = normalize_environment(args.environment or report_env)
     gh = SubprocessGhClient(repo=args.repo)
     result = verify_and_close(
         probe_ok=probe_ok,
@@ -169,6 +197,7 @@ def main(argv: list[str] | None = None) -> int:
         deployed_sha=deployed_sha,
         run_url=args.run_url,
         gh=gh,
+        environment=environment,
         dry_run=args.dry_run,
         max_attempts=args.max_attempts,
         probe_summary=probe_summary,

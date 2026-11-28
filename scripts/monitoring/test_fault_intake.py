@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 """Unit tests for fault_intake deduplication, circuit breakers, quarantine, and routing."""
 
+import io
+import json
 import sys
+import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.monitoring.fault_intake import process_events  # noqa: E402
+from scripts.monitoring import fault_intake  # noqa: E402
+from scripts.monitoring.fault_intake import extract_environment, process_events  # noqa: E402
 from scripts.monitoring.fault_schema import make_fault_event  # noqa: E402
 
 
@@ -172,6 +178,66 @@ class FaultIntakeTest(unittest.TestCase):
         self.assertEqual(gh.created, [])
         self.assertEqual(gh.dispatched, [])
         self.assertEqual(gh.added_comments, [])
+
+    def test_extract_environment_handles_marker_table_and_legacy_default(self):
+        self.assertEqual(extract_environment("<!-- healing-environment:test -->\n| Environment | `production` |"), "test")
+        self.assertEqual(extract_environment("| Environment | `test` |\n"), "test")
+        self.assertEqual(extract_environment("<!-- healing-fingerprint:sha256:" + ("a" * 64) + " -->"), "production")
+
+    def test_records_test_environment_and_isolates_deduplication_from_production(self):
+        gh = FakeGhClient()
+        test_ev = make_fault_event(
+            source="github/playwright-probe",
+            error_type="TypeError",
+            message="boom",
+            environment="test",
+            url="https://foodsavr-test-daily.web.app/",
+        )
+        prod_ev = make_fault_event(
+            source="github/playwright-probe",
+            error_type="TypeError",
+            message="boom",
+            environment="production",
+            url="https://foodsavr.web.app/",
+        )
+        self.assertEqual(test_ev.fingerprint, prod_ev.fingerprint)
+
+        first = process_events([test_ev], gh, dispatch=False)
+        self.assertEqual(first["results"][0]["action"], "created")
+        self.assertIn("<!-- healing-environment:test -->", gh.created[0]["body"])
+        self.assertIn("| Environment | `test` |", gh.created[0]["body"])
+
+        second = process_events([prod_ev], gh, dispatch=False)
+        self.assertEqual(second["results"][0]["action"], "created")
+        self.assertEqual(len(gh.created), 2)
+        self.assertIn("<!-- healing-environment:production -->", gh.created[1]["body"])
+
+        third = process_events([test_ev], gh, dispatch=False)
+        self.assertEqual(third["results"][0]["action"], "deduplicated")
+        self.assertEqual(third["results"][0]["issue"], gh.created[0]["number"])
+        self.assertIn("- **Environment:** `test`", gh.added_comments[0][1])
+
+    def test_cli_uses_explicit_environment_for_test_probe_payload(self):
+        gh = FakeGhClient()
+        payload = {
+            "source": "github/playwright-probe",
+            "target_url": "https://foodsavr-test.web.app",
+            "checked_at": "2026-11-28T00:00:00Z",
+            "release_sha": "a" * 40,
+            "deployment_level": "firebase-spark",
+            "root_mounted": False,
+            "raw_findings": {"page_errors": [], "console_errors": [], "http_5xx": []},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "probe.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            stdout = io.StringIO()
+            with patch.object(fault_intake, "SubprocessGhClient", return_value=gh), redirect_stdout(stdout):
+                code = fault_intake.main(["--input", str(path), "--environment", "test"])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(gh.created), 1)
+        self.assertIn("<!-- healing-environment:test -->", gh.created[0]["body"])
+        self.assertIn("| Environment | `test` |", gh.created[0]["body"])
 
 
 if __name__ == "__main__":
