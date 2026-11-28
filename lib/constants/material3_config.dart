@@ -43,9 +43,17 @@ class Material3Config {
   static const double spacing24 = 24.0;
   static const double spacing32 = 32.0;
 
-  /// Standard border radius values
+  /// Standard border radius values (mobile / touch defaults)
   static const double radiusSmall = 8.0;
   static const double radiusMedium = 12.0;
   static const double radiusLarge = 16.0;
   static const double radiusExtraLarge = 28.0;
+
+  /// Crisper border radius values for desktop / wide viewports
+  static const double radiusDesktopSmall = 6.0;
+  static const double radiusDesktopMedium = 8.0;
+  static const double radiusDesktopLarge = 10.0;
+
+  /// Keyboard focus ring stroke width
+  static const double focusRingWidth = 2.0;
 }
