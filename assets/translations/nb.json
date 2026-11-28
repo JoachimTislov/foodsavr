@@ -192,12 +192,12 @@
 		"terms_of_service": "Vilkår for bruk",
 		"to": "Til",
 		"tryAgain": "Prøv igjen",
-		"unknown": "Ukjent",
-		"viewAll": "Se alle"
+		"unknown": "Ukjent"
 	},
 	"dashboard": {
 		"actions": "Hurtighandlinger",
 		"browseProducts": "Bla gjennom produkter",
+		"createInventory": "Nytt lager",
 		"createProduct": "Legg til produkt",
 		"createShoppingList": "Ny Handleliste",
 		"expired": "Utgått",
@@ -212,11 +212,17 @@
 			"other": "Utgått for {days} dager siden"
 		},
 		"expiringSoon": "Utløper snart",
+		"export": "Eksporter",
 		"globalProducts": "Globale produkter",
+		"import": "Importer",
+		"integrations": "Integrasjoner",
 		"moveItems": "Flytt varer mellom lagre",
 		"myInventory": "Mitt lager",
+		"noCamera": "Ingen kamera tilgjengelig",
+		"noCameraHint": "Kvitteringsskanning krever et tilkoblet kamera som er tillatt i innstillingene.",
 		"noProductsExpiringSoon": "Ingen produkter utløper snart.",
 		"overview": "Oversikt",
+		"registerExpiry": "Registrer utløpsdato",
 		"shoppingList": "Handleliste",
 		"title": "Dashbord",
 		"transfer": "Overføring"
@@ -376,6 +382,11 @@
 			"title": "Fjerning av konto",
 			"description": "Fjerner kontoen og lagrede data permanent."
 		},
+		"guestLogout": {
+			"title": "Logge ut av gjestekontoen?",
+			"message": "Når du logger ut, slettes denne gjestekontoen og alt som er lagret i den."
+		},
+		"logout": "Logg ut",
 		"password": {
 			"title": "Passord",
 			"resetHint": "Få en e-post med lenke for å velge et nytt.",

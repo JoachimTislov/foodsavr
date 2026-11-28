@@ -36,6 +36,8 @@ class DashboardController extends ChangeNotifier {
   List<Product> _expired = const [];
   List<Product> _expiringSoon = const [];
   List<Collection> _inventories = const [];
+  List<Collection> _shoppingLists = const [];
+  Map<String, int> _productCounts = const {};
   bool _isEmptyAccount = false;
   int _loadGeneration = 0;
   int? _loadedExpiringSoonDays;
@@ -44,6 +46,11 @@ class DashboardController extends ChangeNotifier {
   List<Product> get expired => _expired;
   List<Product> get expiringSoon => _expiringSoon;
   List<Collection> get inventories => _inventories;
+  List<Collection> get shoppingLists => _shoppingLists;
+
+  /// Product count per collection ID. Empty when the counts could not be
+  /// resolved.
+  Map<String, int> get productCounts => _productCounts;
 
   /// Whether the user has no inventory, shopping list or product yet.
   bool get isEmptyAccount => _isEmptyAccount;
@@ -61,6 +68,8 @@ class DashboardController extends ChangeNotifier {
       _expired = const [];
       _expiringSoon = const [];
       _inventories = const [];
+      _shoppingLists = const [];
+      _productCounts = const {};
       _isEmptyAccount = false;
       notifyListeners();
       return;
@@ -82,17 +91,38 @@ class DashboardController extends ChangeNotifier {
     final isEmptyAccount =
         collections.isEmpty &&
         (await _productService.getProducts(userId)).isEmpty;
+    final productCounts = await _resolveCounts(userId, collections);
 
     if (generation != _loadGeneration) return;
 
     _expired = results[0] as List<Product>;
     _expiringSoon = results[1] as List<Product>;
-    _inventories = [
-      for (final collection in collections)
-        if (collection.type == CollectionType.inventory) collection,
-    ];
+    _inventories = _ofType(collections, CollectionType.inventory);
+    _shoppingLists = _ofType(collections, CollectionType.shoppingList);
+    _productCounts = productCounts;
     _isEmptyAccount = isEmptyAccount;
     notifyListeners();
+  }
+
+  List<Collection> _ofType(List<Collection> collections, CollectionType type) =>
+      [
+        for (final collection in collections)
+          if (collection.type == type) collection,
+      ];
+
+  /// The counts only decorate the collection cards, so a failure never fails
+  /// the dashboard.
+  Future<Map<String, int>> _resolveCounts(
+    String userId,
+    List<Collection> collections,
+  ) async {
+    if (collections.isEmpty) return const {};
+    try {
+      return await _collectionService.resolveCounts(userId, collections);
+    } catch (e) {
+      _logger.w('Could not resolve the dashboard product counts: $e');
+      return const {};
+    }
   }
 
   /// Refreshes the synced preferences, then reloads, so a window changed on

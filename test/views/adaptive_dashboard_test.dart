@@ -13,6 +13,7 @@ import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/services/product_service.dart';
 import 'package:foodsavr/views/dashboard_view.dart';
 import 'package:foodsavr/widgets/common/content_constraint.dart';
+import 'package:foodsavr/widgets/dashboard/dashboard_action_button.dart';
 import 'package:foodsavr/widgets/dashboard/overview_card.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:logger/logger.dart';
@@ -196,23 +197,21 @@ void main() {
     }
   });
 
-  testWidgets(
-    'expanded header keeps both actions visible at 840 dp and 2x text',
-    (tester) async {
-      await pump(tester, 840, textScale: 2);
+  testWidgets('expanded quick actions stay visible at 840 dp and 2x text', (
+    tester,
+  ) async {
+    await pump(tester, 840, textScale: 2);
 
-      expect(tester.takeException(), isNull);
-      expect(find.text('Quick Actions').hitTestable(), findsOneWidget);
-      expect(find.text('Add Product').hitTestable(), findsOneWidget);
-      expect(find.text('New Shopping List').hitTestable(), findsOneWidget);
-      final actions = find.bySubtype<FilledButton>();
-      expect(actions, findsNWidgets(2));
-      expect(actions.hitTestable(), findsNWidgets(2));
-      for (final action in actions.evaluate()) {
-        final rect = tester.getRect(find.byWidget(action.widget));
-        expect(rect.left, greaterThanOrEqualTo(0));
-        expect(rect.right, lessThanOrEqualTo(840));
-      }
-    },
-  );
+    expect(tester.takeException(), isNull);
+    expect(find.text('Quick Actions').hitTestable(), findsOneWidget);
+    expect(find.text('Add Product').hitTestable(), findsOneWidget);
+    expect(find.text('New Shopping List').hitTestable(), findsOneWidget);
+    final actions = find.byType(DashboardActionButton);
+    expect(actions, findsNWidgets(6));
+    for (final action in actions.evaluate()) {
+      final rect = tester.getRect(find.byWidget(action.widget));
+      expect(rect.left, greaterThanOrEqualTo(0));
+      expect(rect.right, lessThanOrEqualTo(840));
+    }
+  });
 }

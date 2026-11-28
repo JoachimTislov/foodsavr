@@ -9,11 +9,15 @@ class CollectionCard extends StatelessWidget {
   final VoidCallback? onTap;
   final int productCount;
 
+  /// Space around the card; the default suits a full-width list.
+  final EdgeInsetsGeometry margin;
+
   const CollectionCard({
     super.key,
     required this.collection,
     this.onTap,
     required this.productCount,
+    this.margin = const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
   });
 
   @override
@@ -30,7 +34,7 @@ class CollectionCard extends StatelessWidget {
 
     return Card(
       elevation: 1,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: margin,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),

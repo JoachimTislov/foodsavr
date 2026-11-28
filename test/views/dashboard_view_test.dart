@@ -1,14 +1,23 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodsavr/controllers/dashboard_controller.dart';
 import 'package:foodsavr/controllers/preferences_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
+import 'package:foodsavr/models/collection_model.dart';
 import 'package:foodsavr/models/product_model.dart';
 import 'package:foodsavr/service_locator.dart';
+import 'package:foodsavr/services/barcode_scanner_service.dart';
 import 'package:foodsavr/services/collection_service.dart';
 import 'package:foodsavr/services/product_service.dart';
+import 'package:foodsavr/utils/collection_types.dart';
+import 'package:foodsavr/views/collection_detail_view.dart';
 import 'package:foodsavr/views/dashboard_view.dart';
+import 'package:foodsavr/widgets/collection/account_kickstart_card.dart';
+import 'package:foodsavr/widgets/collection/collection_card.dart';
+import 'package:foodsavr/widgets/collection/collection_kickstart_card.dart';
+import 'package:foodsavr/widgets/dashboard/dashboard_collections_section.dart';
 import 'package:foodsavr/widgets/dashboard/expired_items_section.dart';
 import 'package:foodsavr/widgets/dashboard/expiring_item_card.dart';
 import 'package:foodsavr/widgets/dashboard/expiring_soon_section.dart';
@@ -47,9 +56,13 @@ Product _expiringIn(String id, int days) {
 void main() {
   late Map<String, TestTranslationLoader> translations;
   late _Products products;
+  late _Collections collections;
 
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    registerFallbackValue(
+      const Collection(id: '', name: '', productIds: [], userId: ''),
+    );
     translations = {
       'en': TestTranslationLoader(),
       'nb': TestTranslationLoader('nb'),
@@ -81,7 +94,7 @@ void main() {
         const Product(id: 'p', name: 'Rice', description: '', userId: 'user'),
       ],
     );
-    final collections = _Collections();
+    collections = _Collections();
     when(
       () => collections.getCollectionsForUser('user', type: any(named: 'type')),
     ).thenAnswer((_) async => []);
@@ -278,6 +291,171 @@ void main() {
     expect(find.byType(ExpiredItemsSection), findsNothing);
     expect(find.text('Expired'), findsNothing);
     expect(find.byType(ExpiringItemCard), findsNothing);
+  });
+
+  void stubCollections() {
+    const stored = [
+      Collection(
+        id: 'fridge',
+        name: 'Fridge',
+        productIds: ['a', 'b'],
+        userId: 'user',
+      ),
+      Collection(
+        id: 'weekend',
+        name: 'Weekend',
+        productIds: ['c'],
+        userId: 'user',
+        type: CollectionType.shoppingList,
+      ),
+    ];
+    when(
+      () => collections.getCollectionsForUser('user', type: any(named: 'type')),
+    ).thenAnswer((_) async => stored);
+    when(
+      () => collections.resolveCounts('user', stored),
+    ).thenAnswer((_) async => {'fridge': 7, 'weekend': 3});
+  }
+
+  Finder section(CollectionType type) => find.byWidgetPredicate(
+    (widget) => widget is DashboardCollectionsSection && widget.type == type,
+  );
+
+  for (final width in [390.0, 1280.0]) {
+    testWidgets('lists inventories and shopping lists at $width px', (
+      tester,
+    ) async {
+      stubCollections();
+
+      await pump(tester, width: width);
+
+      expect(tester.takeException(), isNull);
+      for (final (type, title, name, count, addTooltip) in [
+        (
+          CollectionType.inventory,
+          'My Inventory',
+          'Fridge',
+          '7 items',
+          'Add Inventory',
+        ),
+        (
+          CollectionType.shoppingList,
+          'Shopping List',
+          'Weekend',
+          '3 items',
+          'Add Shopping List',
+        ),
+      ]) {
+        for (final text in [title, name, count]) {
+          expect(
+            find.descendant(of: section(type), matching: find.text(text)),
+            findsWidgets,
+          );
+        }
+        expect(
+          find.descendant(
+            of: section(type),
+            matching: find.byType(CollectionCard),
+          ),
+          findsOneWidget,
+        );
+        expect(find.byTooltip(addTooltip), findsOneWidget);
+      }
+      expect(find.byType(CollectionKickstartCard), findsNothing);
+      expect(find.byType(AccountKickstartCard), findsNothing);
+    });
+  }
+
+  for (final (addTooltip, title) in [
+    ('Add Inventory', 'Add Inventory'),
+    ('Add Shopping List', 'Add Shopping List'),
+  ]) {
+    testWidgets('the $addTooltip button opens a modal form', (tester) async {
+      getIt.registerSingleton<Logger>(Logger(level: Level.off));
+      stubCollections();
+      await pump(tester);
+
+      await tester.ensureVisible(find.byTooltip(addTooltip));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip(addTooltip));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Dialog), findsOneWidget);
+      expect(
+        find.descendant(of: find.byType(Dialog), matching: find.text(title)),
+        findsOneWidget,
+      );
+    });
+  }
+
+  testWidgets('tapping a collection opens its detail view', (tester) async {
+    stubCollections();
+    when(() => collections.resolveContents(any())).thenAnswer(
+      (call) async => (
+        call.positionalArguments.single as Collection,
+        <Product>[],
+        authoritative: true,
+      ),
+    );
+    when(() => collections.loadContents(any())).thenAnswer(
+      (call) async =>
+          (call.positionalArguments.single as Collection, <Product>[]),
+    );
+    await pump(tester);
+
+    await tester.ensureVisible(find.text('Weekend'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Weekend'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<CollectionDetailView>(find.byType(CollectionDetailView))
+          .collection
+          .id,
+      'weekend',
+    );
+  });
+
+  testWidgets('each empty section shows its own kickstart', (tester) async {
+    await pump(tester);
+
+    for (final (type, title) in [
+      (CollectionType.inventory, "You don't have an inventory yet"),
+      (CollectionType.shoppingList, "You don't have a shopping list yet"),
+    ]) {
+      expect(
+        find.descendant(of: section(type), matching: find.text(title)),
+        findsOneWidget,
+      );
+    }
+    expect(find.byType(CollectionCard), findsNothing);
+    // A started account is not welcomed again.
+    expect(find.byType(AccountKickstartCard), findsNothing);
+  });
+
+  testWidgets('Register Expiry starts with the expiry date', (tester) async {
+    // No camera, so the flow asks with the date picker.
+    const channel = MethodChannel('plugins.flutter.io/camera');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      (_) async => <Object>[],
+    );
+    BarcodeScannerService.refreshCameraDetection();
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      );
+      BarcodeScannerService.refreshCameraDetection();
+    });
+    // The date picker header overflows at the tiny default test scale.
+    await pump(tester, textScale: 0.5);
+
+    await tester.tap(find.text('Register Expiry'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DatePickerDialog), findsOneWidget);
   });
 
   testWidgets('renders the expired section in dark mode', (tester) async {
