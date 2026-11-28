@@ -58,7 +58,7 @@ class LandingPageView extends StatelessWidget {
           description: 'landing.pantry.description'.tr(),
         ),
         LandingFeature(
-          icon: Icons.schedule,
+          icon: Icons.hourglass_bottom,
           title: 'landing.expiry.title'.tr(),
           description: 'landing.expiry.description'.tr(),
         ),
