@@ -62,11 +62,11 @@ test('landing renders and auth view is reachable', async ({ page }) => {
   await page.getByText('bob@example.com').dispatchEvent('click');
   await expect(page.getByText('bob@example.com', { exact: true })).toBeVisible();
   await page.getByText('Log Out', { exact: true }).click();
-  await expect(page.getByText('Inventory Login')).toBeVisible();
+  await expect(page.getByText('Less waste, easier meals.')).toBeVisible();
   // Flutter re-renders semantics nodes during animations, which detaches the
   // element mid-click; dispatch the click event directly instead.
   await page
-    .getByRole('button', { name: 'Continue with Email' })
+    .getByRole('button', { name: 'I already have an account' })
     .dispatchEvent('click');
   await expect(page.getByText('Welcome Back')).toBeVisible({ timeout: 15_000 });
 });

@@ -11,7 +11,7 @@ async function openLogin(page: Page) {
   await page.getByText('Log Out', { exact: true }).click();
   // Flutter re-renders semantics nodes during animations, which detaches the
   // element mid-click; dispatch the click event directly instead.
-  await page.getByRole('button', { name: 'Continue with Email' }).dispatchEvent('click');
+  await page.getByRole('button', { name: 'I already have an account' }).dispatchEvent('click');
   await expect(page.getByText('Welcome Back')).toBeVisible();
 }
 

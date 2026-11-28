@@ -56,6 +56,10 @@ void main() {
     final router = GoRouter(
       routes: [
         GoRoute(path: '/', builder: (_, _) => view),
+        GoRoute(
+          path: '/auth',
+          builder: (_, state) => Scaffold(body: Text('page ${state.uri}')),
+        ),
         for (final path in [
           '/dashboard',
           PublicRoutes.terms,
@@ -114,7 +118,7 @@ void main() {
     expect(find.byIcon(Icons.eco), findsOneWidget);
     expect(guestButton, findsOneWidget);
     expect(notice('signing in'), findsOneWidget);
-    expect(find.text('Delete Account'), findsOneWidget);
+    expect(find.text('Delete Account'), findsNothing);
     expect(find.text('Privacy Notice'), findsNothing);
     expect(find.text('Terms of Service'), findsNothing);
   });
@@ -193,33 +197,56 @@ void main() {
       'Facebook sign-in is unavailable. You can sign in with email instead.',
     ),
   ]) {
-    for (final (screen, view) in [
-      ('login', const AuthView()),
-      ('landing', const LandingPageView()),
-    ]) {
-      testWidgets('$screen: $button shows a disabled provider error', (
-        tester,
-      ) async {
-        when(() => serviceCall(authService)).thenAnswer(
-          (_) => Future.error(
-            FirebaseAuthException(code: 'operation-not-allowed'),
-          ),
-        );
-        await pumpView(tester, view);
+    testWidgets('login: $button shows a disabled provider error', (
+      tester,
+    ) async {
+      when(() => serviceCall(authService)).thenAnswer(
+        (_) =>
+            Future.error(FirebaseAuthException(code: 'operation-not-allowed')),
+      );
+      await pumpView(tester, const AuthView());
 
-        await tester.tap(find.text(button));
-        await tester.pumpAndSettle();
+      await tester.tap(find.text(button));
+      await tester.pumpAndSettle();
 
-        expect(
-          find.descendant(
-            of: find.byType(AuthStatusMessages),
-            matching: find.text(message),
-          ),
-          findsOneWidget,
-        );
-        expect(find.byType(CircularProgressIndicator), findsNothing);
-      });
-    }
+      expect(
+        find.descendant(
+          of: find.byType(AuthStatusMessages),
+          matching: find.text(message),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+  }
+
+  for (final width in [390.0, 1280.0]) {
+    testWidgets('landing at $width offers sign-up and sign-in', (tester) async {
+      await pumpView(tester, const LandingPageView());
+      tester.view.physicalSize = Size(width, 1400);
+      await tester.pumpAndSettle();
+
+      expect(find.text('LettMat'), findsOneWidget);
+      expect(find.text('Get started'), findsOneWidget);
+      expect(find.text('I already have an account'), findsOneWidget);
+      expect(find.text('Privacy Notice'), findsOneWidget);
+      expect(find.text('Delete Account'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final (label, mode) in [
+    ('Get started', 'signup'),
+    ('I already have an account', 'login'),
+  ]) {
+    testWidgets('landing "$label" opens $mode', (tester) async {
+      await pumpView(tester, const LandingPageView());
+
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+
+      expect(find.text('page /auth?mode=$mode'), findsOneWidget);
+    });
   }
 
   testWidgets('an existing guest is not offered guest access again', (

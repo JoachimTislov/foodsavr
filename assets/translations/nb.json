@@ -55,16 +55,11 @@
 			"sign_up_subtitle": "Bli med i LettMat, og begynn å spare mat og penger.",
 			"welcome_back": "Velkommen tilbake"
 		},
-		"landing": {
-			"subtitle": "Spor, administrer og skaler lageret ditt effektivt.",
-			"title": "Lagerinnlogging"
-		},
 		"reset": {
 			"email_prompt": "Vennligst skriv inn e-postadressen din for å tilbakestille passordet.",
 			"email_sent": "E-post for tilbakestilling av passord sendt. Sjekk innboksen din."
 		},
 		"social": {
-			"continue_email": "Fortsett med e-post",
 			"continue_google": "Fortsett med Google",
 			"continue_facebook": "Fortsett med Facebook",
 			"continue_guest": "Fortsett som gjest"
@@ -582,5 +577,22 @@
 			"message": "Ingenting er satt opp på forhånd. Opprett din første beholdning eller handleliste, og gi den navnet du vil."
 		},
 		"browseProducts": "Bla gjennom vanlige varer"
+	},
+	"landing": {
+		"subtitle": "Hold oversikt over maten du har, se hva som snart går ut på dato, og handle bare det du trenger.",
+		"get_started": "Kom i gang",
+		"sign_in": "Jeg har allerede en konto",
+		"pantry": {
+			"title": "Matoversikt",
+			"description": "Vit hva du har i kjøleskapet og skapene."
+		},
+		"expiry": {
+			"title": "Varsler om utløpsdato",
+			"description": "Bruk maten før den blir dårlig."
+		},
+		"shopping": {
+			"title": "Smarte handlelister",
+			"description": "Kjøp det som mangler, ikke mer."
+		}
 	}
 }

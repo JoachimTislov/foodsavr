@@ -23,6 +23,8 @@ A brand-new account starts empty and guided, never pre-filled.
 
 ## Sign-in and account
 
+- As a signed-out visitor, I want a LettMat landing page that leads to getting started (the entry to onboarding, sign-up until then) or to signing in, so that I understand the app before I see a form.
+- As a user, I want no "Delete Account" action on the login screen or in the terms and privacy modals, so that a destructive action does not compete with reading or signing in; its URL stays public.
 - As a user, I want to sign up and log in with email and password or Google and Facebook, so that I can reach my data my way.
 - As a social-login user, I want the app to detect my sign-in method and offer "Add password" instead of "Forgot password", so that the action matches my account.
 - As a user, I want failures from a missing guest, Google, or Facebook setup surfaced clearly, so that I am never stuck on a silent blank screen.

@@ -68,13 +68,7 @@ class _LegalDocumentViewState extends State<LegalDocumentView> {
       title: title,
       icon: icon,
       routeBadge: routeBadge,
-      footerLinks: [
-        otherDocLink,
-        UrlModalLink(
-          label: 'profile.delete_account'.tr(),
-          location: PublicRoutes.deleteAccount,
-        ),
-      ],
+      footerLinks: [otherDocLink],
       child: FutureBuilder<String>(
         future: _documentFuture,
         builder: (context, snapshot) {

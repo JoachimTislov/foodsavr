@@ -55,16 +55,11 @@
 			"sign_up_subtitle": "Join LettMat and start saving food and money.",
 			"welcome_back": "Welcome Back"
 		},
-		"landing": {
-			"subtitle": "Track, manage, and scale your stock with efficiency.",
-			"title": "Inventory Login"
-		},
 		"reset": {
 			"email_prompt": "Please enter your email to reset password.",
 			"email_sent": "Password reset email sent. Check your inbox."
 		},
 		"social": {
-			"continue_email": "Continue with Email",
 			"continue_google": "Continue with Google",
 			"continue_facebook": "Continue with Facebook",
 			"continue_guest": "Continue as guest"
@@ -582,5 +577,22 @@
 			"message": "Nothing is set up in advance. Create your first inventory or shopping list, and name it your way."
 		},
 		"browseProducts": "Browse common products"
+	},
+	"landing": {
+		"subtitle": "Keep track of the food you have, see what expires soon, and shop only for what you need.",
+		"get_started": "Get started",
+		"sign_in": "I already have an account",
+		"pantry": {
+			"title": "Pantry overview",
+			"description": "Know what is in your fridge and cupboards."
+		},
+		"expiry": {
+			"title": "Expiry reminders",
+			"description": "Use food before it goes bad."
+		},
+		"shopping": {
+			"title": "Smart shopping lists",
+			"description": "Buy what is missing, nothing more."
+		}
 	}
 }
