@@ -4,6 +4,7 @@ import 'package:easy_localization/easy_localization.dart';
 
 import '../../controllers/preferences_controller.dart';
 import '../../models/product_model.dart';
+import 'product_icon.dart';
 
 class ProductCardDetails extends WatchingWidget {
   final Product product;
@@ -53,6 +54,8 @@ class ProductCardDetails extends WatchingWidget {
               // Product Header
               Row(
                 children: [
+                  ProductIcon.fromProduct(product, size: 48),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

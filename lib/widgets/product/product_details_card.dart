@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
+import '../../constants/product_categories.dart';
 import '../../models/product_model.dart';
 import 'product_detail_item.dart';
+import 'product_icon.dart';
 
 /// Card widget displaying detailed product information
 class ProductDetailsCard extends StatelessWidget {
@@ -25,6 +27,39 @@ class ProductDetailsCard extends StatelessWidget {
       ),
       child: Column(
         children: [
+          Row(
+            children: [
+              ProductIcon.fromProduct(product, size: 44),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product.name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (product.category != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        ProductCategory.label(product.category!),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(),
+          const SizedBox(height: 16),
           ProductDetailItem(
             icon: Icons.inventory_2_outlined,
             label: 'product.total_quantity'.tr(),

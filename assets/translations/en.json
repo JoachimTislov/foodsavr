@@ -10,7 +10,8 @@
     "decreaseDays": "Decrease days",
     "increaseDays": "Increase days",
     "showPassword": "Show password",
-    "hidePassword": "Hide password"
+    "hidePassword": "Hide password",
+    "clearSearch": "Clear search"
   },
 	"auth": {
 		"error": {
@@ -105,7 +106,32 @@
 		"loadError": "Error loading collections",
 		"noProducts": "No products",
 		"type_inventory": "Inventory",
-		"type_shopping": "Shopping"
+		"type_shopping": "Shopping",
+		"quickImport": {
+			"action": "Quick import",
+			"title": "Quick import items",
+			"subtitle": "Paste or type items separated by lines or commas. Quantities like 2x Milk are detected automatically.",
+			"placeholder": "Milk\n2x Bread, Eggs\n- Apples",
+			"targetList": "Shopping list",
+			"noShoppingLists": "Create a shopping list first to import items.",
+			"previewCount": {
+				"zero": "No items detected yet",
+				"one": "{count} item ready to import",
+				"other": "{count} items ready to import"
+			},
+			"removeItem": "Remove item",
+			"importButton": {
+				"zero": "Import items",
+				"one": "Import {count} item",
+				"other": "Import {count} items"
+			},
+			"imported": {
+				"zero": "No items imported",
+				"one": "Imported {count} item",
+				"other": "Imported {count} items"
+			},
+			"importError": "Could not import items. Try again."
+		}
 	},
 	"common": {
 		"add": "Add",
@@ -255,7 +281,22 @@
 		"total_quantity": "Total Quantity",
 		"type": "Type",
 		"useBarcode": "Use barcode",
-		"units": "units"
+		"units": "units",
+		"essentials": {
+			"title": "Essentials",
+			"browse": "Browse essentials",
+			"manualEntry": "Back to form",
+			"searchHint": "Search essentials...",
+			"empty": "No matching essentials",
+			"yourProducts": "Your products",
+			"allSources": "All",
+			"quickAdd": "Quick add",
+			"addSelected": {
+				"zero": "Add",
+				"one": "Add {count} item",
+				"other": "Add {count} items"
+			}
+		}
 	},
 	"profile": {
 		"account_settings": "Account Settings",
