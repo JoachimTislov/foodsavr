@@ -4,6 +4,7 @@ import 'package:watch_it/watch_it.dart';
 
 import '../../controllers/preferences_controller.dart';
 import '../../models/product_model.dart';
+import 'product_icon.dart';
 
 class ProductSelectItem extends WatchingWidget {
   final Product product;
@@ -54,7 +55,9 @@ class ProductSelectItem extends WatchingWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
+            ProductIcon.fromProduct(product, size: 40),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

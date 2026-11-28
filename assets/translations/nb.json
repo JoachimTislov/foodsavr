@@ -10,7 +10,8 @@
     "decreaseDays": "Færre dager",
     "increaseDays": "Flere dager",
     "showPassword": "Vis passord",
-    "hidePassword": "Skjul passord"
+    "hidePassword": "Skjul passord",
+    "clearSearch": "Tøm søk"
   },
 	"auth": {
 		"error": {
@@ -105,7 +106,32 @@
 		"loadError": "Feil ved lasting av lister",
 		"noProducts": "Ingen produkter",
 		"type_inventory": "Beholdning",
-		"type_shopping": "Handleliste"
+		"type_shopping": "Handleliste",
+		"quickImport": {
+			"action": "Hurtigimport",
+			"title": "Hurtigimporter varer",
+			"subtitle": "Lim inn eller skriv varer atskilt med linjeskift eller komma. Mengder som 2x Melk gjenkjennes automatisk.",
+			"placeholder": "Melk\n2x Brød, Egg\n- Epler",
+			"targetList": "Handleliste",
+			"noShoppingLists": "Opprett en handleliste først for å importere varer.",
+			"previewCount": {
+				"zero": "Ingen varer gjenkjent ennå",
+				"one": "{count} vare klar til import",
+				"other": "{count} varer klare til import"
+			},
+			"removeItem": "Fjern vare",
+			"importButton": {
+				"zero": "Importer varer",
+				"one": "Importer {count} vare",
+				"other": "Importer {count} varer"
+			},
+			"imported": {
+				"zero": "Ingen varer importert",
+				"one": "Importerte {count} vare",
+				"other": "Importerte {count} varer"
+			},
+			"importError": "Kunne ikke importere varer. Prøv igjen."
+		}
 	},
 	"common": {
 		"add": "Legg til",
@@ -255,7 +281,22 @@
 		"total_quantity": "Totalt antall",
 		"type": "Type",
 		"useBarcode": "Bruk strekkode",
-		"units": "enheter"
+		"units": "enheter",
+		"essentials": {
+			"title": "Basisvarer",
+			"browse": "Bla gjennom basisvarer",
+			"manualEntry": "Tilbake til skjema",
+			"searchHint": "Søk i basisvarer...",
+			"empty": "Ingen matchende basisvarer",
+			"yourProducts": "Dine produkter",
+			"allSources": "Alle",
+			"quickAdd": "Hurtiglegg til",
+			"addSelected": {
+				"zero": "Legg til",
+				"one": "Legg til {count} vare",
+				"other": "Legg til {count} varer"
+			}
+		}
 	},
 	"profile": {
 		"account_settings": "Kontoinnstillinger",

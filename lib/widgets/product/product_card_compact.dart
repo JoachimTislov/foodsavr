@@ -4,6 +4,7 @@ import 'package:watch_it/watch_it.dart';
 import '../../controllers/preferences_controller.dart';
 import '../../models/product_model.dart';
 import '../../constants/product_categories.dart';
+import 'product_icon.dart';
 
 class ProductCardCompact extends WatchingWidget {
   final Product product;
@@ -41,12 +42,14 @@ class ProductCardCompact extends WatchingWidget {
                 Container(
                   width: 4,
                   height: 40,
-                  margin: const EdgeInsets.only(right: 12),
+                  margin: const EdgeInsets.only(right: 10),
                   decoration: BoxDecoration(
                     color: statusColor,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
+              ProductIcon.fromProduct(product, size: 36),
+              const SizedBox(width: 12),
               // Product info
               Expanded(
                 child: Column(

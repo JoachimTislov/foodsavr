@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../constants/material3_config.dart';
 import '../../models/product_model.dart';
+import '../product/product_icon.dart';
 
 /// Dashboard row for a product that is expiring soon or already expired.
 ///
@@ -67,6 +68,8 @@ class ExpiringItemCard extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              ProductIcon.fromProduct(product, size: 36),
+              const SizedBox(width: 12),
               Expanded(
                 flex: 3,
                 child: Text(

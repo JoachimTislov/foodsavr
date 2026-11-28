@@ -15,6 +15,7 @@ import '../services/product_service.dart';
 import '../services/collection_service.dart';
 import '../widgets/collection/collection_header.dart';
 import '../widgets/collection/delete_collection_sheet.dart';
+import '../widgets/collection/quick_import_shopping_dialog.dart';
 import '../widgets/common/content_constraint.dart';
 import '../widgets/common/retry_scaffold.dart';
 import '../widgets/common/empty_state_widget.dart';
@@ -54,6 +55,9 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
   late final ListQueryState _query;
   late final PreferencesController _preferences;
 
+  bool get _isShoppingList =>
+      _currentCollection.type == CollectionType.shoppingList;
+
   @override
   void initState() {
     super.initState();
@@ -86,6 +90,32 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       _currentCollection = collection;
       _products = products;
     });
+  }
+
+  Future<void> _openAddProducts() async {
+    final result = _isShoppingList
+        ? await AddProductToCollectionView.show(context, _currentCollection.id)
+        : await ProductAddHelper.startAddProductFlow(
+            context,
+            collectionId: _currentCollection.id,
+          );
+    if (!mounted) return;
+    if (result == true) {
+      await _refreshCollectionAndProducts();
+      if (mounted) widget.onChanged?.call(_currentCollection);
+    }
+  }
+
+  Future<void> _openQuickImport() async {
+    final result = await QuickImportShoppingDialog.show(
+      context,
+      collectionId: _currentCollection.id,
+    );
+    if (!mounted) return;
+    if (result == true) {
+      await _refreshCollectionAndProducts();
+      if (mounted) widget.onChanged?.call(_currentCollection);
+    }
   }
 
   Future<void> _deleteCollection() async {
@@ -166,24 +196,8 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       isBodyScrollable: true,
       floatingActionButton: FloatingActionButton(
         heroTag: 'collection_detail_fab_${_currentCollection.id}',
-        onPressed: () async {
-          bool? result;
-          if (_currentCollection.type == CollectionType.shoppingList) {
-            result = await AddProductToCollectionView.show(
-              context,
-              _currentCollection.id,
-            );
-          } else {
-            result = await ProductAddHelper.startAddProductFlow(
-              context,
-              collectionId: _currentCollection.id,
-            );
-          }
-          if (!mounted) return;
-          if (result == true) {
-            await _refreshCollectionAndProducts();
-          }
-        },
+        tooltip: 'product.add'.tr(),
+        onPressed: _openAddProducts,
         child: const Icon(Icons.add),
       ),
       body: ListenableBuilder(
@@ -227,14 +241,36 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
               ),
             ),
             SliverToBoxAdapter(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: ViewModeToggle(
-                  viewMode: _query.viewMode,
-                  onModeChanged: (mode) =>
-                      _query.update(() => _query.viewMode = mode),
-                ),
-              ),
+              child: _isShoppingList
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 4, 0),
+                      child: Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          FilledButton.tonalIcon(
+                            onPressed: _openQuickImport,
+                            icon: const Icon(Icons.playlist_add),
+                            label: Text('collection.quickImport.action'.tr()),
+                          ),
+                          ViewModeToggle(
+                            viewMode: _query.viewMode,
+                            onModeChanged: (mode) =>
+                                _query.update(() => _query.viewMode = mode),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Align(
+                      alignment: Alignment.centerRight,
+                      child: ViewModeToggle(
+                        viewMode: _query.viewMode,
+                        onModeChanged: (mode) =>
+                            _query.update(() => _query.viewMode = mode),
+                      ),
+                    ),
             ),
             SliverToBoxAdapter(
               child: ListQueryControls(state: _query, products: _products),
@@ -269,12 +305,47 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
         if (products.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
-            child: EmptyStateWidget(
-              icon: Icons.inventory_2_outlined,
-              title: _products.isEmpty
-                  ? 'collection.noProducts'.tr()
-                  : 'listQuery.noMatches'.tr(),
-            ),
+            child: _products.isEmpty && _isShoppingList
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          EmptyStateWidget(
+                            icon: Icons.shopping_cart_outlined,
+                            title: 'collection.noProducts'.tr(),
+                          ),
+                          const SizedBox(height: 20),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              FilledButton.icon(
+                                onPressed: _openQuickImport,
+                                icon: const Icon(Icons.playlist_add),
+                                label: Text(
+                                  'collection.quickImport.action'.tr(),
+                                ),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: _openAddProducts,
+                                icon: const Icon(Icons.add),
+                                label: Text('product.select'.tr()),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : EmptyStateWidget(
+                    icon: Icons.inventory_2_outlined,
+                    title: _products.isEmpty
+                        ? 'collection.noProducts'.tr()
+                        : 'listQuery.noMatches'.tr(),
+                  ),
           ),
       ],
     );

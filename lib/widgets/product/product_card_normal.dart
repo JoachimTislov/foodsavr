@@ -5,6 +5,7 @@ import 'package:easy_localization/easy_localization.dart';
 import '../../constants/product_categories.dart';
 import '../../controllers/preferences_controller.dart';
 import '../../models/product_model.dart';
+import 'product_icon.dart';
 
 class ProductCardNormal extends WatchingWidget {
   final Product product;
@@ -54,19 +55,11 @@ class ProductCardNormal extends WatchingWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Product icon/image placeholder (Omit icon per TODO if needed, but let's keep the box for now)
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  ProductCategory.getIcon(product.category),
-                  size: 32,
-                  color: colorScheme.onPrimaryContainer,
-                ),
+              ProductIcon.fromProduct(
+                product,
+                size: 56,
+                iconSize: 30,
+                borderRadius: BorderRadius.circular(12),
               ),
               const SizedBox(width: 16),
               // Product info

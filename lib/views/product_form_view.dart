@@ -11,6 +11,7 @@ import '../interfaces/i_auth_service.dart';
 import '../widgets/product/quantity_section.dart';
 import '../views/expiry_scan_view.dart';
 import '../widgets/product/expiries_section.dart';
+import '../widgets/product/global_essentials_picker.dart';
 import '../constants/product_categories.dart';
 import '../widgets/common/adaptive_sheet.dart';
 import '../utils/user_error.dart';
@@ -101,6 +102,8 @@ class _ProductFormContentState extends State<_ProductFormContent> {
   List<ExpiryEntry> _expiries = [];
 
   bool _isSaving = false;
+  bool _browsingEssentials = false;
+  Product? _selectedEssential;
 
   final _shelfLife = ShelfLifeInferer();
 
@@ -143,6 +146,84 @@ class _ProductFormContentState extends State<_ProductFormContent> {
     super.dispose();
   }
 
+  void _applyEssential(Product essential) {
+    final normalizedCategory = ProductCategory.normalize(essential.category);
+    setState(() {
+      _selectedEssential = essential;
+      _nameController.text = essential.name;
+      _descriptionController.text = essential.description;
+      _selectedCategory = normalizedCategory;
+      _browsingEssentials = false;
+      _refreshSuggestedExpiry();
+      if (_expiries.isEmpty && _nonExpiringQuantity == 0) {
+        _nonExpiringQuantity = 1;
+      }
+    });
+  }
+
+  Future<void> _quickAddEssential(Product essential) async {
+    final userId = _userId;
+    if (userId == null || _isSaving) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final normalizedCategory = ProductCategory.normalize(essential.category);
+      final estimate = _shelfLife.estimate(
+        category: normalizedCategory,
+        normalizedName: essential.name.trim().toLowerCase(),
+      );
+      final suggestedDate = estimate == null
+          ? null
+          : DateUtils.dateOnly(
+              DateTime.now().add(Duration(days: estimate.days)),
+            );
+      final product = Product(
+        id: '',
+        name: essential.name,
+        description: essential.description,
+        userId: userId,
+        category: normalizedCategory,
+        barcode: essential.barcode,
+        imageUrl: essential.imageUrl,
+        tags: essential.tags,
+        mappedFromProductId: essential.id,
+        expiries: suggestedDate != null
+            ? [ExpiryEntry(quantity: 1, expirationDate: suggestedDate)]
+            : const [],
+        nonExpiringQuantity: suggestedDate == null ? 1 : 0,
+      );
+      final collectionId = widget.initialCollectionId;
+      final created = await _productService.createProduct(
+        product,
+        withPersonalTemplate: collectionId != null,
+      );
+      if (collectionId != null) {
+        final collection = await _collectionService.getCollection(collectionId);
+        if (collection != null && collection.userId == userId) {
+          await _collectionService.addProductToCollection(
+            collectionId,
+            created.id,
+          );
+        }
+      }
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } catch (e, stack) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(userErrorMessage(e, 'product.saveError'.tr(), stack)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
   Future<void> _save() async {
     final userId = _userId;
     if (!_formKey.currentState!.validate() || userId == null) return;
@@ -156,6 +237,7 @@ class _ProductFormContentState extends State<_ProductFormContent> {
           widget.product ??
           widget.prefill ??
           Product(id: '', name: '', description: '', userId: userId);
+      final essential = _selectedEssential;
       final product = base.copyWith(
         name: _nameController.text,
         description: _descriptionController.text,
@@ -163,6 +245,12 @@ class _ProductFormContentState extends State<_ProductFormContent> {
         expiries: _expiries,
         nonExpiringQuantity: _nonExpiringQuantity,
         category: _selectedCategory,
+        barcode: essential?.barcode ?? base.barcode,
+        imageUrl: essential?.imageUrl ?? base.imageUrl,
+        tags: essential != null && essential.tags.isNotEmpty
+            ? essential.tags
+            : base.tags,
+        mappedFromProductId: essential?.id ?? base.mappedFromProductId,
       );
 
       if (_isEditing) {
@@ -209,16 +297,77 @@ class _ProductFormContentState extends State<_ProductFormContent> {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
 
+    if (!_isEditing && _browsingEssentials) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'product.essentials.title'.tr(),
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _isSaving
+                    ? null
+                    : () => setState(() => _browsingEssentials = false),
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: Text('product.essentials.manualEntry'.tr()),
+              ),
+            ],
+          ),
+          const Divider(),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 400,
+            child: GlobalEssentialsPicker(
+              productService: _productService,
+              onSelect: _applyEssential,
+              onQuickAdd: _isSaving ? null : _quickAddEssential,
+            ),
+          ),
+        ],
+      );
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Text(
-            _isEditing ? 'product.edit'.tr() : 'product.add'.tr(),
-            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+        if (_isEditing)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              'product.edit'.tr(),
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'product.add'.tr(),
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _isSaving
+                    ? null
+                    : () => setState(() => _browsingEssentials = true),
+                icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+                label: Text('product.essentials.browse'.tr()),
+              ),
+            ],
           ),
-        ),
         const Divider(),
         Flexible(
           child: Form(
@@ -331,18 +480,22 @@ class _ProductFormContentState extends State<_ProductFormContent> {
   void _onCategoryChanged(String? category) {
     setState(() {
       _selectedCategory = category;
-      if (_isEditing || _expiriesEdited) return;
-      final untouched =
-          _expiries.isEmpty ||
-          (_expiries.length == 1 && identical(_expiries.first, _suggested));
-      if (!untouched) return;
-      _expiries.clear();
-      _suggested = null;
-      final date = _estimatedExpiry();
-      if (date == null) return;
-      _suggested = ExpiryEntry(quantity: 1, expirationDate: date);
-      _expiries.add(_suggested!);
+      _refreshSuggestedExpiry();
     });
+  }
+
+  void _refreshSuggestedExpiry() {
+    if (_isEditing || _expiriesEdited) return;
+    final untouched =
+        _expiries.isEmpty ||
+        (_expiries.length == 1 && identical(_expiries.first, _suggested));
+    if (!untouched) return;
+    _expiries.clear();
+    _suggested = null;
+    final date = _estimatedExpiry();
+    if (date == null) return;
+    _suggested = ExpiryEntry(quantity: 1, expirationDate: date);
+    _expiries.add(_suggested!);
   }
 
   Future<void> _scanExpiry() async {

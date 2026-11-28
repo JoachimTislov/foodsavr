@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/product_model.dart';
+import 'product_icon.dart';
 
 class ProductListItem extends StatelessWidget {
   final Product product;
@@ -12,11 +13,11 @@ class ProductListItem extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: ListTile(
+        leading: ProductIcon.fromProduct(product, size: 40),
         title: Text(product.name),
         subtitle: product.description.isNotEmpty
             ? Text(product.description)
             : null,
-        // Add more details or actions here if needed
       ),
     );
   }
