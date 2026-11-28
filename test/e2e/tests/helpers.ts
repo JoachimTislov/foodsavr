@@ -28,10 +28,14 @@ export async function openApp(page: Page, path = '/') {
   await expect(page.locator('flutter-view, flt-glass-pane').first()).toBeVisible({
     timeout: 30_000,
   });
+  await page
+    .locator('flt-semantics-placeholder, flt-semantics')
+    .first()
+    .waitFor({ state: 'attached', timeout: 30_000 });
   const enableA11y = page.getByRole('button', { name: 'Enable accessibility' });
   if (await enableA11y.count()) {
     // On touch devices Flutter only accepts a click at the placeholder's centre.
-    await enableA11y.evaluate((element) => {
+    await enableA11y.first().evaluate((element) => {
       const box = element.getBoundingClientRect();
       element.dispatchEvent(
         new MouseEvent('click', {
@@ -189,6 +193,38 @@ export async function deleteUserCollections(userId: string): Promise<void> {
     );
     expect(res.ok || res.status === 404, `deleting collection ${id} failed: ${res.status}`).toBeTruthy();
   }
+}
+
+// Resets the user to an account without any user-owned products.
+export async function deleteUserProducts(userId: string): Promise<void> {
+  let pageToken: string | undefined;
+  do {
+    const query = pageToken
+      ? `pageSize=200&pageToken=${encodeURIComponent(pageToken)}`
+      : 'pageSize=200';
+    const res = await fetch(
+      `${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/products?${query}`,
+      { headers: EMULATOR_ADMIN },
+    );
+    expect(res.ok, `listing products failed: ${res.status}`).toBeTruthy();
+    const body = (await res.json()) as {
+      documents?: { name: string; fields?: { userId?: { stringValue?: string } } }[];
+      nextPageToken?: string;
+    };
+    for (const doc of body.documents ?? []) {
+      if (doc.fields?.userId?.stringValue !== userId) continue;
+      const id = doc.name.split('/').pop() as string;
+      const delRes = await fetch(
+        `${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/products/${id}`,
+        { method: 'DELETE', headers: EMULATOR_ADMIN },
+      );
+      expect(
+        delRes.ok || delRes.status === 404,
+        `deleting product ${id} failed: ${delRes.status}`,
+      ).toBeTruthy();
+    }
+    pageToken = body.nextPageToken;
+  } while (pageToken);
 }
 
 // Adds an inventory through the "+" button of a non-empty inventory list (an

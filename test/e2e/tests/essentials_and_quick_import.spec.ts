@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import {
   deleteSeededCollections,
   deleteUserCollections,
+  deleteUserProducts,
   getDevUserUid,
   openApp,
   seedCollection,
@@ -50,25 +51,6 @@ async function seedGlobalEssential(product: {
   expect(res.ok || res.status === 409, `seeding global ${product.id} failed: ${res.status}`).toBeTruthy();
 }
 
-async function deleteUserProducts(userId: string): Promise<void> {
-  const res = await fetch(
-    `${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/products?pageSize=200`,
-    { headers: EMULATOR_ADMIN },
-  );
-  expect(res.ok, `listing products failed: ${res.status}`).toBeTruthy();
-  const body = (await res.json()) as {
-    documents?: { name: string; fields?: { userId?: { stringValue?: string } } }[];
-  };
-  for (const doc of body.documents ?? []) {
-    if (doc.fields?.userId?.stringValue !== userId) continue;
-    const id = doc.name.split('/').pop() as string;
-    await fetch(
-      `${FIRESTORE_HOST}/v1/projects/${PROJECT_ID}/databases/(default)/documents/products/${id}`,
-      { method: 'DELETE', headers: EMULATOR_ADMIN },
-    );
-  }
-}
-
 test.beforeEach(async () => {
   const uid = await getDevUserUid();
   await deleteSeededCollections();
@@ -112,12 +94,27 @@ test('quick imports a pasted shopping list into an empty shopping list', async (
   await expect(page.getByText('E2E Groceries').first()).toBeVisible({ timeout: 15_000 });
 
   await page.getByRole('button', { name: 'Quick import' }).first().click();
-  await expect(page.getByText('Quick import items')).toBeVisible({ timeout: 10_000 });
 
-  await page.getByRole('textbox').last().fill('2x Whole Milk, Bread\n- Apples');
-  await expect(page.getByText('3 items ready to import')).toBeVisible({ timeout: 10_000 });
+  // AdaptiveSheet renders a Dialog on desktop (where Flutter Web exposes the
+  // interactive controls inside role="dialog" rather than static Text children)
+  // and a modal bottom sheet on mobile. Verify the modal's input and initial
+  // disabled submit state on both layouts.
+  const input = page.getByRole('textbox', { name: /Milk/ });
+  await expect(input).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('button', { name: 'Import items' })).toBeDisabled();
 
-  await page.getByRole('button', { name: 'Import 3 items' }).click();
+  // Flutter replaces its text-editing host when focus moves, so click and type
+  // like a user rather than calling .fill() on the multiline textarea.
+  await input.click();
+  await expect(input).toBeFocused();
+  await page.keyboard.type('2x Whole Milk, Bread', { delay: 20 });
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('- Apples', { delay: 20 });
+
+  const importButton = page.getByRole('button', { name: 'Import 3 items' });
+  await expect(importButton).toBeVisible({ timeout: 10_000 });
+  await expect(importButton).toBeEnabled();
+  await importButton.click();
 
   await expect(page.getByText('Whole Milk').first()).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('Bread').first()).toBeVisible();
