@@ -139,6 +139,46 @@ class CollectionService {
     }
   }
 
+  /// [base], or the first of "[base] 2", "[base] 3", ... that no name in
+  /// [taken] already uses (ignoring case and surrounding space).
+  static String uniqueName(String base, Iterable<String> taken) {
+    final used = {for (final name in taken) name.trim().toLowerCase()};
+    if (!used.contains(base.toLowerCase())) return base;
+    var suffix = 2;
+    while (used.contains('$base $suffix'.toLowerCase())) {
+      suffix++;
+    }
+    return '$base $suffix';
+  }
+
+  /// Creates an empty [type] collection for [userId], named [baseName] or a
+  /// numbered variant that none of the user's [type] collections has.
+  Future<Collection> createWithDefaultName(
+    String userId,
+    CollectionType type, {
+    required String baseName,
+  }) async {
+    final existing = await getCollectionsForUser(userId, type: type);
+    return addCollection(
+      Collection(
+        id: '',
+        name: uniqueName(baseName, existing.map((c) => c.name)),
+        userId: userId,
+        type: type,
+        productIds: const [],
+      ),
+    );
+  }
+
+  /// Renames [collection]; a blank [name] keeps the current one.
+  Future<Collection> rename(Collection collection, String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty || trimmed == collection.name) return collection;
+    final renamed = collection.copyWith(name: trimmed);
+    await updateCollection(renamed, metadataOnly: true);
+    return renamed;
+  }
+
   Future<void> updateCollection(
     Collection collection, {
     bool metadataOnly = false,

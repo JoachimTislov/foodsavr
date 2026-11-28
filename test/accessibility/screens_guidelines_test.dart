@@ -24,6 +24,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
+import '../helpers/fake_receipt_repository.dart';
 import '../helpers/in_memory_preferences_repository.dart';
 import '../helpers/test_translation_loader.dart';
 
@@ -135,7 +136,14 @@ void main() {
       ..registerSingleton<PreferencesController>(preferences)
       ..registerSingleton<OAuthController>(OAuthController(oauth, logger))
       ..registerSingleton<DashboardController>(
-        DashboardController(auth, products, collections, preferences, logger),
+        DashboardController(
+          auth,
+          products,
+          collections,
+          preferences,
+          FakeReceiptRepository(),
+          logger,
+        ),
       );
   });
 
@@ -162,7 +170,7 @@ void main() {
     _Screen.dashboard => find.text('Product soon'),
     _Screen.productDetail => find.byTooltip('Delete product'),
     _Screen.productForm => find.byTooltip('Increase quantity'),
-    _Screen.settings => find.text('Profile'),
+    _Screen.settings => find.text('APPEARANCE'),
   };
 
   for (final brightness in Brightness.values) {

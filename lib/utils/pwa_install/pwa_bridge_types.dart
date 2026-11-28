@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 /// Platform hint used to display tailored manual PWA installation steps when
 /// the browser does not expose a native `beforeinstallprompt` dialog.
 enum PwaPlatformHint {
@@ -13,12 +15,34 @@ enum PwaPlatformHint {
   /// macOS Safari where installation uses File/Share -> Add to Dock.
   macosSafari,
 
+  /// Chrome, Edge or another Chromium browser on Android, where installation
+  /// uses the browser menu -> Install app.
+  android,
+
   /// Firefox on Android where installation uses browser menu -> Install / Add to Home screen.
   firefoxAndroid,
 
-  /// Firefox on desktop where native PWA installation is not supported.
+  /// Firefox on desktop, where installation uses the menu or the address bar.
   firefoxDesktop,
 }
+
+/// Refines the browser's [browserHint] with the operating system Flutter
+/// reports ([os], from `defaultTargetPlatform`), so the guide names the steps
+/// of the user's own system.
+PwaPlatformHint resolvePwaPlatformHint({
+  required TargetPlatform os,
+  required PwaPlatformHint browserHint,
+}) => switch ((os, browserHint)) {
+  (_, PwaPlatformHint.unsupported) => PwaPlatformHint.unsupported,
+  (TargetPlatform.iOS, _) => PwaPlatformHint.ios,
+  (TargetPlatform.android, PwaPlatformHint.firefoxAndroid) ||
+  (
+    TargetPlatform.android,
+    PwaPlatformHint.firefoxDesktop,
+  ) => PwaPlatformHint.firefoxAndroid,
+  (TargetPlatform.android, _) => PwaPlatformHint.android,
+  _ => browserHint,
+};
 
 /// Parses a JS platform hint string from `window.foodsavrPwa.platformHint()`.
 PwaPlatformHint parsePwaPlatformHint(String? raw) => switch (raw) {

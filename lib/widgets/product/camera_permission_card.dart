@@ -2,7 +2,10 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../../constants/material3_config.dart';
+import '../../controllers/pwa_install_controller.dart';
+import '../../service_locator.dart';
 import '../../services/camera_permission_service.dart';
+import '../../utils/camera_setup_guide.dart';
 
 /// Explains why the camera cannot be used and what the user can do about it.
 class CameraPermissionCard extends StatelessWidget {
@@ -18,6 +21,9 @@ class CameraPermissionCard extends StatelessWidget {
   final VoidCallback? onFallback;
   final String? fallbackLabel;
 
+  /// The system and browser the setup steps describe; detected when null.
+  final PwaPlatformHint? platformHint;
+
   const CameraPermissionCard({
     super.key,
     required this.status,
@@ -25,7 +31,14 @@ class CameraPermissionCard extends StatelessWidget {
     this.onEnable,
     this.onFallback,
     this.fallbackLabel,
+    this.platformHint,
   }) : assert(onFallback == null || fallbackLabel != null);
+
+  PwaPlatformHint get _hint =>
+      platformHint ??
+      (getIt.isRegistered<PwaInstallController>()
+          ? getIt<PwaInstallController>().platformHint
+          : PwaPlatformHint.unsupported);
 
   @override
   Widget build(BuildContext context) {
@@ -121,6 +134,26 @@ class CameraPermissionCard extends StatelessWidget {
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
+            if (status == CameraAccessStatus.denied) ...[
+              const SizedBox(height: Material3Config.spacing12),
+              Text(
+                'camera.guide.title'.tr(),
+                style: theme.textTheme.titleSmall,
+              ),
+              const SizedBox(height: Material3Config.spacing8),
+              for (final (index, step) in cameraSetupSteps(_hint).indexed)
+                Padding(
+                  padding: const EdgeInsets.only(
+                    bottom: Material3Config.spacing4,
+                  ),
+                  child: Text(
+                    '${index + 1}. $step',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+            ],
             if (actions.isNotEmpty) ...[
               const SizedBox(height: Material3Config.spacing16),
               Wrap(

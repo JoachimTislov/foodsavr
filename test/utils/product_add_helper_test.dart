@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:foodsavr/models/product_model.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/services/open_food_facts_client.dart';
 import 'package:foodsavr/utils/product_add_helper.dart';
-import 'package:foodsavr/views/expiry_scan_view.dart';
-import 'package:foodsavr/widgets/product/camera_permission_card.dart';
+import 'package:foodsavr/views/batch_expiry_view.dart';
 import 'package:go_router/go_router.dart';
 
 import '../support/add_product_harness.dart';
@@ -23,7 +21,6 @@ void main() {
 
   final lookupField = find.widgetWithText(TextField, 'Barcode or product name');
   final addButton = find.widgetWithText(FilledButton, 'Add Product');
-  final nameField = find.widgetWithText(TextFormField, 'Product Name');
   final android = TargetPlatformVariant.only(TargetPlatform.android);
 
   Future<void> start(
@@ -115,108 +112,12 @@ void main() {
     expect(saved.quantity, 1);
   });
 
-  group('startExpiryFirstFlow', () {
-    Future<void> pickDefaultDate(WidgetTester tester) async {
-      expect(find.byType(DatePickerDialog), findsOneWidget);
-      await tester.tap(find.text('OK'));
-      await tester.pumpAndSettle();
-    }
+  testWidgets('startExpiryFirstFlow opens the batch expiry session', (
+    tester,
+  ) async {
+    await start(tester, ProductAddHelper.startExpiryFirstFlow);
 
-    testWidgets(
-      'without a camera picks a date, then saves it with the details',
-      (tester) async {
-        await start(tester, ProductAddHelper.startExpiryFirstFlow);
-        expect(find.byType(ExpiryScanView), findsNothing);
-
-        await pickDefaultDate(tester);
-        await tester.enterText(nameField, 'Yoghurt');
-        await tester.tap(addButton);
-        await tester.pumpAndSettle();
-
-        final saved = harness.repository.added.single;
-        expect(saved.name, 'Yoghurt');
-        // The default is just beyond the six day expiring-soon window.
-        expect(saved.expiries.single.daysUntilExpiration, 7);
-        expect(saved.nonExpiringQuantity, 0);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.linux),
-    );
-
-    testWidgets('cancelling the date adds nothing', (tester) async {
-      await start(tester, ProductAddHelper.startExpiryFirstFlow);
-
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
-
-      expect(addButton, findsNothing);
-      expect(harness.repository.writes, 0);
-    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
-
-    testWidgets('the captured date survives a catalog match', (tester) async {
-      harness.openFoodFacts
-        ..searchable = ['Gresk yoghurt']
-        ..tags = ['en:yogurts'];
-      await start(tester, ProductAddHelper.startExpiryFirstFlow);
-      await pickDefaultDate(tester);
-
-      await tester.enterText(lookupField, 'yoghurt');
-      await tester.pump();
-      await tester.tap(find.byTooltip('Search'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Gresk yoghurt'));
-      await tester.pumpAndSettle();
-      await tester.tap(addButton);
-      await tester.pumpAndSettle();
-
-      final saved = harness.repository.added.single;
-      expect(saved.name, 'Gresk yoghurt');
-      expect(saved.expiries.single.daysUntilExpiration, 7);
-      expect(saved.quantity, 1);
-    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
-
-    testWidgets('the captured date survives a one-tap essential', (
-      tester,
-    ) async {
-      harness.repository.products.add(
-        const Product(
-          id: 'global-milk',
-          name: 'Whole Milk',
-          description: '',
-          userId: 'system',
-          category: 'dairy',
-          isGlobal: true,
-          registryType: 'global',
-        ),
-      );
-      await start(tester, ProductAddHelper.startExpiryFirstFlow);
-      await pickDefaultDate(tester);
-
-      await tester.tap(find.text('Browse essentials'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Quick add'));
-      await tester.pumpAndSettle();
-
-      final saved = harness.repository.added.single;
-      expect(saved.expiries.single.daysUntilExpiration, 7);
-      expect(saved.quantity, 1);
-    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
-
-    testWidgets('with a camera opens the scanner, never a dead end', (
-      tester,
-    ) async {
-      harness.mockDeviceCamera(tester);
-
-      await start(tester, ProductAddHelper.startExpiryFirstFlow);
-      expect(find.byType(ExpiryScanView), findsOneWidget);
-      expect(find.byType(CameraPermissionCard), findsOneWidget);
-      expect(find.text('Camera permission denied'), findsOneWidget);
-
-      await tester.tap(find.text('Enter expiry manually'));
-      await tester.pumpAndSettle();
-      await pickDefaultDate(tester);
-
-      expect(find.byType(ExpiryScanView), findsNothing);
-      expect(addButton, findsOneWidget);
-    }, variant: android);
+    expect(find.byType(BatchExpiryView), findsOneWidget);
+    expect(harness.repository.writes, 0);
   });
 }

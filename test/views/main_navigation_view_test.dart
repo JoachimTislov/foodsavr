@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foodsavr/routes/page_trail.dart';
 import 'package:foodsavr/views/main_navigation_view.dart';
 import 'package:foodsavr/widgets/common/app_navigation_rail.dart';
+import 'package:foodsavr/widgets/common/lettmat_logo.dart';
+import 'package:foodsavr/widgets/settings/shorthand_toggles.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -22,8 +27,9 @@ void main() {
         builder: (context, state, shell) =>
             MainNavigationView(navigationShell: shell),
         branches: [
-          for (final name in ['a', 'b', 'c', 'd'])
+          for (final (i, name) in ['a', 'b', 'c', 'd', 'e'].indexed)
             StatefulShellBranch(
+              observers: [PageTrail.branches[i]],
               routes: [
                 GoRoute(
                   path: '/$name',
@@ -115,8 +121,81 @@ void main() {
     final tabs = find.semantics.byPredicate(
       (node) => node.getSemanticsData().role == SemanticsRole.tab,
     );
-    expect(tabs, findsNWidgets(4));
+    expect(tabs, findsNWidgets(3));
     expect(tabs.evaluate().first.getSemanticsData().label, 'dashboard.title');
     handle.dispose();
+  });
+
+  testWidgets('compact bar has five destinations and no task bar', (
+    tester,
+  ) async {
+    await pump(tester, 400, buildRouter());
+
+    expect(find.byType(NavigationDestination), findsNWidgets(5));
+    expect(find.byIcon(Icons.person_outline), findsOneWidget);
+    expect(find.byIcon(Icons.settings), findsNothing);
+    expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+    expect(find.byType(LanguageTogglePill), findsNothing);
+    expect(find.byType(ThemeTogglePill), findsNothing);
+    expect(find.byIcon(Icons.logout), findsNothing);
+  });
+
+  testWidgets('only the extended rail shows the brand mark', (tester) async {
+    await pump(tester, 1400, buildRouter());
+    expect(find.byType(LettMatLogo), findsOneWidget);
+
+    tester.view.physicalSize = const Size(900, 900);
+    await tester.pumpAndSettle();
+    expect(find.byType(LettMatLogo), findsNothing);
+  });
+
+  for (final width in [700.0, 1400.0]) {
+    testWidgets('rail footer buttons select profile and settings at $width', (
+      tester,
+    ) async {
+      final router = buildRouter();
+      await pump(tester, width, router);
+      expect(find.byType(NavigationDestination), findsNothing);
+
+      await tester.tap(find.byTooltip('profile.title'));
+      await tester.pumpAndSettle();
+      expect(router.routeInformationProvider.value.uri.path, '/d');
+      expect(find.byIcon(Icons.person), findsOneWidget);
+
+      await tester.tap(find.byTooltip('settings.title'));
+      await tester.pumpAndSettle();
+      expect(router.routeInformationProvider.value.uri.path, '/e');
+      expect(find.byIcon(Icons.settings), findsOneWidget);
+    });
+  }
+
+  testWidgets('the wide shell has no task bar controls', (tester) async {
+    await pump(tester, 1400, buildRouter());
+
+    expect(find.byType(LanguageTogglePill), findsNothing);
+    expect(find.byType(ThemeTogglePill), findsNothing);
+    expect(find.byIcon(Icons.logout), findsNothing);
+  });
+
+  testWidgets('re-tapping the current destination pops pushed pages', (
+    tester,
+  ) async {
+    await pump(tester, 400, buildRouter());
+
+    unawaited(
+      PageTrail.push<void>(
+        tester.element(find.text('page a')),
+        label: 'Detail',
+        builder: (_) => const Text('detail page'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('detail page'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.home));
+    await tester.pumpAndSettle();
+
+    expect(find.text('detail page'), findsNothing);
+    expect(find.text('page a'), findsOneWidget);
   });
 }

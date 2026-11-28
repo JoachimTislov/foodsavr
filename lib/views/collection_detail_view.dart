@@ -6,11 +6,14 @@ import 'package:flutter/material.dart';
 
 import '../controllers/list_query_state.dart';
 import '../controllers/preferences_controller.dart';
+import '../constants/material3_config.dart';
 import '../models/collection_model.dart';
 import '../models/product_model.dart';
 import '../utils/collection_types.dart';
 import '../utils/product_add_helper.dart';
+import '../routes/page_trail.dart';
 import '../service_locator.dart';
+import '../utils/user_error.dart';
 import '../services/product_service.dart';
 import '../services/collection_service.dart';
 import '../services/barcode_scanner_service.dart';
@@ -30,7 +33,6 @@ import '../widgets/collection/shopping_list_item_card.dart';
 import '../widgets/product/view_mode_toggle.dart';
 import '../utils/view_mode_helper.dart';
 import 'product_detail_view.dart';
-import 'collection_form_view.dart';
 import 'product_form_view.dart';
 import 'receipt_scan_view.dart';
 
@@ -41,10 +43,14 @@ class CollectionDetailView extends StatefulWidget {
   /// reports an edited collection, or null once it was deleted.
   final ValueChanged<Collection?>? onChanged;
 
+  /// Opens with the title in edit mode, for a collection just created.
+  final bool startEditingTitle;
+
   const CollectionDetailView({
     super.key,
     required this.collection,
     this.onChanged,
+    this.startEditingTitle = false,
   });
 
   @override
@@ -118,6 +124,17 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
     if (result == true) {
       await _refreshCollectionAndProducts();
       if (mounted) widget.onChanged?.call(_currentCollection);
+    }
+  }
+
+  Future<void> _renameCollection(String name) async {
+    try {
+      final renamed = await _collectionService.rename(_currentCollection, name);
+      if (!mounted) return;
+      setState(() => _currentCollection = renamed);
+      widget.onChanged?.call(renamed);
+    } catch (e, stack) {
+      _showMessage(userErrorMessage(e, 'collection.saveError'.tr(), stack));
     }
   }
 
@@ -492,12 +509,6 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
       onRefresh: _refreshCollectionAndProducts,
       fetchOnInit: true,
       isBodyScrollable: true,
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'collection_detail_fab_${_currentCollection.id}',
-        tooltip: 'product.add'.tr(),
-        onPressed: _openAddProducts,
-        child: const Icon(Icons.add),
-      ),
       body: ListenableBuilder(
         listenable: Listenable.merge([_query, _preferences]),
         builder: (context, _) => _buildCollection(context),
@@ -520,21 +531,9 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
               child: CollectionHeader(
                 collection: _currentCollection,
                 productCount: products.length,
-                onBack:
-                    widget.onChanged == null && Navigator.of(context).canPop()
-                    ? () => Navigator.of(context).pop()
-                    : null,
-                onEdit: () async {
-                  final result = await CollectionFormView.show(
-                    context,
-                    type: _currentCollection.type,
-                    collection: _currentCollection,
-                  );
-                  if (result == true) {
-                    await _refreshCollectionAndProducts();
-                    if (mounted) widget.onChanged?.call(_currentCollection);
-                  }
-                },
+                startEditing: widget.startEditingTitle,
+                onRename: _renameCollection,
+                onAdd: _openAddProducts,
                 onDelete: _deleting ? null : _deleteCollection,
               ),
             ),
@@ -583,7 +582,9 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
             ),
             if (products.isNotEmpty)
               SliverPadding(
-                padding: const EdgeInsets.only(bottom: 80),
+                padding: const EdgeInsets.only(
+                  bottom: Material3Config.spacing16,
+                ),
                 sliver: SliverList.builder(
                   itemCount: products.length,
                   itemBuilder: (context, index) {
@@ -716,10 +717,10 @@ class _CollectionDetailViewState extends State<CollectionDetailView> {
   }
 
   Future<void> _navigateToProductDetail(Product product) async {
-    final result = await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => ProductDetailView(product: product),
-      ),
+    final result = await PageTrail.push<bool>(
+      context,
+      label: product.name,
+      builder: (context) => ProductDetailView(product: product),
     );
     if (result == true && mounted) {
       await _refreshCollectionAndProducts();

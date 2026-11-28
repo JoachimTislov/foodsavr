@@ -128,7 +128,7 @@ void main() {
 
     expect(find.text('Add password'), findsNothing);
     expect(find.text('Forgot Password'), findsNothing);
-    expect(find.text('Create account'), findsOneWidget);
+    expect(find.text('Create account'), findsWidgets);
   });
 
   testWidgets('hides two-factor auth and the avatar edit icon', (tester) async {

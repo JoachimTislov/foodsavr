@@ -3,14 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../constants/adaptive_layout.dart';
+import '../routes/page_trail.dart';
 import '../widgets/common/app_breadcrumbs.dart';
 import '../widgets/common/app_navigation_rail.dart';
-import '../widgets/dashboard/desktop_task_bar.dart';
 
 /// App shell: a bottom navigation bar on compact windows, and on wider ones a
 /// navigation rail (labels beside the icons from
-/// [AdaptiveLayout.extendedRailBreakpoint]) with a [DesktopTaskBar] above the
-/// content.
+/// [AdaptiveLayout.extendedRailBreakpoint]) with profile and settings as slim
+/// buttons at its bottom, and breadcrumbs above the content.
 class MainNavigationView extends StatefulWidget {
   final StatefulNavigationShell navigationShell;
 
@@ -33,6 +33,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
 
   void _onDestinationSelected(int index) {
     final shell = widget.navigationShell;
+    if (index == shell.currentIndex) PageTrail.branches[index].popTo(null);
     shell.goBranch(index, initialLocation: index == shell.currentIndex);
   }
 
@@ -41,9 +42,11 @@ class _MainNavigationViewState extends State<MainNavigationView> {
     // `tr()` alone does not rebuild the labels on a language change.
     EasyLocalization.of(context);
     final width = MediaQuery.sizeOf(context).width;
+    final selectedIndex = widget.navigationShell.currentIndex;
     final shell = KeyedSubtree(key: _bodyKey, child: widget.navigationShell);
     final banner = widget.statusBanner;
     final body = AppBreadcrumbs(
+      trail: PageTrail.branches[selectedIndex],
       child: banner == null
           ? shell
           : Column(
@@ -53,7 +56,6 @@ class _MainNavigationViewState extends State<MainNavigationView> {
               ],
             ),
     );
-    final selectedIndex = widget.navigationShell.currentIndex;
 
     if (WindowSize.fromWidth(width).isCompact) {
       return Scaffold(
@@ -62,7 +64,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
           selectedIndex: selectedIndex,
           onDestinationSelected: _onDestinationSelected,
           destinations: [
-            for (final item in _items)
+            for (final item in [..._items, ..._footerItems])
               NavigationDestination(
                 icon: Icon(item.icon),
                 selectedIcon: Icon(item.selectedIcon),
@@ -73,43 +75,23 @@ class _MainNavigationViewState extends State<MainNavigationView> {
       );
     }
 
-    final extended = width >= AdaptiveLayout.extendedRailBreakpoint;
+    AppNavigationRailItem railItem(_NavItem item) => AppNavigationRailItem(
+      icon: item.icon,
+      selectedIcon: item.selectedIcon,
+      label: item.labelKey.tr(),
+    );
     return Scaffold(
       body: Row(
         children: [
           AppNavigationRail(
             selectedIndex: selectedIndex,
             onDestinationSelected: _onDestinationSelected,
-            extended: extended,
-            items: [
-              for (final item in _items)
-                AppNavigationRailItem(
-                  icon: item.icon,
-                  selectedIcon: item.selectedIcon,
-                  label: item.labelKey.tr(),
-                ),
-            ],
+            extended: width >= AdaptiveLayout.extendedRailBreakpoint,
+            items: [for (final item in _items) railItem(item)],
+            footerItems: [for (final item in _footerItems) railItem(item)],
           ),
           const VerticalDivider(width: 1),
-          Expanded(
-            child: Column(
-              children: [
-                DesktopTaskBar(
-                  showPreferenceToggles:
-                      !_items[selectedIndex].hasPreferenceToggles,
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  // The task bar already consumes the top inset.
-                  child: MediaQuery.removePadding(
-                    context: context,
-                    removeTop: true,
-                    child: body,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          Expanded(child: body),
         ],
       ),
     );
@@ -121,17 +103,10 @@ class _NavItem {
   final IconData selectedIcon;
   final String labelKey;
 
-  /// Whether the page itself offers the language and theme toggles.
-  final bool hasPreferenceToggles;
-
-  const _NavItem(
-    this.icon,
-    this.selectedIcon,
-    this.labelKey, {
-    this.hasPreferenceToggles = false,
-  });
+  const _NavItem(this.icon, this.selectedIcon, this.labelKey);
 }
 
+/// The main destinations, in branch order.
 const _items = [
   _NavItem(Icons.home_outlined, Icons.home, 'dashboard.title'),
   _NavItem(
@@ -144,10 +119,10 @@ const _items = [
     Icons.shopping_cart,
     'dashboard.shoppingList',
   ),
-  _NavItem(
-    Icons.settings_outlined,
-    Icons.settings,
-    'settings.title',
-    hasPreferenceToggles: true,
-  ),
+];
+
+/// Profile and settings, the branches after [_items].
+const _footerItems = [
+  _NavItem(Icons.person_outline, Icons.person, 'profile.title'),
+  _NavItem(Icons.settings_outlined, Icons.settings, 'settings.title'),
 ];

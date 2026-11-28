@@ -49,13 +49,23 @@ void main() {
 
   tearDown(() => getIt.reset());
 
-  Future<void> pumpView(WidgetTester tester, Widget view) async {
+  Future<void> pumpView(
+    WidgetTester tester,
+    Widget view, {
+    String at = '/',
+  }) async {
     tester.view.physicalSize = const Size(1000, 2000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final router = GoRouter(
+      initialLocation: at,
       routes: [
-        GoRoute(path: '/', builder: (_, _) => view),
+        GoRoute(path: at, builder: (_, _) => view),
+        if (at != '/')
+          GoRoute(
+            path: '/',
+            builder: (_, _) => const Scaffold(body: Text('page /')),
+          ),
         GoRoute(
           path: '/auth',
           builder: (_, state) => Scaffold(body: Text('page ${state.uri}')),
@@ -108,15 +118,17 @@ void main() {
   }
 
   final guestButton = find.text('Continue as guest');
+  final backButton = find.text('Back to start');
 
-  testWidgets('login shows the LettMat brand, guest access and notice', (
+  testWidgets('login shows the LettMat brand, a back link and the notice', (
     tester,
   ) async {
     await pumpView(tester, const AuthView());
 
     expect(find.text('LettMat'), findsOneWidget);
     expect(find.byIcon(Icons.eco), findsOneWidget);
-    expect(guestButton, findsOneWidget);
+    expect(backButton, findsOneWidget);
+    expect(guestButton, findsNothing);
     expect(notice('signing in'), findsOneWidget);
     expect(find.text('Delete Account'), findsNothing);
     expect(find.text('Privacy Notice'), findsNothing);
@@ -166,11 +178,20 @@ void main() {
     });
   }
 
-  testWidgets('guest sign-in leaves the auth screen', (tester) async {
+  testWidgets('the back link returns to the landing page', (tester) async {
+    await pumpView(tester, const AuthView(), at: '/auth-view');
+
+    await tester.tap(backButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('page /'), findsOneWidget);
+  });
+
+  testWidgets('landing guest sign-in opens the dashboard', (tester) async {
     when(
       () => authService.signInAsGuest(),
     ).thenAnswer((_) async => _MockUserCredential());
-    await pumpView(tester, const AuthView());
+    await pumpView(tester, const LandingPageView());
 
     await tester.tap(guestButton);
     await tester.pumpAndSettle();
@@ -179,13 +200,29 @@ void main() {
     expect(find.text('page /dashboard'), findsOneWidget);
   });
 
-  for (final (button, serviceCall, message) in [
-    (
-      'Continue as guest',
-      (_MockAuthService s) => s.signInAsGuest(),
-      'Guest access is not available here yet. '
+  testWidgets('landing guest sign-in failure shows a snackbar', (tester) async {
+    when(() => authService.signInAsGuest()).thenAnswer(
+      (_) => Future.error(FirebaseAuthException(code: 'operation-not-allowed')),
+    );
+    await pumpView(tester, const LandingPageView());
+
+    await tester.tap(guestButton);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(SnackBar),
+        matching: find.text(
+          'Guest access is not available here yet. '
           'Create an account or sign in instead.',
-    ),
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('page /dashboard'), findsNothing);
+  });
+
+  for (final (button, serviceCall, message) in [
     (
       'Continue with Google',
       (_MockAuthService s) => s.signInWithGoogle(),
@@ -229,6 +266,7 @@ void main() {
       expect(find.text('LettMat'), findsOneWidget);
       expect(find.text('Get started'), findsOneWidget);
       expect(find.text('I already have an account'), findsOneWidget);
+      expect(guestButton, findsOneWidget);
       expect(find.text('Privacy Notice'), findsOneWidget);
       expect(find.text('Delete Account'), findsNothing);
       expect(tester.takeException(), isNull);
@@ -249,9 +287,7 @@ void main() {
     });
   }
 
-  testWidgets('an existing guest is not offered guest access again', (
-    tester,
-  ) async {
+  testWidgets('an existing guest goes back to the dashboard', (tester) async {
     final guest = _MockUser();
     when(() => guest.isAnonymous).thenReturn(true);
     when(() => authService.currentUser).thenReturn(guest);
@@ -259,6 +295,10 @@ void main() {
     await pumpView(tester, const AuthView());
 
     expect(guestButton, findsNothing);
+    expect(backButton, findsNothing);
+    await tester.tap(find.text('Dashboard'));
+    await tester.pumpAndSettle();
+    expect(find.text('page /dashboard'), findsOneWidget);
   });
 
   testWidgets('hanging Facebook sign-in can be cancelled on AuthView', (
@@ -292,10 +332,13 @@ void main() {
     );
   });
 
-  testWidgets('deletion sign-in offers no guest access', (tester) async {
+  testWidgets('deletion sign-in offers no guest access or back link', (
+    tester,
+  ) async {
     await pumpView(tester, const AuthView(deletionOnly: true));
 
     expect(guestButton, findsNothing);
+    expect(backButton, findsNothing);
     expect(notice('signing in'), findsOneWidget);
   });
 }

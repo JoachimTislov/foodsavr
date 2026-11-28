@@ -4,6 +4,7 @@ import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart
 import 'package:injectable/injectable.dart';
 
 import '../service_locator.dart';
+import 'camera_permission_service.dart';
 import 'camera_preference_service.dart';
 
 @injectable
@@ -12,6 +13,14 @@ class BarcodeScannerService {
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS);
+
+  /// Whether browsers scan barcodes live, through the web scanner. Text
+  /// recognition (expiry dates, receipts) has no web implementation.
+  static bool get supportsWebScanning => kIsWeb;
+
+  /// Whether a live barcode scanner exists on this platform.
+  static bool get supportsLiveScanning =>
+      supportsCameraScanning || supportsWebScanning;
 
   static Future<CameraDescription?> findCamera() async {
     if (!supportsCameraScanning) return null;
@@ -25,11 +34,31 @@ class BarcodeScannerService {
 
   static Future<bool>? _hasHardware;
 
-  /// Whether this device can scan with a camera and the user allows it. The
-  /// setting is read on every call; the hardware is detected once and cached.
+  /// Whether this device can scan barcodes with a camera and the user allows
+  /// it. The setting is read on every call; the native hardware is detected
+  /// once and cached. A denied browser permission still counts, so the scanner
+  /// can explain how to grant it.
   static Future<bool> hasCamera() async {
+    if (supportsWebScanning) return _webCameraUsable();
+    return hasTextScanner();
+  }
+
+  /// Whether text recognition (expiry dates, receipts) can use the camera.
+  /// Native only: ML Kit text recognition does not run in browsers.
+  static Future<bool> hasTextScanner() async {
     if (!supportsCameraScanning || !await _cameraAllowed()) return false;
     return _hasHardware ??= _detectHardware();
+  }
+
+  static Future<bool> _webCameraUsable() async {
+    final status = await CameraPermissionService.resolve().check();
+    return switch (status) {
+      CameraAccessStatus.noCamera ||
+      CameraAccessStatus.unsupported ||
+      CameraAccessStatus.insecureContext ||
+      CameraAccessStatus.disabledInSettings => false,
+      _ => true,
+    };
   }
 
   static Future<bool> _cameraAllowed() async {

@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -72,7 +71,8 @@ class UrlModalLink {
   final String location;
 }
 
-/// Small centered modal frame backed by a URL route.
+/// Small centered modal frame backed by a URL route. The header's close icon
+/// is its only close control.
 ///
 /// Sized to match lightweight form modals (~460px max width, 16px corners)
 /// rather than a full-width stretched page.
@@ -83,10 +83,7 @@ class UrlModalDialog extends StatelessWidget {
     required this.icon,
     required this.child,
     this.iconColor,
-    this.routeBadge,
     this.footerLinks = const [],
-    this.showCloseButton = true,
-    this.primaryCloseButton = true,
     this.fallbackRoute = '/',
     this.onClose,
   });
@@ -98,11 +95,8 @@ class UrlModalDialog extends StatelessWidget {
   final String title;
   final IconData icon;
   final Color? iconColor;
-  final String? routeBadge;
   final Widget child;
   final List<UrlModalLink> footerLinks;
-  final bool showCloseButton;
-  final bool primaryCloseButton;
   final String fallbackRoute;
   final VoidCallback? onClose;
 
@@ -167,7 +161,6 @@ class UrlModalDialog extends StatelessWidget {
                 icon: icon,
                 iconColor: iconColor,
                 title: title,
-                routeBadge: routeBadge,
                 onClose: handleClose,
               ),
               const Divider(height: 1),
@@ -180,14 +173,9 @@ class UrlModalDialog extends StatelessWidget {
                   child: child,
                 ),
               ),
-              if (footerLinks.isNotEmpty || showCloseButton) ...[
+              if (footerLinks.isNotEmpty) ...[
                 const Divider(height: 1),
-                _UrlModalFooter(
-                  links: footerLinks,
-                  showCloseButton: showCloseButton,
-                  primaryCloseButton: primaryCloseButton,
-                  onClose: handleClose,
-                ),
+                _UrlModalFooter(links: footerLinks),
               ],
             ],
           ),
@@ -203,21 +191,17 @@ class _UrlModalHeader extends StatelessWidget {
     required this.title,
     required this.onClose,
     this.iconColor,
-    this.routeBadge,
   });
 
   final IconData icon;
   final Color? iconColor;
   final String title;
-  final String? routeBadge;
   final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final showBadge =
-        routeBadge != null && MediaQuery.sizeOf(context).width >= 400;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 8, 8),
@@ -238,23 +222,6 @@ class _UrlModalHeader extends StatelessWidget {
               ),
             ),
           ),
-          if (showBadge) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                routeBadge!,
-                style: textTheme.labelSmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
           const SizedBox(width: 4),
           IconButton(
             key: const Key('url_modal_close_icon'),
@@ -269,17 +236,9 @@ class _UrlModalHeader extends StatelessWidget {
 }
 
 class _UrlModalFooter extends StatelessWidget {
-  const _UrlModalFooter({
-    required this.links,
-    required this.showCloseButton,
-    required this.primaryCloseButton,
-    required this.onClose,
-  });
+  const _UrlModalFooter({required this.links});
 
   final List<UrlModalLink> links;
-  final bool showCloseButton;
-  final bool primaryCloseButton;
-  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -309,13 +268,6 @@ class _UrlModalFooter extends StatelessWidget {
               ],
             ),
           ),
-          if (showCloseButton) ...[
-            const SizedBox(width: 8),
-            if (primaryCloseButton)
-              FilledButton(onPressed: onClose, child: Text('common.close'.tr()))
-            else
-              TextButton(onPressed: onClose, child: Text('common.close'.tr())),
-          ],
         ],
       ),
     );

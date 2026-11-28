@@ -3,14 +3,29 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:watch_it/watch_it.dart';
 
+import '../constants/material3_config.dart';
 import '../constants/public_routes.dart';
 import '../controllers/user_controller.dart';
 import '../widgets/common/content_constraint.dart';
 import '../widgets/settings/password_action_tile.dart';
+import '../utils/sign_out_flow.dart';
 import '../widgets/settings/settings_section.dart';
+import '../widgets/settings/social_connections_section.dart';
 
-class ProfileView extends WatchingWidget {
+/// The signed-in account: who it is, how it signs in, sign out and removal.
+/// App preferences live in Settings.
+class ProfileView extends WatchingStatefulWidget {
   const ProfileView({super.key});
+
+  @override
+  State<ProfileView> createState() => _ProfileViewState();
+}
+
+class _ProfileViewState extends State<ProfileView> {
+  /// Rebuilds after a sign-in method changed; linking emits no auth event.
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,17 +36,6 @@ class ProfileView extends WatchingWidget {
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/dashboard');
-            }
-          },
-        ),
         title: Text(
           'profile.title'.tr(),
           style: const TextStyle(fontWeight: FontWeight.bold),
@@ -51,10 +55,10 @@ class ProfileView extends WatchingWidget {
                 ),
               ),
               SliverPadding(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(16),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 16),
                     Text(
                       'profile.account_settings'.tr(),
                       style: textTheme.labelSmall?.copyWith(
@@ -63,7 +67,7 @@ class ProfileView extends WatchingWidget {
                         color: colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
                     _SettingsGroup(
                       items: [
                         if (authController.isAnonymous)
@@ -73,7 +77,7 @@ class ProfileView extends WatchingWidget {
                             onTap: () => context.go('/auth?mode=signup'),
                           ),
                         if (PasswordActionTile.appliesTo(authController.user))
-                          PasswordActionTile(),
+                          PasswordActionTile(onChanged: _refresh),
                         _SettingsItem(
                           icon: Icons.mail_outline,
                           label: 'profile.change_email'.tr(),
@@ -84,11 +88,13 @@ class ProfileView extends WatchingWidget {
                           icon: Icons.logout,
                           label: 'profile.log_out'.tr(),
                           isDestructive: true,
-                          onTap: () => authController.signOut(),
+                          onTap: () => SignOutFlow.run(context),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
+                    SocialConnectionsSection(onChanged: _refresh),
+                    const SizedBox(height: 24),
                     Text(
                       'profile.danger_zone'.tr(),
                       style: textTheme.labelSmall?.copyWith(
@@ -97,7 +103,7 @@ class ProfileView extends WatchingWidget {
                         color: Theme.of(context).colorScheme.error,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
                     _SettingsGroup(
                       items: [
                         _SettingsItem(
@@ -171,15 +177,15 @@ class _ProfileHeader extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Container(
-      padding: const EdgeInsets.only(left: 24, top: 32, right: 24, bottom: 32),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainer,
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
+        borderRadius: BorderRadius.circular(Material3Config.radiusLarge),
       ),
-      child: Column(
+      child: Row(
         children: [
           CircleAvatar(
-            radius: 56,
+            radius: 32,
             backgroundColor: colorScheme.outlineVariant,
             backgroundImage: avatarUrl != null
                 ? NetworkImage(avatarUrl!) as ImageProvider
@@ -187,26 +193,32 @@ class _ProfileHeader extends StatelessWidget {
             child: avatarUrl == null
                 ? Icon(
                     Icons.person,
-                    size: 56,
+                    size: 32,
                     color: colorScheme.onSurfaceVariant,
                   )
                 : null,
           ),
-          const SizedBox(height: 16),
-          Text(
-            name,
-            style: textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (_email != null)
+                  Text(
+                    _email,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
-          if (_email != null)
-            Text(
-              _email,
-              style: textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
         ],
       ),
     );

@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/product_model.dart';
+import '../../routes/page_trail.dart';
 import '../../views/product_detail_view.dart';
 import 'expiring_item_card.dart';
 
@@ -19,7 +20,7 @@ class ExpiredItemsSection extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           mainAxisSize: MainAxisSize.min,
@@ -66,10 +67,10 @@ class ExpiredItemsSection extends StatelessWidget {
           ExpiringItemCard(
             product: products[i],
             expired: true,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ProductDetailView(product: products[i]),
-              ),
+            onTap: () => PageTrail.push<void>(
+              context,
+              label: products[i].name,
+              builder: (_) => ProductDetailView(product: products[i]),
             ),
           ),
         ],

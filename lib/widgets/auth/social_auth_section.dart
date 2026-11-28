@@ -9,16 +9,12 @@ class SocialAuthSection extends StatelessWidget {
   final VoidCallback? onFacebookPressed;
   final VoidCallback? onCancel;
 
-  /// Whether an "or" divider separates what follows.
-  final bool showDivider;
-
   const SocialAuthSection({
     super.key,
     required this.isLoading,
     this.onGooglePressed,
     this.onFacebookPressed,
     this.onCancel,
-    this.showDivider = true,
   });
 
   @override
@@ -48,22 +44,6 @@ class SocialAuthSection extends StatelessWidget {
             onPressed: onCancel,
             icon: const Icon(Icons.close, size: 18),
             label: Text('common.cancel'.tr()),
-          ),
-        ],
-        if (showDivider) ...[
-          const SizedBox(height: 24.0),
-          Row(
-            children: [
-              const Expanded(child: Divider()),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Text(
-                  'common.or'.tr(),
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-              ),
-              const Expanded(child: Divider()),
-            ],
           ),
         ],
       ],

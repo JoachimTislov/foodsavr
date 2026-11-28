@@ -5,8 +5,11 @@ import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 
 import '../interfaces/i_auth_service.dart';
+import '../interfaces/i_receipt_repository.dart';
 import '../models/collection_model.dart';
+import '../models/dashboard_insights.dart';
 import '../models/product_model.dart';
+import '../models/receipt_record.dart';
 import '../services/collection_service.dart';
 import '../services/product_service.dart';
 import '../utils/collection_types.dart';
@@ -21,6 +24,7 @@ class DashboardController extends ChangeNotifier {
   final ProductService _productService;
   final CollectionService _collectionService;
   final PreferencesController _preferences;
+  final IReceiptRepository _receipts;
   final Logger _logger;
 
   DashboardController(
@@ -28,6 +32,7 @@ class DashboardController extends ChangeNotifier {
     this._productService,
     this._collectionService,
     this._preferences,
+    this._receipts,
     this._logger,
   ) {
     _preferences.addListener(_onPreferencesChanged);
@@ -38,6 +43,7 @@ class DashboardController extends ChangeNotifier {
   List<Collection> _inventories = const [];
   List<Collection> _shoppingLists = const [];
   Map<String, int> _productCounts = const {};
+  DashboardInsights _insights = const DashboardInsights();
   bool _isEmptyAccount = false;
   int _loadGeneration = 0;
   int? _loadedExpiringSoonDays;
@@ -51,6 +57,9 @@ class DashboardController extends ChangeNotifier {
   /// Product count per collection ID. Empty when the counts could not be
   /// resolved.
   Map<String, int> get productCounts => _productCounts;
+
+  /// The counts behind the insight tiles.
+  DashboardInsights get insights => _insights;
 
   /// Whether the user has no inventory, shopping list or product yet.
   bool get isEmptyAccount => _isEmptyAccount;
@@ -70,6 +79,7 @@ class DashboardController extends ChangeNotifier {
       _inventories = const [];
       _shoppingLists = const [];
       _productCounts = const {};
+      _insights = const DashboardInsights();
       _isEmptyAccount = false;
       notifyListeners();
       return;
@@ -88,10 +98,9 @@ class DashboardController extends ChangeNotifier {
 
     final collections = results[2] as List<Collection>;
     // Served from the cache the product lists above just filled.
-    final isEmptyAccount =
-        collections.isEmpty &&
-        (await _productService.getProducts(userId)).isEmpty;
+    final products = await _productService.getProducts(userId);
     final productCounts = await _resolveCounts(userId, collections);
+    final receipts = await _loadReceipts(userId);
 
     if (generation != _loadGeneration) return;
 
@@ -100,8 +109,44 @@ class DashboardController extends ChangeNotifier {
     _inventories = _ofType(collections, CollectionType.inventory);
     _shoppingLists = _ofType(collections, CollectionType.shoppingList);
     _productCounts = productCounts;
-    _isEmptyAccount = isEmptyAccount;
+    _insights = _buildInsights(products, receipts);
+    _isEmptyAccount = collections.isEmpty && products.isEmpty;
     notifyListeners();
+  }
+
+  DashboardInsights _buildInsights(
+    List<Product> products,
+    List<ReceiptRecord> receipts,
+  ) {
+    final since = DateTime.now().subtract(
+      const Duration(days: DashboardInsights.recentReceiptDays),
+    );
+    return DashboardInsights(
+      productCount: products.length,
+      expiringSoonCount: _expiringSoon.length,
+      expiredCount: _expired.length,
+      hasExpiries: products.any((product) => product.expiries.isNotEmpty),
+      shoppingListCount: _shoppingLists.length,
+      shoppingListItemCount: [
+        for (final list in _shoppingLists)
+          _productCounts[list.id] ?? list.productIds.length,
+      ].fold(0, (sum, count) => sum + count),
+      receiptCount: receipts.length,
+      recentReceiptItemCount: [
+        for (final receipt in receipts)
+          if (receipt.occurredAt.isAfter(since)) receipt.itemCount,
+      ].fold(0, (sum, count) => sum + count),
+    );
+  }
+
+  /// Receipts only feed an insight, so a failure never fails the dashboard.
+  Future<List<ReceiptRecord>> _loadReceipts(String userId) async {
+    try {
+      return await _receipts.list(userId);
+    } catch (e) {
+      _logger.w('Could not load the dashboard receipts: $e');
+      return const [];
+    }
   }
 
   List<Collection> _ofType(List<Collection> collections, CollectionType type) =>

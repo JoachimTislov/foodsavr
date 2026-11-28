@@ -5,7 +5,10 @@ import '../controllers/collection_list_controller.dart';
 import '../interfaces/i_auth_service.dart';
 import '../models/collection_model.dart';
 import '../service_locator.dart';
+import '../routes/page_trail.dart';
 import '../services/collection_service.dart';
+import '../utils/collection_create_flow.dart';
+import '../constants/material3_config.dart';
 import '../utils/collection_types.dart';
 import '../widgets/collection/collection_card.dart';
 import '../widgets/collection/collection_kickstart_card.dart';
@@ -13,7 +16,6 @@ import '../widgets/common/master_detail_layout.dart';
 import '../widgets/common/refresh_on_return.dart';
 import '../widgets/common/retry_scaffold.dart';
 import 'collection_detail_view.dart';
-import 'collection_form_view.dart';
 
 class CollectionListView extends StatefulWidget {
   final CollectionType? typeFilter;
@@ -85,26 +87,6 @@ class _CollectionListViewState extends State<CollectionListView> {
       onRefresh: _fetchCollections,
       fetchOnInit: true,
       isBodyScrollable: true,
-      floatingActionButton: ListenableBuilder(
-        listenable: _controller,
-        builder: (context, _) => _controller.collections.isEmpty
-            ? const SizedBox.shrink()
-            : FloatingActionButton(
-                heroTag:
-                    'collection_list_fab_${widget.typeFilter?.name ?? 'all'}',
-                onPressed: () async {
-                  final result = await CollectionFormView.show(
-                    context,
-                    type: widget.typeFilter ?? CollectionType.inventory,
-                  );
-                  if (!mounted) return;
-                  if (result == true) {
-                    await _refreshAfterChange();
-                  }
-                },
-                child: const Icon(Icons.add),
-              ),
-      ),
       body: ListenableBuilder(
         listenable: _controller,
         builder: (context, _) => CustomScrollView(
@@ -125,17 +107,30 @@ class _CollectionListViewState extends State<CollectionListView> {
                   ),
                 ),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      widget.typeFilter == CollectionType.shoppingList
-                          ? 'dashboard.shoppingList'.tr()
-                          : 'dashboard.myInventory'.tr(),
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
+                    Flexible(
+                      child: Text(
+                        widget.typeFilter == CollectionType.shoppingList
+                            ? 'dashboard.shoppingList'.tr()
+                            : 'dashboard.myInventory'.tr(),
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(width: Material3Config.spacing4),
+                    if (_controller.collections.isNotEmpty)
+                      IconButton.filledTonal(
+                        icon: const Icon(Icons.add),
+                        tooltip:
+                            widget.typeFilter == CollectionType.shoppingList
+                            ? 'collection.add_shopping_list'.tr()
+                            : 'collection.add_inventory'.tr(),
+                        onPressed: _createCollection,
+                      ),
                   ],
                 ),
               ),
@@ -199,15 +194,23 @@ class _CollectionListViewState extends State<CollectionListView> {
     _refreshAfterChange();
   }
 
+  Future<void> _createCollection() async {
+    final created = await CollectionCreateFlow.run(
+      context,
+      widget.typeFilter ?? CollectionType.inventory,
+    );
+    if (created != null && mounted) await _refreshAfterChange();
+  }
+
   Future<void> _navigateToCollectionDetail(Collection collection) async {
     if (MasterDetailLayout.isSplit(context)) {
       setState(() => _selected = collection);
       return;
     }
-    await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (context) => CollectionDetailView(collection: collection),
-      ),
+    await PageTrail.push<bool>(
+      context,
+      label: collection.name,
+      builder: (context) => CollectionDetailView(collection: collection),
     );
     if (mounted) await _refreshAfterChange();
   }

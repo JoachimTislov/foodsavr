@@ -14,6 +14,9 @@ class KickstartCard extends StatelessWidget {
   final List<Widget> actions;
   final List<Widget> secondaryActions;
 
+  /// Widest the card grows; infinity fills the available width.
+  final double width;
+
   const KickstartCard({
     super.key,
     required this.icon,
@@ -21,6 +24,7 @@ class KickstartCard extends StatelessWidget {
     required this.message,
     required this.actions,
     this.secondaryActions = const [],
+    this.width = maxWidth,
   });
 
   @override
@@ -29,7 +33,7 @@ class KickstartCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: maxWidth),
+      constraints: BoxConstraints(maxWidth: width),
       child: Card.outlined(
         // Keeps the title, message and actions as separate semantics nodes.
         semanticContainer: false,

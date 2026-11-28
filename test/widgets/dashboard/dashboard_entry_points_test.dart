@@ -8,6 +8,9 @@ import 'package:foodsavr/features/third_party_integration/models/provider_model.
 import 'package:foodsavr/features/third_party_integration/oauth_controller.dart';
 import 'package:foodsavr/interfaces/i_auth_service.dart';
 import 'package:foodsavr/models/collection_model.dart';
+import 'package:foodsavr/models/dashboard_insights.dart';
+import 'package:foodsavr/utils/collection_types.dart';
+import 'package:foodsavr/views/batch_expiry_view.dart';
 import 'package:foodsavr/service_locator.dart';
 import 'package:foodsavr/services/barcode_scanner_service.dart';
 import 'package:foodsavr/services/collection_service.dart';
@@ -32,9 +35,13 @@ class _Collections extends Mock implements CollectionService {}
 class _OAuth extends Mock implements IOAuthService {}
 
 void main() {
-  setUpAll(setUpLocalizedApp);
+  setUpAll(() async {
+    registerFallbackValue(CollectionType.inventory);
+    await setUpLocalizedApp();
+  });
 
   late _OAuth oauth;
+  late _Collections collections;
   var changes = 0;
 
   setUp(() async {
@@ -43,7 +50,7 @@ void main() {
     final auth = _Auth();
     when(() => auth.authStateChanges).thenAnswer((_) => const Stream.empty());
     when(() => auth.getUserId()).thenReturn('user');
-    final collections = _Collections();
+    collections = _Collections();
     when(
       () => collections.getCollectionsForUser('user', type: any(named: 'type')),
     ).thenAnswer((_) async => <Collection>[]);
@@ -93,6 +100,8 @@ void main() {
     WidgetTester tester, {
     double width = 1280,
     String language = 'en',
+    Set<DashboardAction> hidden = const {},
+    bool canTransfer = false,
   }) async {
     tester.view.physicalSize = Size(width, 900);
     tester.view.devicePixelRatio = 1;
@@ -105,10 +114,24 @@ void main() {
         GoRoute(
           path: '/',
           builder: (_, _) => Scaffold(
-            body: DashboardEntryPoints(onChanged: () async => changes++),
+            body: SingleChildScrollView(
+              child: DashboardEntryPoints(
+                onChanged: () async => changes++,
+                hidden: hidden,
+                canTransfer: canTransfer,
+              ),
+            ),
           ),
         ),
         GoRoute(path: '/settings', builder: (_, _) => const Text('settings')),
+        GoRoute(
+          path: '/dashboard/registry',
+          builder: (_, _) => const Text('registry'),
+        ),
+        GoRoute(
+          path: '/dashboard/transfer',
+          builder: (_, _) => const Text('transfer'),
+        ),
       ],
     );
     addTearDown(router.dispose);
@@ -194,20 +217,82 @@ void main() {
     });
   }
 
-  for (final (label, dialogTitle) in [
-    ('New Shopping List', 'Add Shopping List'),
-    ('New Inventory', 'Add Inventory'),
+  for (final (label, type) in [
+    ('New Shopping List', CollectionType.shoppingList),
+    ('New Inventory', CollectionType.inventory),
   ]) {
-    testWidgets('$label opens its form as a modal', (tester) async {
+    testWidgets('$label creates a collection of its type', (tester) async {
+      when(
+        () => collections.createWithDefaultName(
+          any(),
+          any(),
+          baseName: any(named: 'baseName'),
+        ),
+      ).thenThrow(StateError('offline'));
       await pump(tester);
 
       await tester.tap(find.text(label));
       await tester.pumpAndSettle();
 
-      expect(find.byType(Dialog), findsOneWidget);
-      expect(find.text(dialogTitle), findsOneWidget);
+      verify(
+        () => collections.createWithDefaultName(
+          'user',
+          type,
+          baseName: any(named: 'baseName'),
+        ),
+      ).called(1);
+      expect(find.byType(Dialog), findsNothing);
     });
   }
+
+  testWidgets('Add Expiry opens the batch expiry session', (tester) async {
+    await pump(tester);
+
+    await tester.tap(find.text('Add Expiry'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BatchExpiryView), findsOneWidget);
+  });
+
+  testWidgets('actions offered by an insight tile are not repeated', (
+    tester,
+  ) async {
+    await pump(tester, hidden: DashboardAction.values.toSet());
+
+    for (final label in [
+      'Add Product',
+      'Add Expiry',
+      'Scan Receipt',
+      'New Shopping List',
+    ]) {
+      expect(find.text(label), findsNothing);
+    }
+    for (final label in ['Import', 'Export', 'New Inventory']) {
+      expect(find.text(label), findsOneWidget);
+    }
+  });
+
+  testWidgets('the registry opens from the quick actions', (tester) async {
+    final router = await pump(tester);
+
+    await tester.tap(find.text('Product registry'));
+    await tester.pumpAndSettle();
+
+    expect(
+      router.routeInformationProvider.value.uri.path,
+      '/dashboard/registry',
+    );
+  });
+
+  testWidgets('Transfer is offered only with several inventories', (
+    tester,
+  ) async {
+    await pump(tester);
+    expect(find.text('Transfer'), findsNothing);
+
+    await pump(tester, canTransfer: true);
+    expect(find.text('Transfer'), findsOneWidget);
+  });
 
   testWidgets('Add Product opens a modal where no camera can scan', (
     tester,
@@ -275,7 +360,7 @@ void main() {
         await pump(tester, width: width, language: language);
 
         expect(tester.takeException(), isNull);
-        expect(find.byType(DashboardActionButton), findsNWidgets(6));
+        expect(find.byType(DashboardActionButton), findsNWidgets(8));
         expect(find.textContaining('dashboard.'), findsNothing);
       });
     }

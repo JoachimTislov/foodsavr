@@ -77,8 +77,6 @@ class _DeleteAccountViewState extends State<DeleteAccountView> {
       title: 'profile.delete_account'.tr(),
       icon: Icons.delete_outline,
       iconColor: colorScheme.error,
-      routeBadge: PublicRoutes.deleteAccount,
-      primaryCloseButton: false,
       footerLinks: [
         UrlModalLink(
           label: 'common.privacy_notice'.tr(),

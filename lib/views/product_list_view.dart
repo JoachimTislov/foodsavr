@@ -24,6 +24,7 @@ import '../widgets/product/view_mode_toggle.dart';
 import 'product_detail_view.dart';
 import 'receipt_scan_view.dart';
 import '../utils/user_error.dart';
+import '../widgets/common/app_breadcrumbs.dart';
 
 class ProductListView extends StatefulWidget {
   final bool showGlobalProducts;
@@ -227,12 +228,16 @@ class _ProductListViewState extends State<ProductListView> {
             ),
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-                const SizedBox(width: 8),
+                if (!AppBreadcrumbs.handlesBack(context)) ...[
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: MaterialLocalizations.of(
+                      context,
+                    ).backButtonTooltip,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 Expanded(
                   child: Text(
                     title,

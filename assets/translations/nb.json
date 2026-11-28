@@ -79,7 +79,8 @@
 			"sign_up_prefix": "Ved å opprette en konto godtar du ",
 			"terms": "vilkårene for bruk",
 			"privacy": "personvernerklæringen"
-		}
+		},
+		"back_to_start": "Tilbake til start"
 	},
 	"camera": {
 		"allow": "Tillat kamera",
@@ -111,6 +112,34 @@
 		"unsupported": {
 			"title": "Kameraskanning er ikke tilgjengelig",
 			"message": "Direkteskanning støttes ikke ennå i denne nettleseren eller på denne enheten. Appene for Android og iOS kan skanne."
+		},
+		"guide": {
+			"title": "Slik tillater du kameraet",
+			"native": {
+				"step1": "Åpne innstillingene på enheten og finn denne appen.",
+				"step2": "Åpne tillatelser og sett Kamera til Tillat."
+			},
+			"firefoxAndroid": {
+				"step1": "Åpne menyen i Firefox, velg Innstillinger > Nettstedtillatelser > Kamera, og tillat dette nettstedet.",
+				"step2": "Åpne Android-innstillinger > Apper > Firefox > Tillatelser > Kamera og velg Tillat."
+			},
+			"androidChrome": {
+				"step1": "Trykk på lås- eller justeringsikonet ved adressen, åpne tillatelser eller nettstedinnstillinger, og sett Kamera til Tillat.",
+				"step2": "Åpne Android-innstillinger > Apper > Chrome (eller nettleseren din) > Tillatelser > Kamera og velg Tillat."
+			},
+			"ios": {
+				"step1": "Åpne Innstillinger > Safari (eller nettleseren din) > Kamera og velg Tillat eller Spør.",
+				"step2": "I Safari kan du også trykke aA i adressefeltet > Nettstedinnstillinger > Kamera > Tillat."
+			},
+			"macosSafari": {
+				"step1": "Åpne Safari > Innstillinger > Nettsteder > Kamera og sett dette nettstedet til Tillat."
+			},
+			"firefoxDesktop": {
+				"step1": "Klikk på kameraikonet i adressefeltet, fjern blokkeringen for dette nettstedet, og last siden på nytt."
+			},
+			"desktop": {
+				"step1": "Klikk på låsikonet i adressefeltet, sett Kamera til Tillat for dette nettstedet, og last siden på nytt."
+			}
 		}
 	},
 	"collection": {
@@ -126,8 +155,6 @@
 		"add_shopping_list": "Legg til handleliste",
 		"create_inventory": "Opprett beholdning",
 		"create_shopping_list": "Opprett handleliste",
-		"edit_inventory": "Rediger lager",
-		"edit_shopping_list": "Rediger handleliste",
 		"errorLoadingProducts": "Feil ved lasting av produkter",
 		"items_count": "{count} varer",
 		"loadError": "Feil ved lasting av lister",
@@ -170,7 +197,9 @@
 		"purchaseSourceReceipt": "Kvittering",
 		"duplicateError": "Kunne ikke duplisere produktet. Prøv igjen.",
 		"recreateTitle": "Produktet finnes ikke lenger",
-		"recreateMessage": "Vil du opprette {name} på nytt med antall {quantity}?"
+		"recreateMessage": "Vil du opprette {name} på nytt med antall {quantity}?",
+		"defaultInventoryName": "Lager",
+		"defaultShoppingListName": "Handleliste"
 	},
 	"common": {
 		"add": "Legg til",
@@ -184,9 +213,6 @@
 		"error_loading_data": "Feil ved lasting av data",
 		"from": "Fra",
 		"maximumRetriesReached": "Maksimalt antall forsøk nådd",
-		"name": "Navn",
-		"name_required": "Vennligst oppgi et navn",
-		"or": "ELLER",
 		"pendingChanges": {
 			"zero": "{count} endringer venter på synkronisering",
 			"one": "{count} endring venter på synkronisering",
@@ -203,7 +229,6 @@
 	},
 	"dashboard": {
 		"actions": "Hurtighandlinger",
-		"browseProducts": "Bla gjennom produkter",
 		"createInventory": "Nytt lager",
 		"createProduct": "Legg til produkt",
 		"createShoppingList": "Ny Handleliste",
@@ -220,19 +245,24 @@
 		},
 		"expiringSoon": "Utløper snart",
 		"export": "Eksporter",
-		"globalProducts": "Globale produkter",
+		"globalProducts": "Produktregister",
 		"import": "Importer",
 		"integrations": "Integrasjoner",
-		"moveItems": "Flytt varer mellom lagre",
 		"myInventory": "Mitt lager",
 		"noCamera": "Ingen kamera tilgjengelig",
 		"noCameraHint": "Kvitteringsskanning krever et tilkoblet kamera som er tillatt i innstillingene.",
-		"noProductsExpiringSoon": "Ingen produkter utløper snart.",
-		"overview": "Oversikt",
-		"registerExpiry": "Registrer utløpsdato",
 		"shoppingList": "Handleliste",
 		"title": "Dashbord",
-		"transfer": "Overføring"
+		"transfer": "Overføring",
+		"insights": "Innsikt",
+		"insightProducts": "Produkter i oversikten",
+		"insightShoppingItems": "På handlelister",
+		"insightReceipts": "Registrerte kvitteringer",
+		"insightReceiptsRecent": {
+			"zero": "{count} varer siste {days} dager",
+			"one": "{count} vare siste {days} dager",
+			"other": "{count} varer siste {days} dager"
+		}
 	},
 	"listQuery": {
 		"search": "Søk etter produkter",
@@ -258,7 +288,7 @@
 		"addWithoutBarcode": "Legg til uten strekkode",
 		"addFirst": "Legg til ditt første produkt for å komme i gang",
 		"add_expiry": "Legg til utløpsdato",
-		"all_products": "Alle produkter",
+		"all_products": "Mine produkter",
 		"availableIn": "Tilgjengelig i {inventories}",
 		"available_stock": "TILGJENGELIG LAGER",
 		"addToInventoryError": "Varen ble lagret, men kunne ikke legges til i lageret: {error}",
@@ -358,7 +388,9 @@
 				"one": "Legg til {count} vare",
 				"other": "Legg til {count} varer"
 			}
-		}
+		},
+		"addExpiry": "Legg til utløpsdato",
+		"expiryAdded": "Utløpsdato lagt til."
 	},
 	"profile": {
 		"account_settings": "Kontoinnstillinger",
@@ -385,10 +417,6 @@
 	},
 	"settings": {
 		"about": "Om",
-		"accountRemoval": {
-			"title": "Fjerning av konto",
-			"description": "Fjerner kontoen og lagrede data permanent."
-		},
 		"guestLogout": {
 			"title": "Logge ut av gjestekontoen?",
 			"message": "Når du logger ut, slettes denne gjestekontoen og alt som er lagret i den."
@@ -432,7 +460,6 @@
 			"exportAll": "Eksporter alt ({format})",
 			"exportOne": "Eller trykk på én for å eksportere bare den:",
 			"format": "Filformat",
-			"csvDefault": "CSV (standard)",
 			"everything": "Alt",
 			"products": "Produkter",
 			"productsHint": "Produktene du har på lager og har lagret",
@@ -443,7 +470,6 @@
 			"error": "Eksporten mislyktes. Prøv igjen.",
 			"loadError": "Kunne ikke laste listene dine."
 		},
-		"account": "Konto",
 		"integrations": {
 			"connectionFailed": "Kunne ikke koble til dagligvareleverandøren.",
 			"actions": {
@@ -515,7 +541,12 @@
 		"addManually": "Legg til produkt manuelt",
 		"targetInventory": "Legg til i lager",
 		"added": "La til {count} varer",
-		"alreadyAdded": "Denne kvitteringen er allerede lagt til"
+		"alreadyAdded": "Denne kvitteringen er allerede lagt til",
+		"listTitle": "Kvitteringer",
+		"unknownStore": "Ukjent butikk",
+		"items": "{count} varer",
+		"emptyTitle": "Ingen kvitteringer ennå",
+		"emptySubtitle": "Skannede kvitteringer vises her."
 	},
 	"brand": {
 		"name": "LettMat",
@@ -525,11 +556,8 @@
 	"pwa": {
 		"banner": {
 			"install": "Installer",
-			"learn_more": "Les mer",
 			"subtitle": "Legg til på hjemskjermen eller skrivebordet for rask tilgang.",
-			"title": "Installer LettMat",
-			"firefox_desktop_title": "Appinstallasjon støttes ikke i Firefox",
-			"firefox_desktop_subtitle": "Firefox på datamaskin støtter ikke installasjon av nettapps direkte. Legg til bokmerke eller åpne LettMat i Chrome eller Edge for å installere."
+			"title": "Installer LettMat"
 		},
 		"guide": {
 			"ios_step1": "Trykk på Del-knappen i nettleserens verktøylinje.",
@@ -538,14 +566,14 @@
 			"safari_step2": "Velg «Legg til i Dock» og bekreft.",
 			"firefox_android_step1": "Trykk på menyknappen (tre prikker) i Firefox.",
 			"firefox_android_step2": "Velg «Installer» eller «Legg til på startskjermen» og bekreft.",
-			"firefox_desktop_title": "Installasjon i Firefox på datamaskin",
-			"firefox_desktop_subtitle": "Firefox på datamaskin har ikke innebygd støtte for installasjon av nettapps (PWA). Du kan likevel få rask tilgang til LettMat:",
-			"firefox_desktop_step1": "Lagre siden som bokmerke (Ctrl+D eller Cmd+D) eller fest fanen i Firefox for rask tilgang.",
-			"firefox_desktop_step2": "For å installere LettMat som en egen skrivebordsapp, åpne siden i Chrome, Edge eller Brave, eller bruk en Firefox-utvidelse for nettapps.",
+			"firefox_desktop_step1": "Åpne Firefox-menyen, eller klikk på installeringsikonet i adressefeltet.",
+			"firefox_desktop_step2": "Velg «Legg til app i oppgavelinjen» eller «Installer», og bekreft.",
 			"standard_step1": "Klikk på installeringsikonet i adressefeltet eller åpne nettlesermenyen.",
 			"standard_step2": "Velg «Installer LettMat» eller «Legg til på startskjermen».",
 			"subtitle": "Installer LettMat som en app for fullskjermsopplevelse og rask tilgang.",
-			"title": "Installer LettMat"
+			"title": "Installer LettMat",
+			"android_step1": "Trykk på menyknappen (tre prikker) i nettleseren.",
+			"android_step2": "Velg «Installer app» eller «Legg til på startskjermen», og bekreft."
 		},
 		"installed_snackbar": "LettMat ble installert."
 	},
@@ -594,5 +622,24 @@
 			"title": "Smarte handlelister",
 			"description": "Kjøp det som mangler, ikke mer."
 		}
+	},
+	"batchExpiry": {
+		"title": "Legg til utløpsdatoer",
+		"done": "Ferdig",
+		"scanProduct": "Skann produkt",
+		"search": "Søk i produktene dine eller skriv et nytt navn",
+		"createNew": "Nytt produkt «{name}»",
+		"noProducts": "Skann et produkt eller skriv navnet for å begynne.",
+		"newProduct": "Nytt produkt",
+		"change": "Velg et annet produkt",
+		"setDate": "Sett utløpsdato",
+		"quantity": "Antall",
+		"increase": "Øk antall",
+		"decrease": "Reduser antall",
+		"save": "Lagre og legg til neste",
+		"registered": "Registrert i denne økten",
+		"registeredItem": "{quantity} × til {date}",
+		"saveError": "Kunne ikke lagre utløpsdatoen.",
+		"lookupError": "Kunne ikke slå opp produktet."
 	}
 }

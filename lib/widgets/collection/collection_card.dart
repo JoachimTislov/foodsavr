@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../constants/collection_config.dart';
+import '../../constants/material3_config.dart';
 import '../../models/collection_model.dart';
 
 class CollectionCard extends StatelessWidget {
@@ -17,106 +18,101 @@ class CollectionCard extends StatelessWidget {
     required this.collection,
     this.onTap,
     required this.productCount,
-    this.margin = const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    this.margin = const EdgeInsets.symmetric(
+      horizontal: Material3Config.spacing16,
+      vertical: Material3Config.spacing8,
+    ),
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-
-    // Get icon and color based on collection type
-    final iconData = CollectionConfig.getIcon(collection.type);
-    final containerColor = CollectionConfig.getColor(
-      collection.type,
-      colorScheme,
-    );
+    final description = collection.description;
 
     return Card(
       elevation: 1,
       margin: margin,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(Material3Config.radiusMedium),
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(Material3Config.spacing12),
           child: Row(
             children: [
-              // Icon container
               Container(
-                width: 60,
-                height: 60,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  color: containerColor,
-                  borderRadius: BorderRadius.circular(16),
+                  color: CollectionConfig.getColor(
+                    collection.type,
+                    colorScheme,
+                  ),
+                  borderRadius: BorderRadius.circular(
+                    Material3Config.radiusMedium,
+                  ),
                 ),
                 child: Icon(
-                  iconData,
-                  size: 32,
+                  CollectionConfig.getIcon(collection.type),
+                  size: 24,
                   color: colorScheme.onPrimaryContainer,
                 ),
               ),
-              const SizedBox(width: 20),
-              // Collection info
+              const SizedBox(width: Material3Config.spacing12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      collection.name,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    if (collection.description != null &&
-                        collection.description!.isNotEmpty)
-                      Text(
-                        collection.description!,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    const SizedBox(height: 8),
-                    // Type badge and item count
                     Row(
                       children: [
+                        Flexible(
+                          child: Text(
+                            collection.name,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: Material3Config.spacing8),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
+                            horizontal: Material3Config.spacing8,
+                            vertical: Material3Config.spacing2,
                           ),
                           decoration: BoxDecoration(
                             color: colorScheme.secondaryContainer,
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(
+                              Material3Config.radiusSmall,
+                            ),
                           ),
                           child: Text(
-                            CollectionConfig.getLabel(collection.type),
+                            'collection.items_count'.tr(
+                              namedArgs: {'count': productCount.toString()},
+                            ),
                             style: theme.textTheme.labelSmall?.copyWith(
                               color: colorScheme.onSecondaryContainer,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Icon(
-                          Icons.inventory_2_outlined,
-                          size: 16,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'collection.items_count'.tr(
-                            namedArgs: {'count': productCount.toString()},
-                          ),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
                       ],
                     ),
+                    if (description != null && description.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          top: Material3Config.spacing2,
+                        ),
+                        child: Text(
+                          description,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                   ],
                 ),
               ),

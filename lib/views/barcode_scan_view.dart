@@ -18,6 +18,7 @@ import '../utils/product_add_helper.dart';
 import '../widgets/product/barcode_scanner_overlay.dart';
 import '../widgets/product/camera_permission_card.dart';
 import '../widgets/product/product_lookup_panel.dart';
+import '../widgets/product/web_barcode_scanner.dart';
 
 class BarcodeScanView extends StatefulWidget {
   const BarcodeScanView({super.key});
@@ -48,6 +49,9 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
   bool _manualMode = false;
   bool _multipleBarcodesDetected = false;
   bool _isFlashOn = false;
+
+  /// Whether the browser scanner is showing; it owns the camera itself.
+  bool _webScanning = false;
   bool _submitted = false;
 
   @override
@@ -97,7 +101,8 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
     final revision = ++_cameraRevision;
     final previous = _cameraController;
     _cameraController = null;
-    _cameraLoading = start && BarcodeScannerService.supportsCameraScanning;
+    _webScanning = false;
+    _cameraLoading = start && BarcodeScannerService.supportsLiveScanning;
     _isFlashOn = false;
     _multipleBarcodesDetected = false;
 
@@ -129,6 +134,10 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
   Future<void> _initializeCamera(int revision) async {
     CameraController? pending;
     try {
+      if (BarcodeScannerService.supportsWebScanning) {
+        await _startWebScanner(revision);
+        return;
+      }
       if (!await _access.isEnabled() ||
           !BarcodeScannerService.supportsCameraScanning) {
         final blocker = await _access.scanBlocker();
@@ -175,6 +184,26 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
     }
   }
 
+  Future<void> _startWebScanner(int revision) async {
+    final status = await _access.check();
+    if (!_isCurrentCameraRequest(revision)) return;
+    if (status.isFailure) {
+      _showCameraFallback(status);
+      return;
+    }
+    // The scanner asks for the camera itself, so the browser prompts once.
+    setState(() {
+      _webScanning = true;
+      _cameraLoading = false;
+    });
+  }
+
+  void _onWebError(CameraAccessStatus status) {
+    if (!_webScanning || _submitted) return;
+    unawaited(_access.record(status));
+    _showCameraFallback(status);
+  }
+
   void _showCameraFallback(CameraAccessStatus status) {
     setState(() {
       _failure = status;
@@ -184,7 +213,14 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
 
   Future<void> _retryCamera() async {
     BarcodeScannerService.refreshCameraDetection();
-    if (!BarcodeScannerService.supportsCameraScanning) {
+    if (BarcodeScannerService.supportsWebScanning) {
+      final status = await _access.request();
+      if (!mounted) return;
+      if (status.isFailure) {
+        setState(() => _failure = status);
+        return;
+      }
+    } else if (!BarcodeScannerService.supportsCameraScanning) {
       final blocker = await _access.scanBlocker(ask: true);
       if (mounted) setState(() => _failure = blocker);
       return;
@@ -262,12 +298,11 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
   @override
   Widget build(BuildContext context) {
     final camera = _cameraController;
+    final scanning = camera != null || _webScanning;
     final scanned = _scannedBarcode;
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          camera != null ? 'product.scanBarcode'.tr() : 'product.add'.tr(),
-        ),
+        title: Text(scanning ? 'product.scanBarcode'.tr() : 'product.add'.tr()),
         actions: [
           if (camera != null)
             IconButton(
@@ -292,9 +327,17 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
                     const BarcodeScannerOverlay(),
                   ],
                 ),
+              )
+            else if (_webScanning)
+              Expanded(
+                flex: 3,
+                child: WebBarcodeScanner(
+                  onBarcodes: _onBarcodes,
+                  onError: _onWebError,
+                ),
               ),
             Expanded(
-              flex: camera == null ? 1 : 2,
+              flex: scanning ? 2 : 1,
               child: Center(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(Material3Config.spacing24),
@@ -306,7 +349,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (camera != null) ...[
+                        if (scanning) ...[
                           Text(
                             _multipleBarcodesDetected
                                 ? 'product.scanSingleBarcodeHint'.tr()
@@ -331,11 +374,11 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
                           ),
                           const SizedBox(height: Material3Config.spacing16),
                         ],
-                        if (camera != null && scanned != null) ...[
+                        if (scanning && scanned != null) ...[
                           _lookupPanel(scanned),
                           const SizedBox(height: Material3Config.spacing16),
                         ],
-                        if (camera != null || _cameraLoading)
+                        if (scanning || _cameraLoading)
                           OutlinedButton.icon(
                             onPressed: _enterManualMode,
                             icon: const Icon(Icons.edit_outlined),
@@ -345,7 +388,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
                           _lookupPanel(null),
                           if (_manualMode &&
                               _failure == null &&
-                              BarcodeScannerService.supportsCameraScanning) ...[
+                              BarcodeScannerService.supportsLiveScanning) ...[
                             const SizedBox(height: Material3Config.spacing8),
                             OutlinedButton.icon(
                               onPressed: _submitted ? null : _retryCamera,
@@ -402,28 +445,34 @@ class _BarcodeScanViewState extends State<BarcodeScanView>
         return;
       }
 
-      final multipleBarcodes = barcodes.length > 1;
-      if (_multipleBarcodesDetected != multipleBarcodes) {
-        setState(() => _multipleBarcodesDetected = multipleBarcodes);
-      }
-
-      final raw = barcodes.singleOrNull?.rawValue;
-      if (raw == null || raw.isEmpty) return;
-      final code = BarcodeValidator.validate(raw);
-      final usable = code.validity != BarcodeValidity.invalidFormat;
-      if (_notProductCode == usable) {
-        setState(() => _notProductCode = !usable);
-      }
-      if (!usable || code.barcode == _scannedBarcode) return;
-      unawaited(HapticFeedback.vibrate());
-      unawaited(SystemSound.play(SystemSoundType.click));
-      setState(() => _scannedBarcode = code.barcode);
+      _onBarcodes([for (final barcode in barcodes) barcode.rawValue]);
     } catch (error) {
       debugPrint('Could not read barcode camera image: $error');
       if (mounted && identical(camera, _cameraController) && !_submitted) {
         _showCameraFallback(CameraAccessStatus.inUse);
       }
     }
+  }
+
+  /// Handles the raw values read from one frame, by either scanner.
+  void _onBarcodes(List<String?> values) {
+    if (!mounted || _submitted) return;
+    final multipleBarcodes = values.length > 1;
+    if (_multipleBarcodesDetected != multipleBarcodes) {
+      setState(() => _multipleBarcodesDetected = multipleBarcodes);
+    }
+
+    final raw = values.singleOrNull;
+    if (raw == null || raw.isEmpty) return;
+    final code = BarcodeValidator.validate(raw);
+    final usable = code.validity != BarcodeValidity.invalidFormat;
+    if (_notProductCode == usable) {
+      setState(() => _notProductCode = !usable);
+    }
+    if (!usable || code.barcode == _scannedBarcode) return;
+    unawaited(HapticFeedback.vibrate());
+    unawaited(SystemSound.play(SystemSoundType.click));
+    setState(() => _scannedBarcode = code.barcode);
   }
 
   InputImage? _toInputImage(CameraImage image, CameraDescription description) {

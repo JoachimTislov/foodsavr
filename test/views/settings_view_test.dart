@@ -294,9 +294,7 @@ void main() async {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('ACCOUNT'), findsOneWidget);
         expect(find.text('APPEARANCE'), findsOneWidget);
-        expect(find.text('CONNECTIONS'), findsOneWidget);
         expect(find.text('GROCERY INTEGRATIONS'), findsOneWidget);
         expect(find.text('PERMISSIONS'), findsOneWidget);
         expect(find.text('Camera access'), findsOneWidget);
@@ -344,10 +342,8 @@ void main() async {
         expect(find.byType(BottomSheet), findsNothing);
         expect(find.byType(Dialog), findsNothing);
         for (final title in [
-          'KONTO',
           'UTSEENDE',
           'ATFERD',
-          'TILKOBLINGER',
           'TILLATELSER',
           'DATAEKSPORT',
           'OM',
@@ -358,7 +354,7 @@ void main() async {
 
         await tester.tap(find.text('EN'));
         await tester.pumpAndSettle();
-        expect(find.text('ACCOUNT'), findsOneWidget);
+        expect(find.text('APPEARANCE'), findsOneWidget);
       });
     });
 
@@ -465,10 +461,6 @@ void main() async {
             path: PublicRoutes.privacy,
             pageBuilder: const PrivacyRoute().buildPage,
           ),
-          GoRoute(
-            path: PublicRoutes.deleteAccount,
-            builder: (_, _) => const Placeholder(),
-          ),
         ],
       );
       addTearDown(router.dispose);
@@ -498,45 +490,42 @@ void main() async {
           router.pop();
           await tester.pumpAndSettle();
         }
-        await tester.tap(find.text('Delete Account'));
-        await tester.pumpAndSettle();
-        expect(find.byType(Placeholder), findsOneWidget);
       });
     });
 
-    testWidgets(
-      'Delete Account is placed under Account section and not inside About',
-      (tester) async {
-        await tester.runAsync(() async {
-          await tester.pumpWidget(
-            EasyLocalization(
-              supportedLocales: const [Locale('en'), Locale('nb')],
-              path: 'assets/translations',
-              fallbackLocale: const Locale('en'),
-              child: const _TestWrapper(child: SettingsView()),
-            ),
+    testWidgets('account actions live in the profile, not in settings', (
+      tester,
+    ) async {
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          EasyLocalization(
+            supportedLocales: const [Locale('en'), Locale('nb')],
+            path: 'assets/translations',
+            fallbackLocale: const Locale('en'),
+            child: const _TestWrapper(child: SettingsView()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('ACCOUNT'), findsNothing);
+        expect(find.text('CONNECTIONS'), findsNothing);
+        expect(find.text('Delete Account'), findsNothing);
+        expect(find.byType(CircleAvatar), findsNothing);
+
+        final aboutTop = tester.getTopLeft(find.text('ABOUT')).dy;
+        for (final label in [
+          'Terms of Service',
+          'Privacy Notice',
+          'App Version',
+        ]) {
+          expect(
+            tester.getTopLeft(find.text(label)).dy,
+            greaterThan(aboutTop),
+            reason: label,
           );
-          await tester.pumpAndSettle();
-
-          final accountTop = tester.getTopLeft(find.text('ACCOUNT')).dy;
-          final deleteAccountTop = tester
-              .getTopLeft(find.text('Delete Account'))
-              .dy;
-          final appearanceTop = tester.getTopLeft(find.text('APPEARANCE')).dy;
-          final aboutTop = tester.getTopLeft(find.text('ABOUT')).dy;
-          final termsTop = tester.getTopLeft(find.text('Terms of Service')).dy;
-          final privacyTop = tester.getTopLeft(find.text('Privacy Notice')).dy;
-          final versionTop = tester.getTopLeft(find.text('App Version')).dy;
-
-          expect(deleteAccountTop, greaterThan(accountTop));
-          expect(deleteAccountTop, lessThan(appearanceTop));
-          expect(deleteAccountTop, lessThan(aboutTop));
-          expect(termsTop, greaterThan(aboutTop));
-          expect(privacyTop, greaterThan(aboutTop));
-          expect(versionTop, greaterThan(aboutTop));
-        });
-      },
-    );
+        }
+      });
+    });
 
     testWidgets('displays app version correctly', (tester) async {
       await tester.runAsync(() async {
@@ -580,53 +569,6 @@ void main() async {
         expect(find.byType(BottomSheet), findsNothing);
       });
     });
-
-    testWidgets('displays user profile with email', (tester) async {
-      await tester.runAsync(() async {
-        await tester.pumpWidget(
-          EasyLocalization(
-            supportedLocales: const [Locale('en'), Locale('nb')],
-            path: 'assets/translations',
-            fallbackLocale: const Locale('en'),
-            child: const _TestWrapper(child: SettingsView()),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        // Should display ACCOUNT section
-        expect(find.text('ACCOUNT'), findsOneWidget);
-
-        // Should have a CircleAvatar (profile icon)
-        expect(find.byType(CircleAvatar), findsOneWidget);
-      });
-    });
-
-    testWidgets(
-      'account tile falls back to profile title when displayName is empty or whitespace',
-      (tester) async {
-        final user = _MockUser();
-        when(() => user.displayName).thenReturn('   ');
-        when(() => user.email).thenReturn('');
-        when(() => user.isAnonymous).thenReturn(false);
-        when(() => user.photoURL).thenReturn(null);
-        when(() => user.providerData).thenReturn(const []);
-        when(() => mockAuthService.currentUser).thenReturn(user);
-
-        await tester.runAsync(() async {
-          await tester.pumpWidget(
-            EasyLocalization(
-              supportedLocales: const [Locale('en'), Locale('nb')],
-              path: 'assets/translations',
-              fallbackLocale: const Locale('en'),
-              child: const _TestWrapper(child: SettingsView()),
-            ),
-          );
-          await tester.pumpAndSettle();
-
-          expect(find.text('Profile'), findsOneWidget);
-        });
-      },
-    );
 
     testWidgets('all settings icons are displayed', (tester) async {
       await tester.runAsync(() async {

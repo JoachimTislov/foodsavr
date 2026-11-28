@@ -4,8 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../constants/adaptive_layout.dart';
 import '../../constants/material3_config.dart';
+import '../../routes/page_trail.dart';
 import '../../utils/app_theme.dart';
-import '../../utils/platform_capabilities.dart';
 
 /// A single breadcrumb segment resolved from a GoRouter path.
 class BreadcrumbItem {
@@ -24,20 +24,31 @@ class BreadcrumbItem {
   String resolveLabel() => translationKey?.tr() ?? fallbackLabel;
 }
 
-/// Shows a breadcrumb bar above [child] on desktop layouts when the current
-/// route is nested. Narrow layouts show nothing: every nested page already has
-/// its own back button.
+/// Shows a breadcrumb bar above [child] on windows wider than compact when
+/// the current page is nested, including pages pushed on the branch's
+/// [trail]. There the breadcrumbs replace the back button
+/// ([AppBreadcrumbs.handlesBack]); compact windows show no bar.
 class AppBreadcrumbs extends StatelessWidget {
   final Widget child;
   final String? pathOverride;
   final ValueChanged<String>? onNavigate;
+
+  /// Pages pushed on the current branch, appended after the path segments.
+  final PageTrail? trail;
 
   const AppBreadcrumbs({
     super.key,
     required this.child,
     this.pathOverride,
     this.onNavigate,
+    this.trail,
   });
+
+  /// Whether a breadcrumb bar above [context] takes the place of its back
+  /// button.
+  static bool handlesBack(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_BreadcrumbScope>()?.active ??
+      false;
 
   /// Maps known GoRouter path segments to existing translation keys in
   /// `assets/translations/en.json` and `nb.json`.
@@ -45,9 +56,10 @@ class AppBreadcrumbs extends StatelessWidget {
     'dashboard': 'dashboard.title',
     'my-inventory': 'dashboard.myInventory',
     'shopping-lists': 'dashboard.shoppingList',
-    'product-list': 'product.all_products',
+    'my-products': 'product.all_products',
     'products': 'product.all_products',
-    'global-products': 'dashboard.globalProducts',
+    'registry': 'dashboard.globalProducts',
+    'receipts': 'receipt.listTitle',
     'transfer': 'transfer.title',
     'transfers': 'transfer.title',
     'settings': 'settings.title',
@@ -116,33 +128,45 @@ class AppBreadcrumbs extends StatelessWidget {
     final delegate = pathOverride == null
         ? GoRouter.maybeOf(context)?.routerDelegate
         : null;
-    if (delegate == null) {
-      return _buildWithPath(context, pathOverride ?? '');
-    }
+    final trail = this.trail;
     return ListenableBuilder(
-      listenable: delegate,
-      builder: (context, _) =>
-          _buildWithPath(context, shellPath(delegate.currentConfiguration)),
+      listenable: Listenable.merge([?delegate, ?trail]),
+      builder: (context, _) => _buildWithPath(
+        context,
+        delegate == null
+            ? pathOverride ?? ''
+            : shellPath(delegate.currentConfiguration),
+      ),
     );
   }
 
   Widget _buildWithPath(BuildContext context, String path) {
-    final signals = PlatformCapabilities.of(context).signals;
-    final isDesktopLayout =
-        AdaptiveLayout.isDesktop(context) &&
-        !(signals.isWeb && signals.userAgentMobile == true);
-    final crumbs = resolveBreadcrumbs(path);
-    final showBar = isDesktopLayout && crumbs.length > 1;
+    final active = !WindowSize.of(context).isCompact;
+    final navigate = onNavigate ?? (target) => context.go(target);
+    final pages = trail?.routes ?? const [];
+    final crumbs = [
+      for (final crumb in resolveBreadcrumbs(path))
+        _Crumb(
+          label: crumb.resolveLabel(),
+          onTap: () {
+            trail?.popTo(null);
+            navigate(crumb.path);
+          },
+        ),
+      for (final route in pages)
+        _Crumb(
+          label: route.settings.name ?? '',
+          onTap: () => trail?.popTo(route),
+        ),
+    ];
+    final showBar = active && crumbs.length > 1;
     final mediaQuery = MediaQuery.of(context);
 
     // The tree shape never changes, so [child] keeps its state.
     return Column(
       children: [
         if (showBar)
-          _BreadcrumbBar(
-            crumbs: crumbs,
-            onNavigate: onNavigate ?? (target) => context.go(target),
-          )
+          _BreadcrumbBar(crumbs: crumbs)
         else
           const SizedBox.shrink(),
         Expanded(
@@ -151,7 +175,7 @@ class AppBreadcrumbs extends StatelessWidget {
             data: showBar
                 ? mediaQuery.removePadding(removeTop: true)
                 : mediaQuery,
-            child: child,
+            child: _BreadcrumbScope(active: active, child: child),
           ),
         ),
       ],
@@ -159,11 +183,27 @@ class AppBreadcrumbs extends StatelessWidget {
   }
 }
 
-class _BreadcrumbBar extends StatelessWidget {
-  final List<BreadcrumbItem> crumbs;
-  final ValueChanged<String> onNavigate;
+class _BreadcrumbScope extends InheritedWidget {
+  final bool active;
 
-  const _BreadcrumbBar({required this.crumbs, required this.onNavigate});
+  const _BreadcrumbScope({required this.active, required super.child});
+
+  @override
+  bool updateShouldNotify(_BreadcrumbScope oldWidget) =>
+      active != oldWidget.active;
+}
+
+class _Crumb {
+  final String label;
+  final VoidCallback onTap;
+
+  const _Crumb({required this.label, required this.onTap});
+}
+
+class _BreadcrumbBar extends StatelessWidget {
+  final List<_Crumb> crumbs;
+
+  const _BreadcrumbBar({required this.crumbs});
 
   @override
   Widget build(BuildContext context) {
@@ -210,12 +250,12 @@ class _BreadcrumbBar extends StatelessWidget {
                           ),
                         if (i < crumbs.length - 1)
                           _BreadcrumbLink(
-                            label: crumbs[i].resolveLabel(),
-                            onTap: () => onNavigate(crumbs[i].path),
+                            label: crumbs[i].label,
+                            onTap: crumbs[i].onTap,
                           )
                         else
                           Text(
-                            crumbs[i].resolveLabel(),
+                            crumbs[i].label,
                             style: theme.textTheme.labelLarge?.copyWith(
                               color: colorScheme.onSurface,
                               fontWeight: FontWeight.w600,

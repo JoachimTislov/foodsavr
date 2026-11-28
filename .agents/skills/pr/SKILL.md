@@ -14,9 +14,10 @@ metadata:
 
 1. Commit pending work with the `commit` skill. Never push `develop` or `main`: check `git branch --show-current` first.
 2. Run `python3 scripts/ci/check_pr_base.py` (checks against the remote default branch); if it fails, rebase onto the latest base and do not open the PR.
-3. Push with `make push` (it runs `make check`).
-4. Write the body below to a temporary file; create the PR as a draft unless asked otherwise: `gh pr create --draft --title "type(scope): summary" --body-file <file>`. The title is a Conventional Commit subject.
-5. Apply the host's PR-linking rules, and log the PR in the ledger and the session record (`agentctl log "opened PR" --pr '#N'`).
+3. If the PR ships a user-visible change, bump the version once with `make bump-version part=<major|minor|patch>` (rules: [specs/ci-workflows.md](../../../specs/ci-workflows.md#versioning-and-release-tags)).
+4. Push with `make push` (it runs `make check`).
+5. Write the body below to a temporary file; create the PR as a draft unless asked otherwise: `gh pr create --draft --title "type(scope): summary" --body-file <file>`. The title is a Conventional Commit subject.
+6. Apply the host's PR-linking rules, and log the PR in the ledger and the session record (`agentctl log "opened PR" --pr '#N'`).
 
 The body fills the repository template (`.github/PULL_REQUEST_TEMPLATE.md`): keep its `Closes: #N` line, checklist (tick only what was done), and AI disclosure, with these sections as "What does this PR do?":
 

@@ -33,6 +33,10 @@ class _InMemoryReceiptRepository implements IReceiptRepository {
     records[key] = record;
     return true;
   }
+
+  @override
+  Future<List<ReceiptRecord>> list(String userId) async =>
+      records.values.toList();
 }
 
 class _FailingReceiptRepository implements IReceiptRepository {
@@ -42,6 +46,10 @@ class _FailingReceiptRepository implements IReceiptRepository {
 
   @override
   Future<bool> create(String userId, ReceiptRecord record) async =>
+      throw Exception('permission-denied');
+
+  @override
+  Future<List<ReceiptRecord>> list(String userId) async =>
       throw Exception('permission-denied');
 }
 

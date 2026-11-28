@@ -4,6 +4,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foodsavr/routes/page_trail.dart';
 import 'package:foodsavr/utils/app_theme.dart';
 import 'package:foodsavr/utils/platform_capabilities.dart';
 import 'package:foodsavr/widgets/common/app_breadcrumbs.dart';
@@ -41,12 +42,34 @@ void main() {
         'transfer.title',
       ]);
 
-      final profile = AppBreadcrumbs.resolveBreadcrumbs('/settings/profile');
-      expect(profile.map((e) => e.path), ['/settings', '/settings/profile']);
-      expect(profile.map((e) => e.translationKey), [
-        'settings.title',
-        'profile.title',
+      final integrations = AppBreadcrumbs.resolveBreadcrumbs(
+        '/settings/web-view',
+      );
+      expect(integrations.map((e) => e.path), [
+        '/settings',
+        '/settings/web-view',
       ]);
+      expect(integrations.map((e) => e.translationKey), [
+        'settings.title',
+        'settings.integrations.title',
+      ]);
+
+      final dashboardPages = AppBreadcrumbs.resolveBreadcrumbs(
+        '/dashboard/registry',
+      );
+      expect(dashboardPages.last.translationKey, 'dashboard.globalProducts');
+      expect(
+        AppBreadcrumbs.resolveBreadcrumbs(
+          '/dashboard/my-products',
+        ).last.translationKey,
+        'product.all_products',
+      );
+      expect(
+        AppBreadcrumbs.resolveBreadcrumbs(
+          '/dashboard/receipts',
+        ).last.translationKey,
+        'receipt.listTitle',
+      );
 
       final products = AppBreadcrumbs.resolveBreadcrumbs('/products');
       expect(products.single.translationKey, 'product.all_products');
@@ -69,7 +92,7 @@ void main() {
   );
 
   testWidgets(
-    'desktop viewport shows clickable ancestor breadcrumb with dark link style and hover underline',
+    'wide viewport shows clickable ancestor breadcrumb with dark link style and hover underline',
     (tester) async {
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1;
@@ -142,8 +165,9 @@ void main() {
                 builder: (context, state) => const Text('Settings Root'),
                 routes: [
                   GoRoute(
-                    path: 'profile',
-                    builder: (context, state) => const Text('Profile Page'),
+                    path: 'web-view',
+                    builder: (context, state) =>
+                        const Text('Integrations Page'),
                   ),
                 ],
               ),
@@ -177,7 +201,7 @@ void main() {
   }
 
   for (final navigation in ['go', 'push']) {
-    testWidgets('desktop breadcrumbs follow $navigation inside the shell', (
+    testWidgets('wide breadcrumbs follow $navigation inside the shell', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(1280, 800);
@@ -191,22 +215,22 @@ void main() {
       expect(find.text('Settings'), findsNothing);
 
       if (navigation == 'go') {
-        router.go('/settings/profile');
+        router.go('/settings/web-view');
       } else {
-        unawaited(router.push<void>('/settings/profile'));
+        unawaited(router.push<void>('/settings/web-view'));
       }
       await tester.pumpAndSettle();
 
-      expect(find.text('Profile Page'), findsOneWidget);
+      expect(find.text('Integrations Page'), findsOneWidget);
       expect(find.text('Settings'), findsOneWidget);
-      expect(find.text('Profile'), findsOneWidget);
+      expect(find.text('Grocery integrations'), findsOneWidget);
 
       // A root-level modal does not replace the trail underneath.
       unawaited(router.push<void>('/legal/terms'));
       await tester.pumpAndSettle();
       expect(
         AppBreadcrumbs.shellPath(router.routerDelegate.currentConfiguration),
-        '/settings/profile',
+        '/settings/web-view',
       );
       router.pop();
       await tester.pumpAndSettle();
@@ -230,10 +254,10 @@ void main() {
     addTearDown(router.dispose);
     await pumpRouter(tester, router);
 
-    router.go('/settings/profile');
+    router.go('/settings/web-view');
     await tester.pumpAndSettle();
 
-    expect(find.text('Profile Page'), findsOneWidget);
+    expect(find.text('Integrations Page'), findsOneWidget);
     expect(find.text('Settings'), findsNothing);
     expect(find.byType(IconButton), findsNothing);
   });
@@ -265,8 +289,70 @@ void main() {
     await tester.pumpAndSettle();
     expect(childTopInset, 24);
 
-    await tester.pumpWidget(build('/settings/profile'));
+    await tester.pumpWidget(build('/settings/web-view'));
     await tester.pumpAndSettle();
     expect(childTopInset, 0);
+  });
+
+  testWidgets('pushed pages appear as crumbs and pop when tapped', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final trail = PageTrail();
+    final navigatorKey = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      wrapWithLocalization(
+        Builder(
+          builder: (context) => MaterialApp(
+            localizationsDelegates: context.localizationDelegates,
+            supportedLocales: context.supportedLocales,
+            locale: context.locale,
+            navigatorKey: navigatorKey,
+            navigatorObservers: [trail],
+            builder: (context, child) => AppBreadcrumbs(
+              pathOverride: '/my-inventory',
+              onNavigate: (_) {},
+              trail: trail,
+              child: child!,
+            ),
+            home: const Text('Inventory Root'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Inventory'), findsNothing);
+
+    final context = navigatorKey.currentContext!;
+    unawaited(
+      PageTrail.push<void>(
+        context,
+        label: 'Pantry',
+        builder: (_) => const Text('Pantry Page'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    unawaited(
+      PageTrail.push<void>(
+        context,
+        label: 'Milk',
+        builder: (_) => const Text('Milk Page'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pantry'), findsOneWidget);
+    expect(find.text('Milk'), findsOneWidget);
+    expect(find.text('Milk Page'), findsOneWidget);
+
+    await tester.tap(find.text('Pantry'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pantry Page'), findsOneWidget);
+    expect(find.text('Milk Page'), findsNothing);
+    expect(trail.routes.last.settings.name, 'Pantry');
   });
 }

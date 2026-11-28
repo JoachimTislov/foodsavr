@@ -210,24 +210,59 @@ void main() {
       expect(parsePwaPlatformHint(null), PwaPlatformHint.standard);
     });
 
-    test(
-      'flags Firefox desktop and never invokes native prompt on it',
-      () async {
-        final bridge = _FakePwaBridge(
-          canPrompt: true,
-          platformHint: PwaPlatformHint.firefoxDesktop,
-        );
-        final controller = PwaInstallController(bridge: bridge, prefs: prefs);
-        addTearDown(controller.dispose);
+    test('Firefox desktop never invokes the native prompt', () async {
+      final bridge = _FakePwaBridge(
+        canPrompt: true,
+        platformHint: PwaPlatformHint.firefoxDesktop,
+      );
+      final controller = PwaInstallController(
+        bridge: bridge,
+        prefs: prefs,
+        os: TargetPlatform.linux,
+      );
+      addTearDown(controller.dispose);
 
-        expect(controller.isFirefoxDesktop, isTrue);
-        expect(controller.shouldShowBanner, isTrue);
+      expect(controller.platformHint, PwaPlatformHint.firefoxDesktop);
+      expect(controller.shouldShowBanner, isTrue);
+    });
 
-        final result = await controller.requestInstall();
-        expect(result, PwaPromptResult.unavailable);
-        expect(bridge.promptCallCount, 0);
-      },
-    );
+    test('resolvePwaPlatformHint refines the browser hint by system', () {
+      PwaPlatformHint resolve(TargetPlatform os, PwaPlatformHint hint) =>
+          resolvePwaPlatformHint(os: os, browserHint: hint);
+
+      expect(
+        resolve(TargetPlatform.android, PwaPlatformHint.standard),
+        PwaPlatformHint.android,
+      );
+      expect(
+        resolve(TargetPlatform.android, PwaPlatformHint.firefoxDesktop),
+        PwaPlatformHint.firefoxAndroid,
+      );
+      expect(
+        resolve(TargetPlatform.android, PwaPlatformHint.firefoxAndroid),
+        PwaPlatformHint.firefoxAndroid,
+      );
+      expect(
+        resolve(TargetPlatform.iOS, PwaPlatformHint.standard),
+        PwaPlatformHint.ios,
+      );
+      expect(
+        resolve(TargetPlatform.linux, PwaPlatformHint.firefoxDesktop),
+        PwaPlatformHint.firefoxDesktop,
+      );
+      expect(
+        resolve(TargetPlatform.macOS, PwaPlatformHint.macosSafari),
+        PwaPlatformHint.macosSafari,
+      );
+      expect(
+        resolve(TargetPlatform.windows, PwaPlatformHint.standard),
+        PwaPlatformHint.standard,
+      );
+      expect(
+        resolve(TargetPlatform.android, PwaPlatformHint.unsupported),
+        PwaPlatformHint.unsupported,
+      );
+    });
   });
 
   group('PwaInstallBanner & PwaInstallSheet widgets', () {
@@ -266,7 +301,11 @@ void main() {
           canPrompt: false,
           platformHint: PwaPlatformHint.ios,
         );
-        final controller = PwaInstallController(bridge: bridge, prefs: prefs);
+        final controller = PwaInstallController(
+          bridge: bridge,
+          prefs: prefs,
+          os: TargetPlatform.iOS,
+        );
         addTearDown(controller.dispose);
 
         await tester.runAsync(() async {
@@ -287,7 +326,12 @@ void main() {
             findsOneWidget,
           );
 
-          await tester.tap(find.text('Close'));
+          await tester.tap(
+            find.descendant(
+              of: find.byType(PwaInstallSheet),
+              matching: find.byIcon(Icons.close),
+            ),
+          );
           await tester.pumpAndSettle();
 
           expect(
@@ -305,7 +349,11 @@ void main() {
         canPrompt: false,
         platformHint: PwaPlatformHint.firefoxAndroid,
       );
-      final controller = PwaInstallController(bridge: bridge, prefs: prefs);
+      final controller = PwaInstallController(
+        bridge: bridge,
+        prefs: prefs,
+        os: TargetPlatform.android,
+      );
       addTearDown(controller.dispose);
 
       await tester.runAsync(() async {
@@ -329,49 +377,65 @@ void main() {
       });
     });
 
-    testWidgets(
-      'shows honest dismissible notice and guide on Firefox Desktop',
-      (tester) async {
-        final bridge = _FakePwaBridge(
-          canPrompt: false,
-          platformHint: PwaPlatformHint.firefoxDesktop,
+    testWidgets('Firefox desktop gets install steps instead of a notice', (
+      tester,
+    ) async {
+      final bridge = _FakePwaBridge(
+        canPrompt: false,
+        platformHint: PwaPlatformHint.firefoxDesktop,
+      );
+      final controller = PwaInstallController(
+        bridge: bridge,
+        prefs: prefs,
+        os: TargetPlatform.linux,
+      );
+      addTearDown(controller.dispose);
+
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          _wrapWithLocalization(PwaInstallBanner(controller: controller)),
         );
-        final controller = PwaInstallController(bridge: bridge, prefs: prefs);
-        addTearDown(controller.dispose);
+        await tester.pumpAndSettle();
 
-        await tester.runAsync(() async {
-          await tester.pumpWidget(
-            _wrapWithLocalization(PwaInstallBanner(controller: controller)),
-          );
-          await tester.pumpAndSettle();
+        expect(find.text('Install LettMat'), findsOneWidget);
+        expect(find.text('Learn more'), findsNothing);
 
-          expect(
-            find.text('App install unavailable in Firefox'),
-            findsOneWidget,
-          );
-          expect(find.text('Learn more'), findsOneWidget);
-          expect(find.text('Install'), findsNothing);
+        await tester.tap(find.text('Install'));
+        await tester.pumpAndSettle();
 
-          await tester.tap(find.text('Learn more'));
-          await tester.pumpAndSettle();
+        expect(
+          find.text(
+            'Open the Firefox menu, or click the install icon in the address bar.',
+          ),
+          findsOneWidget,
+        );
+      });
+    });
 
-          expect(find.text('Installing on Firefox Desktop'), findsOneWidget);
-          expect(
-            find.textContaining('does not natively support'),
-            findsWidgets,
-          );
+    testWidgets('Android gets the browser menu steps', (tester) async {
+      final bridge = _FakePwaBridge(canPrompt: false);
+      final controller = PwaInstallController(
+        bridge: bridge,
+        prefs: prefs,
+        os: TargetPlatform.android,
+      );
+      addTearDown(controller.dispose);
 
-          await tester.tap(find.text('Close'));
-          await tester.pumpAndSettle();
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          _wrapWithLocalization(PwaInstallBanner(controller: controller)),
+        );
+        await tester.pumpAndSettle();
 
-          await tester.tap(find.byIcon(Icons.close));
-          await tester.pumpAndSettle();
+        await tester.tap(find.text('Install'));
+        await tester.pumpAndSettle();
 
-          expect(find.text('App install unavailable in Firefox'), findsNothing);
-          expect(controller.isBannerDismissed, isTrue);
-        });
-      },
-    );
+        expect(
+          find.text('Tap the menu button (three dots) in your browser.'),
+          findsOneWidget,
+        );
+      });
+    });
 
     testWidgets('dismiss button hides the install banner', (tester) async {
       final bridge = _FakePwaBridge();

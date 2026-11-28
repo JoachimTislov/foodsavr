@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crypto/crypto.dart';
 import 'package:receipt_recognition/receipt_recognition.dart';
 
@@ -55,6 +56,23 @@ class ReceiptRecord {
       purchaseDate: purchaseDate,
       collectionId: collectionId,
       itemCount: productIds.length,
+      productIds: productIds,
+    );
+  }
+
+  /// Parses a raw-event document written by the repository.
+  factory ReceiptRecord.fromFirestore(Map<String, dynamic> data) {
+    final payload = (data['payload'] as Map?)?.cast<String, dynamic>() ?? {};
+    final productIds = (payload['productIds'] as List?)?.cast<String>() ?? [];
+    return ReceiptRecord(
+      id: data['id'] as String,
+      provider: data['provider'] as String?,
+      externalId: data['externalId'] as String? ?? '',
+      occurredAt: (data['occurredAt'] as Timestamp).toDate(),
+      store: payload['store'] as String?,
+      purchaseDate: DateTime.tryParse(payload['purchaseDate'] as String? ?? ''),
+      collectionId: payload['collectionId'] as String?,
+      itemCount: (payload['itemCount'] as num?)?.toInt() ?? productIds.length,
       productIds: productIds,
     );
   }

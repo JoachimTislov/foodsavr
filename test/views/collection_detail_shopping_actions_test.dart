@@ -14,6 +14,7 @@ import 'package:foodsavr/utils/collection_types.dart';
 import 'package:foodsavr/utils/shelf_life.dart';
 import 'package:foodsavr/validation/validators/product_model_validator.dart';
 import 'package:foodsavr/views/collection_detail_view.dart';
+import 'package:foodsavr/widgets/collection/shopping_list_item_card.dart';
 import 'package:foodsavr/widgets/product/view_mode_toggle.dart';
 import 'package:logger/logger.dart';
 import 'package:mocktail/mocktail.dart';
@@ -261,7 +262,12 @@ void main() {
     // Changed elsewhere after the row was loaded.
     repository.products[0] = milk.copyWith(nonExpiringQuantity: 5);
 
-    await tester.tap(find.widgetWithIcon(IconButton, Icons.add).first);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ShoppingListItemCard),
+        matching: find.widgetWithIcon(IconButton, Icons.add),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(repository.products.single.quantity, 6);

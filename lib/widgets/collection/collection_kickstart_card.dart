@@ -14,16 +14,21 @@ class CollectionKickstartCard extends StatelessWidget {
   /// Reloads the owner after an action that changed the user's data.
   final Future<void> Function() onChanged;
 
+  /// Fills the available width instead of stopping at the card's maximum.
+  final bool fillWidth;
+
   const CollectionKickstartCard({
     super.key,
     required this.type,
     required this.onChanged,
+    this.fillWidth = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final isShoppingList = type == CollectionType.shoppingList;
     return KickstartCard(
+      width: fillWidth ? double.infinity : KickstartCard.maxWidth,
       icon: isShoppingList
           ? Icons.shopping_cart_outlined
           : Icons.inventory_2_outlined,
@@ -37,7 +42,7 @@ class CollectionKickstartCard extends StatelessWidget {
       secondaryActions: [
         if (!isShoppingList) ...[
           TextButton.icon(
-            onPressed: () => context.go('/dashboard/global-products'),
+            onPressed: () => context.go('/dashboard/registry'),
             icon: const Icon(Icons.public_outlined),
             label: Text('kickstart.browseProducts'.tr()),
           ),

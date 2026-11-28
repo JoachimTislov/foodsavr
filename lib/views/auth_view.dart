@@ -10,7 +10,6 @@ import '../widgets/auth/auth_header.dart';
 import '../widgets/auth/auth_status_messages.dart';
 import '../widgets/auth/auth_submit_button.dart';
 import '../widgets/auth/auth_toggle_button.dart';
-import '../widgets/auth/guest_sign_in_button.dart';
 import '../widgets/auth/legal_agreement_notice.dart';
 import '../widgets/auth/social_auth_section.dart';
 
@@ -66,12 +65,10 @@ class _AuthViewState extends State<AuthView> {
     await _controller.signInWithFacebook();
   }
 
-  void _signInAsGuest() async {
-    // The router keeps guests on /auth so they can upgrade, so leave here.
-    if (await _controller.signInAsGuest() && mounted) {
-      context.go('/dashboard');
-    }
-  }
+  /// A guest upgrading an account goes back to the app, anyone else to the
+  /// landing page.
+  bool get _isGuest => _controller.user?.isAnonymous ?? false;
+  String get _backTarget => _isGuest ? '/dashboard' : '/';
 
   @override
   Widget build(BuildContext context) {
@@ -84,14 +81,23 @@ class _AuthViewState extends State<AuthView> {
             child: ListenableBuilder(
               listenable: _controller,
               builder: (context, _) {
-                final offersGuest =
-                    _controller.isLogin &&
-                    !widget.deletionOnly &&
-                    !(_controller.user?.isAnonymous ?? false);
                 return Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (!widget.deletionOnly)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: TextButton.icon(
+                          onPressed: () => context.go(_backTarget),
+                          icon: const Icon(Icons.arrow_back),
+                          label: Text(
+                            _isGuest
+                                ? 'dashboard.title'.tr()
+                                : 'auth.back_to_start'.tr(),
+                          ),
+                        ),
+                      ),
                     AuthHeader(isLogin: _controller.isLogin),
                     AuthStatusMessages(
                       errorMessage: _controller.errorMessage,
@@ -129,17 +135,7 @@ class _AuthViewState extends State<AuthView> {
                       onCancel: _controller.isSocialSignInLoading
                           ? _controller.cancelSocialSignIn
                           : null,
-                      // The divider sets guest access apart.
-                      showDivider: offersGuest,
                     ),
-                    if (offersGuest) ...[
-                      const SizedBox(height: 12.0),
-                      GuestSignInButton(
-                        onPressed: _controller.isLoading
-                            ? null
-                            : _signInAsGuest,
-                      ),
-                    ],
                     const SizedBox(height: 24.0),
                     if (!widget.deletionOnly)
                       AuthToggleButton(

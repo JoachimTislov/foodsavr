@@ -96,11 +96,7 @@ class ExportSelectionPanel extends StatelessWidget {
             spacing: 16,
             runSpacing: 12,
             children: [
-              ExportFormatToggle(
-                format: format,
-                onChanged: onFormatChanged,
-                markDefault: true,
-              ),
+              ExportFormatToggle(format: format, onChanged: onFormatChanged),
               SettingsRowSubtitle(
                 'settings.export.selected'.tr(
                   namedArgs: {'selected': '$selected', 'total': '$total'},

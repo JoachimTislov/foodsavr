@@ -29,7 +29,7 @@ class DashboardActionButton extends StatelessWidget {
     final theme = Theme.of(context);
     final reason = onTap == null ? disabledReason : null;
     final style = FilledButton.styleFrom(
-      minimumSize: const Size.fromHeight(64),
+      minimumSize: const Size(0, 56),
       padding: const EdgeInsets.symmetric(
         horizontal: Material3Config.spacing12,
         vertical: Material3Config.spacing8,
@@ -39,10 +39,11 @@ class DashboardActionButton extends StatelessWidget {
       ),
     );
     final content = Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 22),
         const SizedBox(width: Material3Config.spacing8),
-        Expanded(
+        Flexible(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,

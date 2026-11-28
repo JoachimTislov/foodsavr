@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import '../../constants/material3_config.dart';
 import '../../models/collection_model.dart';
 import '../../utils/collection_types.dart';
+import '../../routes/page_trail.dart';
+import '../../utils/collection_create_flow.dart';
 import '../../views/collection_detail_view.dart';
-import '../../views/collection_form_view.dart';
 import '../collection/collection_card.dart';
 import '../collection/collection_kickstart_card.dart';
 
@@ -30,16 +31,16 @@ class DashboardCollectionsSection extends StatelessWidget {
   });
 
   Future<void> _create(BuildContext context) async {
-    final created = await CollectionFormView.show(context, type: type);
-    if (created == true) await onChanged();
+    final created = await CollectionCreateFlow.run(context, type);
+    if (created != null) await onChanged();
   }
 
   // The dashboard reloads itself once it is uncovered again.
   void _open(BuildContext context, Collection collection) {
-    Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => CollectionDetailView(collection: collection),
-      ),
+    PageTrail.push<void>(
+      context,
+      label: collection.name,
+      builder: (_) => CollectionDetailView(collection: collection),
     );
   }
 
@@ -52,7 +53,7 @@ class DashboardCollectionsSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            Expanded(
+            Flexible(
               child: Semantics(
                 header: true,
                 child: Text(
@@ -62,9 +63,12 @@ class DashboardCollectionsSection extends StatelessWidget {
                   style: Theme.of(
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ),
+            const SizedBox(width: Material3Config.spacing4),
             // The kickstart offers the first one.
             if (collections.isNotEmpty)
               IconButton.filledTonal(
@@ -78,8 +82,10 @@ class DashboardCollectionsSection extends StatelessWidget {
         ),
         const SizedBox(height: Material3Config.spacing8),
         if (collections.isEmpty)
-          Center(
-            child: CollectionKickstartCard(type: type, onChanged: onChanged),
+          CollectionKickstartCard(
+            type: type,
+            onChanged: onChanged,
+            fillWidth: true,
           )
         else
           for (final collection in collections)

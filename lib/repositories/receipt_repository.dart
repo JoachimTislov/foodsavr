@@ -45,4 +45,19 @@ class ReceiptRepository implements IReceiptRepository {
     });
     return true;
   }
+
+  @override
+  Future<List<ReceiptRecord>> list(String userId) async {
+    final snapshot = await _firestore
+        .collection('owners')
+        .doc(userId)
+        .collection('rawEvents')
+        .where('source', isEqualTo: 'receipt')
+        .get();
+    // Sorted here to avoid a composite index on source and occurredAt.
+    return snapshot.docs
+        .map((d) => ReceiptRecord.fromFirestore(d.data()))
+        .toList()
+      ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+  }
 }
